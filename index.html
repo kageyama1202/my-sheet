@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>仮想統合シート</title>
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <style>
+        body { font-family: sans-serif; font-size: 11px; margin: 10px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 4px; white-space: nowrap; }
+        th { background: #eee; position: sticky; top: 0; }
+        .ext { background: #e6f3ff; font-weight: bold; color: #0056b3; } 
+        button { padding: 5px 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <button onclick="tokenClient.requestAccessToken()">Google認証してデータを読込</button>
+    <div id="view" style="margin-top:10px;"></div>
+
+    <script>
+        const CLIENT_ID = '45669742288-5orjkv3g8chkab3ufdr57ukf8t9ukcd0.apps.googleusercontent.com';
+        const JSON_FILE_ID = '184wPiKgoZrGqBysuuxVDCwdmlJiWnFSf'; // あなたのファイルID
+        const BASE_CSV = '20260322.csv';
+        const COLS = ["下見予定日", "下見日の時間", "下見の順番", "メモ記入欄", "施工日確定フラグ", "施工日メモ"];
+        let tokenClient;
+
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.file',
+                callback: async (res) => {
+                    // CSVとJSONを同時に読み込み
+                    const [baseText, jsonRes] = await Promise.all([
+                        fetch(BASE_CSV + '?t=' + new Date().getTime()).then(r => r.text()),
+                        fetch(`https://www.googleapis.com/drive/v3/files/${JSON_FILE_ID}?alt=media`, {
+                            headers: { 'Authorization': `Bearer ${res.access_token}` }
+                        }).then(r => r.json())
+                    ]);
+                    render(parseCSV(baseText), jsonRes);
+                }
+            });
+        }
+
+        function render(base, extra) {
+            let h = '<table><thead><tr>' + base[0].map(v => `<th>${v}</th>`).join('') + COLS.map(v => `<th>${v}</th>`).join('') + '</tr></thead><tbody>';
+            for(let i=1; i<base.length; i++){
+                const id = base[i][0];
+                h += '<tr>' + base[i].map(v => `<td>${v}</td>`).join('') + COLS.map(c => `<td class="ext">${(extra[id] && extra[id][c]) || ''}</td>`).join('') + '</tr>';
+            }
+            document.getElementById('view').innerHTML = h + '</tbody></table>';
+        }
+
+        function parseCSV(t) { 
+            return t.split('\n').filter(l => l.trim()).map(l => l.split(',').map(v => v.replace(/^"|"$/g, ''))); 
+        }
+    </script>
+</body>
+</html>
