@@ -70,9 +70,9 @@
     }
     function generateTimeOptions() {
         let options = '<option value="">--:--</option>';
-        for(let h = 8; h <= 20; h++) {
-            let hour = ('0' + h).slice(-2);
-            options += `<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`;
+        for(let h=8; h<=20; h++) { 
+            let hour=('0'+h).slice(-2); 
+            options+=`<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`; 
         }
         return options;
     }
@@ -100,7 +100,9 @@
 
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
-        const displayCols = [1-10]; 
+        
+        // ▼ これが表示する列の番号です（B, D, E, F, G, H, K, L, C, M）
+        const displayCols = [1-10];
         
         const thead = document.getElementById('table-head');
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
@@ -124,10 +126,14 @@
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            if(!cols) return false;
-            let colB = cols[1] ? cols[1].replace(/\s+/g, "") : "";
-            let dateStr = cols[9] ? cols[9].replace(/\s+/g, "") : "";
+            // データが配列じゃない場合は除外
+            if(!cols || !Array.isArray(cols)) return false;
+            
+            // ▼ 配列から正しくデータを取り出す
+            let colB = cols[1] ? String(cols[1]).replace(/\s+/g, "") : "";
+            let dateStr = cols[9] ? String(cols[9]).replace(/\s+/g, "") : "";
 
+            // 全案件版の抽出条件：完了していない ＆ 明日以降
             let isNotCompleted = (colB.indexOf("完了") === -1);
             let isFuture = false;
             if (dateStr !== "") {
@@ -138,12 +144,12 @@
                     if (diffDays > 0) isFuture = true;
                 }
             }
-            return isNotCompleted && isFuture;
+            return isFuture && isNotCompleted;
         });
 
         validKeys.sort((a, b) => {
-            let dateA = tasks[a].csvData[9] || "";
-            let dateB = tasks[b].csvData[9] || "";
+            let dateA = tasks[a].csvData[9] ? String(tasks[a].csvData[9]) : "";
+            let dateB = tasks[b].csvData[9] ? String(tasks[b].csvData[9]) : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -152,11 +158,11 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            let mColText = cols[10] ? cols[10].replace(/\s+/g, "") : "";
+            let mColText = cols[10] ? String(cols[10]).replace(/\s+/g, "") : "";
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
-                const c = cols[colIndex] || "";
+                const c = cols[colIndex] ? String(cols[colIndex]) : "";
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
                 let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
