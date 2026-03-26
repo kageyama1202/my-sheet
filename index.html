@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>案件リスト（表示特化版）</title>
+  <title>案件リスト（列幅調整・抽出専用）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
-    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; padding-bottom: 50px; }
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 75vh; }
     
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     th, td { 
@@ -15,12 +15,27 @@
       font-size: 14px; 
       vertical-align: middle;
       
-      /* 列幅を100pxに完全固定 */
+      /* 基本の列幅を100pxに固定 */
       width: 100px;
       min-width: 100px;
       max-width: 100px; 
     }
     
+    /* ▼ 今回の追加：特定の列幅を個別に調整 */
+    /* B列(2列目): 最大5文字分（余白を含めて約80px） */
+    th:nth-child(2), td:nth-child(2) {
+      width: 80px; min-width: 80px; max-width: 80px;
+    }
+    /* D列(4列目): 1文字分（余白を含めて約40px） */
+    th:nth-child(4), td:nth-child(4) {
+      width: 40px; min-width: 40px; max-width: 40px;
+      text-align: center; /* 1文字なので中央揃えが見やすいです */
+    }
+    /* E列(5列目): セル幅を大きく（250px） */
+    th:nth-child(5), td:nth-child(5) {
+      width: 250px; min-width: 250px; max-width: 250px;
+    }
+
     th { background-color: #e0e0e0; padding: 8px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
     
@@ -32,20 +47,20 @@
       cursor: pointer;
     }
 
-    /* 画面の最前面に強制表示させるポップアップのデザイン */
-    #custom-tooltip {
+    /* 絶対に画面の最前面に表示されるポップアップ */
+    #tooltip {
       display: none;
-      position: absolute;
+      position: fixed; 
       background-color: #fff;
       border: 2px solid #28a745;
       padding: 10px;
       border-radius: 4px;
-      z-index: 99999; 
-      white-space: normal; 
-      width: max-content; 
+      z-index: 2147483647; 
+      white-space: pre-wrap; 
+      word-wrap: break-word;
       max-width: 400px; 
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      line-height: 1.6;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      line-height: 1.5;
       color: #333;
       pointer-events: none; 
     }
@@ -55,11 +70,11 @@
 </head>
 <body>
 
-  <!-- ポップアップの枠 -->
-  <div id="custom-tooltip"></div>
+  <!-- 画面に1つだけポップアップの枠を用意 -->
+  <div id="tooltip"></div>
 
   <div class="box">
-    <h3>▼ CSVファイルを取り込んで表示（表示特化版）</h3>
+    <h3>▼ CSVファイルを取り込んで表示（列幅最適化・抽出専用）</h3>
     <select id="encoding">
       <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
       <option value="UTF-8">文字コード: UTF-8</option>
@@ -76,7 +91,7 @@
   </div>
 
   <script>
-    // 列番号からアルファベット（A, B, C...）を自動計算
+    // アルファベット生成
     function getColLetter(index) {
         let letter = '';
         while (index >= 0) {
@@ -86,7 +101,7 @@
         return letter;
     }
 
-    // 本格的なCSV解析機能
+    // CSVパース（セル内の改行対応）
     function parseCSV(text) {
         const result = [];
         let row = [];
@@ -137,7 +152,6 @@
         const text = e.target.result;
         const lines = parseCSV(text);
         
-        // 空行を無視する
         const validLines = lines.filter(function(line) { 
             return line.join('').trim() !== ''; 
         });
@@ -150,8 +164,6 @@
         if (validLines.length === 0) return;
 
         const headers = validLines.shift(); 
-        
-        // 【修正】入力欄をなくしたため、純粋なCSVの列数だけを使用します
         const totalCols = headers.length; 
 
         // アルファベット行の作成
@@ -164,7 +176,7 @@
         }
         thead.appendChild(trAlpha);
 
-        // 項目名のヘッダー行を作成
+        // ヘッダー行の作成
         const trHead = document.createElement('tr');
         headers.forEach(function(h) {
           const th = document.createElement('th');
@@ -173,7 +185,9 @@
         });
         thead.appendChild(trHead);
 
-        // データ行を取り出して表示
+        const tooltip = document.getElementById('tooltip');
+
+        // データ行の作成
         validLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           
@@ -182,25 +196,21 @@
             
             const inner = document.createElement('div');
             inner.className = 'cell-inner';
+            // 見た目上は改行を消して「...」で隠す
             inner.textContent = c.replace(/\n|\r/g, ' '); 
             td.appendChild(inner);
             
-            // マウスの動きに合わせてポップアップを強制表示する仕組み
+            // マウスカーソルを追従して、絶対に最前面に全文を表示させる機能
             if (c.trim() !== '') {
-              td.addEventListener('mouseenter', function(e) {
-                const tooltip = document.getElementById('custom-tooltip');
-                tooltip.innerHTML = c.replace(/\n/g, '<br>'); 
+              td.addEventListener('mouseenter', function() {
+                tooltip.textContent = c; 
                 tooltip.style.display = 'block';
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY + 15) + 'px';
               });
               td.addEventListener('mousemove', function(e) {
-                const tooltip = document.getElementById('custom-tooltip');
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY + 15) + 'px';
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
               });
-              td.addEventListener('mouseleave', function(e) {
-                const tooltip = document.getElementById('custom-tooltip');
+              td.addEventListener('mouseleave', function() {
                 tooltip.style.display = 'none';
               });
             }
@@ -208,7 +218,6 @@
             tr.appendChild(td);
           });
           
-          // 空っぽの列を埋める（データ欠損対策）
           const emptyCols = headers.length - cols.length;
           for(let k = 0; k < emptyCols; k++) {
               tr.appendChild(document.createElement('td'));
