@@ -6,30 +6,60 @@
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
-    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
+    /* 一番下のポップアップが隠れないように、下に余白(padding)を入れています */
+    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; padding-bottom: 100px; }
     
     table { border-collapse: collapse; }
     th, td { 
       border: 1px solid #ccc; 
-      padding: 8px; 
       text-align: left; 
       font-size: 14px; 
       vertical-align: middle;
       
-      /* ▼ 修正: 表の押し広げを無効化し、幅を100pxに【完全固定】する3重ロック */
+      /* ツールチップの基準にするため必須 */
+      position: relative; 
+      
+      /* 列幅を100pxに完全固定 */
       width: 100px;
       min-width: 100px;
       max-width: 100px; 
-      
-      /* 文字を1行にし、見切れる場合は「...」にする */
+    }
+    
+    th { background-color: #e0e0e0; padding: 8px; }
+    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+    
+    /* ▼ 変更1: 見切れる文字の処理をセル内の要素(div)に移動しました */
+    .cell-inner {
+      padding: 8px;
       white-space: nowrap; 
       overflow: hidden; 
       text-overflow: ellipsis; 
+      cursor: pointer;
     }
-    
-    th { background-color: #e0e0e0; }
-    /* アルファベット行（A,B,C...）のデザイン */
-    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+
+    /* ▼ 変更2: オリジナルのポップアップ（ツールチップ）デザイン */
+    .tooltip {
+      display: none;
+      position: absolute;
+      top: 35px; /* セルの少し下に表示 */
+      left: 5px;
+      background-color: #fff;
+      border: 2px solid #28a745; /* 緑枠で読みやすく */
+      padding: 10px;
+      border-radius: 4px;
+      z-index: 999;
+      white-space: normal; /* 改行を有効にする */
+      width: max-content; /* 文字量に合わせて広がる */
+      max-width: 400px; /* 最大400pxで折り返し（はみ出し防止） */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      line-height: 1.6;
+      color: #333;
+    }
+
+    /* セルにマウスを乗せたらポップアップを表示 */
+    td:hover .tooltip {
+      display: block;
+    }
     
     input[type="text"] { width: 100%; box-sizing: border-box; padding: 4px; }
     select { padding: 5px; font-size: 14px; margin-right: 10px; }
@@ -39,13 +69,10 @@
 
   <div class="box">
     <h3>▼ CSVファイルを取り込んで表示（抽出・編集用）</h3>
-    
-    <!-- 文字化け対策: Salesforce特有のShift_JISとUTF-8を切り替え可能に -->
     <select id="encoding">
       <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
       <option value="UTF-8">文字コード: UTF-8</option>
     </select>
-    
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">表を表示する</button>
   </div>
@@ -58,7 +85,6 @@
   </div>
 
   <script>
-    // 列番号からアルファベット（A, B, C... Z, AA, AB...）を自動計算する関数
     function getColLetter(index) {
         let letter = '';
         while (index >= 0) {
@@ -68,7 +94,6 @@
         return letter;
     }
 
-    // データ内の改行やカンマで表が崩れるのを防ぐ、エクセル基準の本格的な解析機能
     function parseCSV(text) {
         const result = [];
         let row = [];
@@ -119,7 +144,6 @@
         const text = e.target.result;
         const lines = parseCSV(text);
         
-        // 空行を無視する
         const validLines = lines.filter(function(line) { 
             return line.join('').trim() !== ''; 
         });
@@ -129,15 +153,12 @@
         thead.innerHTML = ''; 
         tbody.innerHTML = '';
         
-        if (validLines.length === 0) {
-          alert("エラー：CSVの中にデータが見つかりませんでした。");
-          return;
-        }
+        if (validLines.length === 0) return;
 
         const headers = validLines.shift(); 
-        const totalCols = headers.length + 10; // 元の列数 ＋ 現場入力の10列
+        const totalCols = headers.length + 10; 
 
-        // 表の一番上に「A, B, C...」のアルファベット行を作成
+        // アルファベット行
         const trAlpha = document.createElement('tr');
         trAlpha.className = 'alpha-head';
         for(let i = 0; i < totalCols; i++) {
@@ -147,49 +168,55 @@
         }
         thead.appendChild(trAlpha);
 
-        // 項目名のヘッダー行を作成
+        // ヘッダー行
         const trHead = document.createElement('tr');
         headers.forEach(function(h) {
           const th = document.createElement('th');
           th.textContent = h;
-          th.title = h; // ヘッダーもマウスオーバーで全文表示
           trHead.appendChild(th);
         });
-        
         for(let i = 1; i <= 10; i++) {
           const th = document.createElement('th');
           th.textContent = '現場入力 ' + i;
-          th.title = '現場入力 ' + i;
           th.style.backgroundColor = '#d4edda';
           trHead.appendChild(th);
         }
         thead.appendChild(trHead);
 
-        // データ行を取り出して表示
+        // データ行
         validLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           
           cols.forEach(function(c) {
             const td = document.createElement('td');
             
-            // 画面の見た目上は改行を消して1行スッキリ（...）で表示させる
-            td.textContent = c.replace(/\n|\r/g, ' '); 
+            // ▼ 変更3: 通常の見た目（1行に省略）
+            const inner = document.createElement('div');
+            inner.className = 'cell-inner';
+            inner.textContent = c.replace(/\n|\r/g, ' '); 
+            td.appendChild(inner);
             
-            // マウスを乗せた時(title属性)には、元の改行入りの全文をポップアップ表示させる
-            td.title = c; 
+            // ▼ 変更4: マウスを乗せた時に出る「自作のポップアップ」を作成
+            if (c.trim() !== '') {
+              const tooltip = document.createElement('div');
+              tooltip.className = 'tooltip';
+              // データ内の改行をHTMLの改行（<br>）に変換して全文表示
+              tooltip.innerHTML = c.replace(/\n/g, '<br>'); 
+              td.appendChild(tooltip);
+            }
             
             tr.appendChild(td);
           });
           
-          // 空っぽの列を埋める（データ欠損対策）
           const emptyCols = headers.length - cols.length;
           for(let k = 0; k < emptyCols; k++) {
               tr.appendChild(document.createElement('td'));
           }
           
-          // 現場入力用のテキストボックス
+          // 現場入力
           for(let j = 1; j <= 10; j++) {
             const td = document.createElement('td');
+            td.style.padding = '8px'; // 入力欄にはパディングをつける
             td.innerHTML = '<input type="text" placeholder="...">';
             tr.appendChild(td);
           }
