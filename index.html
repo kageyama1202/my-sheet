@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>案件リスト（列幅調整・抽出専用）</title>
+  <title>案件リスト（幅最適化・住所短縮版）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
@@ -21,19 +21,25 @@
       max-width: 100px; 
     }
     
-    /* ▼ 今回の追加：特定の列幅を個別に調整 */
-    /* B列(2列目): 最大5文字分（余白を含めて約80px） */
+    /* ▼ B列(2列目): 最大5文字分 */
     th:nth-child(2), td:nth-child(2) {
       width: 80px; min-width: 80px; max-width: 80px;
     }
-    /* D列(4列目): 1文字分（余白を含めて約40px） */
+    
+    /* ▼ D列(4列目): 1文字分（中央揃え） */
     th:nth-child(4), td:nth-child(4) {
       width: 40px; min-width: 40px; max-width: 40px;
-      text-align: center; /* 1文字なので中央揃えが見やすいです */
+      text-align: center; 
     }
-    /* E列(5列目): セル幅を大きく（250px） */
-    th:nth-child(5), td:nth-child(5) {
-      width: 250px; min-width: 250px; max-width: 250px;
+    
+    /* ▼ A, C, E, I, J, M列: ちょっと幅を小さく（60px） */
+    th:nth-child(1), td:nth-child(1),
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(5), td:nth-child(5),
+    th:nth-child(9), td:nth-child(9),
+    th:nth-child(10), td:nth-child(10),
+    th:nth-child(13), td:nth-child(13) {
+      width: 60px; min-width: 60px; max-width: 60px;
     }
 
     th { background-color: #e0e0e0; padding: 8px; }
@@ -74,7 +80,7 @@
   <div id="tooltip"></div>
 
   <div class="box">
-    <h3>▼ CSVファイルを取り込んで表示（列幅最適化・抽出専用）</h3>
+    <h3>▼ CSVファイルを取り込んで表示（幅最適化・住所短縮版）</h3>
     <select id="encoding">
       <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
       <option value="UTF-8">文字コード: UTF-8</option>
@@ -191,16 +197,38 @@
         validLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           
-          cols.forEach(function(c) {
+          // ▼ colIndex (列番号) を取得できるように変更
+          cols.forEach(function(c, colIndex) {
             const td = document.createElement('td');
             
             const inner = document.createElement('div');
             inner.className = 'cell-inner';
-            // 見た目上は改行を消して「...」で隠す
-            inner.textContent = c.replace(/\n|\r/g, ' '); 
+            
+            // 基本は改行を消して「...」で隠す
+            let displayText = c.replace(/\n|\r/g, ' '); 
+            
+            // ==========================================
+            // ▼ L列（12列目 / インデックス11）の住所を短縮
+            // ==========================================
+            if (colIndex === 11) {
+              // 1. 都道府県を削除（北海道、東京都、大阪府、京都府、〇〇県）
+              displayText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
+              
+              // 2. 札幌市の場合は「札幌市」を削除（区からスタート）
+              if (displayText.startsWith('札幌市')) {
+                displayText = displayText.replace(/^札幌市/, '');
+              } else {
+                // 3. その他は市町村からスタート（「〇〇郡」が含まれ、かつ後に町村が続く場合は郡を削除）
+                // ※「郡山市」などを誤って消さないための安全な書き方です
+                displayText = displayText.replace(/^.+?郡(?=.*?[町村])/, '');
+              }
+            }
+            
+            inner.textContent = displayText; 
             td.appendChild(inner);
             
             // マウスカーソルを追従して、絶対に最前面に全文を表示させる機能
+            // ※ここには短縮する前の「元のデータ (c)」を渡すため、住所の全文が表示されます
             if (c.trim() !== '') {
               td.addEventListener('mouseenter', function() {
                 tooltip.textContent = c; 
