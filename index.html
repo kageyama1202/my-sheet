@@ -1,58 +1,99 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>仮想統合シート</title>
-    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    <style>
-        body { font-family: sans-serif; font-size: 11px; margin: 10px; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ccc; padding: 4px; white-space: nowrap; }
-        th { background: #eee; position: sticky; top: 0; }
-        .ext { background: #e6f3ff; font-weight: bold; color: #0056b3; } 
-        button { padding: 5px 15px; cursor: pointer; }
-    </style>
+  <meta charset="UTF-8">
+  <title>案件リスト（統合版）</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+    .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
+    /* 横スクロールできるようにする */
+    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
+    table { border-collapse: collapse; white-space: nowrap; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
+    th { background-color: #e0e0e0; }
+    input[type="text"] { width: 80px; padding: 4px; }
+  </style>
 </head>
 <body>
-    <button onclick="tokenClient.requestAccessToken()">Google認証してデータを読込</button>
-    <div id="view" style="margin-top:10px;"></div>
 
-    <script>
-        const CLIENT_ID = '45669742288-5orjkv3g8chkab3ufdr57ukf8t9ukcd0.apps.googleusercontent.com';
-        const JSON_FILE_ID = '184wPiKgoZrGqBysuuxVDCwdmlJiWnFSf'; // あなたのファイルID
-        const BASE_CSV = '20260322.csv';
-        const COLS = ["下見予定日", "下見日の時間", "下見の順番", "メモ記入欄", "施工日確定フラグ", "施工日メモ"];
-        let tokenClient;
+  <div class="box">
+    <h3>▼ CSVファイルを取り込んで表示</h3>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">表を表示する</button>
+  </div>
 
-        function gisLoaded() {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: async (res) => {
-                    // CSVとJSONを同時に読み込み
-                    const [baseText, jsonRes] = await Promise.all([
-                        fetch(BASE_CSV + '?t=' + new Date().getTime()).then(r => r.text()),
-                        fetch(`https://www.googleapis.com/drive/v3/files/${JSON_FILE_ID}?alt=media`, {
-                            headers: { 'Authorization': `Bearer ${res.access_token}` }
-                        }).then(r => r.json())
-                    ]);
-                    render(parseCSV(baseText), jsonRes);
-                }
-            });
+  <div class="table-wrapper">
+    <table>
+      <thead id="table-head">
+        <!-- ここにCSVの項目名と、10個の入力欄のヘッダーが自動で入ります -->
+      </thead>
+      <tbody id="table-body">
+        <!-- ここにCSVのデータと、10個の入力欄が自動で入ります -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+      const fileInput = document.getElementById('csvFile');
+      if (fileInput.files.length === 0) {
+        alert("CSVファイルを選択してください！");
+        return;
+      }
+      
+      const file = fileInput.files;
+      const reader = new FileReader();
+      
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        
+        const thead = document.getElementById('table-head');
+        const tbody = document.getElementById('table-body');
+        thead.innerHTML = ''; 
+        tbody.innerHTML = '';
+        
+        if(lines.length === 0) return;
+
+        // 【修正済】CSVの1行目（ヘッダー）を正確に取り出して表示
+        const headers = lines.split(',');
+        const trHead = document.createElement('tr');
+        
+        // 元の13列のヘッダー
+        headers.forEach(h => {
+          trHead.innerHTML += `<th>${h}</th>`;
+        });
+        
+        // 横に10個の入力欄のヘッダーを足す
+        for(let i = 1; i <= 10; i++) {
+          trHead.innerHTML += `<th style="background:#d4edda;">現場入力 ${i}</th>`;
         }
+        thead.appendChild(trHead);
 
-        function render(base, extra) {
-            let h = '<table><thead><tr>' + base[0].map(v => `<th>${v}</th>`).join('') + COLS.map(v => `<th>${v}</th>`).join('') + '</tr></thead><tbody>';
-            for(let i=1; i<base.length; i++){
-                const id = base[i][0];
-                h += '<tr>' + base[i].map(v => `<td>${v}</td>`).join('') + COLS.map(c => `<td class="ext">${(extra[id] && extra[id][c]) || ''}</td>`).join('') + '</tr>';
-            }
-            document.getElementById('view').innerHTML = h + '</tbody></table>';
+        // CSVの2行目以降（データ）を取り出して表示
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue; 
+          
+          const cols = line.split(',');
+          const tr = document.createElement('tr');
+          
+          // 元の13列のデータ
+          cols.forEach(c => {
+            tr.innerHTML += `<td>${c}</td>`;
+          });
+          
+          // 横に10個のテキスト入力欄を足す
+          for(let j = 1; j <= 10; j++) {
+            tr.innerHTML += `<td><input type="text" placeholder="入力..."></td>`;
+          }
+          
+          tbody.appendChild(tr);
         }
-
-        function parseCSV(t) { 
-            return t.split('\n').filter(l => l.trim()).map(l => l.split(',').map(v => v.replace(/^"|"$/g, ''))); 
-        }
-    </script>
+      };
+      
+      reader.readAsText(file);
+    });
+  </script>
 </body>
 </html>
