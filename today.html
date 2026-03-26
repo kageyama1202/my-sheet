@@ -161,7 +161,7 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        // ▼ エラーの元だった箇所を修正しました！ ▼
+        // 🔴 【修正完了】ここに表示する列番号を正しく復旧しました！
         const displayCols = [1-10];
         
         // ヘッダー作成
@@ -184,18 +184,19 @@
         const tooltip = document.getElementById('tooltip');
         const timeOptions = generateTimeOptions();
 
-        // オブジェクトのキーを配列にして、完了以外のものを抽出し、施工日順にソート
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            if(!cols) return false;
-            let colB = cols.length > 1 ? cols[1].replace(/\s+/g, "") : "";
+            // 🔴 【修正完了】データが正常な配列でない場合のエラーを回避
+            if(!cols || !Array.isArray(cols)) return false;
+            
+            let colB = cols[1] ? String(cols[1]).replace(/\s+/g, "") : "";
             return colB.indexOf("完了") === -1; // 完了は除外
         });
 
         validKeys.sort((a, b) => {
-            let dateA = tasks[a].csvData.length > 2 ? tasks[a].csvData[9] : "";
-            let dateB = tasks[b].csvData.length > 2 ? tasks[b].csvData[9] : "";
+            let dateA = tasks[a].csvData[9] ? String(tasks[a].csvData[9]) : "";
+            let dateB = tasks[b].csvData[9] ? String(tasks[b].csvData[9]) : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -204,7 +205,7 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            let dateStr = cols.length > 2 ? cols[9].replace(/\s+/g, "") : "";
+            let dateStr = cols[9] ? String(cols[9]).replace(/\s+/g, "") : "";
             let sekouDateFormatted = "";
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
@@ -215,11 +216,11 @@
             tr.dataset.sekouDate = sekouDateFormatted;
             tr.dataset.shitamiDate = dataObj.date || ""; 
             
-            let mColText = cols.length > 12 ? cols[10].replace(/\s+/g, "") : "";
+            let mColText = cols[10] ? String(cols[10]).replace(/\s+/g, "") : "";
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
-                const c = cols[colIndex] || "";
+                const c = cols[colIndex] ? String(cols[colIndex]) : "";
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
                 let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
@@ -257,7 +258,7 @@
             const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
             tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
-            // ▼ この行のリアルタイム同期をセット
+            // ▼ リアルタイム同期をセット
             const taskRef = database.ref('app_tasks/' + key);
             taskRef.on('value', snap => {
                 const rtData = snap.val();
