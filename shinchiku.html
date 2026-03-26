@@ -53,7 +53,7 @@
     }
     
     function parseCSV(text) {
-        const result = []; let row = []; let col = ''; let insideQuotes = false;
+        const result = new Array(); let row = new Array(); let col = ''; let insideQuotes = false;
         for (let i = 0; i < text.length; i++) {
             const char = text.charAt(i); const nextChar = text.charAt(i + 1);
             if (char === '"' && insideQuotes && nextChar === '"') { col += '"'; i++; 
@@ -61,7 +61,7 @@
             } else if (char === ',' && !insideQuotes) { row.push(col); col = '';
             } else if ((char === '\n' || char === '\r') && !insideQuotes) {
                 if (char === '\r' && nextChar === '\n') i++; 
-                row.push(col); result.push(row); row = []; col = '';
+                row.push(col); result.push(row); row = new Array(); col = '';
             } else { col += char; }
         }
         if (col !== '' || row.length > 0) { row.push(col); result.push(row); }
@@ -97,8 +97,9 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // ▼ エラーの直接原因だった箇所を修正（A列のみ非表示）
-        const hideCols = ;
+        // ▼ エラーの直接原因だった箇所を修正（文字消去システムを回避した書き方）
+        const hideCols = new Array();
+        hideCols.push(0);
 
         // 「行のどこか」に文字があれば強制抽出する安全なロジック
         let filteredLines = validLines.filter(function(cols) {
@@ -111,10 +112,10 @@
             return;
         }
 
-        // C列（施工日 = インデックス2）で並び替え
+        // C列（施工日）で並び替え（こちらも文字消去を回避した安全な書き方）
         filteredLines.sort(function(a, b) { 
-            let dateA = a.length > 2 ? a[1] : "";
-            let dateB = b.length > 2 ? b[1] : "";
+            let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
+            let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, '')); 
         });
 
@@ -126,7 +127,7 @@
           const thHead = document.createElement('th'); thHead.textContent = h; trHead.appendChild(thHead);
         });
 
-        const inputHeaders = ['下見予定日', '下見予定時間', '下見順'];
+        const inputHeaders = new Array('下見予定日', '下見予定時間', '下見順');
         inputHeaders.forEach(function(h) {
             const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
             const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
