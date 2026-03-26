@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>本日の案件リスト（クラウド同期版）</title>
+  <title>日付指定 案件リスト（クラウド同期版）</title>
   
   <!-- ▼ Firebaseの通信プログラムを読み込み -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -21,6 +21,7 @@
     .filter-controls { margin-left: auto; display: flex; align-items: center; gap: 15px; background: #fff3cd; padding: 5px 10px; border-radius: 4px; border: 1px solid #ffeeba; }
     .filter-controls label { font-size: 13px; font-weight: bold; color: #856404; cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .filter-controls input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .filter-date-input { font-size: 14px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-weight: bold;}
     
     .search-box { display: flex; align-items: center; gap: 5px; }
     .search-box span { font-size: 13px; font-weight: bold; color: #555; }
@@ -53,18 +54,18 @@
   <div id="tooltip"></div>
   
   <div class="box">
-    <h3>🔥 本日の案件（下見・施工）</h3>
+    <h3>🔥 指定日の案件（下見・施工）</h3>
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" class="btn btn-primary">抽出</button>
     <button id="downloadBtn" class="btn btn-success" style="display: none;">入力したデータをCSVで保存</button>
     
-    <!-- ▼ 今日の日付フィルター機能 -->
+    <!-- ▼ 日付選択カレンダーとフィルター機能 -->
     <div class="filter-controls">
-      <label><input type="checkbox" id="checkShitami" checked> 📅 下見日が今日</label>
-      <label><input type="checkbox" id="checkSekou" checked> 🔨 施工日が今日</label>
+      <input type="date" id="filterDate" class="filter-date-input" title="表示したい日付を選んでください" />
+      <label><input type="checkbox" id="checkShitami" checked> 📅 下見日</label>
+      <label><input type="checkbox" id="checkSekou" checked> 🔨 施工日</label>
     </div>
 
-    <!-- 全セル対象のテキスト検索窓 -->
     <div class="search-box">
       <span>🔍 検索:</span>
       <input type="text" id="searchInput" placeholder="絞り込み..." />
@@ -98,13 +99,13 @@
     }
     const database = firebase.database();
 
-
     // ==========================================
-    // ▼ 「今日」の判定用日付文字列（YYYY-MM-DD）の作成
+    // ▼ 日付フィルターの初期設定（今日の日付をセット）
     // ==========================================
     const now = new Date();
     const todayFormatted = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
-
+    const filterDateInput = document.getElementById('filterDate');
+    filterDateInput.value = todayFormatted; // 画面を開いた時は「今日」にしておく
 
     // ==========================================
     // ▼ 表示/非表示の判定と切り替えを行う関数
@@ -112,28 +113,33 @@
     function updateRowVisibility(tr) {
         let showShitami = document.getElementById('checkShitami').checked;
         let showSekou = document.getElementById('checkSekou').checked;
+        let targetDate = filterDateInput.value; // カレンダーで選ばれている日付を取得
         let word = document.getElementById('searchInput').value.toLowerCase();
         
         let sDate = tr.dataset.sekouDate;
         let shDate = tr.dataset.shitamiDate;
         
-        let isSekouToday = (sDate === todayFormatted);
-        let isShitamiToday = (shDate === todayFormatted);
+        // カレンダーの日付と一致しているかを判定
+        let isSekouMatch = (sDate === targetDate);
+        let isShitamiMatch = (shDate === targetDate);
         
-        // チェックボックスの条件を満たしているか
         let show = false;
-        if (showShitami && showSekou) {
-            show = isSekouToday || isShitamiToday;
-        } else if (showShitami) {
-            show = isShitamiToday;
-        } else if (showSekou) {
-            show = isSekouToday;
+        
+        // 日付が未選択（クリアされた場合）はフィルターをかけない（全件表示の対象）
+        if (targetDate === "") {
+            show = true; 
+        } else {
+            if (showShitami && showSekou) {
+                show = isSekouMatch || isShitamiMatch;
+            } else if (showShitami) {
+                show = isShitamiMatch;
+            } else if (showSekou) {
+                show = isSekouMatch;
+            }
         }
         
-        // 検索窓に文字があればさらに絞り込み
         if (show && word !== "") {
             let rowText = tr.textContent.toLowerCase(); 
-            // 入力フォームの中身も検索対象に含めるための処理
             let inputs = tr.querySelectorAll('input, select');
             let inputTexts = "";
             inputs.forEach(function(inp) { inputTexts += " " + inp.value; });
@@ -143,17 +149,18 @@
             }
         }
         
-        // 条件を満たせば表示、満たさなければ非表示
         tr.style.display = show ? '' : 'none';
     }
 
-    // チェックボックスや検索窓が変更されたら全行を再評価
     function applyAllFilters() {
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
         for (let i = 0; i < rows.length; i++) {
             updateRowVisibility(rows[i]);
         }
     }
+    
+    // カレンダーの日付が変更された時も瞬時に再判定する
+    document.getElementById('filterDate').addEventListener('change', applyAllFilters);
     document.getElementById('checkShitami').addEventListener('change', applyAllFilters);
     document.getElementById('checkSekou').addEventListener('change', applyAllFilters);
     document.getElementById('searchInput').addEventListener('input', applyAllFilters);
@@ -221,12 +228,9 @@
         displayCols.push(2);  // C列（施工日）
         displayCols.push(12); // M列
 
-        // ▼ 全ての「完了していない案件」を抽出対象にする
-        // ※最初は全て抽出しておき、表示の際に「今日」のものだけに絞り込みます
         let filteredLines = validLines.filter(function(cols) {
             let colB = cols.length > 1 ? cols.slice(1, 2).join("").replace(/\s+/g, "") : "";
-            let isNotCompleted = (colB.indexOf("完了") === -1);
-            return isNotCompleted;
+            return (colB.indexOf("完了") === -1);
         });
 
         if (filteredLines.length === 0) {
@@ -234,7 +238,6 @@
             return;
         }
 
-        // CSVの施工日順にソートしておく
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -262,7 +265,6 @@
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          // ▼ クラウド用：行の固有キーと保存場所の準備
           let invalidChars = new RegExp("[.#$\\[\\]/]", "g");
           let rowUniqueKey = cols.join("").replace(/\s+/g, "").replace(invalidChars, "_").substring(0, 200);
           
@@ -272,7 +274,6 @@
           else if (colD === "ﾘ") { dbPath = 'reform_tasks/'; }
           const taskRef = database.ref(dbPath + rowUniqueKey);
 
-          // ▼ 判定用：CSVの「施工日」を YYYY-MM-DD 形式に変換して行に持たせておく
           let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
           let sekouDateFormatted = "";
           if (dateStr !== "") {
@@ -282,7 +283,7 @@
               }
           }
           tr.dataset.sekouDate = sekouDateFormatted;
-          tr.dataset.shitamiDate = ""; // クラウドから取得するまで一旦空にしておく
+          tr.dataset.shitamiDate = ""; 
           
           let mColText = cols.length > 12 ? cols.slice(12, 13).join("").replace(/\s+/g, "") : "";
           let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
@@ -322,39 +323,34 @@
             tr.appendChild(td);
           });
           
-          // ▼ 1. 下見予定日
           const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
           const dateInput = document.createElement('input');
           dateInput.type = 'date'; dateInput.className = 'input-form';
           tdDate.appendChild(dateInput); tr.appendChild(tdDate);
 
-          // ▼ 2. 下見予定時間
           const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
           const timeInput = document.createElement('select');
           timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
           tdTime.appendChild(timeInput); tr.appendChild(tdTime);
 
-          // ▼ 3. 下見順
           const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
           const orderInput = document.createElement('input');
           orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
           tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
           // ==============================================================
-          // 🔴 魔法のリアルタイム同期＆今日の日付自動フィルタリング 🔴
+          // 🔴 魔法のリアルタイム同期＆指定日付の自動フィルタリング 🔴
           // ==============================================================
           taskRef.on('value', function(snapshot) {
               const data = snapshot.val();
               if (data) {
                   if (document.activeElement !== dateInput) {
                       dateInput.value = data.date || '';
-                      // Firebaseから日付を受信したら、行のデータセットに覚えさせる
                       tr.dataset.shitamiDate = data.date || ''; 
                   }
                   if (document.activeElement !== timeInput) timeInput.value = data.time || '';
                   if (document.activeElement !== orderInput) orderInput.value = data.order || '';
                   
-                  // データが届いた瞬間に、この行が「今日」かどうかを再判定して表示・非表示を切り替える！
                   updateRowVisibility(tr);
               }
           });
@@ -366,13 +362,12 @@
           dateInput.addEventListener('change', function() { 
               tr.dataset.shitamiDate = this.value; 
               saveToFirebase(); 
-              updateRowVisibility(tr); // 自分で日付を変えたときも即座に再判定
+              updateRowVisibility(tr);
           });
           timeInput.addEventListener('change', saveToFirebase);
           orderInput.addEventListener('input', saveToFirebase);
           // ==============================================================
 
-          // 行を生成した直後（Firebase受信前）の最初の判定
           updateRowVisibility(tr);
           tbody.appendChild(tr);
         });
@@ -397,7 +392,6 @@
         const tbody = document.getElementById('table-body');
         const trs = tbody.querySelectorAll('tr');
         for (let i = 0; i < trs.length; i++) {
-            // 非表示の行はCSVに含めない
             if (trs.item(i).style.display === 'none') continue;
             
             const rowData = new Array();
@@ -423,7 +417,9 @@
         a.href = url;
         const d = new Date();
         const dateStr = d.getFullYear() + ("0"+(d.getMonth()+1)).slice(-2) + ("0"+d.getDate()).slice(-2);
-        a.download = "本日の案件_" + dateStr + ".csv";
+        // 保存するファイル名も、選んだ日付が分かるように変更
+        const targetDate = document.getElementById('filterDate').value || dateStr;
+        a.download = "指定日の案件_" + targetDate + ".csv";
         a.click();
         window.URL.revokeObjectURL(url);
     });
