@@ -1,256 +1,138 @@
-新築 専用】アプリ （修正版）
+してください。
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト</title>
+  <title>新築下見予定 抽出リスト（UTF-8専用）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
     .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 75vh; }
-    
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
-    th, td { 
-      border: 1px solid #ccc; 
-      text-align: left; 
-      font-size: 14px; 
-      vertical-align: middle;
-      width: 100px;
-      min-width: 100px;
-      max-width: 100px; 
-    }
-    
-    /* 列幅の調整 */
+    th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     th:nth-child(1), td:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }
     th:nth-child(2), td:nth-child(2) { width: 60px; min-width: 60px; max-width: 60px; }
     th:nth-child(3), td:nth-child(3) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
     th:nth-child(4), td:nth-child(4) { width: 250px; min-width: 250px; max-width: 250px; }
     th:nth-child(9), td:nth-child(9) { width: 60px; min-width: 60px; max-width: 60px; }
-
     th { background-color: #e0e0e0; padding: 8px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
-    
-    .cell-inner {
-      padding: 8px;
-      white-space: nowrap; 
-      overflow: hidden; 
-      text-overflow: ellipsis; 
-      cursor: pointer;
-    }
-
-    #tooltip {
-      display: none;
-      position: fixed; 
-      background-color: #fff;
-      border: 2px solid #28a745;
-      padding: 10px;
-      border-radius: 4px;
-      z-index: 2147483647; 
-      white-space: pre-wrap; 
-      word-wrap: break-word;
-      max-width: 400px; 
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      line-height: 1.5;
-      color: #333;
-      pointer-events: none; 
-    }
-    
-    select { padding: 5px; font-size: 14px; margin-right: 10px; }
+    .cell-inner { padding: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     input[type="text"] { width: 100%; box-sizing: border-box; padding: 4px; }
   </style>
 </head>
 <body>
-
   <div id="tooltip"></div>
-
   <div class="box">
-    <h3>▼ 新築下見予定データ 抽出</h3>
-    <select id="encoding">
-      <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
-      <option value="UTF-8">文字コード: UTF-8</option>
-    </select>
+    <h3>▼ 新築下見予定データ 抽出（UTF-8専用）</h3>
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">抽出して表示</button>
   </div>
-
   <div class="table-wrapper">
     <table>
       <thead id="table-head"></thead>
       <tbody id="table-body"></tbody>
     </table>
   </div>
-
   <script>
     function getColLetter(index) {
         let letter = '';
-        while (index >= 0) {
-            letter = String.fromCharCode((index % 26) + 65) + letter;
-            index = Math.floor(index / 26) - 1;
-        }
+        while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
         return letter;
     }
-
     function parseCSV(text) {
-        const result = [];
-        let row = [];
-        let col = '';
-        let insideQuotes = false;
+        const result = []; let row = []; let col = ''; let insideQuotes = false;
         for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const nextChar = text[i + 1];
-            if (char === '"' && insideQuotes && nextChar === '"') {
-                col += '"'; i++; 
-            } else if (char === '"') {
-                insideQuotes = !insideQuotes;
-            } else if (char === ',' && !insideQuotes) {
-                row.push(col); col = '';
+            const char = text[i]; const nextChar = text[i + 1];
+            if (char === '"' && insideQuotes && nextChar === '"') { col += '"'; i++; 
+            } else if (char === '"') { insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) { row.push(col); col = '';
             } else if ((char === '\n' || char === '\r') && !insideQuotes) {
                 if (char === '\r' && nextChar === '\n') i++; 
                 row.push(col); result.push(row); row = []; col = '';
-            } else {
-                col += char;
-            }
+            } else { col += char; }
         }
         if (col !== '' || row.length > 0) { row.push(col); result.push(row); }
         return result;
     }
-
     document.getElementById('uploadBtn').addEventListener('click', function() {
       const fileInput = document.getElementById('csvFile');
-      if (fileInput.files.length === 0) {
-        alert("CSVファイルを選択してください！");
-        return;
-      }
-      
+      if (fileInput.files.length === 0) { alert("CSVファイルを選択してください！"); return; }
       const file = fileInput.files.item(0); 
-      const encoding = document.getElementById('encoding').value; 
       const reader = new FileReader();
       
       reader.onload = function(e) {
-        const text = e.target.result;
-        const lines = parseCSV(text);
-        
-        let validLines = lines.filter(function(line) { 
-            return line.join('').trim() !== ''; 
-        });
-        
-        const thead = document.getElementById('table-head');
-        const tbody = document.getElementById('table-body');
-        thead.innerHTML = ''; 
-        tbody.innerHTML = '';
-        
+        const text = e.target.result; const lines = parseCSV(text);
+        let validLines = lines.filter(function(line) { return line.join('').trim() !== ''; });
+        const thead = document.getElementById('table-head'); const tbody = document.getElementById('table-body');
+        thead.innerHTML = ''; tbody.innerHTML = '';
         if (validLines.length === 0) return;
-
         const headers = validLines.shift(); 
-        // 非表示にする列（A, H, I, J列 = インデックス 0, 7, 8, 9）
-        const hideCols = [1-3];
+        
+        // 非表示にする列（A, H, I, J列）
+        const hideCols = [6-8];
 
-        // ▼ 修正: B列に「依頼」が含まれ、かつ D列が完全に「新」の1文字のものだけ抽出
+        // ▼ B列に「依頼」、D列が完全に「新」のものだけを抽出
         let filteredLines = validLines.filter(function(cols) {
-            const colB = (cols[4] || "").trim(); // B列（2列目）
-            const colD = (cols[5] || "").trim(); // D列（4列目）
+            const colB = (cols[9] || "").trim(); // 2列目
+            const colD = (cols[10] || "").trim(); // 4列目
             return colB.includes("依頼") && colD === "新";
         });
 
-        // 抽出結果が0件だった場合のメッセージも正確に修正
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\n【考えられる原因】\n① B列（2列目）に「依頼」という文字が入っていない\n② D列（4列目）が「新」ではない\n③ そもそも列がズレている\n\n※実際のCSVデータをエクセル等で一度ご確認ください。");
-            return;
+            alert("抽出結果が0件でした！\n\nデータの中に、B列が「依頼」で、かつD列が「新」のものがありません。"); return;
         }
 
-        // C列（施工日 = インデックス2）の昇順に並び替え
-        filteredLines.sort(function(a, b) {
-            const dateA = (a[6] || "").trim();
-            const dateB = (b[6] || "").trim();
-            return dateA.localeCompare(dateB);
-        });
+        // C列（施工日）で並び替え
+        filteredLines.sort(function(a, b) { return (a[11] || "").trim().localeCompare((b[11] || "").trim()); });
 
-        const trAlpha = document.createElement('tr');
-        trAlpha.className = 'alpha-head';
+        const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
-
         headers.forEach(function(h, i) {
           if (hideCols.includes(i)) return;
-          const thAlpha = document.createElement('th');
-          thAlpha.textContent = getColLetter(i);
-          trAlpha.appendChild(thAlpha);
-
-          const thHead = document.createElement('th');
-          thHead.textContent = h;
-          trHead.appendChild(thHead);
+          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(i); trAlpha.appendChild(thAlpha);
+          const thHead = document.createElement('th'); thHead.textContent = h; trHead.appendChild(thHead);
         });
 
         const inputHeaders = ['下見予定日', '下見予定時間', '下見順'];
         inputHeaders.forEach(function(h) {
-            const thAlpha = document.createElement('th');
-            trAlpha.appendChild(thAlpha); 
-
-            const thHead = document.createElement('th');
-            thHead.textContent = h;
-            thHead.style.backgroundColor = '#d4edda';
-            trHead.appendChild(thHead);
+            const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
+            const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
         });
-
-        thead.appendChild(trAlpha);
-        thead.appendChild(trHead);
-
+        thead.appendChild(trAlpha); thead.appendChild(trHead);
         const tooltip = document.getElementById('tooltip');
 
         filteredLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
-
           cols.forEach(function(c, i) {
             if (hideCols.includes(i)) return;
-
-            const td = document.createElement('td');
-            const inner = document.createElement('div');
-            inner.className = 'cell-inner';
-            
+            const td = document.createElement('td'); const inner = document.createElement('div'); inner.className = 'cell-inner';
             let displayText = c.replace(/\n|\r/g, ' '); 
-            
-            // L列（インデックス11）の住所短縮
             if (i === 11) {
               displayText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
-              if (displayText.startsWith('札幌市')) {
-                displayText = displayText.replace(/^札幌市/, '');
-              } else {
-                displayText = displayText.replace(/^.+?郡(?=.*?[町村])/, '');
-              }
+              if (displayText.startsWith('札幌市')) { displayText = displayText.replace(/^札幌市/, ''); } 
+              else { displayText = displayText.replace(/^.+?郡(?=.*?[町村])/, ''); }
             }
-            
-            inner.textContent = displayText; 
-            td.appendChild(inner);
-            
+            inner.textContent = displayText; td.appendChild(inner);
             if (c.trim() !== '') {
-              td.addEventListener('mouseenter', function() {
-                tooltip.textContent = c; 
-                tooltip.style.display = 'block';
-              });
-              td.addEventListener('mousemove', function(e) {
-                tooltip.style.left = (e.clientX + 15) + 'px';
-                tooltip.style.top = (e.clientY + 15) + 'px';
-              });
-              td.addEventListener('mouseleave', function() {
-                tooltip.style.display = 'none';
-              });
+              td.addEventListener('mouseenter', function() { tooltip.textContent = c; tooltip.style.display = 'block'; });
+              td.addEventListener('mousemove', function(e) { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
+              td.addEventListener('mouseleave', function() { tooltip.style.display = 'none'; });
             }
             tr.appendChild(td);
           });
-          
           for(let j = 0; j < 3; j++) {
-            const td = document.createElement('td');
-            td.style.padding = '8px';
-            td.innerHTML = '<input type="text" placeholder="...">';
-            tr.appendChild(td);
+            const td = document.createElement('td'); td.style.padding = '8px'; td.innerHTML = '<input type="text" placeholder="...">'; tr.appendChild(td);
           }
           tbody.appendChild(tr);
         });
-        
-        alert("抽出完了！ " + filteredLines.length + " 件の新築下見対象データを表示しました。");
+        alert("抽出完了！ " + filteredLines.length + " 件の【新築】下見対象データを表示しました。");
       };
       
-      reader.readAsText(file, encoding);
+      // ▼ ここを「UTF-8」で完全に固定しました！
+      reader.readAsText(file, 'UTF-8');
     });
   </script>
 </body>
