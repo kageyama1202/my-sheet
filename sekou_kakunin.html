@@ -97,7 +97,7 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        // 🔴 指定された列（B, D, E, F, G, H, K, L, C, M）を安全に設定
+        // 指定された列（B, D, E, F, G, H, K, L, C, M）を安全に設定
         const displayCols = new Array();
         displayCols.push(1);  // B列
         displayCols.push(3);  // D列
@@ -119,7 +119,7 @@
           const thHead = document.createElement('th'); thHead.textContent = headers[colIndex] || ""; trHead.appendChild(thHead);
         });
         
-        // 🔴 新しい3つの入力欄のヘッダーを作成
+        // 新しい3つの入力欄のヘッダーを作成
         const extraHeaders = new Array('施工日OX△', '施工日確認メール', '確定メール送信');
         extraHeaders.forEach(h => {
             const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
@@ -148,7 +148,7 @@
             let isNotCompleted = (colB.indexOf("完了") === -1);
             let isWithin21Days = false;
             
-            // 🔴 施工日が「今日〜21日後まで」の案件を抽出
+            // 施工日が「今日〜21日後まで」の案件を抽出
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
                 if (!isNaN(taskDate.getTime())) {
@@ -222,6 +222,14 @@
 
             // 🔴 色を更新する関数
             function updateColors() {
+                // ▼今回追加：施工日OX△ が未入力の場合は赤くする
+                tdKakunin.classList.remove('bg-red');
+                selKakunin.classList.remove('bg-red');
+                if (selKakunin.value === '') { 
+                    tdKakunin.classList.add('bg-red'); 
+                    selKakunin.classList.add('bg-red'); 
+                }
+
                 // 施工日確認メールの色変更
                 tdSekouMail.classList.remove('bg-red', 'bg-green');
                 selSekouMail.classList.remove('bg-red', 'bg-green');
