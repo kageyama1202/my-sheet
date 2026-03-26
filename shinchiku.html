@@ -2,49 +2,81 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（強力抽出・入力フォーム版）</title>
+  <title>新築下見予定 抽出リスト（強力抽出・コンパクト＆検索機能版）</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
-    .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
-    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 75vh; }
+    body { font-family: sans-serif; padding: 15px; background-color: #f9f9f9; margin: 0; }
+    
+    /* ▼ 上部メニューを1行にまとめてコンパクトに */
+    .box { 
+        background: #fff; 
+        padding: 10px 15px; 
+        border-radius: 8px; 
+        margin-bottom: 15px; 
+        border: 1px solid #ccc; 
+        display: flex; 
+        align-items: center; 
+        gap: 15px; 
+        flex-wrap: wrap; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .box h3 { margin: 0; font-size: 16px; color: #333; }
+    .box input[type="file"] { font-size: 13px; cursor: pointer; }
+    
+    /* ▼ 検索窓のデザイン（右寄せ） */
+    .search-box { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .search-box span { font-size: 14px; font-weight: bold; color: #555; }
+    .search-box input { padding: 6px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; width: 200px; }
+
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 80vh; }
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     
     /* 基本のセル幅は100px */
     th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     
-    /* ▼ 幅の個別調整（※A, I, J列が非表示で消えるため、1番目=B列 となります） */
-    /* B列（元2列目→表示上は1列目）: 80px */
-    th:nth-child(1), td:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }
-    /* C列（元3列目→表示上は2列目）: 60px */
-    th:nth-child(2), td:nth-child(2) { width: 60px; min-width: 60px; max-width: 60px; }
-    /* D列（元4列目→表示上は3列目）: 1文字分(40px) */
-    th:nth-child(3), td:nth-child(3) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
-    /* E列（元5列目→表示上は4列目）: 1.5倍幅(150px) */
-    th:nth-child(4), td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
+    /* ▼ 幅の個別調整（表示される順番に対して幅を指定） */
+    /* 1番目(B列): もう少し小さく(60px) */
+    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
+    /* 2番目(D列): 1文字分(40px) */
+    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
+    /* 3番目(E列): 1.5倍幅(150px) */
+    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
+    /* 6番目(H列): もう少し小さく(60px) */
+    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
+    /* 9番目(C列): 少し大きく(130px) */
+    th:nth-child(9), td:nth-child(9) { width: 130px; min-width: 130px; max-width: 130px; }
 
     th { background-color: #e0e0e0; padding: 8px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
     .cell-inner { padding: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     
-    /* 入力フォームのデザイン */
     .input-form { width: 100%; box-sizing: border-box; padding: 6px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;}
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
   </style>
 </head>
 <body>
   <div id="tooltip"></div>
+  
   <div class="box">
-    <h3>▼ 新築下見予定データ 抽出</h3>
+    <h3>▼ 新築下見予定</h3>
     <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">抽出して表示</button>
+    <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff;">抽出</button>
+    
+    <!-- ▼ 新機能：全セル対象のテキスト検索窓 -->
+    <div class="search-box">
+      <span>🔍 検索:</span>
+      <input type="text" id="searchInput" placeholder="キーワードで絞り込み..." />
+    </div>
   </div>
+
   <div class="table-wrapper">
     <table>
       <thead id="table-head"></thead>
       <tbody id="table-body"></tbody>
     </table>
   </div>
+
   <script>
     function getColLetter(index) {
         let letter = '';
@@ -68,7 +100,6 @@
         return result;
     }
 
-    // 30分刻みの時間オプションを作る関数
     function generateTimeOptions() {
         let options = '<option value="">--:--</option>';
         for(let h = 8; h <= 20; h++) {
@@ -78,6 +109,24 @@
         }
         return options;
     }
+
+    // ▼ 新機能：検索窓に文字が入力されたら、表の行をリアルタイムで絞り込む
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        // 入力された文字を小文字に変換（大文字・小文字を区別せずに検索するため）
+        let word = e.target.value.toLowerCase(); 
+        let rows = document.getElementById('table-body').getElementsByTagName('tr');
+        
+        for (let i = 0; i < rows.length; i++) {
+            // 行の中にあるテキストをすべて取得
+            let rowText = rows[i].textContent.toLowerCase(); 
+            // 検索ワードが含まれていれば表示、なければ非表示
+            if (rowText.indexOf(word) !== -1) {
+                rows[i].style.display = '';
+            } else {
+                rows[i].style.display = 'none';
+            }
+        }
+    });
 
     document.getElementById('uploadBtn').addEventListener('click', function() {
       const fileInput = document.getElementById('csvFile');
@@ -97,11 +146,19 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // ▼ 変更点：A列（0番目）、I列（8番目）、J列（9番目）を非表示に設定
-        const hideCols = new Array();
-        hideCols.push(0); // A列
-        hideCols.push(8); // I列
-        hideCols.push(9); // J列
+        // ▼ エラー回避用：表示したい列の順番を細かく指定して作成
+        const displayCols = new Array();
+        displayCols.push(1);  // 1番目: B列
+        displayCols.push(3);  // 2番目: D列
+        displayCols.push(4);  // 3番目: E列
+        displayCols.push(5);  // 4番目: F列
+        displayCols.push(6);  // 5番目: G列
+        displayCols.push(7);  // 6番目: H列
+        displayCols.push(10); // 7番目: K列
+        displayCols.push(11); // 8番目: L列
+        displayCols.push(2);  // 9番目: C列（L列とM列の間に移動！）
+        displayCols.push(12); // 10番目: M列
+        // これにより A, I, J は自動的に非表示になります
 
         // 「行のどこか」に文字があれば強制抽出する安全なロジック
         let filteredLines = validLines.filter(function(cols) {
@@ -114,7 +171,7 @@
             return;
         }
 
-        // C列（施工日）で並び替え
+        // C列（施工日）で並び替え（文字消去を回避した安全な書き方）
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -123,10 +180,11 @@
 
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
-        headers.forEach(function(h, i) {
-          if (hideCols.indexOf(i) !== -1) return;
+        
+        // 指定した列の順番通りに見出しを作成
+        displayCols.forEach(function(i) {
           const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(i); trAlpha.appendChild(thAlpha);
-          const thHead = document.createElement('th'); thHead.textContent = h; trHead.appendChild(thHead);
+          const thHead = document.createElement('th'); thHead.textContent = headers[i] || ""; trHead.appendChild(thHead);
         });
 
         const inputHeaders = new Array('下見予定日', '下見予定時間', '下見順');
@@ -137,16 +195,15 @@
         thead.appendChild(trAlpha); thead.appendChild(trHead);
         const tooltip = document.getElementById('tooltip');
 
-        // 時間のプルダウンの中身を作成
         const timeOptions = generateTimeOptions();
 
         filteredLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          cols.forEach(function(c, i) {
-            if (hideCols.indexOf(i) !== -1) return;
-            
+          // 指定した列の順番通りにデータを並べる
+          displayCols.forEach(function(i) {
+            const c = cols[i] || "";
             const td = document.createElement('td'); 
             const inner = document.createElement('div'); 
             inner.className = 'cell-inner';
@@ -164,7 +221,7 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            // ▼ 変更点：G列（インデックス6番目）を確実に電話リンク化
+            // G列を電話リンク化
             else if (i === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
@@ -175,7 +232,6 @@
             
             td.appendChild(inner);
             
-            // マウスオンのポップアップ機能
             if (cleanText !== '') {
               td.addEventListener('mouseenter', function() { tooltip.textContent = c; tooltip.style.display = 'block'; });
               td.addEventListener('mousemove', function(e) { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
@@ -184,18 +240,15 @@
             tr.appendChild(td);
           });
           
-          // ▼ 右側の専用入力フォーム 3つ
-          // 1. 下見予定日（カレンダー）
+          // 右側の専用入力フォーム 3つ
           const tdDate = document.createElement('td'); tdDate.style.padding = '4px';
           tdDate.innerHTML = `<input type="date" class="input-form">`;
           tr.appendChild(tdDate);
 
-          // 2. 下見予定時間（30分おきプルダウン）
           const tdTime = document.createElement('td'); tdTime.style.padding = '4px';
           tdTime.innerHTML = `<select class="input-form">${timeOptions}</select>`;
           tr.appendChild(tdTime);
 
-          // 3. 下見順（数字）
           const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px';
           tdOrder.innerHTML = `<input type="number" min="1" class="input-form" placeholder="番号">`;
           tr.appendChild(tdOrder);
@@ -203,10 +256,11 @@
           tbody.appendChild(tr);
         });
         
-        alert("抽出完了！ " + filteredLines.length + " 件の【新築】下見対象データを表示しました。");
+        // 検索窓をリセット
+        document.getElementById('searchInput').value = "";
+        alert("抽出完了！ " + filteredLines.length + " 件のデータを表示しました。\n右上の「検索窓」から文字を絞り込めます。");
       };
       
-      // UTF-8で読み込み固定
       reader.readAsText(file, 'UTF-8');
     });
   </script>
