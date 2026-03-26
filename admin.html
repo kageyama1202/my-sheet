@@ -2,83 +2,453 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>【管理者用】CSV取り込みページ</title>
+  <title>【管理者用】CSVデータ クラウド同期ツール</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f0f8ff; }
-    .box { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    button { padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px;}
-    button:hover { background-color: #218838; }
+    body { font-family: sans-serif; padding: 30px; background-color: #f0f2f5; text-align: center; }
+    .box { background: #fff; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    input[type="file"] { font-size: 16px; cursor: pointer; margin-bottom: 20px; }
+    button { font-size: 18px; padding: 10px 20px; cursor: pointer; border-radius:4px; border:none; background:#007bff; color:#fff; font-weight: bold; width: 100%; transition: 0.2s;}
+    button:hover { background:#0056b3; }
+    p { font-size: 14px; color: #555; text-align: left; line-height: 1.6; }
   </style>
 </head>
 <body>
   <div class="box">
-    <h2>Salesforce CSV 取り込み（管理者専用）</h2>
-    <p>Salesforceから書き出したCSVファイル（案件ID, 顧客名 の順番）を選択してください。</p>
+    <h2 style="color: #333; margin-top: 0;">👑 【管理者用】<br>クラウドへデータ一括保存</h2>
+    <p>Salesforceからダウンロードした最新のCSVファイルを選択し、「クラウドへ保存」ボタンを押してください。<br>※現場のiPadからはCSVを読み込む必要がなくなります。</p>
     
-    <input type="file" id="csvFile" accept=".csv" /><br>
-    <button id="uploadBtn">Firebaseに一括登録する</button>
-    
-    <h3 id="status" style="color: blue;"></h3>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button id="uploadBtn">☁️ 最新データをクラウドへ保存</button>
   </div>
 
-  <!-- Firebase（神様）を呼び出す準備 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
   <script>
-    // あなた専用の合言葉（Firebase設定）
     const firebaseConfig = {
       apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
       authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
       projectId: "project-6745138395263517914",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com"
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
     };
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.database();
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
 
-    // CSV読み込み＆保存ボタンを押した時の処理
+    function parseCSV(text) {
+        const result = new Array(); let row = new Array(); let col = ''; let insideQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charAt(i); const nextChar = text.charAt(i + 1);
+            if (char === '"' && insideQuotes && nextChar === '"') { col += '"'; i++; 
+            } else if (char === '"') { insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) { row.push(col); col = '';
+            } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+                if (char === '\r' && nextChar === '\n') i++; 
+                row.push(col); result.push(row); row = new Array(); col = '';
+            } else { col += char; }
+        }
+        if (col !== '' || row.length > 0) { row.push(col); result.push(row); }
+        return result;
+    }
+
     document.getElementById('uploadBtn').addEventListener('click', function() {
       const fileInput = document.getElementById('csvFile');
-      if (fileInput.files.length === 0) {
-        alert("CSVファイルを選択してください！");
-        return;
-      }
-
-      // 【修正箇所】filesとして、選ばれた最初のファイルを正確に指定します
-      const file = fileInput.files; 
+      if (fileInput.files.length === 0) { alert("CSVファイルを選択してください！"); return; }
+      
+      const file = fileInput.files.item(0); 
       const reader = new FileReader();
       
       reader.onload = function(e) {
-        const text = e.target.result;
-        const lines = text.split('\n'); // 行ごとに分割
+        document.getElementById('uploadBtn').textContent = "保存中...";
+        const lines = parseCSV(e.target.result);
+        let validLines = lines.filter(function(line) { return line.join('').replace(/\s+/g, '') !== ''; });
+        if (validLines.length === 0) return;
         
-        let count = 0;
-        // 1行目（ヘッダー）を飛ばして、2行目から読み込む
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue; // 空行は無視
-          
-          const cols = line.split(','); // カンマで分割
-          // 【修正箇所】何番目のデータかを正確に指定します
-          const id = cols;   // 1列目：案件ID
-          const name = cols[1]; // 2列目：顧客名
-          
-          if (id && name) {
-            // Firebaseの「cases」フォルダに基本データを登録
-            db.ref('cases/' + id).update({
-              caseId: id,
-              customerName: name
-            });
-            count++;
-          }
-        }
-        document.getElementById('status').innerText = "✅ " + count + "件の案件データをFirebaseに登録しました！";
+        const headers = validLines.shift(); 
+        
+        // 既存の「予定」を消さずに、CSVの土台データだけを一括で上書き・追加する魔法の処理
+        let updates = {};
+        updates['app_meta/headers'] = headers; // ヘッダー情報を保存
+        
+        let invalidChars = new RegExp("[.#$\\[\\]/]", "g");
+        validLines.forEach(function(cols) {
+            let rowUniqueKey = cols.join("").replace(/\s+/g, "").replace(invalidChars, "_").substring(0, 200);
+            updates['app_tasks/' + rowUniqueKey + '/csvData'] = cols;
+        });
+
+        database.ref().update(updates).then(() => {
+            alert("✅ クラウドへの保存が完了しました！\n\n現場のiPad等の端末からは、アプリを開くだけで最新のデータが見られます。");
+            document.getElementById('uploadBtn').textContent = "☁️ 最新データをクラウドへ保存";
+            fileInput.value = "";
+        }).catch(err => {
+            alert("エラーが発生しました: " + err);
+        });
       };
-      // ここでエラーが出ないようになります
-      reader.readAsText(file); 
+      reader.readAsText(file, 'UTF-8');
     });
   </script>
+</body>
+</html>
+
+--------------------------------------------------------------------------------
+2. 現場用：完全クラウド版「指定日の案件」（上書きします）
+CSV読み込みボタンを完全撤廃しました。画面を開くだけで、先ほど admin.html で保存したデータが全自動で表示されます。 現在の today.html を以下のコードで上書き保存してください！
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>日付指定 案件リスト（完全クラウド版）</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
+    .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .box h3 { margin: 0; font-size: 14px; color: #d32f2f; }
+    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; font-weight: bold; }
+    .btn-success { background: #28a745; color: #fff; border-color: #28a745; }
+    
+    .filter-controls { margin-left: auto; display: flex; align-items: center; gap: 15px; background: #fff3cd; padding: 5px 10px; border-radius: 4px; border: 1px solid #ffeeba; }
+    .filter-controls label { font-size: 13px; font-weight: bold; color: #856404; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+    .filter-date-input { font-size: 14px; padding: 2px 5px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-weight: bold;}
+    
+    .search-box { display: flex; align-items: center; gap: 5px; }
+    .search-box span { font-size: 13px; font-weight: bold; color: #555; }
+    .search-box input { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
+
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 85vh; }
+    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    th, td { border: 1px solid #ccc; text-align: left; font-size: 13px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
+    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
+    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
+    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
+    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
+    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; }
+    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
+
+    th { background-color: #e0e0e0; padding: 6px; }
+    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+    .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
+    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent;}
+    .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
+    
+    #loadingMsg { font-weight: bold; color: #007bff; margin-left: 10px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="tooltip"></div>
+  
+  <div class="box">
+    <h3>🔥 指定日の案件（完全クラウド版）</h3>
+    <span id="loadingMsg">クラウドからデータを取得中...</span>
+    
+    <!-- ▼ カレンダーとフィルター -->
+    <div class="filter-controls" style="display: none;" id="filterArea">
+      <input type="date" id="filterDate" class="filter-date-input" title="表示したい日付を選んでください" />
+      <label><input type="checkbox" id="checkShitami" checked> 📅 下見日</label>
+      <label><input type="checkbox" id="checkSekou" checked> 🔨 施工日</label>
+    </div>
+
+    <div class="search-box" style="display: none;" id="searchArea">
+      <span>🔍 検索:</span>
+      <input type="text" id="searchInput" placeholder="絞り込み..." />
+      <button id="downloadBtn" class="btn btn-success">表示結果をCSV保存</button>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead id="table-head"></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // ▼ Firebase 初期化
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
+
+    // ▼ 日付の初期設定
+    const now = new Date();
+    const todayFormatted = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
+    document.getElementById('filterDate').value = todayFormatted;
+
+    // ▼ フィルタリング・表示切り替え処理
+    function updateRowVisibility(tr) {
+        let showShitami = document.getElementById('checkShitami').checked;
+        let showSekou = document.getElementById('checkSekou').checked;
+        let targetDate = document.getElementById('filterDate').value;
+        let word = document.getElementById('searchInput').value.toLowerCase();
+        
+        let sDate = tr.dataset.sekouDate;
+        let shDate = tr.dataset.shitamiDate;
+        
+        let isSekouMatch = (sDate === targetDate);
+        let isShitamiMatch = (shDate === targetDate);
+        let show = false;
+        
+        if (targetDate === "") {
+            show = true; 
+        } else {
+            if (showShitami && showSekou) show = isSekouMatch || isShitamiMatch;
+            else if (showShitami) show = isShitamiMatch;
+            else if (showSekou) show = isSekouMatch;
+        }
+        
+        if (show && word !== "") {
+            let rowText = tr.textContent.toLowerCase(); 
+            let inputs = tr.querySelectorAll('input, select');
+            let inputTexts = "";
+            inputs.forEach(inp => { inputTexts += " " + inp.value; });
+            if ((rowText + inputTexts.toLowerCase()).indexOf(word) === -1) show = false;
+        }
+        tr.style.display = show ? '' : 'none';
+    }
+
+    function applyAllFilters() {
+        let rows = document.getElementById('table-body').getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) updateRowVisibility(rows[i]);
+    }
+    
+    document.getElementById('filterDate').addEventListener('change', applyAllFilters);
+    document.getElementById('checkShitami').addEventListener('change', applyAllFilters);
+    document.getElementById('checkSekou').addEventListener('change', applyAllFilters);
+    document.getElementById('searchInput').addEventListener('input', applyAllFilters);
+
+    function getColLetter(index) {
+        let letter = '';
+        while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
+        return letter;
+    }
+    function generateTimeOptions() {
+        let options = '<option value="">--:--</option>';
+        for(let h = 8; h <= 20; h++) {
+            let hour = ('0' + h).slice(-2);
+            options += `<option value="${hour}:00">${hour}:00</option>`;
+            options += `<option value="${hour}:30">${hour}:30</option>`;
+        }
+        return options;
+    }
+
+    // ==========================================
+    // 🔴 画面を開いた瞬間にクラウドから全データを取得
+    // ==========================================
+    database.ref().once('value').then(function(snapshot) {
+        const dbData = snapshot.val();
+        if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
+            document.getElementById('loadingMsg').textContent = "⚠️ データがありません。管理画面からCSVをアップロードしてください。";
+            return;
+        }
+        
+        document.getElementById('loadingMsg').style.display = "none";
+        document.getElementById('filterArea').style.display = "flex";
+        document.getElementById('searchArea').style.display = "flex";
+
+        const headers = dbData.app_meta.headers;
+        const tasks = dbData.app_tasks;
+        
+        const displayCols = [1-10]; // B, D, E, F, G, H, K, L, C(施工日), M
+        
+        // ヘッダー作成
+        const thead = document.getElementById('table-head');
+        const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
+        const trHead = document.createElement('tr');
+        
+        displayCols.forEach(colIndex => {
+          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
+          const thHead = document.createElement('th'); thHead.textContent = headers[colIndex] || ""; trHead.appendChild(thHead);
+        });
+        ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
+            const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
+            const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
+        });
+        thead.appendChild(trAlpha); thead.appendChild(trHead);
+        
+        // データ本体の作成
+        const tbody = document.getElementById('table-body');
+        const tooltip = document.getElementById('tooltip');
+        const timeOptions = generateTimeOptions();
+
+        // オブジェクトのキーを配列にして、完了以外のものを抽出し、施工日順にソート
+        let keys = Object.keys(tasks);
+        let validKeys = keys.filter(key => {
+            let cols = tasks[key].csvData;
+            if(!cols) return false;
+            let colB = cols.length > 1 ? cols[1].replace(/\s+/g, "") : "";
+            return colB.indexOf("完了") === -1; // 完了は除外
+        });
+
+        validKeys.sort((a, b) => {
+            let dateA = tasks[a].csvData.length > 2 ? tasks[a].csvData[9] : "";
+            let dateB = tasks[b].csvData.length > 2 ? tasks[b].csvData[9] : "";
+            return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
+        });
+
+        validKeys.forEach(key => {
+            const dataObj = tasks[key];
+            const cols = dataObj.csvData;
+            const tr = document.createElement('tr');
+            
+            let dateStr = cols.length > 2 ? cols[9].replace(/\s+/g, "") : "";
+            let sekouDateFormatted = "";
+            if (dateStr !== "") {
+                let taskDate = new Date(dateStr);
+                if (!isNaN(taskDate.getTime())) {
+                    sekouDateFormatted = taskDate.getFullYear() + '-' + ('0' + (taskDate.getMonth() + 1)).slice(-2) + '-' + ('0' + taskDate.getDate()).slice(-2);
+                }
+            }
+            tr.dataset.sekouDate = sekouDateFormatted;
+            tr.dataset.shitamiDate = dataObj.date || ""; 
+            
+            let mColText = cols.length > 12 ? cols[10].replace(/\s+/g, "") : "";
+            let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
+            
+            displayCols.forEach(colIndex => {
+                const c = cols[colIndex] || "";
+                const td = document.createElement('td'); 
+                const inner = document.createElement('div'); inner.className = 'cell-inner';
+                let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
+                
+                if (colIndex === 11) {
+                  let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
+                  if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } else { shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, ''); }
+                  if(cleanText !== '') inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
+                } else if (colIndex === 6 && cleanText !== '') {
+                  inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
+                } else {
+                  inner.textContent = displayText; 
+                }
+                
+                if (colIndex === 12) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
+                
+                td.appendChild(inner);
+                if (cleanText !== '') {
+                  td.addEventListener('mouseenter', e => { tooltip.textContent = c; tooltip.style.display = 'block'; });
+                  td.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
+                  td.addEventListener('mouseleave', e => { tooltip.style.display = 'none'; });
+                }
+                tr.appendChild(td);
+            });
+
+            const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
+            const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
+            tdDate.appendChild(dateInput); tr.appendChild(tdDate);
+
+            const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
+            const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
+            tdTime.appendChild(timeInput); tr.appendChild(tdTime);
+
+            const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
+            const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
+            tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
+
+            // ▼ この行のリアルタイム同期をセット
+            const taskRef = database.ref('app_tasks/' + key);
+            taskRef.on('value', snap => {
+                const rtData = snap.val();
+                if(rtData) {
+                    if (document.activeElement !== dateInput) { dateInput.value = rtData.date || ''; tr.dataset.shitamiDate = rtData.date || ''; }
+                    if (document.activeElement !== timeInput) timeInput.value = rtData.time || '';
+                    if (document.activeElement !== orderInput) orderInput.value = rtData.order || '';
+                    updateRowVisibility(tr);
+                }
+            });
+
+            function saveToFirebase() { taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value }); }
+            
+            dateInput.addEventListener('change', function() { tr.dataset.shitamiDate = this.value; saveToFirebase(); updateRowVisibility(tr); });
+            timeInput.addEventListener('change', saveToFirebase);
+            orderInput.addEventListener('input', saveToFirebase);
+
+            updateRowVisibility(tr);
+            tbody.appendChild(tr);
+        });
+    });
+
+    // CSVダウンロード機能
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+        let csvContent = "";
+        const thead = document.getElementById('table-head');
+        const ths = thead.querySelectorAll('tr').item(1).querySelectorAll('th');
+        const headers = new Array();
+        for (let i = 0; i < ths.length; i++) headers.push('"' + ths.item(i).textContent.replace(/"/g, '""') + '"');
+        csvContent += headers.join(',') + "\r\n";
+
+        const trs = document.getElementById('table-body').querySelectorAll('tr');
+        for (let i = 0; i < trs.length; i++) {
+            if (trs.item(i).style.display === 'none') continue;
+            const rowData = new Array();
+            const tds = trs.item(i).querySelectorAll('td');
+            for (let j = 0; j < tds.length; j++) {
+                const input = tds.item(j).querySelector('input, select');
+                if (input) rowData.push('"' + input.value.replace(/"/g, '""') + '"');
+                else rowData.push('"' + tds.item(j).textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""') + '"');
+            }
+            csvContent += rowData.join(',') + "\r\n";
+        }
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        const targetDate = document.getElementById('filterDate').value || "指定日";
+        a.download = "指定日の案件_" + targetDate + ".csv";
+        a.click(); window.URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
+
+--------------------------------------------------------------------------------
+3. ポータル画面の更新（index.html または portal.html）
+管理者画面へのリンクを追加します。現在のポータルのコードを以下で上書きしてください。
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>下見予定 ポータルメニュー</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
+    h1 { color: #333; margin-bottom: 30px; }
+    .menu-container { display: flex; flex-direction: column; gap: 20px; max-width: 350px; margin: 0 auto; }
+    .menu-btn { 
+        display: block; padding: 20px; font-size: 18px; font-weight: bold; 
+        text-decoration: none; color: #fff; border-radius: 10px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: opacity 0.2s;
+    }
+    .menu-btn:hover { opacity: 0.8; }
+    
+    .btn-admin { background-color: #343a40; border: 2px dashed #ffc107; color: #ffc107;} /* 管理者用（黒＆黄色） */
+    .btn-today { background-color: #dc3545; }    
+    .btn-shinchiku { background-color: #007bff; } 
+    .btn-reform { background-color: #28a745; }   
+    .btn-all { background-color: #6c757d; }      
+  </style>
+</head>
+<body>
+  <h1>📁 案件管理ポータル</h1>
+  
+  <div class="menu-container">
+    <!-- ▼ 0. 管理者用アップロード（一番上に配置） -->
+    <a href="admin.html" class="menu-btn btn-admin">👑 【管理者用】CSVアップロード</a>
+
+    <!-- ▼ 1. 指定日の案件（完全クラウド化済み） -->
+    <a href="today.html" class="menu-btn btn-today">🔥 指定日の案件（完全クラウド版）</a>
+    
+    <!-- ▼ 以下は以前のままの機能です -->
+    <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定（CSV必要）</a>
+    <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定（CSV必要）</a>
+    <a href="all.html" class="menu-btn btn-all">📅 全案件 スケジュール（CSV必要）</a>
+  </div>
+
 </body>
 </html>
