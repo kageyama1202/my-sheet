@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>下見予定 ポータルメニュー</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
+    h1 { color: #333; margin-bottom: 30px; }
+    .menu-container { display: flex; flex-direction: column; gap: 20px; max-width: 350px; margin: 0 auto; }
+    .menu-btn { 
+        display: block; 
+        padding: 20px; 
+        font-size: 18px; 
+        font-weight: bold; 
+        text-decoration: none; 
+        color: #fff; 
+        border-radius: 10px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    }
+    .btn-shinchiku { background-color: #007bff; }
+    .btn-reform { background-color: #28a745; }
+    
+    /* 今後増えたとき用のボタンデザイン */
+    .btn-other { background-color: #6c757d; }
+  </style>
+</head>
+<body>
+  <h1>📁 案件管理ポータル</h1>
+  <div class="menu-container">
+    <!-- 同じフォルダにあるHTMLファイルへリンクします -->
+    <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定</a>
+    <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定</a>
+    
+    <!-- ▼ 今後ファイルが増えたらここをコピーして追加していけばOKです -->
+    <!-- <a href="hoka.html" class="menu-btn btn-other">📝 その他の予定</a> -->
+  </div>
+</body>
+</html>
