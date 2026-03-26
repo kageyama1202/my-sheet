@@ -46,7 +46,8 @@
         return;
       }
 
-      const file = fileInput.files;
+      // 【修正箇所】filesとして、選ばれた最初のファイルを正確に指定します
+      const file = fileInput.files; 
       const reader = new FileReader();
       
       reader.onload = function(e) {
@@ -60,8 +61,9 @@
           if (!line) continue; // 空行は無視
           
           const cols = line.split(','); // カンマで分割
-          const id = cols;   // 【修正済】1列目：案件ID
-          const name = cols[1]; // 【修正済】2列目：顧客名
+          // 【修正箇所】何番目のデータかを正確に指定します
+          const id = cols;   // 1列目：案件ID
+          const name = cols[1]; // 2列目：顧客名
           
           if (id && name) {
             // Firebaseの「cases」フォルダに基本データを登録
@@ -74,7 +76,8 @@
         }
         document.getElementById('status').innerText = "✅ " + count + "件の案件データをFirebaseに登録しました！";
       };
-      reader.readAsText(file); // ファイルを文字として読み込む
+      // ここでエラーが出ないようになります
+      reader.readAsText(file); 
     });
   </script>
 </body>
