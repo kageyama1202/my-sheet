@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（20日後オレンジ版）</title>
+  <title>新築下見予定 抽出リスト（20日以内オレンジ版）</title>
   <style>
     body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
     
@@ -67,7 +67,6 @@
         return letter;
     }
     
-    // エラーが起きない究極の安全なパース処理
     function parseCSV(text) {
         const result = new Array(); let row = new Array(); let col = ''; let insideQuotes = false;
         for (let i = 0; i < text.length; i++) {
@@ -94,7 +93,6 @@
         return options;
     }
 
-    // 検索窓に入力された文字でリアルタイムに表を絞り込む
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
@@ -127,7 +125,6 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // 表示する列の順番（A, I, J は除外されています）
         const displayCols = new Array();
         displayCols.push(1);  // B列
         displayCols.push(3);  // D列
@@ -144,16 +141,13 @@
         today.setHours(0, 0, 0, 0);
 
         let filteredLines = validLines.filter(function(cols) {
-            // 文字消去システムを回避した超安全なデータ取得（B列とD列）
             let colB = cols.length > 1 ? cols.slice(1, 2).join("").replace(/\s+/g, "") : "";
             let colD = cols.length > 3 ? cols.slice(3, 4).join("").replace(/\s+/g, "") : "";
             let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
 
-            // ▼ 条件：B列に「依頼」が含まれ、D列が完全に「新」のもの
             let matchB = colB.indexOf("依頼") !== -1;
             let matchD = (colD === "新");
             
-            // ▼ 過去のものは完全に弾く（今日以降のものだけ残す）
             let isPast = false;
             
             if (dateStr !== "") {
@@ -161,12 +155,10 @@
                 if (!isNaN(taskDate.getTime())) {
                     let diffTime = today.getTime() - taskDate.getTime();
                     let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-                    
                     if (diffDays > 0) { isPast = true; }
                 }
             }
             
-            // B列・D列が一致し、かつ「過去ではない（今日以降）」ものを抽出
             return matchB && matchD && !isPast;
         });
 
@@ -175,7 +167,6 @@
             return;
         }
 
-        // C列（施工日）で並び替え
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -204,17 +195,17 @@
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          // ▼ この行が「今日から数えて20日後（20日以上先）」の案件かどうかを判定
+          // ▼ 今回の修正：「今日から20日後まで」の期間の案件かどうかを判定
           let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
-          let is20DaysLater = false;
+          let isWithin20Days = false;
           if (dateStr !== "") {
               let taskDate = new Date(dateStr);
               if (!isNaN(taskDate.getTime())) {
                   // 未来の日付 - 今日の日付
                   let diffTime = taskDate.getTime() - today.getTime();
                   let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-                  // 20日以上先のものならフラグを立てる
-                  if (diffDays >= 20) { is20DaysLater = true; }
+                  // 「0日後（今日）」から「20日後」までの期間ならフラグを立てる
+                  if (diffDays >= 0 && diffDays <= 20) { isWithin20Days = true; }
               }
           }
           
@@ -227,7 +218,6 @@
             let displayText = c.replace(/\n|\r/g, ' '); 
             let cleanText = c.replace(/\s+/g, '');
             
-            // L列（住所）をマップリンク化
             if (colIndex === 11) {
               let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
               if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
@@ -237,7 +227,6 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            // G列（電話）を電話リンク化
             else if (colIndex === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
@@ -245,8 +234,8 @@
               inner.textContent = displayText; 
             }
             
-            // ▼ 今回の修正：20日以上先の案件ならM列（インデックス12）をオレンジにする！
-            if (colIndex === 12 && is20DaysLater) {
+            // ▼ 今回の修正：今日から20日後までの案件ならM列をオレンジにする！
+            if (colIndex === 12 && isWithin20Days) {
                 td.style.backgroundColor = '#ff9800';
                 inner.style.color = '#fff';
                 inner.style.fontWeight = 'bold';
