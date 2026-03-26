@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>案件リスト（データ抽出特化版）</title>
+  <title>案件リスト（表示特化版）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
@@ -32,7 +32,7 @@
       cursor: pointer;
     }
 
-    /* ▼ 変更1: 画面の最前面に強制表示させるポップアップのデザイン */
+    /* 画面の最前面に強制表示させるポップアップのデザイン */
     #custom-tooltip {
       display: none;
       position: absolute;
@@ -40,27 +40,26 @@
       border: 2px solid #28a745;
       padding: 10px;
       border-radius: 4px;
-      z-index: 99999; /* 絶対に一番手前に来るように設定 */
+      z-index: 99999; 
       white-space: normal; 
       width: max-content; 
       max-width: 400px; 
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
       line-height: 1.6;
       color: #333;
-      pointer-events: none; /* マウス操作の邪魔をしない設定 */
+      pointer-events: none; 
     }
     
-    input[type="text"] { width: 100%; box-sizing: border-box; padding: 4px; }
     select { padding: 5px; font-size: 14px; margin-right: 10px; }
   </style>
 </head>
 <body>
 
-  <!-- ▼ 変更2: ポップアップの枠をひとつだけ画面上に用意しておく -->
+  <!-- ポップアップの枠 -->
   <div id="custom-tooltip"></div>
 
   <div class="box">
-    <h3>▼ CSVファイルを取り込んで表示（抽出・編集用）</h3>
+    <h3>▼ CSVファイルを取り込んで表示（表示特化版）</h3>
     <select id="encoding">
       <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
       <option value="UTF-8">文字コード: UTF-8</option>
@@ -77,6 +76,7 @@
   </div>
 
   <script>
+    // 列番号からアルファベット（A, B, C...）を自動計算
     function getColLetter(index) {
         let letter = '';
         while (index >= 0) {
@@ -86,6 +86,7 @@
         return letter;
     }
 
+    // 本格的なCSV解析機能
     function parseCSV(text) {
         const result = [];
         let row = [];
@@ -136,6 +137,7 @@
         const text = e.target.result;
         const lines = parseCSV(text);
         
+        // 空行を無視する
         const validLines = lines.filter(function(line) { 
             return line.join('').trim() !== ''; 
         });
@@ -148,9 +150,11 @@
         if (validLines.length === 0) return;
 
         const headers = validLines.shift(); 
-        const totalCols = headers.length + 10; 
+        
+        // 【修正】入力欄をなくしたため、純粋なCSVの列数だけを使用します
+        const totalCols = headers.length; 
 
-        // アルファベット行
+        // アルファベット行の作成
         const trAlpha = document.createElement('tr');
         trAlpha.className = 'alpha-head';
         for(let i = 0; i < totalCols; i++) {
@@ -160,22 +164,16 @@
         }
         thead.appendChild(trAlpha);
 
-        // ヘッダー行
+        // 項目名のヘッダー行を作成
         const trHead = document.createElement('tr');
         headers.forEach(function(h) {
           const th = document.createElement('th');
           th.textContent = h;
           trHead.appendChild(th);
         });
-        for(let i = 1; i <= 10; i++) {
-          const th = document.createElement('th');
-          th.textContent = '現場入力 ' + i;
-          th.style.backgroundColor = '#d4edda';
-          trHead.appendChild(th);
-        }
         thead.appendChild(trHead);
 
-        // データ行
+        // データ行を取り出して表示
         validLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           
@@ -187,7 +185,7 @@
             inner.textContent = c.replace(/\n|\r/g, ' '); 
             td.appendChild(inner);
             
-            // ▼ 変更3: マウスの動きに合わせてポップアップを強制表示する仕組み
+            // マウスの動きに合わせてポップアップを強制表示する仕組み
             if (c.trim() !== '') {
               td.addEventListener('mouseenter', function(e) {
                 const tooltip = document.getElementById('custom-tooltip');
@@ -210,17 +208,10 @@
             tr.appendChild(td);
           });
           
+          // 空っぽの列を埋める（データ欠損対策）
           const emptyCols = headers.length - cols.length;
           for(let k = 0; k < emptyCols; k++) {
               tr.appendChild(document.createElement('td'));
-          }
-          
-          // 現場入力
-          for(let j = 1; j <= 10; j++) {
-            const td = document.createElement('td');
-            td.style.padding = '8px';
-            td.innerHTML = '<input type="text" placeholder="...">';
-            tr.appendChild(td);
           }
           
           tbody.appendChild(tr);
