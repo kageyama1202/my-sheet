@@ -6,18 +6,14 @@
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
-    /* 一番下のポップアップが隠れないように、下に余白(padding)を入れています */
-    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; padding-bottom: 100px; }
+    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; padding-bottom: 50px; }
     
-    table { border-collapse: collapse; }
+    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     th, td { 
       border: 1px solid #ccc; 
       text-align: left; 
       font-size: 14px; 
       vertical-align: middle;
-      
-      /* ツールチップの基準にするため必須 */
-      position: relative; 
       
       /* 列幅を100pxに完全固定 */
       width: 100px;
@@ -28,7 +24,6 @@
     th { background-color: #e0e0e0; padding: 8px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
     
-    /* ▼ 変更1: 見切れる文字の処理をセル内の要素(div)に移動しました */
     .cell-inner {
       padding: 8px;
       white-space: nowrap; 
@@ -37,28 +32,22 @@
       cursor: pointer;
     }
 
-    /* ▼ 変更2: オリジナルのポップアップ（ツールチップ）デザイン */
-    .tooltip {
+    /* ▼ 変更1: 画面の最前面に強制表示させるポップアップのデザイン */
+    #custom-tooltip {
       display: none;
       position: absolute;
-      top: 35px; /* セルの少し下に表示 */
-      left: 5px;
       background-color: #fff;
-      border: 2px solid #28a745; /* 緑枠で読みやすく */
+      border: 2px solid #28a745;
       padding: 10px;
       border-radius: 4px;
-      z-index: 999;
-      white-space: normal; /* 改行を有効にする */
-      width: max-content; /* 文字量に合わせて広がる */
-      max-width: 400px; /* 最大400pxで折り返し（はみ出し防止） */
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 99999; /* 絶対に一番手前に来るように設定 */
+      white-space: normal; 
+      width: max-content; 
+      max-width: 400px; 
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
       line-height: 1.6;
       color: #333;
-    }
-
-    /* セルにマウスを乗せたらポップアップを表示 */
-    td:hover .tooltip {
-      display: block;
+      pointer-events: none; /* マウス操作の邪魔をしない設定 */
     }
     
     input[type="text"] { width: 100%; box-sizing: border-box; padding: 4px; }
@@ -66,6 +55,9 @@
   </style>
 </head>
 <body>
+
+  <!-- ▼ 変更2: ポップアップの枠をひとつだけ画面上に用意しておく -->
+  <div id="custom-tooltip"></div>
 
   <div class="box">
     <h3>▼ CSVファイルを取り込んで表示（抽出・編集用）</h3>
@@ -190,19 +182,29 @@
           cols.forEach(function(c) {
             const td = document.createElement('td');
             
-            // ▼ 変更3: 通常の見た目（1行に省略）
             const inner = document.createElement('div');
             inner.className = 'cell-inner';
             inner.textContent = c.replace(/\n|\r/g, ' '); 
             td.appendChild(inner);
             
-            // ▼ 変更4: マウスを乗せた時に出る「自作のポップアップ」を作成
+            // ▼ 変更3: マウスの動きに合わせてポップアップを強制表示する仕組み
             if (c.trim() !== '') {
-              const tooltip = document.createElement('div');
-              tooltip.className = 'tooltip';
-              // データ内の改行をHTMLの改行（<br>）に変換して全文表示
-              tooltip.innerHTML = c.replace(/\n/g, '<br>'); 
-              td.appendChild(tooltip);
+              td.addEventListener('mouseenter', function(e) {
+                const tooltip = document.getElementById('custom-tooltip');
+                tooltip.innerHTML = c.replace(/\n/g, '<br>'); 
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.pageX + 15) + 'px';
+                tooltip.style.top = (e.pageY + 15) + 'px';
+              });
+              td.addEventListener('mousemove', function(e) {
+                const tooltip = document.getElementById('custom-tooltip');
+                tooltip.style.left = (e.pageX + 15) + 'px';
+                tooltip.style.top = (e.pageY + 15) + 'px';
+              });
+              td.addEventListener('mouseleave', function(e) {
+                const tooltip = document.getElementById('custom-tooltip');
+                tooltip.style.display = 'none';
+              });
             }
             
             tr.appendChild(td);
@@ -216,7 +218,7 @@
           // 現場入力
           for(let j = 1; j <= 10; j++) {
             const td = document.createElement('td');
-            td.style.padding = '8px'; // 入力欄にはパディングをつける
+            td.style.padding = '8px';
             td.innerHTML = '<input type="text" placeholder="...">';
             tr.appendChild(td);
           }
