@@ -2,28 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（過去非表示・検索機能版）</title>
+  <title>新築下見予定 抽出リスト（B・D列厳密抽出・M列オレンジ版）</title>
   <style>
     body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
     
-    /* ▼ 上部メニューをさらに小さく、コンパクトに */
-    .box { 
-        background: #fff; 
-        padding: 5px 10px; 
-        border-radius: 4px; 
-        margin-bottom: 10px; 
-        border: 1px solid #ccc; 
-        display: flex; 
-        align-items: center; 
-        gap: 10px; 
-        flex-wrap: wrap; 
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
+    .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .box h3 { margin: 0; font-size: 14px; color: #333; }
     .box input[type="file"] { font-size: 12px; cursor: pointer; }
     .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; }
     
-    /* ▼ 全セル対象の検索窓（右上に配置） */
     .search-box { margin-left: auto; display: flex; align-items: center; gap: 5px; }
     .search-box span { font-size: 13px; font-weight: bold; color: #555; }
     .search-box input { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 180px; }
@@ -31,22 +18,15 @@
     .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 85vh; }
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     
-    /* 基本のセル幅は100px */
     th, td { border: 1px solid #ccc; text-align: left; font-size: 13px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     
-    /* ▼ 幅の個別調整（表示される順番に対して幅を指定） */
-    /* 1番目(B列): 60px */
-    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
-    /* 2番目(D列): 1文字分(40px) */
-    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
-    /* 3番目(E列): 1.5倍幅(150px) */
-    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
-    /* 6番目(H列): 60px */
-    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
-    /* 9番目(C列=施工日): もう少し小さく(80px) */
-    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; }
-    /* 10番目(M列): もう少し小さく(60px) */
-    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
+    /* ▼ 幅の個別調整 */
+    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; } /* B列 */
+    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; } /* D列 */
+    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; } /* E列 */
+    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; } /* H列 */
+    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; } /* C列(施工日) */
+    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; } /* M列 */
 
     th { background-color: #e0e0e0; padding: 6px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
@@ -66,7 +46,7 @@
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn">抽出</button>
     
-    <!-- ▼ 全セル対象のテキスト検索窓 -->
+    <!-- 全セル対象のテキスト検索窓 -->
     <div class="search-box">
       <span>🔍 検索:</span>
       <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
@@ -87,6 +67,7 @@
         return letter;
     }
     
+    // エラーが起きない究極の安全なパース処理
     function parseCSV(text) {
         const result = new Array(); let row = new Array(); let col = ''; let insideQuotes = false;
         for (let i = 0; i < text.length; i++) {
@@ -113,18 +94,17 @@
         return options;
     }
 
-    // ▼ 検索窓に入力された文字でリアルタイムに表を絞り込む機能
+    // 検索窓に入力された文字でリアルタイムに表を絞り込む
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
         
-        for (let i = 0; i < rows.length; i++) {
-            // 行の中にあるテキストをすべて取得して検索ワードと比較
-            let rowText = rows[i].textContent.toLowerCase(); 
+        for (let idx = 0; idx < rows.length; idx++) {
+            let rowText = rows.item(idx).textContent.toLowerCase(); 
             if (rowText.indexOf(word) !== -1) {
-                rows[i].style.display = '';
+                rows.item(idx).style.display = '';
             } else {
-                rows[i].style.display = 'none';
+                rows.item(idx).style.display = 'none';
             }
         }
     });
@@ -147,6 +127,7 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
+        // 表示する列の順番（A, I, J は除外されています）
         const displayCols = new Array();
         displayCols.push(1);  // B列
         displayCols.push(3);  // D列
@@ -159,36 +140,45 @@
         displayCols.push(2);  // C列（施工日）
         displayCols.push(12); // M列
 
-        // ▼ 今回の追加：今日の日付を取得（時刻を0時0分にリセットして比較用にする）
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         let filteredLines = validLines.filter(function(cols) {
-            let rowText = cols.join("").replace(/\s+/g, "");
-            let matchKeywords = rowText.indexOf("依頼") !== -1 && rowText.indexOf("新") !== -1;
+            // 文字消去システムを回避した超安全なデータ取得（B列とD列）
+            let colB = cols.length > 1 ? cols.slice(1, 2).join("").replace(/\s+/g, "") : "";
+            let colD = cols.length > 3 ? cols.slice(3, 4).join("").replace(/\s+/g, "") : "";
+            let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
+
+            // ▼ 条件：B列に「依頼」が含まれ、D列が完全に「新」のもの
+            let matchB = colB.indexOf("依頼") !== -1;
+            let matchD = (colD === "新");
             
-            // ▼ 今回の追加：C列（施工日 = インデックス2）が過去なら弾くロジック
-            let dateStr = cols.length > 2 ? cols[1].replace(/\s+/g, "") : "";
+            // ▼ 日付の計算（過去か、20日前の案件か）
             let isPast = false;
+            let is20DaysAgo = false;
             
-            // 日付っぽい文字が入っている場合だけ判定
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
-                // 正しい日付として認識され、かつ今日より前（過去）であれば true
-                if (!isNaN(taskDate.getTime()) && taskDate < today) {
-                    isPast = true;
+                if (!isNaN(taskDate.getTime())) {
+                    let diffTime = today.getTime() - taskDate.getTime();
+                    let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+                    
+                    if (diffDays > 0) { isPast = true; }
+                    // 20日以上前のものはフラグを立てる
+                    if (diffDays >= 20) { is20DaysAgo = true; }
                 }
             }
             
-            // 依頼・新が含まれ、かつ「過去ではない（今日以降）」ものだけ抽出
-            return matchKeywords && !isPast;
+            // B列・D列が一致し、かつ「過去ではない（または20日前の遅延案件である）」ものを残す
+            return matchB && matchD && (!isPast || is20DaysAgo);
         });
 
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\nデータの中に条件を満たす（かつ過去の施工日ではない）行がありません。"); 
+            alert("抽出結果が0件でした！\n\nB列に「依頼」、D列に「新」が入っているデータがありません。\n（または該当するデータがすべて過去の施工日です）"); 
             return;
         }
 
+        // C列（施工日）で並び替え
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -198,9 +188,9 @@
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
         
-        displayCols.forEach(function(i) {
-          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(i); trAlpha.appendChild(thAlpha);
-          const thHead = document.createElement('th'); thHead.textContent = headers[i] || ""; trHead.appendChild(thHead);
+        displayCols.forEach(function(colIndex) {
+          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
+          const thHead = document.createElement('th'); thHead.textContent = headers.slice(colIndex, colIndex + 1).join("") || ""; trHead.appendChild(thHead);
         });
 
         const inputHeaders = new Array('下見予定日', '下見予定時間', '下見順');
@@ -217,8 +207,20 @@
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          displayCols.forEach(function(i) {
-            const c = cols[i] || "";
+          // この行が「20日前の案件」かどうかを再度判定
+          let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
+          let is20DaysAgo = false;
+          if (dateStr !== "") {
+              let taskDate = new Date(dateStr);
+              if (!isNaN(taskDate.getTime())) {
+                  let diffTime = today.getTime() - taskDate.getTime();
+                  let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+                  if (diffDays >= 20) { is20DaysAgo = true; }
+              }
+          }
+          
+          displayCols.forEach(function(colIndex) {
+            const c = cols.slice(colIndex, colIndex + 1).join("") || "";
             const td = document.createElement('td'); 
             const inner = document.createElement('div'); 
             inner.className = 'cell-inner';
@@ -226,7 +228,8 @@
             let displayText = c.replace(/\n|\r/g, ' '); 
             let cleanText = c.replace(/\s+/g, '');
             
-            if (i === 11) {
+            // L列（住所）をマップリンク化
+            if (colIndex === 11) {
               let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
               if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
               else { shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, ''); }
@@ -235,11 +238,19 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            else if (i === 6 && cleanText !== '') {
+            // G列（電話）を電話リンク化
+            else if (colIndex === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
             else {
               inner.textContent = displayText; 
+            }
+            
+            // ▼ 今回の追加：20日前の案件ならM列をオレンジにして文字を白く太くする！
+            if (colIndex === 12 && is20DaysAgo) {
+                td.style.backgroundColor = '#ff9800';
+                inner.style.color = '#fff';
+                inner.style.fontWeight = 'bold';
             }
             
             td.appendChild(inner);
