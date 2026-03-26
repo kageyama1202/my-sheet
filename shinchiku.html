@@ -13,9 +13,13 @@
     th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     
     /* ▼ 幅の個別調整（※A列が非表示で消えるため、1番目=B列 となります） */
-    /* D列（元4列目→表示上は3列目）: 1文字分 */
+    /* B列（元2列目→表示上は1列目）: 80px */
+    th:nth-child(1), td:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }
+    /* C列（元3列目→表示上は2列目）: 60px */
+    th:nth-child(2), td:nth-child(2) { width: 60px; min-width: 60px; max-width: 60px; }
+    /* D列（元4列目→表示上は3列目）: 1文字分(40px) */
     th:nth-child(3), td:nth-child(3) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
-    /* E列（元5列目→表示上は4列目）: 1.5倍幅 */
+    /* E列（元5列目→表示上は4列目）: 1.5倍幅(150px) */
     th:nth-child(4), td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
 
     th { background-color: #e0e0e0; padding: 8px; }
@@ -93,7 +97,7 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // ▼ A列（インデックス0）のみを非表示
+        // ▼ エラーの直接原因だった箇所を修正（A列のみ非表示）
         const hideCols = ;
 
         // 「行のどこか」に文字があれば強制抽出する安全なロジック
@@ -107,7 +111,7 @@
             return;
         }
 
-        // C列（施工日）で並び替え
+        // C列（施工日 = インデックス2）で並び替え
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a[1] : "";
             let dateB = b.length > 2 ? b[1] : "";
@@ -147,7 +151,7 @@
             let displayText = c.replace(/\n|\r/g, ' '); 
             let cleanText = c.replace(/\s+/g, '');
             
-            // ▼ L列（インデックス11）の住所を短縮 ＆ Googleマップリンク化
+            // L列（住所）の短縮 ＆ Googleマップリンク化
             if (i === 11) {
               let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
               if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
@@ -157,11 +161,11 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            // ▼ 電話番号っぽいデータ（ハイフン入り数字）があれば電話リンク化
+            // 電話番号っぽいデータ（ハイフン入り数字）があれば電話リンク化
             else if (/^0\d{1,4}-\d{1,4}-\d{3,4}$/.test(cleanText) || /^00-\d{4}-\d{4}$/.test(cleanText)) {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
-            // ▼ それ以外は通常表示
+            // それ以外は通常表示
             else {
               inner.textContent = displayText; 
             }
