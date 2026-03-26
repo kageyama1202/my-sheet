@@ -70,9 +70,9 @@
     }
     function generateTimeOptions() {
         let options = '<option value="">--:--</option>';
-        for(let h = 8; h <= 20; h++) {
-            let hour = ('0' + h).slice(-2);
-            options += `<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`;
+        for(let h=8; h<=20; h++) { 
+            let hour=('0'+h).slice(-2); 
+            options+=`<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`; 
         }
         return options;
     }
@@ -100,7 +100,9 @@
 
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
-        const displayCols = [1-10]; 
+        
+        // ▼ エラーの原因だった箇所を修正（表示する列番号の指定）
+        const displayCols = [1-10];
         
         const thead = document.getElementById('table-head');
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
@@ -124,7 +126,9 @@
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            if(!cols) return false;
+            // データが配列じゃない場合は除外
+            if(!cols || !Array.isArray(cols)) return false;
+            
             let colB = cols[1] ? cols[1].replace(/\s+/g, "") : "";
             let colD = cols[2] ? cols[2].replace(/\s+/g, "") : "";
             let dateStr = cols[9] ? cols[9].replace(/\s+/g, "") : "";
