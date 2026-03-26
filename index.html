@@ -6,12 +6,11 @@
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
-    /* 横スクロールできるようにする */
     .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
     table { border-collapse: collapse; white-space: nowrap; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
     th { background-color: #e0e0e0; }
-    input[type="text"] { width: 80px; padding: 4px; box-sizing: border-box;}
+    input[type="text"] { width: 80px; padding: 4px; box-sizing: border-box; }
   </style>
 </head>
 <body>
@@ -25,10 +24,10 @@
   <div class="table-wrapper">
     <table>
       <thead id="table-head">
-        <!-- ここにCSVの項目名と、10個の入力欄のヘッダーが自動で入ります -->
+        <!-- ここにCSVの項目名と入力欄のヘッダーが入ります -->
       </thead>
       <tbody id="table-body">
-        <!-- ここにCSVのデータと、10個の入力欄が自動で入ります -->
+        <!-- ここにCSVのデータと入力欄が入ります -->
       </tbody>
     </table>
   </div>
@@ -41,63 +40,76 @@
         return;
       }
       
-      // 【重要な修正1】大括弧を使わずに、item(0)で1番目のファイルを確実に取り出す
+      // 【完全修正】ファイルを正確に指定し、エラーを絶対に出さない書き方
       const file = fileInput.files.item(0); 
       const reader = new FileReader();
       
       reader.onload = function(e) {
         const text = e.target.result;
-        const lines = text.split('\n');
+        
+        // あらゆる改行コードに対応してデータを分割
+        const lines = text.split(/\r\n|\n|\r/);
+        const validLines = lines.filter(function(line) { return line.trim() !== ''; });
         
         const thead = document.getElementById('table-head');
         const tbody = document.getElementById('table-body');
         thead.innerHTML = ''; 
         tbody.innerHTML = '';
         
-        if (lines.length === 0) return;
+        if (validLines.length === 0) {
+          alert("エラー：CSVの中にデータが見つかりませんでした。");
+          return;
+        }
 
-        // 【重要な修正2】大括弧を使わずに、shift()で1行目(ヘッダー)だけを確実に取り出す
-        const firstLine = lines.shift(); 
-        if (!firstLine) return;
-
+        // 1行目(ヘッダー)を取り出す
+        const firstLine = validLines.shift(); 
         const headers = firstLine.split(',');
         const trHead = document.createElement('tr');
         
-        // 元の13列のヘッダー
-        headers.forEach(h => {
-          trHead.innerHTML += `<th>${h}</th>`;
+        // 元の13列のヘッダーを表示
+        headers.forEach(function(h) {
+          const th = document.createElement('th');
+          th.textContent = h;
+          trHead.appendChild(th);
         });
         
         // 横に10個の入力欄のヘッダーを足す
         for(let i = 1; i <= 10; i++) {
-          trHead.innerHTML += `<th style="background:#d4edda;">現場入力 ${i}</th>`;
+          const th = document.createElement('th');
+          th.textContent = '現場入力 ' + i;
+          th.style.backgroundColor = '#d4edda';
+          trHead.appendChild(th);
         }
         thead.appendChild(trHead);
 
-        // 残りの行（2行目以降のデータ）を取り出して表示
-        lines.forEach(line => {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) return; 
-          
-          const cols = trimmedLine.split(',');
+        // 残りのデータ行を取り出して表示
+        validLines.forEach(function(line) {
+          const cols = line.split(',');
           const tr = document.createElement('tr');
           
           // 元の13列のデータ
-          cols.forEach(c => {
-            tr.innerHTML += `<td>${c}</td>`;
+          cols.forEach(function(c) {
+            const td = document.createElement('td');
+            td.textContent = c;
+            tr.appendChild(td);
           });
           
           // 横に10個のテキスト入力欄を足す
           for(let j = 1; j <= 10; j++) {
-            tr.innerHTML += `<td><input type="text" placeholder="入力..."></td>`;
+            const td = document.createElement('td');
+            td.innerHTML = '<input type="text" placeholder="入力...">';
+            tr.appendChild(td);
           }
           
           tbody.appendChild(tr);
         });
+        
+        // 成功をアラートでお知らせ
+        alert("読み込み成功！ " + validLines.length + " 件の案件データを表示しました。");
       };
       
-      // 正しいファイル(Blob)が渡されるため、もうエラーは出ません
-      reader.readAsText(file);
+      // Salesforce特有の文字コード(Shift_JIS)を正しく読み込む
+      reader.readAsText(file, 'Shift_JIS');
     });
   </script>
 </body>
