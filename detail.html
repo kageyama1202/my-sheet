@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>案件詳細</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 15px; background-color: #f4f6f9; margin: 0; }
+    .box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    
+    .header-info { display: flex; flex-direction: column; gap: 15px; }
+    .date-row { font-size: 15px; color: #555; font-weight: bold; background: #e9ecef; padding: 10px; border-radius: 6px; display: inline-block; width: fit-content; }
+    
+    .title-row { display: flex; align-items: center; gap: 15px; font-size: 20px; font-weight: bold; color: #333; }
+    .copy-btn { font-size: 13px; padding: 6px 15px; cursor: pointer; border-radius: 4px; border: none; background: #007bff; color: #fff; font-weight: bold; transition: 0.2s; }
+    .copy-btn:hover { background: #0056b3; }
+    .copy-btn.copied { background: #28a745; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 12px; font-size: 14px; text-align: left; vertical-align: middle; }
+    th { background-color: #f8f9fa; width: 30%; font-weight: bold; color: #495057; }
+    td { background-color: #fff; color: #212529; }
+    a { color: #0056b3; text-decoration: underline; font-weight: bold; }
+    
+    .back-btn { margin-bottom: 15px; display: inline-block; font-size: 14px; text-decoration: none; color: #495057; background: #e9ecef; padding: 8px 20px; border-radius: 6px; border: 1px solid #ced4da; font-weight: bold;}
+    .back-btn:hover { background: #dde2e6; }
+    
+    #loadingMsg { font-weight: bold; color: #007bff; font-size: 16px; margin: 20px; }
+  </style>
+</head>
+<body>
+  <!-- ブラウザの「戻る」と同じ動作をするボタン -->
+  <a href="javascript:history.back()" class="back-btn">← 一覧に戻る</a>
+  
+  <div id="loadingMsg">クラウドから詳細データを取得中...</div>
+
+  <div id="detail-container" style="display: none;">
+    <!-- 上部：施工日・下見日・案件名・コピーボタン -->
+    <div class="box">
+      <div class="header-info">
+        <div class="date-row">
+          🔨 施工日: <span id="sekou-date"></span>　|　📅 下見日: <span id="shitami-date"></span>
+        </div>
+        <div class="title-row">
+          🏷️ 案件名: <span id="anken-name"></span>
+          <button id="copy-btn" class="copy-btn">コピーする</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下部：全データのリスト -->
+    <div class="box">
+      <h3 style="margin-top: 0; color: #495057;">📄 案件の全データ</h3>
+      <table id="detail-table">
+        <tbody id="detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
+
+    // ▼ URLから開くべき案件のIDを取得する処理（例: detail.html?id=タスクキー）
+    const urlParams = new URLSearchParams(window.location.search);
+    const taskId = urlParams.get('id');
+
+    if (!taskId) {
+        document.getElementById('loadingMsg').innerHTML = "⚠️ 案件が指定されていません。<br>一覧ページからリンクをクリックして開いてください。";
+    } else {
+        // Firebaseから特定の案件データを読み込む
+        database.ref().once('value').then(function(snapshot) {
+            const dbData = snapshot.val();
+            if (!dbData || !dbData.app_meta || !dbData.app_tasks || !dbData.app_tasks[taskId]) {
+                document.getElementById('loadingMsg').textContent = "⚠️ データが見つかりません。";
+                return;
+            }
+
+            document.getElementById('loadingMsg').style.display = "none";
+            document.getElementById('detail-container').style.display = "block";
+
+            const headers = dbData.app_meta.headers;
+            const taskData = dbData.app_tasks[taskId];
+            const cols = taskData.csvData;
+
+            // ▼ 施工日の取得 (C列 = index 2)
+            let sekouStr = cols.length > 2 ? String(cols[3]).replace(/\s+/g, "") : "未定";
+            document.getElementById('sekou-date').textContent = sekouStr;
+
+            // ▼ 下見日の取得 (アプリ上で入力された date)
+            let shitamiStr = taskData.date ? taskData.date : "未定";
+            document.getElementById('shitami-date').textContent = shitamiStr;
+
+            // ▼ 案件名の取得 (現場名などを取得。今回はF列(index 5)またはE列(index 4)を案件名と仮定)
+            let ankenText = "";
+            let eCol = cols.length > 4 ? String(cols[4]).trim() : "";
+            let fCol = cols.length > 5 ? String(cols[5]).trim() : "";
+            
+            if (fCol !== "") { ankenText = fCol; } 
+            else if (eCol !== "") { ankenText = eCol; } 
+            else { ankenText = "名称未設定"; }
+            
+            document.getElementById('anken-name').textContent = ankenText;
+
+            // ▼ コピーボタンの処理
+            document.getElementById('copy-btn').addEventListener('click', function() {
+                navigator.clipboard.writeText(ankenText).then(() => {
+                    const btn = document.getElementById('copy-btn');
+                    btn.textContent = "✔ コピー完了！";
+                    btn.classList.add('copied');
+                    // 2秒後に元のボタンに戻す
+                    setTimeout(() => {
+                        btn.textContent = "コピーする";
+                        btn.classList.remove('copied');
+                    }, 2000);
+                }).catch(err => {
+                    alert("コピーに失敗しました");
+                });
+            });
+
+            // ▼ CSVの全データをループして表に流し込む処理
+            const tbody = document.getElementById('detail-tbody');
+            headers.forEach((headerName, index) => {
+                const val = (cols && cols.length > index) ? String(cols[index]) : "";
+                let displayHtml = val.replace(/\n|\r/g, '<br>');
+                let cleanText = val.replace(/\s+/g, '');
+
+                // 住所(L列 = index 11)ならGoogleマップのリンクにする
+                if (index === 11 && cleanText !== "") {
+                    displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank">🗺️ ${val}</a>`;
+                } 
+                // 電話番号(G列 = index 6)なら電話をかけるリンクにする
+                else if (index === 6 && cleanText !== "") {
+                    displayHtml = `<a href="tel:${cleanText}">📞 ${val}</a>`;
+                }
+
+                // 1行分のHTMLを作成して表に追加
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td>`;
+                tbody.appendChild(tr);
+            });
+        }).catch(err => {
+            document.getElementById('loadingMsg').textContent = "⚠️ エラーが発生しました: " + err;
+        });
+    }
+  </script>
+</body>
+</html>
