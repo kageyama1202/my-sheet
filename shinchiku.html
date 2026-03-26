@@ -9,10 +9,10 @@
     .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 75vh; }
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     
-    /* 基本のセル幅は100px（I列、J列もこれで100pxに揃います） */
+    /* 基本のセル幅は100px */
     th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     
-    /* ▼ 幅の個別調整（※A列が非表示で消えるため、1番目=B列 となります） */
+    /* ▼ 幅の個別調整（※A, I, J列が非表示で消えるため、1番目=B列 となります） */
     /* B列（元2列目→表示上は1列目）: 80px */
     th:nth-child(1), td:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }
     /* C列（元3列目→表示上は2列目）: 60px */
@@ -97,9 +97,11 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // ▼ エラーの直接原因だった箇所を修正（文字消去システムを回避した書き方）
+        // ▼ 変更点：A列（0番目）、I列（8番目）、J列（9番目）を非表示に設定
         const hideCols = new Array();
-        hideCols.push(0);
+        hideCols.push(0); // A列
+        hideCols.push(8); // I列
+        hideCols.push(9); // J列
 
         // 「行のどこか」に文字があれば強制抽出する安全なロジック
         let filteredLines = validLines.filter(function(cols) {
@@ -112,7 +114,7 @@
             return;
         }
 
-        // C列（施工日）で並び替え（こちらも文字消去を回避した安全な書き方）
+        // C列（施工日）で並び替え
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -162,8 +164,8 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            // 電話番号っぽいデータ（ハイフン入り数字）があれば電話リンク化
-            else if (/^0\d{1,4}-\d{1,4}-\d{3,4}$/.test(cleanText) || /^00-\d{4}-\d{4}$/.test(cleanText)) {
+            // ▼ 変更点：G列（インデックス6番目）を確実に電話リンク化
+            else if (i === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
             // それ以外は通常表示
