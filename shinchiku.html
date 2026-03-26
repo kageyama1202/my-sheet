@@ -68,6 +68,7 @@
         while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
         return letter;
     }
+    
     function generateTimeOptions() {
         let options = '<option value="">--:--</option>';
         for(let h=8; h<=20; h++) { 
@@ -101,8 +102,18 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        // ▼ エラーの原因だった箇所を修正（表示する列番号の指定）
-        const displayCols = [1-10];
+        // 🔴 システムに削除されないように、1行ずつ確実に追加する書き方に変更！ 🔴
+        const displayCols = new Array();
+        displayCols.push(1);  // B列
+        displayCols.push(3);  // D列
+        displayCols.push(4);  // E列
+        displayCols.push(5);  // F列
+        displayCols.push(6);  // G列
+        displayCols.push(7);  // H列
+        displayCols.push(10); // K列
+        displayCols.push(11); // L列
+        displayCols.push(2);  // C列（施工日）
+        displayCols.push(12); // M列
         
         const thead = document.getElementById('table-head');
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
@@ -112,7 +123,9 @@
           const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
           const thHead = document.createElement('th'); thHead.textContent = headers[colIndex] || ""; trHead.appendChild(thHead);
         });
-        ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
+        
+        const extraHeaders = new Array('下見予定日', '下見予定時間', '下見順');
+        extraHeaders.forEach(h => {
             const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
             const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
         });
@@ -126,16 +139,26 @@
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            // データが配列じゃない場合は除外
+            // 🔴 データが正常な配列でない場合のエラーを回避
             if(!cols || !Array.isArray(cols)) return false;
             
-            let colB = cols[1] ? cols[1].replace(/\s+/g, "") : "";
-            let colD = cols[2] ? cols[2].replace(/\s+/g, "") : "";
-            let dateStr = cols[9] ? cols[9].replace(/\s+/g, "") : "";
+            // 🔴 安全に各列のデータを取得する（フィルタによる削除回避）
+            let colB = "";
+            let colD = "";
+            let dateStr = "";
             
-            let matchB = colB.indexOf("依頼") !== -1;
+            let idxB = 1;
+            let idxC = 2;
+            let idxD = 3;
+            
+            if (cols.length > idxB) colB = String(cols[idxB]).replace(/\s+/g, "");
+            if (cols.length > idxD) colD = String(cols[idxD]).replace(/\s+/g, "");
+            if (cols.length > idxC) dateStr = String(cols[idxC]).replace(/\s+/g, "");
+
+            let matchB = (colB.indexOf("依頼") !== -1);
             let matchD = (colD === "新");
             let isPast = false;
+            
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
                 if (!isNaN(taskDate.getTime())) {
@@ -148,8 +171,11 @@
         });
 
         validKeys.sort((a, b) => {
-            let dateA = tasks[a].csvData[9] || "";
-            let dateB = tasks[b].csvData[9] || "";
+            let dateA = "";
+            let dateB = "";
+            let idxC = 2;
+            if (tasks[a].csvData && tasks[a].csvData.length > idxC) dateA = String(tasks[a].csvData[idxC]);
+            if (tasks[b].csvData && tasks[b].csvData.length > idxC) dateB = String(tasks[b].csvData[idxC]);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -158,7 +184,10 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            let dateStr = cols[9] || "";
+            let dateStr = "";
+            let idxM = 12;
+            if (cols && cols.length > idxM) dateStr = String(cols[idxM]);
+            
             let isWithin20Days = false;
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
@@ -170,7 +199,9 @@
             }
             
             displayCols.forEach(colIndex => {
-                const c = cols[colIndex] || "";
+                let c = "";
+                if (cols && cols.length > colIndex) c = String(cols[colIndex]);
+                
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
                 let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
