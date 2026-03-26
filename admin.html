@@ -60,11 +60,11 @@
           if (!line) continue; // 空行は無視
           
           const cols = line.split(','); // カンマで分割
-          const id = cols;   // 1列目：案件ID
-          const name = cols[1]; // 2列目：顧客名
+          const id = cols;   // 【修正済】1列目：案件ID
+          const name = cols[1]; // 【修正済】2列目：顧客名
           
           if (id && name) {
-            // Firebaseの「cases」フォルダに基本データを登録（増設用）
+            // Firebaseの「cases」フォルダに基本データを登録
             db.ref('cases/' + id).update({
               caseId: id,
               customerName: name
