@@ -8,8 +8,7 @@
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
     .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
     
-    /* ▼ 変更1: 列幅を固定し、はみ出た文字を「...」で隠す設定 */
-    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    table { border-collapse: collapse; }
     th, td { 
       border: 1px solid #ccc; 
       padding: 8px; 
@@ -17,8 +16,11 @@
       font-size: 14px; 
       vertical-align: middle;
       
-      /* 列幅を小さく固定（必要に応じて数値を調整してください） */
+      /* ▼ 修正: 表の押し広げを無効化し、幅を100pxに【完全固定】する3重ロック */
+      width: 100px;
+      min-width: 100px;
       max-width: 100px; 
+      
       /* 文字を1行にし、見切れる場合は「...」にする */
       white-space: nowrap; 
       overflow: hidden; 
@@ -56,7 +58,7 @@
   </div>
 
   <script>
-    // ▼ 変更2: 列番号からアルファベット（A, B, C... Z, AA, AB...）を自動計算する関数
+    // 列番号からアルファベット（A, B, C... Z, AA, AB...）を自動計算する関数
     function getColLetter(index) {
         let letter = '';
         while (index >= 0) {
@@ -135,7 +137,7 @@
         const headers = validLines.shift(); 
         const totalCols = headers.length + 10; // 元の列数 ＋ 現場入力の10列
 
-        // ▼ 追加: 表の一番上に「A, B, C...」のアルファベット行を作成
+        // 表の一番上に「A, B, C...」のアルファベット行を作成
         const trAlpha = document.createElement('tr');
         trAlpha.className = 'alpha-head';
         for(let i = 0; i < totalCols; i++) {
@@ -173,7 +175,7 @@
             // 画面の見た目上は改行を消して1行スッキリ（...）で表示させる
             td.textContent = c.replace(/\n|\r/g, ' '); 
             
-            // ▼ 変更3: マウスを乗せた時(title属性)には、元の改行入りの全文をポップアップ表示させる
+            // マウスを乗せた時(title属性)には、元の改行入りの全文をポップアップ表示させる
             td.title = c; 
             
             tr.appendChild(td);
@@ -194,8 +196,6 @@
           
           tbody.appendChild(tr);
         });
-        
-        alert("読み込み成功！ " + validLines.length + " 件の案件データを表示しました。");
       };
       
       reader.readAsText(file, encoding);
