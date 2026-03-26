@@ -2,29 +2,36 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（強力抽出版）</title>
+  <title>新築下見予定 抽出リスト（強力抽出・入力フォーム版）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
     .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 75vh; }
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    
+    /* 基本のセル幅は100px（I列、J列もこれで100pxに揃います） */
     th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
-    th:nth-child(1), td:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }
-    th:nth-child(2), td:nth-child(2) { width: 60px; min-width: 60px; max-width: 60px; }
+    
+    /* ▼ 幅の個別調整（※A列が非表示で消えるため、1番目=B列 となります） */
+    /* D列（元4列目→表示上は3列目）: 1文字分 */
     th:nth-child(3), td:nth-child(3) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
-    th:nth-child(4), td:nth-child(4) { width: 250px; min-width: 250px; max-width: 250px; }
-    th:nth-child(9), td:nth-child(9) { width: 60px; min-width: 60px; max-width: 60px; }
+    /* E列（元5列目→表示上は4列目）: 1.5倍幅 */
+    th:nth-child(4), td:nth-child(4) { width: 150px; min-width: 150px; max-width: 150px; }
+
     th { background-color: #e0e0e0; padding: 8px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
     .cell-inner { padding: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
-    .input-text { width: 100%; box-sizing: border-box; padding: 4px; }
+    
+    /* 入力フォームのデザイン */
+    .input-form { width: 100%; box-sizing: border-box; padding: 6px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;}
+    .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
   </style>
 </head>
 <body>
   <div id="tooltip"></div>
   <div class="box">
-    <h3>▼ 新築下見予定データ 抽出（強力抽出版）</h3>
+    <h3>▼ 新築下見予定データ 抽出</h3>
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">抽出して表示</button>
   </div>
@@ -40,6 +47,7 @@
         while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
         return letter;
     }
+    
     function parseCSV(text) {
         const result = []; let row = []; let col = ''; let insideQuotes = false;
         for (let i = 0; i < text.length; i++) {
@@ -55,6 +63,18 @@
         if (col !== '' || row.length > 0) { row.push(col); result.push(row); }
         return result;
     }
+
+    // 30分刻みの時間オプションを作る関数
+    function generateTimeOptions() {
+        let options = '<option value="">--:--</option>';
+        for(let h = 8; h <= 20; h++) {
+            let hour = ('0' + h).slice(-2);
+            options += `<option value="${hour}:00">${hour}:00</option>`;
+            options += `<option value="${hour}:30">${hour}:30</option>`;
+        }
+        return options;
+    }
+
     document.getElementById('uploadBtn').addEventListener('click', function() {
       const fileInput = document.getElementById('csvFile');
       if (fileInput.files.length === 0) { alert("CSVファイルを選択してください！"); return; }
@@ -73,26 +93,24 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        const hideCols = [1-3];
+        // ▼ A列（インデックス0）のみを非表示
+        const hideCols = ;
 
-        // ▼ 今回のキモ：列の場所を一切無視し、「行のどこか」に文字があれば強制抽出
+        // 「行のどこか」に文字があれば強制抽出する安全なロジック
         let filteredLines = validLines.filter(function(cols) {
-            // 行のすべての文字を合体させ、空白を完全に消す
             let rowText = cols.join("").replace(/\s+/g, "");
-            
-            // 行のどこかに「依頼」と「新」が両方含まれていれば抽出！
             return rowText.indexOf("依頼") !== -1 && rowText.indexOf("新") !== -1;
         });
 
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\n【原因】\nデータの中に「依頼」と「新」の両方が含まれる行が1件もありません。\n※文字化けしている可能性もあるため、元のCSVを一度開いて日本語が読めるか確認してみてください。"); 
+            alert("抽出結果が0件でした！\n\nデータの中に「依頼」と「新」の両方が含まれる行がありません。"); 
             return;
         }
 
-        // C列（3番目の列）あたりで並び替え（列がズレていてもエラーにならない安全な書き方）
+        // C列（施工日）で並び替え
         filteredLines.sort(function(a, b) { 
-            let dateA = a.length > 2 ? a[4] : "";
-            let dateB = b.length > 2 ? b[4] : "";
+            let dateA = a.length > 2 ? a[1] : "";
+            let dateB = b.length > 2 ? b[1] : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, '')); 
         });
 
@@ -112,31 +130,72 @@
         thead.appendChild(trAlpha); thead.appendChild(trHead);
         const tooltip = document.getElementById('tooltip');
 
+        // 時間のプルダウンの中身を作成
+        const timeOptions = generateTimeOptions();
+
         filteredLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
+          
           cols.forEach(function(c, i) {
             if (hideCols.indexOf(i) !== -1) return;
-            const td = document.createElement('td'); const inner = document.createElement('div'); inner.className = 'cell-inner';
+            
+            const td = document.createElement('td'); 
+            const inner = document.createElement('div'); 
+            inner.className = 'cell-inner';
+            
             let displayText = c.replace(/\n|\r/g, ' '); 
+            let cleanText = c.replace(/\s+/g, '');
+            
+            // ▼ L列（インデックス11）の住所を短縮 ＆ Googleマップリンク化
             if (i === 11) {
-              displayText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
-              if (displayText.startsWith('札幌市')) { displayText = displayText.replace(/^札幌市/, ''); } 
-              else { displayText = displayText.replace(/^.+?郡(?=.*?[町村])/, ''); }
+              let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
+              if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
+              else { shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, ''); }
+              
+              if(cleanText !== '') {
+                  inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
+              }
+            } 
+            // ▼ 電話番号っぽいデータ（ハイフン入り数字）があれば電話リンク化
+            else if (/^0\d{1,4}-\d{1,4}-\d{3,4}$/.test(cleanText) || /^00-\d{4}-\d{4}$/.test(cleanText)) {
+              inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
+            } 
+            // ▼ それ以外は通常表示
+            else {
+              inner.textContent = displayText; 
             }
-            inner.textContent = displayText; td.appendChild(inner);
-            if (c.replace(/\s+/g, '') !== '') {
+            
+            td.appendChild(inner);
+            
+            // マウスオンのポップアップ機能
+            if (cleanText !== '') {
               td.addEventListener('mouseenter', function() { tooltip.textContent = c; tooltip.style.display = 'block'; });
               td.addEventListener('mousemove', function(e) { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
               td.addEventListener('mouseleave', function() { tooltip.style.display = 'none'; });
             }
             tr.appendChild(td);
           });
-          for(let j = 0; j < 3; j++) {
-            const td = document.createElement('td'); td.style.padding = '8px'; td.innerHTML = '<input type="text" class="input-text" placeholder="...">'; tr.appendChild(td);
-          }
+          
+          // ▼ 右側の専用入力フォーム 3つ
+          // 1. 下見予定日（カレンダー）
+          const tdDate = document.createElement('td'); tdDate.style.padding = '4px';
+          tdDate.innerHTML = `<input type="date" class="input-form">`;
+          tr.appendChild(tdDate);
+
+          // 2. 下見予定時間（30分おきプルダウン）
+          const tdTime = document.createElement('td'); tdTime.style.padding = '4px';
+          tdTime.innerHTML = `<select class="input-form">${timeOptions}</select>`;
+          tr.appendChild(tdTime);
+
+          // 3. 下見順（数字）
+          const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px';
+          tdOrder.innerHTML = `<input type="number" min="1" class="input-form" placeholder="番号">`;
+          tr.appendChild(tdOrder);
+
           tbody.appendChild(tr);
         });
+        
         alert("抽出完了！ " + filteredLines.length + " 件の【新築】下見対象データを表示しました。");
       };
       
