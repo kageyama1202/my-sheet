@@ -8,40 +8,33 @@
     h1 { color: #333; margin-bottom: 30px; }
     .menu-container { display: flex; flex-direction: column; gap: 20px; max-width: 350px; margin: 0 auto; }
     .menu-btn { 
-        display: block; 
-        padding: 20px; 
-        font-size: 18px; 
-        font-weight: bold; 
-        text-decoration: none; 
-        color: #fff; 
-        border-radius: 10px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-        transition: opacity 0.2s;
+        display: block; padding: 20px; font-size: 18px; font-weight: bold; 
+        text-decoration: none; color: #fff; border-radius: 10px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: opacity 0.2s;
     }
     .menu-btn:hover { opacity: 0.8; }
     
-    /* ▼ 各ボタンの色設定 */
-    .btn-today { background-color: #dc3545; }    /* 赤色 */
-    .btn-shinchiku { background-color: #007bff; } /* 青色 */
-    .btn-reform { background-color: #28a745; }   /* 緑色 */
-    .btn-all { background-color: #6c757d; }      /* 灰色 */
+    .btn-admin { background-color: #343a40; border: 2px dashed #ffc107; color: #ffc107;} /* 管理者用（黒＆黄色） */
+    .btn-today { background-color: #dc3545; }    
+    .btn-shinchiku { background-color: #007bff; } 
+    .btn-reform { background-color: #28a745; }   
+    .btn-all { background-color: #6c757d; }      
   </style>
 </head>
 <body>
   <h1>📁 案件管理ポータル</h1>
   
   <div class="menu-container">
-    <!-- ▼ 1. 指定日の案件（カレンダー選択式） -->
-    <a href="today.html" class="menu-btn btn-today">🔥 指定日の案件（下見・施工）</a>
+    <!-- ▼ 0. 管理者用アップロード（一番上に配置） -->
+    <a href="admin.html" class="menu-btn btn-admin">👑 【管理者用】CSVアップロード</a>
+
+    <!-- ▼ 1. 指定日の案件（完全クラウド化済み） -->
+    <a href="today.html" class="menu-btn btn-today">🔥 指定日の案件（完全クラウド版）</a>
     
-    <!-- ▼ 2. 新築のみ -->
-    <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定</a>
-    
-    <!-- ▼ 3. リフォームのみ -->
-    <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定</a>
-    
-    <!-- ▼ 4. 全案件マスター -->
-    <a href="all.html" class="menu-btn btn-all">📅 全案件 スケジュール（完了除外）</a>
+    <!-- ▼ 以下は以前のままの機能です -->
+    <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定（CSV必要）</a>
+    <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定（CSV必要）</a>
+    <a href="all.html" class="menu-btn btn-all">📅 全案件 スケジュール（CSV必要）</a>
   </div>
 
 </body>
