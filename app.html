@@ -2,59 +2,98 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>現場用ページ（データ表示テスト）</title>
+  <title>案件リスト</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
-    table { border-collapse: collapse; width: 100%; max-width: 800px; background-color: #fff; }
-    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+    .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
+    /* 横スクロールできるようにする */
+    .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
+    table { border-collapse: collapse; white-space: nowrap; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
     th { background-color: #e0e0e0; }
+    input[type="text"] { width: 80px; padding: 4px; }
   </style>
 </head>
 <body>
-  <h2>現在の案件リスト（取り込みデータ確認用）</h2>
-  <p>※現在Firebaseに保存されているデータだけをシンプルに表示しています。</p>
-  
-  <table>
-    <thead>
-      <tr>
-        <th>案件ID (CSV 1列目)</th>
-        <th>ステータスなど (CSV 2列目)</th>
-      </tr>
-    </thead>
-    <tbody id="table-body">
-      <!-- ここにFirebaseから読み込んだデータが自動で入ります -->
-    </tbody>
-  </table>
 
-  <!-- Firebase（神様）の準備 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <div class="box">
+    <h3>▼ SalesforceのCSVを読み込む</h3>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">表を表示する</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead id="table-head">
+        <!-- ここにCSVの項目名と、10個の入力欄のヘッダーが自動で入ります -->
+      </thead>
+      <tbody id="table-body">
+        <!-- ここにCSVのデータと、10個の入力欄が自動で入ります -->
+      </tbody>
+    </table>
+  </div>
 
   <script>
-    // あなた専用の合言葉
-    const firebaseConfig = {
-      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-      authDomain: "project-6745138395263517914.firebaseapp.com",
-      projectId: "project-6745138395263517914",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com"
-    };
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.database();
-    const tbody = document.getElementById('table-body');
-
-    // Firebaseから「cases」フォルダのデータを読み込んで、自動で表に追加する
-    db.ref('cases').on('child_added', function(snapshot) {
-      const data = snapshot.val();
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+      const fileInput = document.getElementById('csvFile');
+      if (fileInput.files.length === 0) {
+        alert("CSVファイルを選択してください！");
+        return;
+      }
       
-      const tr = document.createElement('tr');
-      // 現在Firebaseに入っている1列目と2列目のデータを表示
-      tr.innerHTML = `
-        <td>${data.caseId}</td>
-        <td>${data.customerName}</td>
-      `;
-      tbody.appendChild(tr);
+      // 選択されたCSVファイルを読み込む
+      const file = fileInput.files;
+      const reader = new FileReader();
+      
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        
+        const thead = document.getElementById('table-head');
+        const tbody = document.getElementById('table-body');
+        thead.innerHTML = ''; // 表をリセット
+        tbody.innerHTML = '';
+        
+        if(lines.length === 0) return;
+
+        // 【1】CSVの1行目（ヘッダー）を取り出して表示
+        const headers = lines.split(',');
+        const trHead = document.createElement('tr');
+        
+        // 元の13列のヘッダー
+        headers.forEach(h => {
+          trHead.innerHTML += `<th>${h}</th>`;
+        });
+        
+        // 横に10個の入力欄のヘッダーを足す
+        for(let i = 1; i <= 10; i++) {
+          trHead.innerHTML += `<th style="background:#d4edda;">現場入力 ${i}</th>`;
+        }
+        thead.appendChild(trHead);
+
+        // 【2】CSVの2行目以降（データ）を取り出して表示
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue; // 空行は飛ばす
+          
+          const cols = line.split(',');
+          const tr = document.createElement('tr');
+          
+          // 元の13列のデータ
+          cols.forEach(c => {
+            tr.innerHTML += `<td>${c}</td>`;
+          });
+          
+          // 横に10個のテキスト入力欄を足す
+          for(let j = 1; j <= 10; j++) {
+            tr.innerHTML += `<td><input type="text" placeholder="入力..."></td>`;
+          }
+          
+          tbody.appendChild(tr);
+        }
+      };
+      
+      reader.readAsText(file);
     });
   </script>
 </body>
