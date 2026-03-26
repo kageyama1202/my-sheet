@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（UTF-8専用・安全版）</title>
+  <title>新築下見予定 抽出リスト（強力抽出版）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
@@ -24,7 +24,7 @@
 <body>
   <div id="tooltip"></div>
   <div class="box">
-    <h3>▼ 新築下見予定データ 抽出（UTF-8専用）</h3>
+    <h3>▼ 新築下見予定データ 抽出（強力抽出版）</h3>
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer;">抽出して表示</button>
   </div>
@@ -75,35 +75,30 @@
         
         const hideCols = [1-3];
 
-        // ▼ 最も安全でエラーが起きない、シンプルな検索ロジックに変更
+        // ▼ 今回のキモ：列の場所を一切無視し、「行のどこか」に文字があれば強制抽出
         let filteredLines = validLines.filter(function(cols) {
-            // 列が足りない場合のエラーを防ぐ安全な書き方
-            let colB = cols.length > 1 ? cols[4] : ""; // 2列目
-            let colD = cols.length > 3 ? cols[5] : ""; // 4列目
+            // 行のすべての文字を合体させ、空白を完全に消す
+            let rowText = cols.join("").replace(/\s+/g, "");
             
-            // 見えない空白などをすべて消してから文字が含まれるかチェック
-            colB = colB.replace(/\s+/g, "");
-            colD = colD.replace(/\s+/g, "");
-            
-            return colB.indexOf("依頼") !== -1 && colD.indexOf("新") !== -1;
+            // 行のどこかに「依頼」と「新」が両方含まれていれば抽出！
+            return rowText.indexOf("依頼") !== -1 && rowText.indexOf("新") !== -1;
         });
 
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\nデータの中に「依頼」と「新」の両方を含むものがありません。"); 
+            alert("抽出結果が0件でした！\n\n【原因】\nデータの中に「依頼」と「新」の両方が含まれる行が1件もありません。\n※文字化けしている可能性もあるため、元のCSVを一度開いて日本語が読めるか確認してみてください。"); 
             return;
         }
 
-        // C列（施工日）で並び替え。エラーを防ぐ安全な書き方
+        // C列（3番目の列）あたりで並び替え（列がズレていてもエラーにならない安全な書き方）
         filteredLines.sort(function(a, b) { 
-            let dateA = a.length > 2 ? a[6] : "";
-            let dateB = b.length > 2 ? b[6] : "";
+            let dateA = a.length > 2 ? a[4] : "";
+            let dateB = b.length > 2 ? b[4] : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, '')); 
         });
 
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
         headers.forEach(function(h, i) {
-          // 安全な配列チェック
           if (hideCols.indexOf(i) !== -1) return;
           const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(i); trAlpha.appendChild(thAlpha);
           const thHead = document.createElement('th'); thHead.textContent = h; trHead.appendChild(thHead);
@@ -145,7 +140,7 @@
         alert("抽出完了！ " + filteredLines.length + " 件の【新築】下見対象データを表示しました。");
       };
       
-      // UTF-8専用
+      // UTF-8で読み込み固定
       reader.readAsText(file, 'UTF-8');
     });
   </script>
