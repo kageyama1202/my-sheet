@@ -16,22 +16,33 @@
         color: #fff; 
         border-radius: 10px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        transition: opacity 0.2s;
     }
-    .btn-shinchiku { background-color: #007bff; }
-    .btn-reform { background-color: #28a745; }
-    .btn-other { background-color: #6c757d; }
+    .menu-btn:hover { opacity: 0.8; }
+    
+    /* ▼ 各ボタンの色設定 */
+    .btn-today { background-color: #dc3545; }    /* 赤色 */
+    .btn-shinchiku { background-color: #007bff; } /* 青色 */
+    .btn-reform { background-color: #28a745; }   /* 緑色 */
+    .btn-all { background-color: #6c757d; }      /* 灰色 */
   </style>
 </head>
 <body>
   <h1>📁 案件管理ポータル</h1>
   
-  <!-- ▼ ここの中にボタンのリンクを並べます ▼ -->
   <div class="menu-container">
+    <!-- ▼ 1. 指定日の案件（カレンダー選択式） -->
+    <a href="today.html" class="menu-btn btn-today">🔥 指定日の案件（下見・施工）</a>
+    
+    <!-- ▼ 2. 新築のみ -->
     <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定</a>
+    
+    <!-- ▼ 3. リフォームのみ -->
     <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定</a>
-    <a href="all.html" class="menu-btn btn-other">📅 全案件 スケジュール（完了除外）</a>
+    
+    <!-- ▼ 4. 全案件マスター -->
+    <a href="all.html" class="menu-btn btn-all">📅 全案件 スケジュール（完了除外）</a>
   </div>
-  <!-- ▲ ここまで ▲ -->
 
 </body>
 </html>
