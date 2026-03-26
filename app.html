@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>現場入力アプリ</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+    table { border-collapse: collapse; width: 100%; max-width: 1000px; background-color: #fff; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; vertical-align: top; }
+    th { background-color: #e0e0e0; }
+    .history-cell { width: 35%; background-color: #fafafa; font-size: 0.9em; }
+    .input-cell { width: 30%; }
+    input[type="text"] { width: 90%; padding: 8px; margin-top: 5px; box-sizing: border-box;}
+    select { padding: 8px; margin-bottom: 5px;}
+    button { padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .record-item { border-bottom: 1px dashed #ccc; margin-bottom: 8px; padding-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h2>今日の案件リスト（現場用）</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>案件ID</th>
+        <th>顧客名</th>
+        <th>これまでの入力履歴</th>
+        <th>現場の入力（追加欄）</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <!-- ここにFirebaseから読み込んだデータが自動で入る -->
+    <tbody id="table-body">
+    </tbody>
+  </table>
+
+  <!-- Firebase（神様）の準備 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+    // あなた専用の合言葉
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      projectId: "project-6745138395263517914",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com"
+    };
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+    const tbody = document.getElementById('table-body');
+
+    // ① Firebaseから「cases（案件リスト）」を読み込んで、自動で表を作る
+    db.ref('cases').on('child_added', function(snapshot) {
+      const id = snapshot.key; // A-100 など
+      const data = snapshot.val();
+
+      // 行（tr）を自動生成する
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${data.caseId}</td>
+        <td>${data.customerName}</td>
+        <td class="history-cell"></td>
+        <td class="input-cell">
+          <select class="status-input">
+            <option value="未完了">未完了</option>
+            <option value="完了">完了</option>
+          </select><br>
+          <input type="text" class="memo-input" placeholder="作業メモや写真URL">
+        </td>
+        <td><button class="save-btn">追加保存</button></td>
+      `;
+      tbody.appendChild(tr);
+
+      // ② 【送信】その行の「追加保存」ボタンを押した時の処理
+      tr.querySelector('.save-btn').addEventListener('click', function() {
+        const status = tr.querySelector('.status-input').value;
+        const memo = tr.querySelector('.memo-input').value;
+        if (memo === "") return;
+
+        const now = new Date();
+        const timeString = (now.getMonth() + 1) + "/" + now.getDate() + " " + now.getHours() + ":" + String(now.getMinutes()).padStart(2, '0');
+
+        // casesフォルダの中の、該当IDの「history（履歴）」箱に追加保存
+        db.ref('cases/' + id + '/history').push().set({
+          time: timeString,
+          status: status,
+          memo: memo
+        });
+        tr.querySelector('.memo-input').value = ''; // 入力後空にする
+      });
+
+      // ③ 【受信】その行の「history（履歴）」が増えたら、真ん中のセルに出す処理
+      const historyCell = tr.querySelector('.history-cell');
+      db.ref('cases/' + id + '/history').on('child_added', function(histSnap) {
+        const msg = histSnap.val();
+        historyCell.innerHTML += `
+          <div class="record-item">
+            <strong>[${msg.status}]</strong> ${msg.memo} <br>
+            <span style="color:#666; font-size:0.8em;">🕒 ${msg.time}</span>
+          </div>
+        `;
+      });
+    });
+  </script>
+</body>
+</html>
