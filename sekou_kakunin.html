@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>施工日確認リスト（完全クラウド版）</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
+    .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .box h3 { margin: 0; font-size: 14px; color: #17a2b8; }
+    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; font-weight: bold; }
+    .btn-success { background: #28a745; color: #fff; border-color: #28a745; }
+    .search-box { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+    .search-box span { font-size: 13px; font-weight: bold; color: #555; }
+    .search-box input { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 180px; }
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 85vh; }
+    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    th, td { border: 1px solid #ccc; text-align: left; font-size: 13px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
+    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
+    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
+    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
+    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
+    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; }
+    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
+    th { background-color: #e0e0e0; padding: 6px; }
+    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+    .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
+    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent; font-weight: bold;}
+    .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
+    #loadingMsg { font-weight: bold; color: #17a2b8; margin-left: 10px; font-size: 14px; }
+
+    /* 追加：連動ギミック用の色付けクラス */
+    .bg-red { background-color: #f8d7da !important; color: #721c24 !important; }
+    .bg-green { background-color: #d4edda !important; color: #155724 !important; }
+  </style>
+</head>
+<body>
+  <div id="tooltip"></div>
+  <div class="box">
+    <h3>✅ 施工日確認リスト（本日〜21日後まで）</h3>
+    <span id="loadingMsg">クラウドからデータを取得中...</span>
+    <div class="search-box" style="display: none;" id="searchArea">
+      <span>🔍 検索:</span>
+      <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
+      <button id="downloadBtn" class="btn btn-success">表示結果をCSV保存</button>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead id="table-head"></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
+
+    function getColLetter(index) {
+        let letter = '';
+        while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
+        return letter;
+    }
+
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        let word = e.target.value.toLowerCase(); 
+        let rows = document.getElementById('table-body').getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) {
+            let rowText = rows[i].textContent.toLowerCase(); 
+            let inputs = rows[i].querySelectorAll('input, select');
+            let inputTexts = "";
+            inputs.forEach(inp => { inputTexts += " " + inp.value; });
+            rows[i].style.display = ((rowText + inputTexts.toLowerCase()).indexOf(word) !== -1) ? '' : 'none';
+        }
+    });
+
+    database.ref().once('value').then(function(snapshot) {
+        const dbData = snapshot.val();
+        if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
+            document.getElementById('loadingMsg').textContent = "⚠️ データがありません。管理画面からCSVをアップロードしてください。";
+            return;
+        }
+        document.getElementById('loadingMsg').style.display = "none";
+        document.getElementById('searchArea').style.display = "flex";
+
+        const headers = dbData.app_meta.headers;
+        const tasks = dbData.app_tasks;
+        
+        // 🔴 指定された列（B, D, E, F, G, H, K, L, C, M）を安全に設定
+        const displayCols = new Array();
+        displayCols.push(1);  // B列
+        displayCols.push(3);  // D列
+        displayCols.push(4);  // E列
+        displayCols.push(5);  // F列
+        displayCols.push(6);  // G列
+        displayCols.push(7);  // H列
+        displayCols.push(10); // K列
+        displayCols.push(11); // L列
+        displayCols.push(2);  // C列（施工日）
+        displayCols.push(12); // M列
+        
+        const thead = document.getElementById('table-head');
+        const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
+        const trHead = document.createElement('tr');
+        
+        displayCols.forEach(colIndex => {
+          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
+          const thHead = document.createElement('th'); thHead.textContent = headers[colIndex] || ""; trHead.appendChild(thHead);
+        });
+        
+        // 🔴 新しい3つの入力欄のヘッダーを作成
+        const extraHeaders = new Array('施工日OX△', '施工日確認メール', '確定メール送信');
+        extraHeaders.forEach(h => {
+            const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
+            const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#fff3cd'; trHead.appendChild(thHead);
+        });
+        thead.appendChild(trAlpha); thead.appendChild(trHead);
+        
+        const tbody = document.getElementById('table-body');
+        const tooltip = document.getElementById('tooltip');
+        const todayZero = new Date().setHours(0, 0, 0, 0);
+
+        let keys = Object.keys(tasks);
+        let validKeys = keys.filter(key => {
+            let cols = tasks[key].csvData;
+            if(!cols || !Array.isArray(cols)) return false;
+            
+            let colB = "";
+            let dateStr = ""; // C列（施工日）を基準とする
+            
+            let idxB = 1;
+            let idxC = 2;
+            
+            if (cols.length > idxB) colB = String(cols[idxB]).replace(/\s+/g, "");
+            if (cols.length > idxC) dateStr = String(cols[idxC]).replace(/\s+/g, "");
+
+            let isNotCompleted = (colB.indexOf("完了") === -1);
+            let isWithin21Days = false;
+            
+            // 🔴 施工日が「今日〜21日後まで」の案件を抽出
+            if (dateStr !== "") {
+                let taskDate = new Date(dateStr);
+                if (!isNaN(taskDate.getTime())) {
+                    let diffTime = taskDate.getTime() - todayZero;
+                    let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+                    if (diffDays >= 0 && diffDays <= 21) isWithin21Days = true;
+                }
+            }
+            return isWithin21Days && isNotCompleted;
+        });
+
+        // 施工日順に並び替え
+        validKeys.sort((a, b) => {
+            let dateA = "";
+            let dateB = "";
+            let idxC = 2;
+            if (tasks[a].csvData && tasks[a].csvData.length > idxC) dateA = String(tasks[a].csvData[idxC]);
+            if (tasks[b].csvData && tasks[b].csvData.length > idxC) dateB = String(tasks[b].csvData[idxC]);
+            return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
+        });
+
+        validKeys.forEach(key => {
+            const dataObj = tasks[key];
+            const cols = dataObj.csvData;
+            const tr = document.createElement('tr');
+            
+            displayCols.forEach(colIndex => {
+                let c = "";
+                if (cols && cols.length > colIndex) c = String(cols[colIndex]);
+                
+                const td = document.createElement('td'); 
+                const inner = document.createElement('div'); inner.className = 'cell-inner';
+                let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
+                
+                if (colIndex === 11) {
+                  let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
+                  if (shortText.startsWith('札幌市')) shortText = shortText.replace(/^札幌市/, ''); else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
+                  if(cleanText !== '') inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
+                } else if (colIndex === 6 && cleanText !== '') {
+                  inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
+                } else {
+                  inner.textContent = displayText; 
+                }
+                
+                td.appendChild(inner);
+                if (cleanText !== '') {
+                  td.addEventListener('mouseenter', e => { tooltip.textContent = c; tooltip.style.display = 'block'; });
+                  td.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
+                  td.addEventListener('mouseleave', e => { tooltip.style.display = 'none'; });
+                }
+                tr.appendChild(td);
+            });
+
+            // ==========================================
+            // 🔴 新しい3つの選択欄の生成
+            // ==========================================
+            const tdKakunin = document.createElement('td'); tdKakunin.style.padding = '4px';
+            const selKakunin = document.createElement('select'); selKakunin.className = 'input-form';
+            selKakunin.innerHTML = '<option value=""></option><option value="◯">◯</option><option value="✕">✕</option><option value="△">△</option>';
+            tdKakunin.appendChild(selKakunin); tr.appendChild(tdKakunin);
+
+            const tdSekouMail = document.createElement('td'); tdSekouMail.style.padding = '4px';
+            const selSekouMail = document.createElement('select'); selSekouMail.className = 'input-form';
+            selSekouMail.innerHTML = '<option value=""></option><option value="済">済</option><option value="未">未</option>';
+            tdSekouMail.appendChild(selSekouMail); tr.appendChild(tdSekouMail);
+
+            const tdKakuteiMail = document.createElement('td'); tdKakuteiMail.style.padding = '4px';
+            const selKakuteiMail = document.createElement('select'); selKakuteiMail.className = 'input-form';
+            selKakuteiMail.innerHTML = '<option value=""></option><option value="済">済</option><option value="未">未</option>';
+            tdKakuteiMail.appendChild(selKakuteiMail); tr.appendChild(tdKakuteiMail);
+
+            // 🔴 色を更新する関数
+            function updateColors() {
+                // 施工日確認メールの色変更
+                tdSekouMail.classList.remove('bg-red', 'bg-green');
+                selSekouMail.classList.remove('bg-red', 'bg-green');
+                if (selSekouMail.value === '未') { tdSekouMail.classList.add('bg-red'); selSekouMail.classList.add('bg-red'); }
+                else if (selSekouMail.value === '済') { tdSekouMail.classList.add('bg-green'); selSekouMail.classList.add('bg-green'); }
+
+                // 確定メール送信の色変更
+                tdKakuteiMail.classList.remove('bg-red', 'bg-green');
+                selKakuteiMail.classList.remove('bg-red', 'bg-green');
+                if (selKakuteiMail.value === '未') { tdKakuteiMail.classList.add('bg-red'); selKakuteiMail.classList.add('bg-red'); }
+                else if (selKakuteiMail.value === '済') { tdKakuteiMail.classList.add('bg-green'); selKakuteiMail.classList.add('bg-green'); }
+            }
+
+            // 🔴 Firebaseのリアルタイム同期
+            const taskRef = database.ref('app_tasks/' + key);
+            taskRef.on('value', snap => {
+                const rtData = snap.val();
+                if(rtData) {
+                    if (document.activeElement !== selKakunin) selKakunin.value = rtData.sekou_kakunin || '';
+                    if (document.activeElement !== selSekouMail) selSekouMail.value = rtData.sekou_mail || '';
+                    if (document.activeElement !== selKakuteiMail) selKakuteiMail.value = rtData.kakutei_mail || '';
+                    updateColors();
+                }
+            });
+
+            // 🔴 データをFirebaseに保存する関数
+            function saveToFirebase() { 
+                taskRef.update({ 
+                    sekou_kakunin: selKakunin.value, 
+                    sekou_mail: selSekouMail.value, 
+                    kakutei_mail: selKakuteiMail.value 
+                }); 
+                updateColors();
+            }
+
+            // ==========================================
+            // 🔴 神連動ギミック（X,△なら未、◯なら未が自動入力）
+            // ==========================================
+            selKakunin.addEventListener('change', function() {
+                let val = this.value;
+                if (val === '✕' || val === '△') {
+                    // ✕か△が選ばれたら、真ん中の「施工日確認メール」を【未】にする
+                    selSekouMail.value = '未';
+                } else if (val === '◯') {
+                    // ◯が選ばれたら、右側の「確定メール送信」を【未】にする
+                    selKakuteiMail.value = '未';
+                }
+                saveToFirebase(); // 同時にクラウドに保存して色も更新
+            });
+
+            // 各セレクトボックスを手動で変更した時も保存＆色更新
+            selSekouMail.addEventListener('change', saveToFirebase);
+            selKakuteiMail.addEventListener('change', saveToFirebase);
+
+            tbody.appendChild(tr);
+        });
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+        let csvContent = "";
+        const thead = document.getElementById('table-head');
+        const ths = thead.querySelectorAll('tr').item(1).querySelectorAll('th');
+        const headers = [];
+        for (let i = 0; i < ths.length; i++) headers.push('"' + ths.item(i).textContent.replace(/"/g, '""') + '"');
+        csvContent += headers.join(',') + "\r\n";
+
+        const trs = document.getElementById('table-body').querySelectorAll('tr');
+        for (let i = 0; i < trs.length; i++) {
+            if (trs.item(i).style.display === 'none') continue;
+            const rowData = [];
+            const tds = trs.item(i).querySelectorAll('td');
+            for (let j = 0; j < tds.length; j++) {
+                const input = tds.item(j).querySelector('input, select');
+                if (input) rowData.push('"' + input.value.replace(/"/g, '""') + '"');
+                else rowData.push('"' + tds.item(j).textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""') + '"');
+            }
+            csvContent += rowData.join(',') + "\r\n";
+        }
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        const d = new Date();
+        const dateStr = d.getFullYear() + ("0"+(d.getMonth()+1)).slice(-2) + ("0"+d.getDate()).slice(-2);
+        a.download = "施工日確認リスト_" + dateStr + ".csv";
+        a.click(); window.URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
