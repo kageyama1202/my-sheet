@@ -2,56 +2,59 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（強力抽出・コンパクト＆検索機能版）</title>
+  <title>新築下見予定 抽出リスト（過去非表示・検索機能版）</title>
   <style>
-    body { font-family: sans-serif; padding: 15px; background-color: #f9f9f9; margin: 0; }
+    body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
     
-    /* ▼ 上部メニューを1行にまとめてコンパクトに */
+    /* ▼ 上部メニューをさらに小さく、コンパクトに */
     .box { 
         background: #fff; 
-        padding: 10px 15px; 
-        border-radius: 8px; 
-        margin-bottom: 15px; 
+        padding: 5px 10px; 
+        border-radius: 4px; 
+        margin-bottom: 10px; 
         border: 1px solid #ccc; 
         display: flex; 
         align-items: center; 
-        gap: 15px; 
+        gap: 10px; 
         flex-wrap: wrap; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .box h3 { margin: 0; font-size: 16px; color: #333; }
-    .box input[type="file"] { font-size: 13px; cursor: pointer; }
+    .box h3 { margin: 0; font-size: 14px; color: #333; }
+    .box input[type="file"] { font-size: 12px; cursor: pointer; }
+    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; }
     
-    /* ▼ 検索窓のデザイン（右寄せ） */
-    .search-box { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-    .search-box span { font-size: 14px; font-weight: bold; color: #555; }
-    .search-box input { padding: 6px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; width: 200px; }
+    /* ▼ 全セル対象の検索窓（右上に配置） */
+    .search-box { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+    .search-box span { font-size: 13px; font-weight: bold; color: #555; }
+    .search-box input { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 180px; }
 
-    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 80vh; }
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 85vh; }
     table { border-collapse: collapse; table-layout: fixed; width: max-content; }
     
     /* 基本のセル幅は100px */
-    th, td { border: 1px solid #ccc; text-align: left; font-size: 14px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
+    th, td { border: 1px solid #ccc; text-align: left; font-size: 13px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
     
     /* ▼ 幅の個別調整（表示される順番に対して幅を指定） */
-    /* 1番目(B列): もう少し小さく(60px) */
+    /* 1番目(B列): 60px */
     th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
     /* 2番目(D列): 1文字分(40px) */
     th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
     /* 3番目(E列): 1.5倍幅(150px) */
     th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
-    /* 6番目(H列): もう少し小さく(60px) */
+    /* 6番目(H列): 60px */
     th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
-    /* 9番目(C列): 少し大きく(130px) */
-    th:nth-child(9), td:nth-child(9) { width: 130px; min-width: 130px; max-width: 130px; }
+    /* 9番目(C列=施工日): もう少し小さく(80px) */
+    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; }
+    /* 10番目(M列): もう少し小さく(60px) */
+    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
 
-    th { background-color: #e0e0e0; padding: 8px; }
+    th { background-color: #e0e0e0; padding: 6px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
-    .cell-inner { padding: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
     
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     
-    .input-form { width: 100%; box-sizing: border-box; padding: 6px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;}
+    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px;}
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
   </style>
 </head>
@@ -61,12 +64,12 @@
   <div class="box">
     <h3>▼ 新築下見予定</h3>
     <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn" style="padding: 5px 15px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff;">抽出</button>
+    <button id="uploadBtn">抽出</button>
     
-    <!-- ▼ 新機能：全セル対象のテキスト検索窓 -->
+    <!-- ▼ 全セル対象のテキスト検索窓 -->
     <div class="search-box">
       <span>🔍 検索:</span>
-      <input type="text" id="searchInput" placeholder="キーワードで絞り込み..." />
+      <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
     </div>
   </div>
 
@@ -110,16 +113,14 @@
         return options;
     }
 
-    // ▼ 新機能：検索窓に文字が入力されたら、表の行をリアルタイムで絞り込む
+    // ▼ 検索窓に入力された文字でリアルタイムに表を絞り込む機能
     document.getElementById('searchInput').addEventListener('input', function(e) {
-        // 入力された文字を小文字に変換（大文字・小文字を区別せずに検索するため）
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
         
         for (let i = 0; i < rows.length; i++) {
-            // 行の中にあるテキストをすべて取得
+            // 行の中にあるテキストをすべて取得して検索ワードと比較
             let rowText = rows[i].textContent.toLowerCase(); 
-            // 検索ワードが含まれていれば表示、なければ非表示
             if (rowText.indexOf(word) !== -1) {
                 rows[i].style.display = '';
             } else {
@@ -146,32 +147,48 @@
         if (validLines.length === 0) return;
         const headers = validLines.shift(); 
         
-        // ▼ エラー回避用：表示したい列の順番を細かく指定して作成
         const displayCols = new Array();
-        displayCols.push(1);  // 1番目: B列
-        displayCols.push(3);  // 2番目: D列
-        displayCols.push(4);  // 3番目: E列
-        displayCols.push(5);  // 4番目: F列
-        displayCols.push(6);  // 5番目: G列
-        displayCols.push(7);  // 6番目: H列
-        displayCols.push(10); // 7番目: K列
-        displayCols.push(11); // 8番目: L列
-        displayCols.push(2);  // 9番目: C列（L列とM列の間に移動！）
-        displayCols.push(12); // 10番目: M列
-        // これにより A, I, J は自動的に非表示になります
+        displayCols.push(1);  // B列
+        displayCols.push(3);  // D列
+        displayCols.push(4);  // E列
+        displayCols.push(5);  // F列
+        displayCols.push(6);  // G列
+        displayCols.push(7);  // H列
+        displayCols.push(10); // K列
+        displayCols.push(11); // L列
+        displayCols.push(2);  // C列（施工日）
+        displayCols.push(12); // M列
 
-        // 「行のどこか」に文字があれば強制抽出する安全なロジック
+        // ▼ 今回の追加：今日の日付を取得（時刻を0時0分にリセットして比較用にする）
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         let filteredLines = validLines.filter(function(cols) {
             let rowText = cols.join("").replace(/\s+/g, "");
-            return rowText.indexOf("依頼") !== -1 && rowText.indexOf("新") !== -1;
+            let matchKeywords = rowText.indexOf("依頼") !== -1 && rowText.indexOf("新") !== -1;
+            
+            // ▼ 今回の追加：C列（施工日 = インデックス2）が過去なら弾くロジック
+            let dateStr = cols.length > 2 ? cols[1].replace(/\s+/g, "") : "";
+            let isPast = false;
+            
+            // 日付っぽい文字が入っている場合だけ判定
+            if (dateStr !== "") {
+                let taskDate = new Date(dateStr);
+                // 正しい日付として認識され、かつ今日より前（過去）であれば true
+                if (!isNaN(taskDate.getTime()) && taskDate < today) {
+                    isPast = true;
+                }
+            }
+            
+            // 依頼・新が含まれ、かつ「過去ではない（今日以降）」ものだけ抽出
+            return matchKeywords && !isPast;
         });
 
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\nデータの中に「依頼」と「新」の両方が含まれる行がありません。"); 
+            alert("抽出結果が0件でした！\n\nデータの中に条件を満たす（かつ過去の施工日ではない）行がありません。"); 
             return;
         }
 
-        // C列（施工日）で並び替え（文字消去を回避した安全な書き方）
         filteredLines.sort(function(a, b) { 
             let dateA = a.length > 2 ? a.slice(2, 3).join("") : "";
             let dateB = b.length > 2 ? b.slice(2, 3).join("") : "";
@@ -181,7 +198,6 @@
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
         
-        // 指定した列の順番通りに見出しを作成
         displayCols.forEach(function(i) {
           const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(i); trAlpha.appendChild(thAlpha);
           const thHead = document.createElement('th'); thHead.textContent = headers[i] || ""; trHead.appendChild(thHead);
@@ -201,7 +217,6 @@
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          // 指定した列の順番通りにデータを並べる
           displayCols.forEach(function(i) {
             const c = cols[i] || "";
             const td = document.createElement('td'); 
@@ -211,7 +226,6 @@
             let displayText = c.replace(/\n|\r/g, ' '); 
             let cleanText = c.replace(/\s+/g, '');
             
-            // L列（住所）の短縮 ＆ Googleマップリンク化
             if (i === 11) {
               let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
               if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
@@ -221,11 +235,9 @@
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
             } 
-            // G列を電話リンク化
             else if (i === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
             } 
-            // それ以外は通常表示
             else {
               inner.textContent = displayText; 
             }
@@ -240,7 +252,6 @@
             tr.appendChild(td);
           });
           
-          // 右側の専用入力フォーム 3つ
           const tdDate = document.createElement('td'); tdDate.style.padding = '4px';
           tdDate.innerHTML = `<input type="date" class="input-form">`;
           tr.appendChild(tdDate);
@@ -256,9 +267,7 @@
           tbody.appendChild(tr);
         });
         
-        // 検索窓をリセット
         document.getElementById('searchInput').value = "";
-        alert("抽出完了！ " + filteredLines.length + " 件のデータを表示しました。\n右上の「検索窓」から文字を絞り込めます。");
       };
       
       reader.readAsText(file, 'UTF-8');
