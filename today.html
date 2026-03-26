@@ -161,8 +161,18 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        // 🔴 【修正完了】ここに表示する列番号を正しく復旧しました！
-        const displayCols = [1-10];
+        // 🔴 表示する列番号（消えないようにpushで追加）
+        const displayCols = new Array();
+        displayCols.push(1);  // B列
+        displayCols.push(3);  // D列
+        displayCols.push(4);  // E列
+        displayCols.push(5);  // F列
+        displayCols.push(6);  // G列
+        displayCols.push(7);  // H列
+        displayCols.push(10); // K列
+        displayCols.push(11); // L列
+        displayCols.push(2);  // C列（施工日）
+        displayCols.push(12); // M列
         
         // ヘッダー作成
         const thead = document.getElementById('table-head');
@@ -187,16 +197,17 @@
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            // 🔴 【修正完了】データが正常な配列でない場合のエラーを回避
-            if(!cols || !Array.isArray(cols)) return false;
+            // 🔴 【原因判明＆修正】Firebaseが空セルを含む配列を「オブジェクト」に変換してしまう仕様に対応！
+            // 厳しい判定を外し、データが存在することだけを確認するように変更。
+            if(!cols) return false;
             
             let colB = cols[1] ? String(cols[1]).replace(/\s+/g, "") : "";
             return colB.indexOf("完了") === -1; // 完了は除外
         });
 
         validKeys.sort((a, b) => {
-            let dateA = tasks[a].csvData[9] ? String(tasks[a].csvData[9]) : "";
-            let dateB = tasks[b].csvData[9] ? String(tasks[b].csvData[9]) : "";
+            let dateA = tasks[a].csvData && tasks[a].csvData[2] ? String(tasks[a].csvData[2]) : "";
+            let dateB = tasks[b].csvData && tasks[b].csvData[2] ? String(tasks[b].csvData[2]) : "";
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -205,7 +216,8 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            let dateStr = cols[9] ? String(cols[9]).replace(/\s+/g, "") : "";
+            // 施工日 (C列 = インデックス2)
+            let dateStr = cols[2] ? String(cols[2]).replace(/\s+/g, "") : "";
             let sekouDateFormatted = "";
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
@@ -216,7 +228,8 @@
             tr.dataset.sekouDate = sekouDateFormatted;
             tr.dataset.shitamiDate = dataObj.date || ""; 
             
-            let mColText = cols[10] ? String(cols[10]).replace(/\s+/g, "") : "";
+            // M列 (インデックス12)
+            let mColText = cols[3] ? String(cols[3]).replace(/\s+/g, "") : "";
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
