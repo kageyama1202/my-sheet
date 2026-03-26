@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>現場入力システム（表形式テスト）</title>
+  <style>
+    /* 表のデザイン（ビジュアル）を整える部分 */
+    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+    h2 { color: #333; }
+    table { border-collapse: collapse; width: 100%; max-width: 1000px; background-color: #fff; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; vertical-align: top; }
+    th { background-color: #e0e0e0; }
+    .history-cell { width: 35%; background-color: #fafafa; font-size: 0.9em; }
+    .input-cell { width: 30%; }
+    input[type="text"] { width: 90%; padding: 8px; margin-top: 5px; box-sizing: border-box;}
+    select { padding: 8px; margin-bottom: 5px;}
+    button { padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .record-item { border-bottom: 1px dashed #ccc; margin-bottom: 8px; padding-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h2>現場入力システム（履歴表示付き）</h2>
+  <p>※左側の案件データはSfから取り込んだCSVの代わり（テスト用）です。</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>案件ID</th>
+        <th>顧客名</th>
+        <th>これまでの入力履歴</th>
+        <th>現場の入力（追加欄）</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- ================= 案件1の行 ================= -->
+      <!-- data-id="A-001" という裏側の目印で、Firebaseと紐づけます -->
+      <tr data-id="A-001">
+        <td>A-001</td>
+        <td>株式会社〇〇</td>
+        <td class="history-cell"></td> <!-- ここにA-001の履歴が自動で入る -->
+        <td class="input-cell">
+          <select class="status-input">
+            <option value="未完了">未完了</option>
+            <option value="完了">完了</option>
+          </select><br>
+          <input type="text" class="memo-input" placeholder="作業メモや写真URLなど">
+        </td>
+        <td><button class="save-btn">追加保存</button></td>
+      </tr>
+
+      <!-- ================= 案件2の行 ================= -->
+      <tr data-id="A-002">
+        <td>A-002</td>
+        <td>△△工業</td>
+        <td class="history-cell"></td> <!-- ここにA-002の履歴が自動で入る -->
+        <td class="input-cell">
+          <select class="status-input">
+            <option value="未完了">未完了</option>
+            <option value="保留">保留</option>
+            <option value="完了">完了</option>
+          </select><br>
+          <input type="text" class="memo-input" placeholder="作業メモや写真URLなど">
+        </td>
+        <td><button class="save-btn">追加保存</button></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Firebase（神様）を呼び出す準備 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <script>
+    // ① あなた専用の合言葉（★ここは前と同じです）
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79",
+      measurementId: "G-S7B2K9G2SK",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com"
+    };
+
+    // ② Firebaseを起動して接続
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+
+    // ③ 【送信】各行の「追加保存」ボタンを押したときの処理
+    document.querySelectorAll('.save-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        // 押されたボタンの「行（tr）」を探す
+        const row = this.closest('tr');
+        // その行の「案件ID（A-001など）」を裏側から取得する
+        const id = row.getAttribute('data-id');
+
+        // 入力された「状況」と「メモ」を取得する
+        const status = row.querySelector('.status-input').value;
+        const memo = row.querySelector('.memo-input').value;
+
+        if (memo === "") return; // メモが空なら何もしない
+
+        // 今の日付と時間を取得（例：10/24 14:30）
+        const now = new Date();
+        const timeString = (now.getMonth() + 1) + "/" + now.getDate() + " " + now.getHours() + ":" + String(now.getMinutes()).padStart(2, '0');
+
+        // Firebaseの「cases というフォルダの、該当する案件IDの箱」にデータを追加 [1]
+        db.ref('cases/' + id).push().set({
+          time: timeString,
+          status: status,
+          memo: memo
+        });
+
+        // 送信後、入力欄を空にする
+        row.querySelector('.memo-input').value = '';
+      });
+    });
+
+    // ④ 【受信】各行の「履歴」をリアルタイムで画面に出す処理 [2]
+    document.querySelectorAll('tbody tr').forEach(row => {
+      const id = row.getAttribute('data-id');
+      const historyCell = row.querySelector('.history-cell');
+
+      // Firebaseの「casesの中の、該当する案件ID」のデータが増えたら自動で動く [2]
+      db.ref('cases/' + id).on('child_added', function(data) {
+        const msg = data.val();
+        // 履歴セルの中に、新しいデータを綺麗に書き足す
+        historyCell.innerHTML += `
+          <div class="record-item">
+            <strong>[${msg.status}]</strong> ${msg.memo} <br>
+            <span style="color:#666; font-size:0.8em;">🕒 ${msg.time}</span>
+          </div>
+        `;
+      });
+    });
+  </script>
+</body>
+</html>
