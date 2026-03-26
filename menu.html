@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>自動同期テスト画面</title>
+  <!-- Firebase本体とデータベース機能を読み込む -->
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-database.js"></script>
+</head>
+<body>
+  <h1>データ入力・自動同期テスト</h1>
+  
+  <!-- 現場が入力する部分 -->
+  <h3>現場の入力</h3>
+  <input type="text" id="name" placeholder="名前">
+  <input type="text" id="text" placeholder="入力内容">
+  <button id="send">保存（自動送信）</button>
+
+  <!-- あなたが確認する部分（menu） -->
+  <h3>集まったデータ</h3>
+  <div id="output"></div>
+
+  <!-- 裏側で通信する橋渡しファイルを読み込む -->
+  <script src="firebase-db.js"></script>
+</body>
+</html>
