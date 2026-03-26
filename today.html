@@ -161,7 +161,8 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        const displayCols = [1-10]; // B, D, E, F, G, H, K, L, C(施工日), M
+        // ▼ エラーの元だった箇所を修正しました！ ▼
+        const displayCols = [1-10];
         
         // ヘッダー作成
         const thead = document.getElementById('table-head');
