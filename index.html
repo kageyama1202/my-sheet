@@ -71,7 +71,7 @@
   </div>
 
   <div class="box">
-    <h3>🌟 総合トップページ（全案件一覧 ＆ モーダル詳細）</h3>
+    <h3>🌟 総合トップページ（本日〜21日後まで ＆ モーダル詳細）</h3>
     <span id="loadingMsg">クラウドからデータを取得中...</span>
     <div class="search-box" style="display: none;" id="searchArea">
       <span>🔍 検索:</span>
@@ -177,22 +177,41 @@
         const timeOptions = generateTimeOptions();
         const todayZero = new Date().setHours(0, 0, 0, 0);
 
-        // 「完了」の案件を除外して抽出
+        // 🔴 「完了」の除外 ＋ 「施工日が今日から21日後まで」の案件を抽出
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            if(!cols) return false;
+            if(!cols || !Array.isArray(cols)) return false;
+            
             let colB = "";
-            if (Array.isArray(cols) && cols.length > 1) colB = String(cols[1]).replace(/\s+/g, "");
-            else if (cols[1]) colB = String(cols[1]).replace(/\s+/g, "");
-            return colB.indexOf("完了") === -1;
+            let dateStr = ""; // C列（施工日）
+            
+            let idxB = 1;
+            let idxC = 2;
+            
+            if (cols.length > idxB) colB = String(cols[idxB]).replace(/\s+/g, "");
+            if (cols.length > idxC) dateStr = String(cols[idxC]).replace(/\s+/g, "");
+
+            let isNotCompleted = (colB.indexOf("完了") === -1);
+            let isWithin21Days = false;
+            
+            if (dateStr !== "") {
+                let taskDate = new Date(dateStr);
+                if (!isNaN(taskDate.getTime())) {
+                    let diffTime = taskDate.getTime() - todayZero;
+                    let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+                    if (diffDays >= 0 && diffDays <= 21) isWithin21Days = true;
+                }
+            }
+            return isWithin21Days && isNotCompleted;
         });
 
         // 施工日（C列）順にソート
         validKeys.sort((a, b) => {
             let dateA = ""; let dateB = "";
-            if (tasks[a].csvData && tasks[a].csvData[2]) dateA = String(tasks[a].csvData[2]);
-            if (tasks[b].csvData && tasks[b].csvData[2]) dateB = String(tasks[b].csvData[2]);
+            let idxC = 2;
+            if (tasks[a].csvData && tasks[a].csvData.length > idxC) dateA = String(tasks[a].csvData[idxC]);
+            if (tasks[b].csvData && tasks[b].csvData.length > idxC) dateB = String(tasks[b].csvData[idxC]);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -310,12 +329,14 @@
                 if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
                 
                 // モーダルに渡すデータの準備
-                let sekouStr = (cols && cols[2]) ? String(cols[2]).replace(/\s+/g, "") : "未定";
+                let idxC = 2;
+                let sekouStr = (cols && cols.length > idxC) ? String(cols[idxC]).replace(/\s+/g, "") : "未定";
                 let shitamiStr = dateInput.value ? dateInput.value : "未定";
                 
                 let ankenText = "名称未設定";
-                let eCol = (cols && cols[3]) ? String(cols[3]).trim() : "";
-                let fCol = (cols && cols[4]) ? String(cols[4]).trim() : "";
+                let idxE = 4; let idxF = 5;
+                let eCol = (cols && cols.length > idxE) ? String(cols[idxE]).trim() : "";
+                let fCol = (cols && cols.length > idxF) ? String(cols[idxF]).trim() : "";
                 if (fCol !== "") ankenText = fCol; else if (eCol !== "") ankenText = eCol;
                 
                 // モーダル内のHTMLを構築
