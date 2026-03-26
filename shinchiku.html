@@ -2,14 +2,16 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>新築下見予定 抽出リスト（20日以内オレンジ版）</title>
+  <title>新築下見予定 抽出リスト（ブラウザ自動保存版）</title>
   <style>
     body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
     
     .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .box h3 { margin: 0; font-size: 14px; color: #333; }
     .box input[type="file"] { font-size: 12px; cursor: pointer; }
-    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; }
+    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; font-weight: bold; }
+    .btn-primary { background: #007bff; color: #fff; border-color: #007bff; }
+    .btn-success { background: #28a745; color: #fff; border-color: #28a745; }
     
     .search-box { margin-left: auto; display: flex; align-items: center; gap: 5px; }
     .search-box span { font-size: 13px; font-weight: bold; color: #555; }
@@ -44,7 +46,8 @@
   <div class="box">
     <h3>▼ 新築下見予定</h3>
     <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn">抽出</button>
+    <button id="uploadBtn" class="btn btn-primary">抽出</button>
+    <button id="downloadBtn" class="btn btn-success" style="display: none;">入力したデータをCSVで保存</button>
     
     <!-- 全セル対象のテキスト検索窓 -->
     <div class="search-box">
@@ -96,7 +99,6 @@
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
-        
         for (let idx = 0; idx < rows.length; idx++) {
             let rowText = rows.item(idx).textContent.toLowerCase(); 
             if (rowText.indexOf(word) !== -1) {
@@ -149,7 +151,6 @@
             let matchD = (colD === "新");
             
             let isPast = false;
-            
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
                 if (!isNaN(taskDate.getTime())) {
@@ -158,13 +159,11 @@
                     if (diffDays > 0) { isPast = true; }
                 }
             }
-            
             return matchB && matchD && !isPast;
         });
 
         if (filteredLines.length === 0) {
-            alert("抽出結果が0件でした！\n\nB列に「依頼」、D列に「新」が入っているデータがありません。\n（または該当するデータがすべて過去の施工日です）"); 
-            return;
+            alert("抽出結果が0件でした！"); return;
         }
 
         filteredLines.sort(function(a, b) { 
@@ -195,16 +194,16 @@
           const tr = document.createElement('tr');
           while(cols.length < headers.length) { cols.push(""); }
           
-          // ▼ 今回の修正：「今日から20日後まで」の期間の案件かどうかを判定
+          // ▼ この行の固有IDを作成（行のデータを全て合体させた文字列をキーにする）
+          let rowUniqueKey = cols.join("").replace(/\s+/g, "");
+
           let dateStr = cols.length > 2 ? cols.slice(2, 3).join("").replace(/\s+/g, "") : "";
           let isWithin20Days = false;
           if (dateStr !== "") {
               let taskDate = new Date(dateStr);
               if (!isNaN(taskDate.getTime())) {
-                  // 未来の日付 - 今日の日付
                   let diffTime = taskDate.getTime() - today.getTime();
                   let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-                  // 「0日後（今日）」から「20日後」までの期間ならフラグを立てる
                   if (diffDays >= 0 && diffDays <= 20) { isWithin20Days = true; }
               }
           }
@@ -214,7 +213,6 @@
             const td = document.createElement('td'); 
             const inner = document.createElement('div'); 
             inner.className = 'cell-inner';
-            
             let displayText = c.replace(/\n|\r/g, ' '); 
             let cleanText = c.replace(/\s+/g, '');
             
@@ -222,19 +220,15 @@
               let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
               if (shortText.startsWith('札幌市')) { shortText = shortText.replace(/^札幌市/, ''); } 
               else { shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, ''); }
-              
               if(cleanText !== '') {
                   inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
               }
-            } 
-            else if (colIndex === 6 && cleanText !== '') {
+            } else if (colIndex === 6 && cleanText !== '') {
               inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
-            } 
-            else {
+            } else {
               inner.textContent = displayText; 
             }
             
-            // ▼ 今回の修正：今日から20日後までの案件ならM列をオレンジにする！
             if (colIndex === 12 && isWithin20Days) {
                 td.style.backgroundColor = '#ff9800';
                 inner.style.color = '#fff';
@@ -242,7 +236,6 @@
             }
             
             td.appendChild(inner);
-            
             if (cleanText !== '') {
               td.addEventListener('mouseenter', function() { tooltip.textContent = c; tooltip.style.display = 'block'; });
               td.addEventListener('mousemove', function(e) { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
@@ -251,25 +244,90 @@
             tr.appendChild(td);
           });
           
+          // ▼ 1. 下見予定日（ブラウザから復元＆保存）
           const tdDate = document.createElement('td'); tdDate.style.padding = '4px';
-          tdDate.innerHTML = `<input type="date" class="input-form">`;
+          const dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.className = 'input-form';
+          // ブラウザに保存されたデータがあれば読み込む
+          dateInput.value = localStorage.getItem(rowUniqueKey + '_date') || '';
+          // 変更されたらブラウザに保存する
+          dateInput.addEventListener('change', function() { localStorage.setItem(rowUniqueKey + '_date', this.value); });
+          tdDate.appendChild(dateInput);
           tr.appendChild(tdDate);
 
+          // ▼ 2. 下見予定時間（ブラウザから復元＆保存）
           const tdTime = document.createElement('td'); tdTime.style.padding = '4px';
-          tdTime.innerHTML = `<select class="input-form">${timeOptions}</select>`;
+          const timeInput = document.createElement('select');
+          timeInput.className = 'input-form';
+          timeInput.innerHTML = timeOptions;
+          timeInput.value = localStorage.getItem(rowUniqueKey + '_time') || '';
+          timeInput.addEventListener('change', function() { localStorage.setItem(rowUniqueKey + '_time', this.value); });
+          tdTime.appendChild(timeInput);
           tr.appendChild(tdTime);
 
+          // ▼ 3. 下見順（ブラウザから復元＆保存）
           const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px';
-          tdOrder.innerHTML = `<input type="number" min="1" class="input-form" placeholder="番号">`;
+          const orderInput = document.createElement('input');
+          orderInput.type = 'number';
+          orderInput.min = '1';
+          orderInput.className = 'input-form';
+          orderInput.placeholder = '番号';
+          orderInput.value = localStorage.getItem(rowUniqueKey + '_order') || '';
+          orderInput.addEventListener('change', function() { localStorage.setItem(rowUniqueKey + '_order', this.value); });
+          tdOrder.appendChild(orderInput);
           tr.appendChild(tdOrder);
 
           tbody.appendChild(tr);
         });
         
         document.getElementById('searchInput').value = "";
+        document.getElementById('downloadBtn').style.display = 'inline-block';
       };
-      
       reader.readAsText(file, 'UTF-8');
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+        let csvContent = "";
+        const thead = document.getElementById('table-head');
+        const trHead = thead.querySelectorAll('tr').item(1);
+        const ths = trHead.querySelectorAll('th');
+        const headers = new Array();
+        for (let i = 0; i < ths.length; i++) {
+            let text = ths.item(i).textContent.replace(/"/g, '""');
+            headers.push('"' + text + '"');
+        }
+        csvContent += headers.join(',') + "\r\n";
+
+        const tbody = document.getElementById('table-body');
+        const trs = tbody.querySelectorAll('tr');
+        for (let i = 0; i < trs.length; i++) {
+            const rowData = new Array();
+            const tds = trs.item(i).querySelectorAll('td');
+            for (let j = 0; j < tds.length; j++) {
+                const td = tds.item(j);
+                const input = td.querySelector('input, select');
+                if (input) {
+                    let val = input.value.replace(/"/g, '""');
+                    rowData.push('"' + val + '"');
+                } else {
+                    let text = td.textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""');
+                    rowData.push('"' + text + '"');
+                }
+            }
+            csvContent += rowData.join(',') + "\r\n";
+        }
+
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const d = new Date();
+        const dateStr = d.getFullYear() + ("0"+(d.getMonth()+1)).slice(-2) + ("0"+d.getDate()).slice(-2);
+        a.download = "新築下見予定_" + dateStr + ".csv";
+        a.click();
+        window.URL.revokeObjectURL(url);
     });
   </script>
 </body>
