@@ -139,14 +139,22 @@
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            if(!cols || typeof cols !== 'object') return false;
+            // 🔴 データが正常な配列でない場合のエラーを回避
+            if(!cols || !Array.isArray(cols)) return false;
             
-            // 🔴 配列から確実にデータを取得するように修正 🔴
-            let colB = cols[1] ? String(cols[1]).replace(/\s+/g, "") : "";
-            let dateStr = cols[2] ? String(cols[2]).replace(/\s+/g, "") : "";
+            // 🔴 安全に各列のデータを取得する（フィルタによる削除回避）
+            let colB = "";
+            let dateStr = "";
+            
+            let idxB = 1;
+            let idxC = 2;
+            
+            if (cols.length > idxB) colB = String(cols[idxB]).replace(/\s+/g, "");
+            if (cols.length > idxC) dateStr = String(cols[idxC]).replace(/\s+/g, "");
 
             let isNotCompleted = (colB.indexOf("完了") === -1);
             let isFuture = false;
+            
             if (dateStr !== "") {
                 let taskDate = new Date(dateStr);
                 if (!isNaN(taskDate.getTime())) {
@@ -159,8 +167,11 @@
         });
 
         validKeys.sort((a, b) => {
-            let dateA = tasks[a].csvData[2] ? String(tasks[a].csvData[2]) : "";
-            let dateB = tasks[b].csvData[2] ? String(tasks[b].csvData[2]) : "";
+            let dateA = "";
+            let dateB = "";
+            let idxC = 2;
+            if (tasks[a].csvData && tasks[a].csvData.length > idxC) dateA = String(tasks[a].csvData[idxC]);
+            if (tasks[b].csvData && tasks[b].csvData.length > idxC) dateB = String(tasks[b].csvData[idxC]);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -169,11 +180,15 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            let mColText = cols[3] ? String(cols[3]).replace(/\s+/g, "") : "";
+            let idxM = 12;
+            let mColText = "";
+            if (cols && cols.length > idxM) mColText = String(cols[idxM]).replace(/\s+/g, "");
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
-                const c = cols[colIndex] ? String(cols[colIndex]) : "";
+                let c = "";
+                if (cols && cols.length > colIndex) c = String(cols[colIndex]);
+                
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
                 let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
