@@ -41,8 +41,8 @@
         return;
       }
       
-      // 【修正箇所1】files として「1番目に選ばれたファイル」を正確に指定します
-      const file = fileInput.files; 
+      // 【重要な修正1】大括弧を使わずに、item(0)で1番目のファイルを確実に取り出す
+      const file = fileInput.files.item(0); 
       const reader = new FileReader();
       
       reader.onload = function(e) {
@@ -54,10 +54,13 @@
         thead.innerHTML = ''; 
         tbody.innerHTML = '';
         
-        if(lines.length === 0) return;
+        if (lines.length === 0) return;
 
-        // 【修正箇所2】lines として「CSVの1行目」を正確に取り出して表示します
-        const headers = lines.split(',');
+        // 【重要な修正2】大括弧を使わずに、shift()で1行目(ヘッダー)だけを確実に取り出す
+        const firstLine = lines.shift(); 
+        if (!firstLine) return;
+
+        const headers = firstLine.split(',');
         const trHead = document.createElement('tr');
         
         // 元の13列のヘッダー
@@ -71,12 +74,12 @@
         }
         thead.appendChild(trHead);
 
-        // CSVの2行目以降（データ）を取り出して表示
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue; 
+        // 残りの行（2行目以降のデータ）を取り出して表示
+        lines.forEach(line => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) return; 
           
-          const cols = line.split(',');
+          const cols = trimmedLine.split(',');
           const tr = document.createElement('tr');
           
           // 元の13列のデータ
@@ -90,10 +93,10 @@
           }
           
           tbody.appendChild(tr);
-        }
+        });
       };
       
-      // 今回は正しいBlob（ファイル）が渡されるのでエラーになりません
+      // 正しいファイル(Blob)が渡されるため、もうエラーは出ません
       reader.readAsText(file);
     });
   </script>
