@@ -2,24 +2,43 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>案件リスト（統合版）</title>
+  <title>案件リスト（データ抽出特化版）</title>
   <style>
     body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
     .box { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ccc; }
     .table-wrapper { overflow-x: auto; background-color: #fff; border: 1px solid #ccc; }
-    table { border-collapse: collapse; white-space: nowrap; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; vertical-align: top; }
+    
+    /* ▼ 変更1: 列幅を固定し、はみ出た文字を「...」で隠す設定 */
+    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    th, td { 
+      border: 1px solid #ccc; 
+      padding: 8px; 
+      text-align: left; 
+      font-size: 14px; 
+      vertical-align: middle;
+      
+      /* 列幅を小さく固定（必要に応じて数値を調整してください） */
+      max-width: 100px; 
+      /* 文字を1行にし、見切れる場合は「...」にする */
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+    }
+    
     th { background-color: #e0e0e0; }
-    input[type="text"] { width: 80px; padding: 4px; box-sizing: border-box; }
+    /* アルファベット行（A,B,C...）のデザイン */
+    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+    
+    input[type="text"] { width: 100%; box-sizing: border-box; padding: 4px; }
     select { padding: 5px; font-size: 14px; margin-right: 10px; }
   </style>
 </head>
 <body>
 
   <div class="box">
-    <h3>▼ CSVファイルを取り込んで表示</h3>
+    <h3>▼ CSVファイルを取り込んで表示（抽出・編集用）</h3>
     
-    <!-- 【追加】文字化け対策: 読み込む文字コードを選べるようにしました -->
+    <!-- 文字化け対策: Salesforce特有のShift_JISとUTF-8を切り替え可能に -->
     <select id="encoding">
       <option value="Shift_JIS">文字コード: Shift_JIS (Salesforce標準)</option>
       <option value="UTF-8">文字コード: UTF-8</option>
@@ -37,7 +56,17 @@
   </div>
 
   <script>
-    // 【重要】データ内の改行やカンマを正しく処理する、本格的なCSV解析関数
+    // ▼ 変更2: 列番号からアルファベット（A, B, C... Z, AA, AB...）を自動計算する関数
+    function getColLetter(index) {
+        let letter = '';
+        while (index >= 0) {
+            letter = String.fromCharCode((index % 26) + 65) + letter;
+            index = Math.floor(index / 26) - 1;
+        }
+        return letter;
+    }
+
+    // データ内の改行やカンマで表が崩れるのを防ぐ、エクセル基準の本格的な解析機能
     function parseCSV(text) {
         const result = [];
         let row = [];
@@ -49,25 +78,20 @@
             const nextChar = text[i + 1];
 
             if (char === '"' && insideQuotes && nextChar === '"') {
-                // ダブルクォーテーション自体の文字（""）を処理
                 col += '"';
                 i++; 
             } else if (char === '"') {
-                // セルの囲み（"）の開始・終了
                 insideQuotes = !insideQuotes;
             } else if (char === ',' && !insideQuotes) {
-                // カンマが来たら次の列へ
                 row.push(col);
                 col = '';
             } else if ((char === '\n' || char === '\r') && !insideQuotes) {
-                // 改行が来たら次の行へ（セルの中の改行は無視される）
-                if (char === '\r' && nextChar === '\n') i++; // Windowsの改行(CRLF)対応
+                if (char === '\r' && nextChar === '\n') i++; 
                 row.push(col);
                 result.push(row);
                 row = [];
                 col = '';
             } else {
-                // 通常の文字を追加
                 col += char;
             }
         }
@@ -86,17 +110,14 @@
       }
       
       const file = fileInput.files.item(0); 
-      // ユーザーが選んだ文字コードを取得
       const encoding = document.getElementById('encoding').value; 
       const reader = new FileReader();
       
       reader.onload = function(e) {
         const text = e.target.result;
-        
-        // 専用関数を使ってCSVを正確に分割する
         const lines = parseCSV(text);
         
-        // 空の行を取り除く
+        // 空行を無視する
         const validLines = lines.filter(function(line) { 
             return line.join('').trim() !== ''; 
         });
@@ -111,39 +132,63 @@
           return;
         }
 
-        // 1行目(ヘッダー)を取り出す
         const headers = validLines.shift(); 
+        const totalCols = headers.length + 10; // 元の列数 ＋ 現場入力の10列
+
+        // ▼ 追加: 表の一番上に「A, B, C...」のアルファベット行を作成
+        const trAlpha = document.createElement('tr');
+        trAlpha.className = 'alpha-head';
+        for(let i = 0; i < totalCols; i++) {
+            const th = document.createElement('th');
+            th.textContent = getColLetter(i);
+            trAlpha.appendChild(th);
+        }
+        thead.appendChild(trAlpha);
+
+        // 項目名のヘッダー行を作成
         const trHead = document.createElement('tr');
-        
         headers.forEach(function(h) {
           const th = document.createElement('th');
           th.textContent = h;
+          th.title = h; // ヘッダーもマウスオーバーで全文表示
           trHead.appendChild(th);
         });
         
-        // 現場入力用のヘッダー10個を足す
         for(let i = 1; i <= 10; i++) {
           const th = document.createElement('th');
           th.textContent = '現場入力 ' + i;
+          th.title = '現場入力 ' + i;
           th.style.backgroundColor = '#d4edda';
           trHead.appendChild(th);
         }
         thead.appendChild(trHead);
 
-        // 2行目以降のデータを取り出して表示
+        // データ行を取り出して表示
         validLines.forEach(function(cols) {
           const tr = document.createElement('tr');
           
           cols.forEach(function(c) {
             const td = document.createElement('td');
-            // データ内の改行をHTMLの改行（<br>）に変換して綺麗に表示する
-            td.innerHTML = c.replace(/\n/g, '<br>');
+            
+            // 画面の見た目上は改行を消して1行スッキリ（...）で表示させる
+            td.textContent = c.replace(/\n|\r/g, ' '); 
+            
+            // ▼ 変更3: マウスを乗せた時(title属性)には、元の改行入りの全文をポップアップ表示させる
+            td.title = c; 
+            
             tr.appendChild(td);
           });
           
+          // 空っぽの列を埋める（データ欠損対策）
+          const emptyCols = headers.length - cols.length;
+          for(let k = 0; k < emptyCols; k++) {
+              tr.appendChild(document.createElement('td'));
+          }
+          
+          // 現場入力用のテキストボックス
           for(let j = 1; j <= 10; j++) {
             const td = document.createElement('td');
-            td.innerHTML = '<input type="text" placeholder="入力...">';
+            td.innerHTML = '<input type="text" placeholder="...">';
             tr.appendChild(td);
           }
           
@@ -153,7 +198,6 @@
         alert("読み込み成功！ " + validLines.length + " 件の案件データを表示しました。");
       };
       
-      // プルダウンで選ばれた文字コードを使ってファイルを読み込む
       reader.readAsText(file, encoding);
     });
   </script>
