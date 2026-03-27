@@ -2,8 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>指定日の案件リスト（ブラウザ記憶版）</title>
-  <!-- 入力した時だけ保存するため、Firebaseの準備は残しておきます -->
+  <title>指定日の案件リスト</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
@@ -26,14 +25,13 @@
     th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
     th { background-color: #e0e0e0; padding: 6px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
-    
     tbody tr:hover { background-color: #f1f8ff; transition: 0.2s; }
     .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-    
+
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
-    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent;}
+    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent; }
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
-    
+
     #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(2px); }
     #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     #modal-close { float: right; font-size: 14px; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
@@ -46,17 +44,21 @@
     .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: left; }
     .modal-table th { background-color: #f8f9fa; width: 30%; color: #495057; }
-    
+
     .date-selector { margin-left: 15px; display: flex; align-items: center; gap: 5px; }
-    .date-selector input, .date-selector select { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
-    
+    .date-selector input { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
     .top-link { margin-right: 15px; text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
     .top-link:hover { text-decoration: underline; }
+
+    /* チェックボックス抽出エリア */
+    .filter-checks { display: flex; align-items: center; gap: 12px; margin-left: 10px; }
+    .filter-checks label { font-size: 13px; font-weight: bold; color: #333; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+    .filter-checks input[type="checkbox"] { cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="tooltip"></div>
-  
+
   <div id="modal-overlay">
     <div id="modal-content">
       <button id="modal-close">✖ 閉じる</button>
@@ -65,36 +67,33 @@
   </div>
 
   <div class="box">
-    <!-- トップページに戻りやすいようにリンクを追加 -->
     <a href="index.html" class="top-link">◀ トップメニュー</a>
-    
     <h3>🔥 指定日の案件リスト</h3>
-    
+
     <div class="date-selector" id="dateArea">
       <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
       <input type="date" id="targetDate" />
-      
-      <span style="font-size: 13px; font-weight: bold; color: #333; margin-left: 10px;">🎯 抽出対象:</span>
-      <select id="targetType">
-        <option value="both">🌟 施工日 ＋ 下見予定日（両方）</option>
-        <option value="sekou">🔨 施工日のみ</option>
-        <option value="shitami">📅 下見予定日のみ</option>
-      </select>
     </div>
-    
+
+    <!-- チェックボックスで抽出対象を複数選択 -->
+    <div class="filter-checks">
+      <span style="font-size: 13px; font-weight: bold; color: #333;">🎯 抽出:</span>
+      <label><input type="checkbox" id="chkSekou" checked> 施工日</label>
+      <label><input type="checkbox" id="chkShitami"> 下見日</label>
+      <label><input type="checkbox" id="chkShitamiYotei" checked> 下見予定日</label>
+    </div>
+
     <div class="search-box" id="searchArea">
       <span>🔍 検索:</span>
       <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
-      <button id="downloadBtn" class="btn btn-success">表示結果をCSV保存</button>
+      <button id="downloadBtn" class="btn-success">表示結果をCSV保存</button>
     </div>
   </div>
-  
+
   <div class="table-wrapper">
-    <!-- データが無かった時のメッセージ -->
     <div id="noDataMsg" style="display: none; padding: 20px; font-weight: bold; color: #d32f2f;">
       ⚠️ データが見つかりません。トップメニューに戻って「最新データを取得」してください。
     </div>
-    
     <table id="mainTable">
       <thead id="table-head"></thead>
       <tbody id="table-body"></tbody>
@@ -102,7 +101,7 @@
   </div>
 
   <script>
-    // 1. Firebaseの準備（入力データを保存するためだけに使う）
+    // === Firebase初期化（入力保存用） ===
     const firebaseConfig = {
       apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
       authDomain: "project-6745138395263517914.firebaseapp.com",
@@ -115,300 +114,335 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const database = firebase.database();
 
-    // 🔴【絶対に消えない】表示する列の指定
-    const displayCols = [1-10];
+    // === tooltip変数を明示的に宣言 ===
+    const tooltip = document.getElementById('tooltip');
 
+    // === 表示する列（確定） ===
+    // B=1, D=3, E=4, F=5, G=6, H=7, K=10, L=11, C=2, M=12
+    const displayCols = [1, 3, 4, 5, 6, 7, 10, 11, 2, 12];
+
+    // === ユーティリティ関数 ===
     function getColLetter(index) {
-        let letter = '';
-        while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
-        return letter;
+      let letter = '';
+      let i = index;
+      while (i >= 0) { letter = String.fromCharCode((i % 26) + 65) + letter; i = Math.floor(i / 26) - 1; }
+      return letter;
     }
-    
+
     function generateTimeOptions() {
-        let options = '<option value="">--:--</option>';
-        for(let h=8; h<=20; h++) { 
-            let hour=('0'+h).slice(-2); 
-            options+=`<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`; 
-        }
-        return options;
+      let options = '<option value="">--:--</option>';
+      for (let h = 8; h <= 20; h++) {
+        let hour = ('0' + h).slice(-2);
+        options += `<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`;
+      }
+      return options;
     }
 
     function getSafeVal(cols, index) {
-        if (!cols) return "";
-        if (Array.isArray(cols)) return cols.length > index && cols[index] != null ? String(cols[index]) : "";
-        if (typeof cols === 'object') return cols[index] != null ? String(cols[index]) : "";
-        return "";
+      if (!cols) return "";
+      if (Array.isArray(cols)) return cols.length > index && cols[index] != null ? String(cols[index]) : "";
+      if (typeof cols === 'object') return cols[index] != null ? String(cols[index]) : "";
+      return "";
     }
 
     function formatToYMD(dateString) {
-        if (!dateString) return "";
-        let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
-        let parts = d.split("-");
-        if(parts.length === 3) {
-            let y = parts;
-            let m = String(parts[1]).padStart(2, '0');
-            let day = String(parts[9]).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        }
-        return d;
+      if (!dateString) return "";
+      let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
+      let parts = d.split("-");
+      if (parts.length === 3) {
+        let y = parts[0];
+        let m = String(parts[1]).padStart(2, '0');
+        let day = String(parts[2]).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return d;
     }
 
-    // 今日の日付をセット
+    // === 日付初期値 ===
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    
     const targetDateInput = document.getElementById('targetDate');
     targetDateInput.value = `${yyyy}-${mm}-${dd}`;
-    const targetTypeInput = document.getElementById('targetType');
 
-    // 検索機能
+    // === チェックボックス要素 ===
+    const chkSekou = document.getElementById('chkSekou');
+    const chkShitami = document.getElementById('chkShitami');
+    const chkShitamiYotei = document.getElementById('chkShitamiYotei');
+
+    // === 検索機能 ===
     document.getElementById('searchInput').addEventListener('input', function(e) {
-        let word = e.target.value.toLowerCase(); 
-        let rows = document.getElementById('table-body').getElementsByTagName('tr');
-        for (let i = 0; i < rows.length; i++) {
-            let rowText = rows[i].textContent.toLowerCase(); 
-            let inputs = rows[i].querySelectorAll('input, select');
-            let inputTexts = "";
-            inputs.forEach(inp => { inputTexts += " " + inp.value; });
-            rows[i].style.display = ((rowText + inputTexts.toLowerCase()).indexOf(word) !== -1) ? '' : 'none';
-        }
+      let word = e.target.value.toLowerCase();
+      let rows = document.getElementById('table-body').getElementsByTagName('tr');
+      for (let i = 0; i < rows.length; i++) {
+        let rowText = rows[i].textContent.toLowerCase();
+        let inputs = rows[i].querySelectorAll('input, select');
+        let inputTexts = "";
+        inputs.forEach(inp => { inputTexts += " " + inp.value; });
+        rows[i].style.display = ((rowText + inputTexts.toLowerCase()).indexOf(word) !== -1) ? '' : 'none';
+      }
     });
 
-    // モーダル機能
+    // === モーダル ===
     const modalOverlay = document.getElementById('modal-overlay');
-    const modalCloseBtn = document.getElementById('modal-close');
-    modalCloseBtn.addEventListener('click', () => { modalOverlay.style.display = 'none'; });
-    modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+    document.getElementById('modal-close').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
-
-    // 💡【重要】通信せずに、トップページが保存したLocalStorageからデータを一瞬で引き出す
+    // === LocalStorageからデータ読み込み ===
     let globalHeaders = [];
     let globalTasks = {};
     let fullData = null;
 
     try {
-        const storedData = localStorage.getItem('appData');
-        if (storedData) {
-            fullData = JSON.parse(storedData);
-        }
-    } catch(e) { console.error("データ読み込みエラー"); }
+      const storedData = localStorage.getItem('appData');
+      if (storedData) { fullData = JSON.parse(storedData); }
+    } catch(e) { console.error("データ読み込みエラー", e); }
 
-    // もしデータが存在すれば表を描画し、無ければ警告を出す
     if (fullData && fullData.app_meta && fullData.app_tasks) {
-        globalHeaders = fullData.app_meta.headers;
-        globalTasks = fullData.app_tasks;
-        renderTable(); 
+      globalHeaders = fullData.app_meta.headers;
+      globalTasks = fullData.app_tasks;
+      renderTable();
     } else {
-        document.getElementById('noDataMsg').style.display = 'block';
-        document.getElementById('mainTable').style.display = 'none';
+      document.getElementById('noDataMsg').style.display = 'block';
+      document.getElementById('mainTable').style.display = 'none';
     }
 
-    // カレンダー等の条件が変わったら再描画
+    // === 条件変更で再描画 ===
     targetDateInput.addEventListener('change', renderTable);
-    targetTypeInput.addEventListener('change', renderTable);
+    chkSekou.addEventListener('change', renderTable);
+    chkShitami.addEventListener('change', renderTable);
+    chkShitamiYotei.addEventListener('change', renderTable);
 
+    // === メイン描画関数 ===
     function renderTable() {
-        const thead = document.getElementById('table-head');
-        const tbody = document.getElementById('table-body');
-        thead.innerHTML = "";
-        tbody.innerHTML = "";
-        
-        const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
-        const trHead = document.createElement('tr');
-        
+      const thead = document.getElementById('table-head');
+      const tbody = document.getElementById('table-body');
+      thead.innerHTML = "";
+      tbody.innerHTML = "";
+
+      // ヘッダー行（アルファベット＋列名）
+      const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
+      const trHead = document.createElement('tr');
+
+      displayCols.forEach(colIndex => {
+        const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
+        const thHead = document.createElement('th'); thHead.textContent = globalHeaders[colIndex] || ""; trHead.appendChild(thHead);
+      });
+
+      // 入力フォーム列ヘッダー
+      ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
+        const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha);
+        const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
+      });
+      thead.appendChild(trAlpha);
+      thead.appendChild(trHead);
+
+      const timeOptions = generateTimeOptions();
+      const selectedDate = targetDateInput.value;
+
+      // === フィルタリング（チェックボックス複数選択） ===
+      let keys = Object.keys(globalTasks);
+      let validKeys = keys.filter(key => {
+        let dataObj = globalTasks[key];
+        let cols = dataObj.csvData;
+        if (!cols) return false;
+
+        // 「完了」除外
+        let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
+        if (colB === "完了") return false;
+
+        // チェックが1つも入っていなければ全件表示
+        if (!chkSekou.checked && !chkShitami.checked && !chkShitamiYotei.checked) return true;
+
+        let match = false;
+
+        // 施工日（C列 = index 2）
+        if (chkSekou.checked) {
+          let sekouDate = formatToYMD(getSafeVal(cols, 2));
+          if (sekouDate === selectedDate) match = true;
+        }
+
+        // 下見日（P列 = index 15）
+        if (chkShitami.checked) {
+          let shitamiDate = formatToYMD(getSafeVal(cols, 15));
+          if (shitamiDate === selectedDate) match = true;
+        }
+
+        // 下見予定日（Firebase入力値 = dataObj.date）
+        if (chkShitamiYotei.checked) {
+          let yoteiDate = dataObj.date || "";
+          if (yoteiDate === selectedDate) match = true;
+        }
+
+        return match;
+      });
+
+      // 施工日ソート
+      validKeys.sort((a, b) => {
+        let dateA = getSafeVal(globalTasks[a].csvData, 2);
+        let dateB = getSafeVal(globalTasks[b].csvData, 2);
+        return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
+      });
+
+      // === 行の描画 ===
+      validKeys.forEach(key => {
+        const dataObj = globalTasks[key];
+        const cols = dataObj.csvData;
+        const tr = document.createElement('tr');
+
+        let mColText = getSafeVal(cols, 12).replace(/\s+/g, "");
+        let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda";
+
         displayCols.forEach(colIndex => {
-          const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
-          const thHead = document.createElement('th'); thHead.textContent = globalHeaders[colIndex] || ""; trHead.appendChild(thHead);
-        });
-        
-        ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
-            const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha); 
-            const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
-        });
-        thead.appendChild(trAlpha); thead.appendChild(trHead);
-        
-        const timeOptions = generateTimeOptions();
-        const selectedDate = targetDateInput.value; 
-        const selectedType = targetTypeInput.value; 
+          let c = getSafeVal(cols, colIndex);
+          const td = document.createElement('td');
+          const inner = document.createElement('div'); inner.className = 'cell-inner';
+          let displayText = c.replace(/\n|\r/g, ' ');
+          let cleanText = c.replace(/\s+/g, '');
 
-        let keys = Object.keys(globalTasks);
-        let validKeys = keys.filter(key => {
-            let dataObj = globalTasks[key];
-            let cols = dataObj.csvData;
-            if(!cols) return false; 
-            
-            // 純粋な「完了」のみを除外
-            let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
-            if (colB === "完了") return false;
+          // 住所列（M列=12）→ Googleマップリンク
+          if (colIndex === 12 && cleanText !== '') {
+            let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
+            if (shortText.startsWith('札幌市')) shortText = shortText.replace(/^札幌市/, '');
+            else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
+            inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
+          }
+          // 担当者携帯（H列=7）→ 電話リンク
+          else if (colIndex === 7 && cleanText !== '') {
+            inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
+          }
+          else {
+            inner.textContent = displayText;
+          }
 
-            // 抽出条件の分岐（3種類）
-            let sekouDate = formatToYMD(getSafeVal(cols, 2));
-            let shitamiDate = dataObj.date || ""; 
-            
-            if (selectedType === "sekou") return sekouDate === selectedDate;
-            else if (selectedType === "shitami") return shitamiDate === selectedDate;
-            else return (sekouDate === selectedDate || shitamiDate === selectedDate);
-        });
+          // 住所列の背景色
+          if (colIndex === 12) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
 
-        // 施工日でソート
-        validKeys.sort((a, b) => {
-            let dateA = getSafeVal(globalTasks[a].csvData, 2);
-            let dateB = getSafeVal(globalTasks[b].csvData, 2);
-            return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
+          td.appendChild(inner);
+
+          // ツールチップ
+          if (cleanText !== '') {
+            td.addEventListener('mouseenter', e => { tooltip.textContent = c; tooltip.style.display = 'block'; });
+            td.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
+            td.addEventListener('mouseleave', e => { tooltip.style.display = 'none'; });
+          }
+          tr.appendChild(td);
         });
 
-        validKeys.forEach(key => {
-            const dataObj = globalTasks[key];
-            const cols = dataObj.csvData;
-            const tr = document.createElement('tr');
-            
-            let mColText = getSafeVal(cols, 12).replace(/\s+/g, "");
-            let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
-            
-            displayCols.forEach(colIndex => {
-                let c = getSafeVal(cols, colIndex);
-                const td = document.createElement('td'); 
-                const inner = document.createElement('div'); inner.className = 'cell-inner';
-                let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
-                
-                if (colIndex === 11) {
-                  let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
-                  if (shortText.startsWith('札幌市')) shortText = shortText.replace(/^札幌市/, ''); else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
-                  if(cleanText !== '') inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
-                } else if (colIndex === 6 && cleanText !== '') {
-                  inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
-                } else {
-                  inner.textContent = displayText; 
-                }
-                
-                if (colIndex === 12) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
-                
-                td.appendChild(inner);
-                if (cleanText !== '') {
-                  td.addEventListener('mouseenter', e => { tooltip.textContent = c; tooltip.style.display = 'block'; });
-                  td.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
-                  td.addEventListener('mouseleave', e => { tooltip.style.display = 'none'; });
-                }
-                tr.appendChild(td);
-            });
+        // === 入力フォーム（下見予定日・時間・順番）===
+        const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
+        const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
+        dateInput.value = dataObj.date || '';
+        tdDate.appendChild(dateInput); tr.appendChild(tdDate);
 
-            // 入力フォーム作成
-            const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
-            const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
-            dateInput.value = dataObj.date || ''; 
-            tdDate.appendChild(dateInput); tr.appendChild(tdDate);
+        const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
+        const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
+        timeInput.value = dataObj.time || '';
+        tdTime.appendChild(timeInput); tr.appendChild(tdTime);
 
-            const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
-            const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
-            timeInput.value = dataObj.time || ''; 
-            tdTime.appendChild(timeInput); tr.appendChild(tdTime);
+        const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
+        const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
+        orderInput.value = dataObj.order || '';
+        tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
-            const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
-            const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
-            orderInput.value = dataObj.order || ''; 
-            tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
+        // === 入力変更時 → Firebase保存 + LocalStorage更新 ===
+        const taskRef = database.ref('app_tasks/' + key);
+        function saveToFirebase() {
+          taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
+          globalTasks[key].date = dateInput.value;
+          globalTasks[key].time = timeInput.value;
+          globalTasks[key].order = orderInput.value;
+          fullData.app_tasks = globalTasks;
+          localStorage.setItem('appData', JSON.stringify(fullData));
+        }
+        dateInput.addEventListener('change', saveToFirebase);
+        timeInput.addEventListener('change', saveToFirebase);
+        orderInput.addEventListener('input', saveToFirebase);
 
-            // 💡【重要】値を変えた時だけFirebaseに保存 ＋ LocalStorageも最新に書き換える
-            const taskRef = database.ref('app_tasks/' + key);
-            function saveToFirebase() { 
-                // ① クラウド（Firebase）に上書き送信
-                taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
-                
-                // ② ブラウザの記憶（LocalStorage）も新しい値に書き換える
-                globalTasks[key].date = dateInput.value;
-                globalTasks[key].time = timeInput.value;
-                globalTasks[key].order = orderInput.value;
-                fullData.app_tasks = globalTasks;
-                localStorage.setItem('appData', JSON.stringify(fullData));
+        // === モーダル表示 ===
+        tr.addEventListener('click', function(e) {
+          if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
+
+          let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "") || "未定";
+          let shitamiStr = dateInput.value || "未定";
+
+          let ankenText = "名称未設定";
+          let eCol = getSafeVal(cols, 4).trim();
+          let fCol = getSafeVal(cols, 5).trim();
+          if (fCol !== "") ankenText = fCol;
+          else if (eCol !== "") ankenText = eCol;
+
+          let html = `
+            <div class="modal-header-info">
+              <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📅 下見予定日: ${shitamiStr}</div>
+              <div class="modal-title-row">
+                🏷️ ${ankenText}
+                <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
+              </div>
+            </div>
+            <h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 全データ</h4>
+            <table class="modal-table">
+          `;
+
+          globalHeaders.forEach((headerName, index) => {
+            let val = getSafeVal(cols, index);
+            let displayHtml = val.replace(/\n|\r/g, '<br>');
+            let cleanText = val.replace(/\s+/g, '');
+
+            if (index === 12 && cleanText !== "") {
+              displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
+            } else if (index === 7 && cleanText !== "") {
+              displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
             }
-            dateInput.addEventListener('change', saveToFirebase);
-            timeInput.addEventListener('change', saveToFirebase);
-            orderInput.addEventListener('input', saveToFirebase);
+            html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
+          });
+          html += `</table>`;
 
-            // モーダルを開く処理
-            tr.addEventListener('click', function(e) {
-                if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
-                
-                let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "");
-                if (sekouStr === "") sekouStr = "未定";
-                let shitamiStr = dateInput.value ? dateInput.value : "未定";
-                
-                let ankenText = "名称未設定";
-                let eCol = getSafeVal(cols, 4).trim(); let fCol = getSafeVal(cols, 5).trim();
-                if (fCol !== "") ankenText = fCol; else if (eCol !== "") ankenText = eCol;
-                
-                let html = `
-                  <div class="modal-header-info">
-                    <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📅 下見日: ${shitamiStr}</div>
-                    <div class="modal-title-row">
-                      🏷️ 案件名: ${ankenText}
-                      <button id="modal-copy-btn" class="modal-copy-btn">コピーする</button>
-                    </div>
-                  </div>
-                  <h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 案件の全データ</h4>
-                  <table class="modal-table">
-                `;
-                
-                globalHeaders.forEach((headerName, index) => {
-                    let val = getSafeVal(cols, index);
-                    let displayHtml = val.replace(/\n|\r/g, '<br>');
-                    let cleanText = val.replace(/\s+/g, '');
-                    
-                    if (index === 11 && cleanText !== "") {
-                        displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
-                    } else if (index === 6 && cleanText !== "") {
-                        displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
-                    }
-                    html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
-                });
-                html += `</table>`;
-                
-                document.getElementById('modal-body').innerHTML = html;
-                document.getElementById('modal-overlay').style.display = 'block';
+          document.getElementById('modal-body').innerHTML = html;
+          modalOverlay.style.display = 'block';
 
-                document.getElementById('modal-copy-btn').addEventListener('click', function() {
-                    navigator.clipboard.writeText(ankenText).then(() => {
-                        this.textContent = "✔ コピー完了！";
-                        this.classList.add('copied');
-                        setTimeout(() => { this.textContent = "コピーする"; this.classList.remove('copied'); }, 2000);
-                    });
-                });
+          document.getElementById('modal-copy-btn').addEventListener('click', function() {
+            navigator.clipboard.writeText(ankenText).then(() => {
+              this.textContent = "✔ コピー完了！";
+              this.classList.add('copied');
+              setTimeout(() => { this.textContent = "コピー"; this.classList.remove('copied'); }, 2000);
             });
-
-            tbody.appendChild(tr);
+          });
         });
+
+        tbody.appendChild(tr);
+      });
     }
 
-    // CSVダウンロード
+    // === CSVダウンロード ===
     document.getElementById('downloadBtn').addEventListener('click', function() {
-        let csvContent = "";
-        const thead = document.getElementById('table-head');
-        const ths = thead.querySelectorAll('tr').item(1).querySelectorAll('th');
-        const headers = [];
-        for (let i = 0; i < ths.length; i++) headers.push('"' + ths.item(i).textContent.replace(/"/g, '""') + '"');
-        csvContent += headers.join(',') + "\r\n";
+      let csvContent = "";
+      const thead = document.getElementById('table-head');
+      const ths = thead.querySelectorAll('tr').item(1).querySelectorAll('th');
+      const headers = [];
+      for (let i = 0; i < ths.length; i++) headers.push('"' + ths.item(i).textContent.replace(/"/g, '""') + '"');
+      csvContent += headers.join(',') + "\r\n";
 
-        const trs = document.getElementById('table-body').querySelectorAll('tr');
-        for (let i = 0; i < trs.length; i++) {
-            if (trs.item(i).style.display === 'none') continue;
-            const rowData = [];
-            const tds = trs.item(i).querySelectorAll('td');
-            for (let j = 0; j < tds.length; j++) {
-                const input = tds.item(j).querySelector('input, select');
-                if (input) rowData.push('"' + input.value.replace(/"/g, '""') + '"');
-                else rowData.push('"' + tds.item(j).textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""') + '"');
-            }
-            csvContent += rowData.join(',') + "\r\n";
+      const trs = document.getElementById('table-body').querySelectorAll('tr');
+      for (let i = 0; i < trs.length; i++) {
+        if (trs.item(i).style.display === 'none') continue;
+        const rowData = [];
+        const tds = trs.item(i).querySelectorAll('td');
+        for (let j = 0; j < tds.length; j++) {
+          const input = tds.item(j).querySelector('input, select');
+          if (input) rowData.push('"' + input.value.replace(/"/g, '""') + '"');
+          else rowData.push('"' + tds.item(j).textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""') + '"');
         }
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const blob = new Blob([bom, csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url;
-        const targetDate = document.getElementById('targetDate').value.replace(/-/g, '');
-        a.download = "指定日案件リスト_" + targetDate + ".csv";
-        a.click(); window.URL.revokeObjectURL(url);
+        csvContent += rowData.join(',') + "\r\n";
+      }
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      const targetDate = document.getElementById('targetDate').value.replace(/-/g, '');
+      a.download = "指定日案件リスト_" + targetDate + ".csv";
+      a.click(); window.URL.revokeObjectURL(url);
     });
   </script>
 </body>
