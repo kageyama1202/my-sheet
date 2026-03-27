@@ -367,11 +367,8 @@
           let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "") || "未定";
           let shitamiStr = dateInput.value || "未定";
 
-          let ankenText = "名称未設定";
-          let eCol = getSafeVal(cols, 4).trim();
-          let fCol = getSafeVal(cols, 5).trim();
-          if (fCol !== "") ankenText = fCol;
-          else if (eCol !== "") ankenText = eCol;
+          // E列（index 4）を表題に使う
+          let ankenText = getSafeVal(cols, 4).trim() || "名称未設定";
 
           let html = `
             <div class="modal-header-info">
@@ -397,6 +394,11 @@
             }
             html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
           });
+
+          // ブラウザ入力データも表示
+          html += `<tr><th style="background:#d4edda;">📅 下見予定日（入力）</th><td>${dateInput.value || "未入力"}</td></tr>`;
+          html += `<tr><th style="background:#d4edda;">⏰ 下見予定時間（入力）</th><td>${timeInput.value || "未入力"}</td></tr>`;
+          html += `<tr><th style="background:#d4edda;">🔢 下見順（入力）</th><td>${orderInput.value || "未入力"}</td></tr>`;
           html += `</table>`;
 
           document.getElementById('modal-body').innerHTML = html;
