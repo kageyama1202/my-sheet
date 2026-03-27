@@ -3,81 +3,98 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>現場管理システム トップメニュー</title>
+  <title>案件管理 トップメニュー</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body { 
-      font-family: 'Helvetica Neue', Arial, sans-serif; 
-      background-color: #f4f6f9; 
-      margin: 0; 
-      padding: 40px 20px; 
-      text-align: center; 
-    }
-    h1 { 
-      color: #333; 
-      margin-bottom: 40px; 
-      font-size: 24px;
-    }
-    .menu-container { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 15px; 
-      max-width: 400px; 
-      margin: 0 auto; 
-    }
-    .menu-btn { 
-      display: block; 
-      padding: 18px 20px; 
-      font-size: 16px; 
-      font-weight: bold; 
-      color: #fff; 
-      text-decoration: none; 
-      border-radius: 8px; 
-      transition: all 0.2s ease-in-out; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      position: relative;
-    }
-    .menu-btn:hover { 
-      opacity: 0.9; 
-      transform: translateY(-2px); 
-      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    }
-    .menu-btn:active {
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
+    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; margin: 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+    .status { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding: 15px; border-radius: 4px; }
+    .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+    .menu-btn { display: block; text-decoration: none; padding: 15px; background-color: #007bff; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .menu-btn:hover { background-color: #0056b3; }
+    .menu-btn.disabled { background-color: #ccc; color: #888; pointer-events: none; box-shadow: none; }
     
-    /* 各ボタンのカラー設定 */
-    .btn-today { background-color: #d32f2f; }
-    .btn-shinchiku { background-color: #007bff; }
-    .btn-reform { background-color: #28a745; }
-    .btn-all { background-color: #6c757d; }
-    .btn-sekou { background-color: #17a2b8; }
-    .btn-sogo { background-color: #ff9800; color: #fff; }
-    
-    .footer {
-      margin-top: 50px;
-      font-size: 12px;
-      color: #888;
+    /* スマホ・iPad縦向き用の調整 */
+    @media (max-width: 480px) {
+      .menu-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-  <h1>📱 現場管理システム メニュー</h1>
-
-  <div class="menu-container">
-    <a href="today.html" class="menu-btn btn-today">🔥 指定日の案件</a>
-    <a href="shinchiku.html" class="menu-btn btn-shinchiku">🏠 新築下見予定</a>
-    <a href="reform.html" class="menu-btn btn-reform">🔨 リフォーム下見予定</a>
-    <a href="all.html" class="menu-btn btn-all">📅 全案件 スケジュール</a>
-    <hr style="width: 100%; border: 0; border-top: 1px solid #ddd; margin: 10px 0;">
-    <a href="sekou_kakunin.html" class="menu-btn btn-sekou">✅ 施工日確認リスト</a>
-    <a href="sogo.html" class="menu-btn btn-sogo">🌟 総合管理ページ（全機能版）</a>
+  <div class="container">
+    <h1>🏠 案件管理システム</h1>
+    
+    <!-- データ取得状況をお知らせするエリア -->
+    <div id="statusMsg" class="status loading">
+      ⏳ クラウドから最新データを取得中...<br>
+      <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
+    </div>
+    
+    <!-- メニューボタン（データ取得が完了するまでは押せない状態） -->
+    <div class="menu-grid">
+      <a href="today.html" class="menu-btn disabled">📅 指定日の案件リスト</a>
+      <a href="all.html" class="menu-btn disabled">📂 全案件リスト</a>
+      <a href="shinchiku.html" class="menu-btn disabled">🏠 新築リスト</a>
+      <a href="reform.html" class="menu-btn disabled">🔨 リフォームリスト</a>
+      <a href="sekou_kakunin.html" class="menu-btn disabled">👷 施工日確認リスト</a>
+      <a href="sogo.html" class="menu-btn disabled">📊 総合リスト</a>
+    </div>
   </div>
 
-  <div class="footer">
-    ※各ボタンをタップすると専用ページに移動します
-  </div>
+  <script>
+    // 1. Firebaseの初期化
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
 
+    // 2. クラウドからデータを1回だけ取得 (once)
+    database.ref().once('value').then(function(snapshot) {
+      const dbData = snapshot.val();
+      const statusMsg = document.getElementById('statusMsg');
+
+      // データが空っぽの場合のエラー処理
+      if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
+        statusMsg.className = 'status error';
+        statusMsg.innerHTML = "⚠️ データがありません。<br><span style='font-size:12px; font-weight:normal;'>管理画面からCSVをアップロードしてください。</span>";
+        return;
+      }
+
+      // 💡 3. 最重要：取得した全データをブラウザの記憶領域 (LocalStorage) に保存！
+      localStorage.setItem('appData', JSON.stringify(dbData));
+      
+      // 取得した時間を記録しておく
+      const now = new Date();
+      const timeStr = now.getHours() + ':' + ('0'+now.getMinutes()).slice(-2) + ':' + ('0'+now.getSeconds()).slice(-2);
+
+      // 4. UIの更新（取得完了メッセージ ＆ すべてのメニューボタンを押せるようにする）
+      statusMsg.className = 'status success';
+      statusMsg.innerHTML = `✅ 最新データの取得・保存が完了しました！<br><span style="font-size:12px; font-weight:normal;">（最終取得: ${timeStr}）</span>`;
+
+      document.querySelectorAll('.menu-btn').forEach(btn => {
+        btn.classList.remove('disabled');
+      });
+
+    }).catch(function(error) {
+      // 通信エラーなどで失敗した場合
+      const statusMsg = document.getElementById('statusMsg');
+      statusMsg.className = 'status error';
+      statusMsg.innerHTML = "❌ 通信エラーが発生しました。<br><span style='font-size:12px; font-weight:normal;'>電波の良いところでページを再読み込みしてください。</span>";
+      console.error(error);
+    });
+  </script>
 </body>
 </html>
