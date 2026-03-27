@@ -102,7 +102,7 @@
         return options;
     }
 
-    // 🔴【undefined対策】データが空の時に安全に「空文字」にする専用関数
+    // データが空の時に安全に「空文字」にする専用関数
     function getSafeVal(cols, index) {
         if (!cols) return "";
         let val = cols[index];
@@ -126,7 +126,7 @@
     modalCloseBtn.addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
-    // 一番最初だけデータを読み込む（省エネ対応）
+    // 省エネ対応：画面を開いた最初だけ読み込む
     database.ref().once('value').then(function(snapshot) {
         const dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
@@ -139,7 +139,18 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        const displayCols = [1-10];
+        // 🔴🔴🔴【修正】ここがすっぽり抜け落ちていました！表示させる列を確実に指定します。🔴🔴🔴
+        const displayCols = new Array();
+        displayCols.push(1);  // B列
+        displayCols.push(3);  // D列
+        displayCols.push(4);  // E列
+        displayCols.push(5);  // F列
+        displayCols.push(6);  // G列
+        displayCols.push(7);  // H列
+        displayCols.push(10); // K列
+        displayCols.push(11); // L列
+        displayCols.push(2);  // C列（施工日）
+        displayCols.push(12); // M列
         
         const thead = document.getElementById('table-head');
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
@@ -165,10 +176,10 @@
             let cols = tasks[key].csvData;
             if(!cols) return false; 
             
-            // B列（インデックス1）のデータを抜き出し、空白を取り除く
+            // B列のデータを抜き出し、空白を取り除く
             let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
 
-            // 🔴 純粋な「完了」のみを除外（下見完了などは表示される）
+            // 純粋な「完了」のみを除外
             return colB !== "完了";
         });
 
@@ -217,23 +228,23 @@
                 tr.appendChild(td);
             });
 
-            // 🔋 省エネ化ポイント：裏で常時監視せず、初回の読み込みデータだけをセットする
+            // 🔋 省エネ化：初期値だけセットし、裏の監視カメラは置かない
             const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
             const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
-            dateInput.value = dataObj.date || ''; // 初回データセット
+            dateInput.value = dataObj.date || ''; 
             tdDate.appendChild(dateInput); tr.appendChild(tdDate);
 
             const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
             const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
-            timeInput.value = dataObj.time || ''; // 初回データセット
+            timeInput.value = dataObj.time || ''; 
             tdTime.appendChild(timeInput); tr.appendChild(tdTime);
 
             const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
             const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
-            orderInput.value = dataObj.order || ''; // 初回データセット
+            orderInput.value = dataObj.order || ''; 
             tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
-            // 変更があった時だけFirebaseに保存処理を走らせる
+            // 値を変えた時"だけ"Firebaseに保存処理を走らせる
             const taskRef = database.ref('app_tasks/' + key);
             function saveToFirebase() { taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value }); }
             dateInput.addEventListener('change', saveToFirebase);
