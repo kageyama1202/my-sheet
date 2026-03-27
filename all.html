@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>全案件 下見予定リスト（完全クラウド版）</title>
+  <title>全案件 下見予定リスト（完了除外・省エネ版）</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
@@ -25,17 +25,41 @@
     th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
     th { background-color: #e0e0e0; padding: 6px; }
     .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
+    
+    tbody tr:hover { background-color: #f1f8ff; transition: 0.2s; }
     .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent;}
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
     #loadingMsg { font-weight: bold; color: #6c757d; margin-left: 10px; font-size: 14px; }
+
+    #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(2px); }
+    #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    #modal-close { float: right; font-size: 14px; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+    #modal-close:hover { background: #c82333; }
+    .modal-header-info { margin-bottom: 15px; }
+    .modal-date-row { font-size: 14px; color: #555; font-weight: bold; background: #e9ecef; padding: 8px 12px; border-radius: 6px; display: inline-block; }
+    .modal-title-row { font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+    .modal-copy-btn { font-size: 12px; padding: 5px 12px; cursor: pointer; border-radius: 4px; border: none; background: #007bff; color: #fff; font-weight: bold; transition: 0.2s; }
+    .modal-copy-btn.copied { background: #28a745; }
+    .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: left; }
+    .modal-table th { background-color: #f8f9fa; width: 30%; color: #495057; }
   </style>
 </head>
 <body>
   <div id="tooltip"></div>
+  
+  <div id="modal-overlay">
+    <div id="modal-content">
+      <button id="modal-close">✖ 閉じる</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
   <div class="box">
-    <h3>📅 全案件 スケジュール（完了除外・完全クラウド版）</h3>
+    <h3>📅 全案件 スケジュール（完了除外・省エネ版）</h3>
     <span id="loadingMsg">クラウドからデータを取得中...</span>
     <div class="search-box" style="display: none;" id="searchArea">
       <span>🔍 検索:</span>
@@ -90,6 +114,12 @@
         }
     });
 
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalCloseBtn = document.getElementById('modal-close');
+    modalCloseBtn.addEventListener('click', () => { modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+
+    // 一番最初だけデータを読み込む（省エネ対応）
     database.ref().once('value').then(function(snapshot) {
         const dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
@@ -102,18 +132,10 @@
         const headers = dbData.app_meta.headers;
         const tasks = dbData.app_tasks;
         
-        // 🔴 システムに削除されないように、1行ずつ確実に追加する書き方に変更！ 🔴
         const displayCols = new Array();
-        displayCols.push(1);  // B列
-        displayCols.push(3);  // D列
-        displayCols.push(4);  // E列
-        displayCols.push(5);  // F列
-        displayCols.push(6);  // G列
-        displayCols.push(7);  // H列
-        displayCols.push(10); // K列
-        displayCols.push(11); // L列
-        displayCols.push(2);  // C列（施工日）
-        displayCols.push(12); // M列
+        displayCols.push(1);  displayCols.push(3);  displayCols.push(4);  displayCols.push(5);
+        displayCols.push(6);  displayCols.push(7);  displayCols.push(10); displayCols.push(11);
+        displayCols.push(2);  displayCols.push(12);
         
         const thead = document.getElementById('table-head');
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
@@ -134,44 +156,29 @@
         const tbody = document.getElementById('table-body');
         const tooltip = document.getElementById('tooltip');
         const timeOptions = generateTimeOptions();
-        const todayZero = new Date().setHours(0, 0, 0, 0);
 
         let keys = Object.keys(tasks);
         let validKeys = keys.filter(key => {
             let cols = tasks[key].csvData;
-            // 🔴 データが正常な配列でない場合のエラーを回避
-            if(!cols || !Array.isArray(cols)) return false;
+            if(!cols) return false; 
             
-            // 🔴 安全に各列のデータを取得する（フィルタによる削除回避）
             let colB = "";
-            let dateStr = "";
-            
-            let idxB = 1;
-            let idxC = 2;
-            
-            if (cols.length > idxB) colB = String(cols[idxB]).replace(/\s+/g, "");
-            if (cols.length > idxC) dateStr = String(cols[idxC]).replace(/\s+/g, "");
-
-            let isNotCompleted = (colB.indexOf("完了") === -1);
-            let isFuture = false;
-            
-            if (dateStr !== "") {
-                let taskDate = new Date(dateStr);
-                if (!isNaN(taskDate.getTime())) {
-                    let diffTime = taskDate.getTime() - todayZero;
-                    let diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-                    if (diffDays > 0) isFuture = true;
-                }
+            if (Array.isArray(cols) && cols.length > 1) {
+                colB = String(cols).replace(/\s+/g, "");
+            } else if (cols) {
+                colB = String(cols).replace(/\s+/g, "");
+            } else {
+                colB = String(cols).replace(/\s+/g, "");
             }
-            return isFuture && isNotCompleted;
+
+            return colB.indexOf("完了") === -1;
         });
 
         validKeys.sort((a, b) => {
-            let dateA = "";
-            let dateB = "";
+            let dateA = ""; let dateB = "";
             let idxC = 2;
-            if (tasks[a].csvData && tasks[a].csvData.length > idxC) dateA = String(tasks[a].csvData[idxC]);
-            if (tasks[b].csvData && tasks[b].csvData.length > idxC) dateB = String(tasks[b].csvData[idxC]);
+            if (tasks[a].csvData && tasks[a].csvData[idxC]) dateA = String(tasks[a].csvData[idxC]);
+            if (tasks[b].csvData && tasks[b].csvData[idxC]) dateB = String(tasks[b].csvData[idxC]);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -181,13 +188,11 @@
             const tr = document.createElement('tr');
             
             let idxM = 12;
-            let mColText = "";
-            if (cols && cols.length > idxM) mColText = String(cols[idxM]).replace(/\s+/g, "");
+            let mColText = (cols && cols[idxM]) ? String(cols[idxM]).replace(/\s+/g, "") : "";
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
-                let c = "";
-                if (cols && cols.length > colIndex) c = String(cols[colIndex]);
+                let c = (cols && cols[colIndex]) ? String(cols[colIndex]) : "";
                 
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
@@ -216,32 +221,83 @@
                 tr.appendChild(td);
             });
 
+            // 🔋 省エネ化ポイント：裏で常時監視せず、初回の読み込みデータだけをセットする
             const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
             const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
+            dateInput.value = dataObj.date || ''; // 初回データセット
             tdDate.appendChild(dateInput); tr.appendChild(tdDate);
 
             const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
             const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
+            timeInput.value = dataObj.time || ''; // 初回データセット
             tdTime.appendChild(timeInput); tr.appendChild(tdTime);
 
             const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
             const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
+            orderInput.value = dataObj.order || ''; // 初回データセット
             tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
+            // 変更があった時だけFirebaseに保存処理を走らせる
             const taskRef = database.ref('app_tasks/' + key);
-            taskRef.on('value', snap => {
-                const rtData = snap.val();
-                if(rtData) {
-                    if (document.activeElement !== dateInput) dateInput.value = rtData.date || '';
-                    if (document.activeElement !== timeInput) timeInput.value = rtData.time || '';
-                    if (document.activeElement !== orderInput) orderInput.value = rtData.order || '';
-                }
-            });
-
             function saveToFirebase() { taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value }); }
             dateInput.addEventListener('change', saveToFirebase);
             timeInput.addEventListener('change', saveToFirebase);
             orderInput.addEventListener('input', saveToFirebase);
+
+            // モーダルを開く処理
+            tr.addEventListener('click', function(e) {
+                if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
+                
+                let idxC = 2;
+                let sekouStr = (cols && cols[idxC]) ? String(cols[idxC]).replace(/\s+/g, "") : "未定";
+                let shitamiStr = dateInput.value ? dateInput.value : "未定";
+                
+                let ankenText = "名称未設定";
+                let idxE = 4; let idxF = 5;
+                let eCol = (cols && cols[idxE]) ? String(cols[idxE]).trim() : "";
+                let fCol = (cols && cols[idxF]) ? String(cols[idxF]).trim() : "";
+                if (fCol !== "") ankenText = fCol; else if (eCol !== "") ankenText = eCol;
+                
+                let html = `
+                  <div class="modal-header-info">
+                    <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📅 下見日: ${shitamiStr}</div>
+                    <div class="modal-title-row">
+                      🏷️ 案件名: ${ankenText}
+                      <button id="modal-copy-btn" class="modal-copy-btn">コピーする</button>
+                    </div>
+                  </div>
+                  <h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 案件の全データ</h4>
+                  <table class="modal-table">
+                `;
+                
+                headers.forEach((headerName, index) => {
+                    const val = (cols && cols[index]) ? String(cols[index]) : "";
+                    let displayHtml = val.replace(/\n|\r/g, '<br>');
+                    let cleanText = val.replace(/\s+/g, '');
+                    
+                    if (index === 11 && cleanText !== "") {
+                        displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
+                    } else if (index === 6 && cleanText !== "") {
+                        displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
+                    }
+                    html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
+                });
+                html += `</table>`;
+                
+                document.getElementById('modal-body').innerHTML = html;
+                document.getElementById('modal-overlay').style.display = 'block';
+
+                document.getElementById('modal-copy-btn').addEventListener('click', function() {
+                    navigator.clipboard.writeText(ankenText).then(() => {
+                        this.textContent = "✔ コピー完了！";
+                        this.classList.add('copied');
+                        setTimeout(() => {
+                            this.textContent = "コピーする";
+                            this.classList.remove('copied');
+                        }, 2000);
+                    });
+                });
+            });
 
             tbody.appendChild(tr);
         });
