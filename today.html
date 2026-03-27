@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>指定日の案件リスト（抽出3種・省エネ・完全版）</title>
+  <title>指定日の案件リスト（ブラウザ記憶版）</title>
+  <!-- 入力した時だけ保存するため、Firebaseの準備は残しておきます -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
@@ -32,8 +33,7 @@
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent;}
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
-    #loadingMsg { font-weight: bold; color: #d32f2f; margin-left: 10px; font-size: 14px; }
-
+    
     #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(2px); }
     #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     #modal-close { float: right; font-size: 14px; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
@@ -49,6 +49,9 @@
     
     .date-selector { margin-left: 15px; display: flex; align-items: center; gap: 5px; }
     .date-selector input, .date-selector select { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
+    
+    .top-link { margin-right: 15px; text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
+    .top-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -62,9 +65,12 @@
   </div>
 
   <div class="box">
-    <h3>🔥 指定日の案件リスト（抽出3種・省エネ版）</h3>
+    <!-- トップページに戻りやすいようにリンクを追加 -->
+    <a href="index.html" class="top-link">◀ トップメニュー</a>
     
-    <div class="date-selector" id="dateArea" style="display: none;">
+    <h3>🔥 指定日の案件リスト</h3>
+    
+    <div class="date-selector" id="dateArea">
       <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
       <input type="date" id="targetDate" />
       
@@ -75,10 +81,8 @@
         <option value="shitami">📅 下見予定日のみ</option>
       </select>
     </div>
-
-    <span id="loadingMsg">クラウドからデータを取得中...</span>
     
-    <div class="search-box" style="display: none;" id="searchArea">
+    <div class="search-box" id="searchArea">
       <span>🔍 検索:</span>
       <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
       <button id="downloadBtn" class="btn btn-success">表示結果をCSV保存</button>
@@ -86,13 +90,19 @@
   </div>
   
   <div class="table-wrapper">
-    <table>
+    <!-- データが無かった時のメッセージ -->
+    <div id="noDataMsg" style="display: none; padding: 20px; font-weight: bold; color: #d32f2f;">
+      ⚠️ データが見つかりません。トップメニューに戻って「最新データを取得」してください。
+    </div>
+    
+    <table id="mainTable">
       <thead id="table-head"></thead>
       <tbody id="table-body"></tbody>
     </table>
   </div>
 
   <script>
+    // 1. Firebaseの準備（入力データを保存するためだけに使う）
     const firebaseConfig = {
       apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
       authDomain: "project-6745138395263517914.firebaseapp.com",
@@ -105,10 +115,7 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const database = firebase.database();
 
-    let globalHeaders = [];
-    let globalTasks = {};
-    
-    // 🔴【絶対に消えない修正！】表示する列のインデックス番号を確実に指定！！
+    // 🔴【絶対に消えない】表示する列の指定
     const displayCols = [1-10];
 
     function getColLetter(index) {
@@ -146,6 +153,7 @@
         return d;
     }
 
+    // 今日の日付をセット
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -153,13 +161,9 @@
     
     const targetDateInput = document.getElementById('targetDate');
     targetDateInput.value = `${yyyy}-${mm}-${dd}`;
-    
     const targetTypeInput = document.getElementById('targetType');
 
-    // 日付か、抽出対象（3種）を変更したら表を再描画
-    targetDateInput.addEventListener('change', renderTable);
-    targetTypeInput.addEventListener('change', renderTable);
-
+    // 検索機能
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
@@ -172,27 +176,38 @@
         }
     });
 
+    // モーダル機能
     const modalOverlay = document.getElementById('modal-overlay');
     const modalCloseBtn = document.getElementById('modal-close');
     modalCloseBtn.addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
-    // 🔋 省エネ対応：画面を開いた最初だけ読み込む
-    database.ref().once('value').then(function(snapshot) {
-        const dbData = snapshot.val();
-        if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-            document.getElementById('loadingMsg').textContent = "⚠️ データがありません。";
-            return;
-        }
-        document.getElementById('loadingMsg').style.display = "none";
-        document.getElementById('searchArea').style.display = "flex";
-        document.getElementById('dateArea').style.display = "flex";
 
-        globalHeaders = dbData.app_meta.headers || [];
-        globalTasks = dbData.app_tasks || {};
-        
+    // 💡【重要】通信せずに、トップページが保存したLocalStorageからデータを一瞬で引き出す
+    let globalHeaders = [];
+    let globalTasks = {};
+    let fullData = null;
+
+    try {
+        const storedData = localStorage.getItem('appData');
+        if (storedData) {
+            fullData = JSON.parse(storedData);
+        }
+    } catch(e) { console.error("データ読み込みエラー"); }
+
+    // もしデータが存在すれば表を描画し、無ければ警告を出す
+    if (fullData && fullData.app_meta && fullData.app_tasks) {
+        globalHeaders = fullData.app_meta.headers;
+        globalTasks = fullData.app_tasks;
         renderTable(); 
-    });
+    } else {
+        document.getElementById('noDataMsg').style.display = 'block';
+        document.getElementById('mainTable').style.display = 'none';
+    }
+
+    // カレンダー等の条件が変わったら再描画
+    targetDateInput.addEventListener('change', renderTable);
+    targetTypeInput.addEventListener('change', renderTable);
 
     function renderTable() {
         const thead = document.getElementById('table-head');
@@ -216,7 +231,7 @@
         
         const timeOptions = generateTimeOptions();
         const selectedDate = targetDateInput.value; 
-        const selectedType = targetTypeInput.value; // 選ばれた3種のうちのどれか
+        const selectedType = targetTypeInput.value; 
 
         let keys = Object.keys(globalTasks);
         let validKeys = keys.filter(key => {
@@ -228,20 +243,16 @@
             let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
             if (colB === "完了") return false;
 
-            // 🔴 抽出条件の分岐（3種類）
+            // 抽出条件の分岐（3種類）
             let sekouDate = formatToYMD(getSafeVal(cols, 2));
             let shitamiDate = dataObj.date || ""; 
             
-            if (selectedType === "sekou") {
-                return sekouDate === selectedDate;
-            } else if (selectedType === "shitami") {
-                return shitamiDate === selectedDate;
-            } else {
-                // both（両方）
-                return (sekouDate === selectedDate || shitamiDate === selectedDate);
-            }
+            if (selectedType === "sekou") return sekouDate === selectedDate;
+            else if (selectedType === "shitami") return shitamiDate === selectedDate;
+            else return (sekouDate === selectedDate || shitamiDate === selectedDate);
         });
 
+        // 施工日でソート
         validKeys.sort((a, b) => {
             let dateA = getSafeVal(globalTasks[a].csvData, 2);
             let dateB = getSafeVal(globalTasks[b].csvData, 2);
@@ -283,7 +294,7 @@
                 tr.appendChild(td);
             });
 
-            // 🔋 省エネ化：初期値だけセットし、裏の監視カメラは置かない
+            // 入力フォーム作成
             const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
             const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
             dateInput.value = dataObj.date || ''; 
@@ -299,13 +310,18 @@
             orderInput.value = dataObj.order || ''; 
             tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
 
-            // 値を変えた時"だけ"Firebaseに保存処理を走らせる
+            // 💡【重要】値を変えた時だけFirebaseに保存 ＋ LocalStorageも最新に書き換える
             const taskRef = database.ref('app_tasks/' + key);
             function saveToFirebase() { 
+                // ① クラウド（Firebase）に上書き送信
                 taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
+                
+                // ② ブラウザの記憶（LocalStorage）も新しい値に書き換える
                 globalTasks[key].date = dateInput.value;
                 globalTasks[key].time = timeInput.value;
                 globalTasks[key].order = orderInput.value;
+                fullData.app_tasks = globalTasks;
+                localStorage.setItem('appData', JSON.stringify(fullData));
             }
             dateInput.addEventListener('change', saveToFirebase);
             timeInput.addEventListener('change', saveToFirebase);
@@ -365,6 +381,7 @@
         });
     }
 
+    // CSVダウンロード
     document.getElementById('downloadBtn').addEventListener('click', function() {
         let csvContent = "";
         const thead = document.getElementById('table-head');
