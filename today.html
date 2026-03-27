@@ -263,9 +263,9 @@
           if (sekouDate === selectedDate) match = true;
         }
 
-        // 下見日（P列 = index 15）
+        // 下見日（index 12）
         if (chkShitami.checked) {
-          let shitamiDate = formatToYMD(getSafeVal(cols, 15));
+          let shitamiDate = formatToYMD(getSafeVal(cols, 12));
           if (shitamiDate === selectedDate) match = true;
         }
 
@@ -308,8 +308,8 @@
             else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
             inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
           }
-          // 担当者携帯（H列=7）→ 電話リンク
-          else if (colIndex === 7 && cleanText !== '') {
+          // 担当者携帯（index 6）→ 電話リンク
+          else if (colIndex === 6 && cleanText !== '') {
             inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
           }
           else {
@@ -365,7 +365,7 @@
           if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
 
           let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "") || "未定";
-          let shitamiStr = formatToYMD(getSafeVal(cols, 15)) || "未定";
+          let shitamiStr = formatToYMD(getSafeVal(cols, 12)) || "未定";
           let yoteiStr = dateInput.value || "未定";
 
           // E列（index 4）を表題に使う
@@ -390,7 +390,7 @@
 
             if (index === 11 && cleanText !== "") {
               displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
-            } else if (index === 7 && cleanText !== "") {
+            } else if (index === 6 && cleanText !== "") {
               displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
             }
             html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
