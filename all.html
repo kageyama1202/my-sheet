@@ -102,6 +102,13 @@
         return options;
     }
 
+    // 🔴【undefined対策】データが空の時に安全に「空文字」にする専用関数
+    function getSafeVal(cols, index) {
+        if (!cols) return "";
+        let val = cols[index];
+        return (val !== undefined && val !== null) ? String(val) : "";
+    }
+
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
         let rows = document.getElementById('table-body').getElementsByTagName('tr');
@@ -158,13 +165,8 @@
             let cols = tasks[key].csvData;
             if(!cols) return false; 
             
-            let colB = "";
-            // 🔴 修正箇所：B列（インデックス1）のデータだけを確実に抜き出す
-            if (Array.isArray(cols)) {
-                colB = cols.length > 1 ? String(cols[1]).replace(/\s+/g, "") : "";
-            } else if (typeof cols === 'object') {
-                colB = cols[1] ? String(cols[1]).replace(/\s+/g, "") : "";
-            }
+            // B列（インデックス1）のデータを抜き出し、空白を取り除く
+            let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
 
             // 🔴 純粋な「完了」のみを除外（下見完了などは表示される）
             return colB !== "完了";
@@ -172,14 +174,8 @@
 
         // 施工日順ソート
         validKeys.sort((a, b) => {
-            let dateA = ""; let dateB = "";
-            let idxC = 2;
-            if (Array.isArray(tasks[a].csvData)) dateA = tasks[a].csvData.length > idxC ? String(tasks[a].csvData[idxC]) : "";
-            else if (typeof tasks[a].csvData === 'object') dateA = tasks[a].csvData[idxC] ? String(tasks[a].csvData[idxC]) : "";
-            
-            if (Array.isArray(tasks[b].csvData)) dateB = tasks[b].csvData.length > idxC ? String(tasks[b].csvData[idxC]) : "";
-            else if (typeof tasks[b].csvData === 'object') dateB = tasks[b].csvData[idxC] ? String(tasks[b].csvData[idxC]) : "";
-            
+            let dateA = getSafeVal(tasks[a].csvData, 2);
+            let dateB = getSafeVal(tasks[b].csvData, 2);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
@@ -188,17 +184,11 @@
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
-            // 🔴 データ抽出の確実化
-            let idxM = 12;
-            let mColText = "";
-            if (Array.isArray(cols)) mColText = cols.length > idxM ? String(cols[idxM]).replace(/\s+/g, "") : "";
-            else if (typeof cols === 'object') mColText = cols[idxM] ? String(cols[idxM]).replace(/\s+/g, "") : "";
+            let mColText = getSafeVal(cols, 12).replace(/\s+/g, "");
             let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda"; 
             
             displayCols.forEach(colIndex => {
-                let c = "";
-                if (Array.isArray(cols)) c = cols.length > colIndex ? String(cols[colIndex]) : "";
-                else if (typeof cols === 'object') c = cols[colIndex] ? String(cols[colIndex]) : "";
+                let c = getSafeVal(cols, colIndex);
                 
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
@@ -254,24 +244,14 @@
             tr.addEventListener('click', function(e) {
                 if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
                 
-                let idxC = 2;
-                let sekouStr = "未定";
-                if (Array.isArray(cols)) sekouStr = cols.length > idxC ? String(cols[idxC]).replace(/\s+/g, "") : "未定";
-                else if (typeof cols === 'object') sekouStr = cols[idxC] ? String(cols[idxC]).replace(/\s+/g, "") : "未定";
+                let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "");
                 if (sekouStr === "") sekouStr = "未定";
 
                 let shitamiStr = dateInput.value ? dateInput.value : "未定";
                 
                 let ankenText = "名称未設定";
-                let idxE = 4; let idxF = 5;
-                let eCol = ""; let fCol = "";
-                if (Array.isArray(cols)) {
-                    eCol = cols.length > idxE ? String(cols[idxE]).trim() : "";
-                    fCol = cols.length > idxF ? String(cols[idxF]).trim() : "";
-                } else if (typeof cols === 'object') {
-                    eCol = cols[idxE] ? String(cols[idxE]).trim() : "";
-                    fCol = cols[idxF] ? String(cols[idxF]).trim() : "";
-                }
+                let eCol = getSafeVal(cols, 4).trim();
+                let fCol = getSafeVal(cols, 5).trim();
                 if (fCol !== "") ankenText = fCol; else if (eCol !== "") ankenText = eCol;
                 
                 let html = `
@@ -287,10 +267,7 @@
                 `;
                 
                 headers.forEach((headerName, index) => {
-                    let val = "";
-                    if (Array.isArray(cols)) val = cols.length > index ? String(cols[index]) : "";
-                    else if (typeof cols === 'object') val = cols[index] ? String(cols[index]) : "";
-
+                    let val = getSafeVal(cols, index);
                     let displayHtml = val.replace(/\n|\r/g, '<br>');
                     let cleanText = val.replace(/\s+/g, '');
                     
