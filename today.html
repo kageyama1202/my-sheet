@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>指定日の案件リスト（抽出3種・省エネ・エラー対策済）</title>
+  <title>指定日の案件リスト（抽出3種・省エネ・完全版）</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
@@ -64,7 +64,6 @@
   <div class="box">
     <h3>🔥 指定日の案件リスト（抽出3種・省エネ版）</h3>
     
-    <!-- ▼ 抽出条件を選ぶドロップダウンを新設（3種類） ▼ -->
     <div class="date-selector" id="dateArea" style="display: none;">
       <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
       <input type="date" id="targetDate" />
@@ -109,7 +108,7 @@
     let globalHeaders = [];
     let globalTasks = {};
     
-    // 🔴前回のありえないミスを修正（正しく表示列を指定！）
+    // 🔴【絶対に消えない修正！】表示する列のインデックス番号を確実に指定！！
     const displayCols = [1-10];
 
     function getColLetter(index) {
@@ -134,7 +133,6 @@
         return "";
     }
 
-    // 🔴【修正済】文字分割の処理エラー（画面崩れの原因）を完全に解消！
     function formatToYMD(dateString) {
         if (!dateString) return "";
         let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
