@@ -301,8 +301,8 @@
           let displayText = c.replace(/\n|\r/g, ' ');
           let cleanText = c.replace(/\s+/g, '');
 
-          // 住所列（M列=12）→ Googleマップリンク
-          if (colIndex === 12 && cleanText !== '') {
+          // 住所列（L列=index 11）→ Googleマップリンク
+          if (colIndex === 11 && cleanText !== '') {
             let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
             if (shortText.startsWith('札幌市')) shortText = shortText.replace(/^札幌市/, '');
             else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
@@ -317,7 +317,7 @@
           }
 
           // 住所列の背景色
-          if (colIndex === 12) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
+          if (colIndex === 11) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
 
           td.appendChild(inner);
 
@@ -365,14 +365,15 @@
           if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
 
           let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "") || "未定";
-          let shitamiStr = dateInput.value || "未定";
+          let shitamiStr = formatToYMD(getSafeVal(cols, 15)) || "未定";
+          let yoteiStr = dateInput.value || "未定";
 
           // E列（index 4）を表題に使う
           let ankenText = getSafeVal(cols, 4).trim() || "名称未設定";
 
           let html = `
             <div class="modal-header-info">
-              <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📅 下見予定日: ${shitamiStr}</div>
+              <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 下見予定日: ${yoteiStr}</div>
               <div class="modal-title-row">
                 🏷️ ${ankenText}
                 <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
@@ -387,7 +388,7 @@
             let displayHtml = val.replace(/\n|\r/g, '<br>');
             let cleanText = val.replace(/\s+/g, '');
 
-            if (index === 12 && cleanText !== "") {
+            if (index === 11 && cleanText !== "") {
               displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
             } else if (index === 7 && cleanText !== "") {
               displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
