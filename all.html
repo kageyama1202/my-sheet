@@ -2,13 +2,13 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>全案件 下見予定リスト（完了のみ除外・省エネ版）</title>
+  <title>指定日の案件リスト（抽出3種・省エネ・完全版）</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
     body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
     .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .box h3 { margin: 0; font-size: 14px; color: #6c757d; }
+    .box h3 { margin: 0; font-size: 14px; color: #d32f2f; }
     .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; font-weight: bold; }
     .btn-success { background: #28a745; color: #fff; border-color: #28a745; }
     .search-box { display: flex; align-items: center; gap: 5px; margin-left: auto; }
@@ -32,7 +32,7 @@
     #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
     .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent;}
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
-    #loadingMsg { font-weight: bold; color: #6c757d; margin-left: 10px; font-size: 14px; }
+    #loadingMsg { font-weight: bold; color: #d32f2f; margin-left: 10px; font-size: 14px; }
 
     #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(2px); }
     #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
@@ -46,6 +46,9 @@
     .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: left; }
     .modal-table th { background-color: #f8f9fa; width: 30%; color: #495057; }
+    
+    .date-selector { margin-left: 15px; display: flex; align-items: center; gap: 5px; }
+    .date-selector input, .date-selector select { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -59,14 +62,29 @@
   </div>
 
   <div class="box">
-    <h3>📅 全案件 スケジュール（完了のみ除外・省エネ版）</h3>
+    <h3>🔥 指定日の案件リスト（抽出3種・省エネ版）</h3>
+    
+    <div class="date-selector" id="dateArea" style="display: none;">
+      <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
+      <input type="date" id="targetDate" />
+      
+      <span style="font-size: 13px; font-weight: bold; color: #333; margin-left: 10px;">🎯 抽出対象:</span>
+      <select id="targetType">
+        <option value="both">🌟 施工日 ＋ 下見予定日（両方）</option>
+        <option value="sekou">🔨 施工日のみ</option>
+        <option value="shitami">📅 下見予定日のみ</option>
+      </select>
+    </div>
+
     <span id="loadingMsg">クラウドからデータを取得中...</span>
+    
     <div class="search-box" style="display: none;" id="searchArea">
       <span>🔍 検索:</span>
       <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
       <button id="downloadBtn" class="btn btn-success">表示結果をCSV保存</button>
     </div>
   </div>
+  
   <div class="table-wrapper">
     <table>
       <thead id="table-head"></thead>
@@ -87,6 +105,12 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const database = firebase.database();
 
+    let globalHeaders = [];
+    let globalTasks = {};
+    
+    // 🔴【絶対に消えない修正！】表示する列のインデックス番号を確実に指定！！
+    const displayCols = [1-10];
+
     function getColLetter(index) {
         let letter = '';
         while (index >= 0) { letter = String.fromCharCode((index % 26) + 65) + letter; index = Math.floor(index / 26) - 1; }
@@ -102,12 +126,39 @@
         return options;
     }
 
-    // データが空の時に安全に「空文字」にする専用関数
     function getSafeVal(cols, index) {
         if (!cols) return "";
-        let val = cols[index];
-        return (val !== undefined && val !== null) ? String(val) : "";
+        if (Array.isArray(cols)) return cols.length > index && cols[index] != null ? String(cols[index]) : "";
+        if (typeof cols === 'object') return cols[index] != null ? String(cols[index]) : "";
+        return "";
     }
+
+    function formatToYMD(dateString) {
+        if (!dateString) return "";
+        let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
+        let parts = d.split("-");
+        if(parts.length === 3) {
+            let y = parts;
+            let m = String(parts[1]).padStart(2, '0');
+            let day = String(parts[9]).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        return d;
+    }
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    
+    const targetDateInput = document.getElementById('targetDate');
+    targetDateInput.value = `${yyyy}-${mm}-${dd}`;
+    
+    const targetTypeInput = document.getElementById('targetType');
+
+    // 日付か、抽出対象（3種）を変更したら表を再描画
+    targetDateInput.addEventListener('change', renderTable);
+    targetTypeInput.addEventListener('change', renderTable);
 
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
@@ -126,39 +177,35 @@
     modalCloseBtn.addEventListener('click', () => { modalOverlay.style.display = 'none'; });
     modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
-    // 省エネ対応：画面を開いた最初だけ読み込む
+    // 🔋 省エネ対応：画面を開いた最初だけ読み込む
     database.ref().once('value').then(function(snapshot) {
         const dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-            document.getElementById('loadingMsg').textContent = "⚠️ データがありません。管理画面からCSVをアップロードしてください。";
+            document.getElementById('loadingMsg').textContent = "⚠️ データがありません。";
             return;
         }
         document.getElementById('loadingMsg').style.display = "none";
         document.getElementById('searchArea').style.display = "flex";
+        document.getElementById('dateArea').style.display = "flex";
 
-        const headers = dbData.app_meta.headers;
-        const tasks = dbData.app_tasks;
+        globalHeaders = dbData.app_meta.headers || [];
+        globalTasks = dbData.app_tasks || {};
         
-        // 🔴🔴🔴【修正】ここがすっぽり抜け落ちていました！表示させる列を確実に指定します。🔴🔴🔴
-        const displayCols = new Array();
-        displayCols.push(1);  // B列
-        displayCols.push(3);  // D列
-        displayCols.push(4);  // E列
-        displayCols.push(5);  // F列
-        displayCols.push(6);  // G列
-        displayCols.push(7);  // H列
-        displayCols.push(10); // K列
-        displayCols.push(11); // L列
-        displayCols.push(2);  // C列（施工日）
-        displayCols.push(12); // M列
-        
+        renderTable(); 
+    });
+
+    function renderTable() {
         const thead = document.getElementById('table-head');
+        const tbody = document.getElementById('table-body');
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+        
         const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
         const trHead = document.createElement('tr');
         
         displayCols.forEach(colIndex => {
           const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
-          const thHead = document.createElement('th'); thHead.textContent = headers[colIndex] || ""; trHead.appendChild(thHead);
+          const thHead = document.createElement('th'); thHead.textContent = globalHeaders[colIndex] || ""; trHead.appendChild(thHead);
         });
         
         ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
@@ -167,31 +214,42 @@
         });
         thead.appendChild(trAlpha); thead.appendChild(trHead);
         
-        const tbody = document.getElementById('table-body');
-        const tooltip = document.getElementById('tooltip');
         const timeOptions = generateTimeOptions();
+        const selectedDate = targetDateInput.value; 
+        const selectedType = targetTypeInput.value; // 選ばれた3種のうちのどれか
 
-        let keys = Object.keys(tasks);
+        let keys = Object.keys(globalTasks);
         let validKeys = keys.filter(key => {
-            let cols = tasks[key].csvData;
+            let dataObj = globalTasks[key];
+            let cols = dataObj.csvData;
             if(!cols) return false; 
             
-            // B列のデータを抜き出し、空白を取り除く
-            let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
-
             // 純粋な「完了」のみを除外
-            return colB !== "完了";
+            let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
+            if (colB === "完了") return false;
+
+            // 🔴 抽出条件の分岐（3種類）
+            let sekouDate = formatToYMD(getSafeVal(cols, 2));
+            let shitamiDate = dataObj.date || ""; 
+            
+            if (selectedType === "sekou") {
+                return sekouDate === selectedDate;
+            } else if (selectedType === "shitami") {
+                return shitamiDate === selectedDate;
+            } else {
+                // both（両方）
+                return (sekouDate === selectedDate || shitamiDate === selectedDate);
+            }
         });
 
-        // 施工日順ソート
         validKeys.sort((a, b) => {
-            let dateA = getSafeVal(tasks[a].csvData, 2);
-            let dateB = getSafeVal(tasks[b].csvData, 2);
+            let dateA = getSafeVal(globalTasks[a].csvData, 2);
+            let dateB = getSafeVal(globalTasks[b].csvData, 2);
             return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
         });
 
         validKeys.forEach(key => {
-            const dataObj = tasks[key];
+            const dataObj = globalTasks[key];
             const cols = dataObj.csvData;
             const tr = document.createElement('tr');
             
@@ -200,7 +258,6 @@
             
             displayCols.forEach(colIndex => {
                 let c = getSafeVal(cols, colIndex);
-                
                 const td = document.createElement('td'); 
                 const inner = document.createElement('div'); inner.className = 'cell-inner';
                 let displayText = c.replace(/\n|\r/g, ' '); let cleanText = c.replace(/\s+/g, '');
@@ -215,9 +272,7 @@
                   inner.textContent = displayText; 
                 }
                 
-                if (colIndex === 12) {
-                    td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold';
-                }
+                if (colIndex === 12) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
                 
                 td.appendChild(inner);
                 if (cleanText !== '') {
@@ -246,7 +301,12 @@
 
             // 値を変えた時"だけ"Firebaseに保存処理を走らせる
             const taskRef = database.ref('app_tasks/' + key);
-            function saveToFirebase() { taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value }); }
+            function saveToFirebase() { 
+                taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
+                globalTasks[key].date = dateInput.value;
+                globalTasks[key].time = timeInput.value;
+                globalTasks[key].order = orderInput.value;
+            }
             dateInput.addEventListener('change', saveToFirebase);
             timeInput.addEventListener('change', saveToFirebase);
             orderInput.addEventListener('input', saveToFirebase);
@@ -257,12 +317,10 @@
                 
                 let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "");
                 if (sekouStr === "") sekouStr = "未定";
-
                 let shitamiStr = dateInput.value ? dateInput.value : "未定";
                 
                 let ankenText = "名称未設定";
-                let eCol = getSafeVal(cols, 4).trim();
-                let fCol = getSafeVal(cols, 5).trim();
+                let eCol = getSafeVal(cols, 4).trim(); let fCol = getSafeVal(cols, 5).trim();
                 if (fCol !== "") ankenText = fCol; else if (eCol !== "") ankenText = eCol;
                 
                 let html = `
@@ -277,7 +335,7 @@
                   <table class="modal-table">
                 `;
                 
-                headers.forEach((headerName, index) => {
+                globalHeaders.forEach((headerName, index) => {
                     let val = getSafeVal(cols, index);
                     let displayHtml = val.replace(/\n|\r/g, '<br>');
                     let cleanText = val.replace(/\s+/g, '');
@@ -298,17 +356,14 @@
                     navigator.clipboard.writeText(ankenText).then(() => {
                         this.textContent = "✔ コピー完了！";
                         this.classList.add('copied');
-                        setTimeout(() => {
-                            this.textContent = "コピーする";
-                            this.classList.remove('copied');
-                        }, 2000);
+                        setTimeout(() => { this.textContent = "コピーする"; this.classList.remove('copied'); }, 2000);
                     });
                 });
             });
 
             tbody.appendChild(tr);
         });
-    });
+    }
 
     document.getElementById('downloadBtn').addEventListener('click', function() {
         let csvContent = "";
@@ -334,9 +389,8 @@
         const blob = new Blob([bom, csvContent], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url;
-        const d = new Date();
-        const dateStr = d.getFullYear() + ("0"+(d.getMonth()+1)).slice(-2) + ("0"+d.getDate()).slice(-2);
-        a.download = "全案件_下見予定_" + dateStr + ".csv";
+        const targetDate = document.getElementById('targetDate').value.replace(/-/g, '');
+        a.download = "指定日案件リスト_" + targetDate + ".csv";
         a.click(); window.URL.revokeObjectURL(url);
     });
   </script>
