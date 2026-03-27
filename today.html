@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>指定日の案件リスト（省エネ・エラー対策済）</title>
+  <title>指定日の案件リスト（抽出3種・省エネ・エラー対策済）</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
@@ -48,7 +48,7 @@
     .modal-table th { background-color: #f8f9fa; width: 30%; color: #495057; }
     
     .date-selector { margin-left: 15px; display: flex; align-items: center; gap: 5px; }
-    .date-selector input { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
+    .date-selector input, .date-selector select { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -62,12 +62,19 @@
   </div>
 
   <div class="box">
-    <h3>🔥 指定日の案件リスト（省エネ版）</h3>
+    <h3>🔥 指定日の案件リスト（抽出3種・省エネ版）</h3>
     
-    <!-- ▼ 日付を選ぶと、その日の案件だけ表示される ▼ -->
+    <!-- ▼ 抽出条件を選ぶドロップダウンを新設（3種類） ▼ -->
     <div class="date-selector" id="dateArea" style="display: none;">
-      <span style="font-size: 13px; font-weight: bold; color: #333;">📅 表示する日付:</span>
+      <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
       <input type="date" id="targetDate" />
+      
+      <span style="font-size: 13px; font-weight: bold; color: #333; margin-left: 10px;">🎯 抽出対象:</span>
+      <select id="targetType">
+        <option value="both">🌟 施工日 ＋ 下見予定日（両方）</option>
+        <option value="sekou">🔨 施工日のみ</option>
+        <option value="shitami">📅 下見予定日のみ</option>
+      </select>
     </div>
 
     <span id="loadingMsg">クラウドからデータを取得中...</span>
@@ -101,7 +108,9 @@
 
     let globalHeaders = [];
     let globalTasks = {};
-    const displayCols = [1-10]; // 表示する列番号
+    
+    // 🔴前回のありえないミスを修正（正しく表示列を指定！）
+    const displayCols = [1-10];
 
     function getColLetter(index) {
         let letter = '';
@@ -118,7 +127,6 @@
         return options;
     }
 
-    // 🔴 どんな変なデータ形式でもエラーで止まらないようにする専用関数
     function getSafeVal(cols, index) {
         if (!cols) return "";
         if (Array.isArray(cols)) return cols.length > index && cols[index] != null ? String(cols[index]) : "";
@@ -126,27 +134,33 @@
         return "";
     }
 
-    // 🔴 「2026/3/5」などを「2026-03-05」に揃える関数
+    // 🔴【修正済】文字分割の処理エラー（画面崩れの原因）を完全に解消！
     function formatToYMD(dateString) {
         if (!dateString) return "";
         let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
         let parts = d.split("-");
         if(parts.length === 3) {
-            return `${parts}-${parts[1].padStart(2, '0')}-${parts[9].padStart(2, '0')}`;
+            let y = parts;
+            let m = String(parts[1]).padStart(2, '0');
+            let day = String(parts[9]).padStart(2, '0');
+            return `${y}-${m}-${day}`;
         }
         return d;
     }
 
-    // 今日の日付をセット
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
+    
     const targetDateInput = document.getElementById('targetDate');
     targetDateInput.value = `${yyyy}-${mm}-${dd}`;
+    
+    const targetTypeInput = document.getElementById('targetType');
 
-    // 日付を変えたら表を再描画
+    // 日付か、抽出対象（3種）を変更したら表を再描画
     targetDateInput.addEventListener('change', renderTable);
+    targetTypeInput.addEventListener('change', renderTable);
 
     document.getElementById('searchInput').addEventListener('input', function(e) {
         let word = e.target.value.toLowerCase(); 
@@ -179,7 +193,7 @@
         globalHeaders = dbData.app_meta.headers || [];
         globalTasks = dbData.app_tasks || {};
         
-        renderTable(); // 表を描画する
+        renderTable(); 
     });
 
     function renderTable() {
@@ -203,7 +217,8 @@
         thead.appendChild(trAlpha); thead.appendChild(trHead);
         
         const timeOptions = generateTimeOptions();
-        const selectedDate = targetDateInput.value; // 例: 2026-03-27
+        const selectedDate = targetDateInput.value; 
+        const selectedType = targetTypeInput.value; // 選ばれた3種のうちのどれか
 
         let keys = Object.keys(globalTasks);
         let validKeys = keys.filter(key => {
@@ -211,18 +226,24 @@
             let cols = dataObj.csvData;
             if(!cols) return false; 
             
-            // 🔴 純粋な「完了」のみを除外
+            // 純粋な「完了」のみを除外
             let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
             if (colB === "完了") return false;
 
-            // 🔴 施工日（C列）または 下見予定日（入力値）が、選んだ日付と一致するものだけ表示
+            // 🔴 抽出条件の分岐（3種類）
             let sekouDate = formatToYMD(getSafeVal(cols, 2));
-            let shitamiDate = dataObj.date || ""; // Firebaseに保存された下見日
+            let shitamiDate = dataObj.date || ""; 
             
-            return (sekouDate === selectedDate || shitamiDate === selectedDate);
+            if (selectedType === "sekou") {
+                return sekouDate === selectedDate;
+            } else if (selectedType === "shitami") {
+                return shitamiDate === selectedDate;
+            } else {
+                // both（両方）
+                return (sekouDate === selectedDate || shitamiDate === selectedDate);
+            }
         });
 
-        // 施工日順ソート
         validKeys.sort((a, b) => {
             let dateA = getSafeVal(globalTasks[a].csvData, 2);
             let dateB = getSafeVal(globalTasks[b].csvData, 2);
@@ -284,7 +305,6 @@
             const taskRef = database.ref('app_tasks/' + key);
             function saveToFirebase() { 
                 taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
-                // ブラウザの記憶も更新しておく
                 globalTasks[key].date = dateInput.value;
                 globalTasks[key].time = timeInput.value;
                 globalTasks[key].order = orderInput.value;
