@@ -303,7 +303,7 @@
           addMarker(item.key,item.obj,item.cols,result.lat,result.lng);
         }
 
-        if(i<toGeocode.length-1) await new Promise(function(r){setTimeout(r,1100);});
+        if(i<toGeocode.length-1) await new Promise(function(r){setTimeout(r,2000);});
       }
 
       fullData.app_tasks=globalTasks;
