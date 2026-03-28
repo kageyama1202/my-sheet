@@ -169,6 +169,8 @@
         if(effectiveStatus==="報告書提出済")return;
 
         var daysTilSekou=diffDays(sekouDate);
+        // 施工日が過去 → 仕事終了、非表示
+        if(daysTilSekou<0)return;
         var isSK=name.indexOf('SK')!==-1;
 
         // 📞 リフォーム＆連絡未（ローカルが依頼 or 未設定でSFが依頼）
