@@ -11,11 +11,9 @@
   <style>
     *{box-sizing:border-box;}
     body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
-
     .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
     .header-bar h3{margin:0;font-size:15px;color:#d32f2f;}
     .top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
-
     .filter-bar{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
     .filter-label{font-weight:bold;color:#fff;background:#007bff;padding:1px 7px;border-radius:3px;font-size:11px;}
     .filter-checks{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;}
@@ -24,12 +22,9 @@
     .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
     .sel-btn{font-size:10px;color:#007bff;cursor:pointer;text-decoration:underline;}
     .sel-btn.red{color:#dc3545;}
-
-    .geocode-bar{background:#fff3cd;padding:4px 12px;border-bottom:1px solid #ffeeba;font-size:12px;font-weight:bold;color:#856404;display:none;}
-
+    .geocode-bar{background:#fff3cd;padding:6px 12px;border-bottom:1px solid #ffeeba;font-size:13px;font-weight:bold;color:#856404;display:none;}
     #map{height:calc(100vh - 100px);width:100%;}
 
-    /* モーダル */
     #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;backdrop-filter:blur(2px);}
     #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
     #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
@@ -73,297 +68,278 @@
   </div>
 
   <div class="geocode-bar" id="geocodeBar">📍 住所から座標を取得中... <span id="geocodeProgress"></span></div>
-
   <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
   <div id="map"></div>
 
   <script>
-    const firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    // === 1. Firebase ===
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-    const database=firebase.database();
+    var database=firebase.database();
 
+    // === 2. Leaflet地図（最初に初期化） ===
+    var myMap=L.map('map').setView([43.06,141.35],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'&copy; OpenStreetMap contributors',maxZoom:18
+    }).addTo(myMap);
+    console.log("地図初期化OK");
+
+    // === 3. ユーティリティ ===
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
-    function formatToYMD(ds){if(!ds)return"";let d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");let p=d.split("-");if(p.length===3)return`${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;return d;}
-    function generateTimeOptions(){let o='<option value="">--:--</option>';for(let h=8;h<=20;h++){let hh=('0'+h).slice(-2);o+=`<option value="${hh}:00">${hh}:00</option><option value="${hh}:30">${hh}:30</option>`;}return o;}
-    function getTodayStr(){let t=new Date();return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;}
+    function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+    function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
+    function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 
-    // ステータス→色マッピング
-    const statusColors={
-      '依頼':'#1a73e8',
-      '下見完了':'#34a853',
-      '下見実施中':'#fbbc04',
-      '下見日程確定':'#4285f4',
-      '下見日確認':'#ea8600',
-      '報告完了':'#0d652d',
-      '施工日確認':'#9c27b0',
-      '問題あり':'#d32f2f',
-      '完了':'#888888'
+    var statusColors={
+      '依頼':'#1a73e8','下見完了':'#34a853','下見実施中':'#fbbc04',
+      '下見日程確定':'#4285f4','下見日確認':'#ea8600','報告完了':'#0d652d',
+      '施工日確認':'#9c27b0','問題あり':'#d32f2f','完了':'#888888'
     };
     function getStatusColor(s){return statusColors[s]||'#1a73e8';}
 
-    // Leaflet地図（先に初期化）
-    const map=L.map('map').setView([43.06,141.35],10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'&copy; OpenStreetMap contributors',maxZoom:18
-    }).addTo(map);
+    // === 4. データ読み込み ===
+    var globalHeaders=[];
+    var globalTasks={};
+    var fullData=null;
+    var allMarkers=[];
 
-    let allMarkers=[];
+    try{var stored=localStorage.getItem('appData');if(stored)fullData=JSON.parse(stored);}catch(e){console.error(e);}
 
-    let globalHeaders=[],globalTasks={},fullData=null;
-    try{const s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
-
-    if(!fullData||!fullData.app_meta||!fullData.app_tasks){
-      document.getElementById('noDataMsg').style.display='block';
-      document.getElementById('map').style.display='none';
-    } else {
+    if(fullData&&fullData.app_meta&&fullData.app_tasks){
       globalHeaders=fullData.app_meta.headers;
       globalTasks=fullData.app_tasks;
-      init();
-    } // {marker, status, kubun, key, obj, cols}
-
-    async function init(){
-      // フィルタ構築
-      let stSet=new Set(),kbSet=new Set();
-      const todayStr=getTodayStr();
-
-      Object.values(globalTasks).forEach(o=>{
-        let c=o.csvData;if(!c)return;
-        let s=getSafeVal(c,1).replace(/\s+/g,"");
-        let sekouDate=formatToYMD(getSafeVal(c,2));
-        if(s==="完了"&&sekouDate<todayStr)return;
-        if(s)stSet.add(s);
-        let k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbSet.add(k);
-      });
-
-      buildStatusChecks([...stSet].sort());
-      buildKubunChecks([...kbSet].sort());
-
-      // ジオコーディング＆マーカー配置
-      await geocodeAndPlot();
+      console.log("データ読み込みOK, 件数:", Object.keys(globalTasks).length);
+    } else {
+      document.getElementById('noDataMsg').style.display='block';
+      document.getElementById('map').style.display='none';
     }
 
-    function buildStatusChecks(items){
-      const el=document.getElementById('statusFilters');
-      let ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';
-      ba.addEventListener('click',()=>{el.querySelectorAll('input').forEach(c=>c.checked=true);applyFilters();});
-      let bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';
-      bn.addEventListener('click',()=>{el.querySelectorAll('input').forEach(c=>c.checked=false);applyFilters();});
-      el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));
+    // === 5. モーダル ===
+    var modalOverlay=document.getElementById('modal-overlay');
+    document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
+    modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
 
-      items.forEach(s=>{
-        let lbl=document.createElement('label');
-        let cb=document.createElement('input');cb.type='checkbox';cb.value=s;cb.checked=true;
+    // === 6. フィルタ構築 ===
+    var todayStr=getTodayStr();
+    var stSet={};
+    var kbSet={};
+
+    Object.keys(globalTasks).forEach(function(key){
+      var o=globalTasks[key];
+      var c=o.csvData;if(!c)return;
+      var s=getSafeVal(c,1).replace(/\s+/g,"");
+      var sd=formatToYMD(getSafeVal(c,2));
+      if(s==="完了"&&sd<todayStr)return;
+      if(s)stSet[s]=true;
+      var k=getSafeVal(c,3).replace(/\s+/g,"");
+      if(k)kbSet[k]=true;
+    });
+
+    buildStatusChecks(Object.keys(stSet).sort());
+    buildKubunChecks(Object.keys(kbSet).sort());
+
+    function buildStatusChecks(items){
+      var el=document.getElementById('statusFilters');
+      var ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';
+      ba.addEventListener('click',function(){el.querySelectorAll('input').forEach(function(c){c.checked=true;});applyFilters();});
+      var bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';
+      bn.addEventListener('click',function(){el.querySelectorAll('input').forEach(function(c){c.checked=false;});applyFilters();});
+      el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));
+      items.forEach(function(s){
+        var lbl=document.createElement('label');
+        var cb=document.createElement('input');cb.type='checkbox';cb.value=s;cb.checked=true;
         cb.addEventListener('change',applyFilters);
-        let dot=document.createElement('span');dot.className='legend-dot';dot.style.background=getStatusColor(s);
+        var dot=document.createElement('span');dot.className='legend-dot';dot.style.background=getStatusColor(s);
         lbl.appendChild(cb);lbl.appendChild(dot);lbl.appendChild(document.createTextNode(' '+s));
         el.appendChild(lbl);
       });
     }
 
     function buildKubunChecks(items){
-      const el=document.getElementById('kubunFilters');
-      items.forEach(k=>{
-        let lbl=document.createElement('label');
-        let cb=document.createElement('input');cb.type='checkbox';cb.value=k;cb.checked=true;
+      var el=document.getElementById('kubunFilters');
+      items.forEach(function(k){
+        var lbl=document.createElement('label');
+        var cb=document.createElement('input');cb.type='checkbox';cb.value=k;cb.checked=true;
         cb.addEventListener('change',applyFilters);
         lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+k));
         el.appendChild(lbl);
       });
     }
 
-    function getChecked(id){let v=[];document.getElementById(id).querySelectorAll('input:checked').forEach(c=>v.push(c.value));return v;}
+    function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input:checked').forEach(function(c){v.push(c.value);});return v;}
 
     function applyFilters(){
-      let cStat=getChecked('statusFilters');
-      let cKub=getChecked('kubunFilters');
-      allMarkers.forEach(m=>{
-        let show=true;
-        if(cStat.length>0&&!cStat.includes(m.status))show=false;
-        if(cKub.length>0&&!cKub.includes(m.kubun))show=false;
-        if(show){
-          if(!map.hasLayer(m.marker))m.marker.addTo(map);
-        } else {
-          if(map.hasLayer(m.marker))map.removeLayer(m.marker);
-        }
+      var cStat=getChecked('statusFilters');
+      var cKub=getChecked('kubunFilters');
+      allMarkers.forEach(function(m){
+        var show=true;
+        if(cStat.length>0&&cStat.indexOf(m.status)===-1)show=false;
+        if(cKub.length>0&&cKub.indexOf(m.kubun)===-1)show=false;
+        if(show){if(!myMap.hasLayer(m.marker))m.marker.addTo(myMap);}
+        else{if(myMap.hasLayer(m.marker))myMap.removeLayer(m.marker);}
       });
     }
 
-    // === ジオコーディング + Firebaseキャッシュ ===
-    async function geocodeAndPlot(){
-      const todayStr=getTodayStr();
-      let toGeocode=[];
-      let entries=Object.entries(globalTasks);
+    // === 7. マーカー追加 ===
+    function addMarker(key,obj,cols,lat,lng){
+      var status=getSafeVal(cols,1).replace(/\s+/g,"");
+      var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+      var name=getSafeVal(cols,4).trim()||"名称未設定";
+      var company=getSafeVal(cols,5).trim();
+      var color=getStatusColor(status);
+      var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
 
-      // まず座標ありをプロット、なしをリストアップ
-      entries.forEach(([key,obj])=>{
-        let cols=obj.csvData;if(!cols)return;
-        let status=getSafeVal(cols,1).replace(/\s+/g,"");
-        let sekouDate=formatToYMD(getSafeVal(cols,2));
+      var icon=L.divIcon({
+        className:'',
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+color+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>',
+        iconSize:[14,14],iconAnchor:[7,7],popupAnchor:[0,-10]
+      });
+
+      var marker=L.marker([lat,lng],{icon:icon}).addTo(myMap);
+      marker.bindPopup(
+        '<div style="font-size:13px;min-width:200px;">'+
+        '<div style="font-weight:bold;font-size:14px;margin-bottom:4px;">'+name+'</div>'+
+        '<div style="color:#666;font-size:11px;margin-bottom:4px;">'+company+'</div>'+
+        '<div><b>状態:</b> <span style="color:'+color+';font-weight:bold;">'+status+'</span></div>'+
+        '<div><b>区分:</b> '+kubun+'</div>'+
+        '<div><b>施工日:</b> '+sekouStr+'</div>'+
+        '<div style="margin-top:6px;">'+
+        '<button onclick="openModalFromMap(\''+key+'\')" style="padding:4px 12px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;">詳細を見る</button>'+
+        '</div></div>'
+      );
+      allMarkers.push({marker:marker,status:status,kubun:kubun,key:key});
+    }
+
+    window.openModalFromMap=function(key){
+      var obj=globalTasks[key];if(!obj)return;
+      myMap.closePopup();openModal(key,obj,obj.csvData);
+    };
+
+    // === 8. ジオコーディング + プロット（メイン処理） ===
+    async function startGeocoding(){
+      var toGeocode=[];
+      var alreadyPlotted=0;
+
+      Object.keys(globalTasks).forEach(function(key){
+        var obj=globalTasks[key];
+        var cols=obj.csvData;
+        if(!cols)return;
+        var status=getSafeVal(cols,1).replace(/\s+/g,"");
+        var sekouDate=formatToYMD(getSafeVal(cols,2));
         if(status==="完了"&&sekouDate<todayStr)return;
-
-        let addr=getSafeVal(cols,11).replace(/\s+/g,"");
+        var addr=getSafeVal(cols,11).replace(/\s+/g,"");
         if(!addr)return;
 
         if(obj.lat&&obj.lng){
-          addMarker(key,obj,cols,obj.lat,obj.lng);
+          addMarker(key,obj,cols,parseFloat(obj.lat),parseFloat(obj.lng));
+          alreadyPlotted++;
         } else {
-          toGeocode.push({key,obj,cols,addr});
+          toGeocode.push({key:key,obj:obj,cols:cols,addr:addr});
         }
       });
 
+      console.log("座標あり(即プロット):", alreadyPlotted, "ジオコード必要:", toGeocode.length);
+
       if(toGeocode.length===0)return;
 
-      // ジオコーディング実行
-      let bar=document.getElementById('geocodeBar');
-      let prog=document.getElementById('geocodeProgress');
+      var bar=document.getElementById('geocodeBar');
+      var prog=document.getElementById('geocodeProgress');
       bar.style.display='block';
 
-      for(let i=0;i<toGeocode.length;i++){
-        let item=toGeocode[i];
-        prog.textContent=`(${i+1}/${toGeocode.length}) ${item.addr.substring(0,20)}...`;
+      for(var i=0;i<toGeocode.length;i++){
+        var item=toGeocode[i];
+        prog.textContent="("+( i+1)+"/"+toGeocode.length+") "+item.addr.substring(0,20)+"...";
 
         try{
-          let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(item.addr)}&limit=1`;
-          let res=await fetch(url,{headers:{'Accept-Language':'ja'}});
-          let data=await res.json();
+          var url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(item.addr)+"&limit=1";
+          var res=await fetch(url,{headers:{'Accept-Language':'ja'}});
+          var data=await res.json();
 
           if(data.length>0){
-            let lat=parseFloat(data[0].lat);
-            let lng=parseFloat(data[0].lon);
-
-            // Firebaseに保存
+            var lat=parseFloat(data[0].lat);
+            var lng=parseFloat(data[0].lon);
             database.ref('app_tasks/'+item.key).update({lat:lat,lng:lng});
-            // メモリ+LocalStorage更新
             globalTasks[item.key].lat=lat;
             globalTasks[item.key].lng=lng;
-
             addMarker(item.key,item.obj,item.cols,lat,lng);
+          } else {
+            console.log("見つからず:", item.addr);
           }
-        } catch(e){console.error('Geocode error:',item.addr,e);}
+        }catch(e){console.error("Geocodeエラー:",item.addr,e);}
 
-        // Nominatimレート制限: 1秒1件
-        if(i<toGeocode.length-1) await new Promise(r=>setTimeout(r,1100));
+        if(i<toGeocode.length-1) await new Promise(function(r){setTimeout(r,1100);});
       }
 
-      // LocalStorage更新
       fullData.app_tasks=globalTasks;
       localStorage.setItem('appData',JSON.stringify(fullData));
-
       bar.style.display='none';
+      console.log("ジオコーディング完了");
     }
 
-    function addMarker(key,obj,cols,lat,lng){
-      let status=getSafeVal(cols,1).replace(/\s+/g,"");
-      let kubun=getSafeVal(cols,3).replace(/\s+/g,"");
-      let name=getSafeVal(cols,4).trim()||"名称未設定";
-      let company=getSafeVal(cols,5).trim();
-      let color=getStatusColor(status);
-
-      // カスタムアイコン（色付き丸）
-      let icon=L.divIcon({
-        className:'',
-        html:`<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
-        iconSize:[14,14],
-        iconAnchor:[7,7],
-        popupAnchor:[0,-10]
-      });
-
-      let marker=L.marker([lat,lng],{icon:icon}).addTo(map);
-
-      // ポップアップ
-      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
-      marker.bindPopup(`
-        <div style="font-size:13px;min-width:200px;">
-          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">${name}</div>
-          <div style="color:#666;font-size:11px;margin-bottom:4px;">${company}</div>
-          <div><b>状態:</b> <span style="color:${color};font-weight:bold;">${status}</span></div>
-          <div><b>区分:</b> ${kubun}</div>
-          <div><b>施工日:</b> ${sekouStr}</div>
-          <div style="margin-top:6px;">
-            <button onclick="openModalFromMap('${key}')" style="padding:4px 12px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;">詳細を見る</button>
-          </div>
-        </div>
-      `);
-
-      allMarkers.push({marker,status,kubun,key,obj,cols});
+    // === 9. 起動 ===
+    if(Object.keys(globalTasks).length>0){
+      startGeocoding();
     }
 
-    // ポップアップからモーダルを開く用のグローバル関数
-    window.openModalFromMap=function(key){
-      let obj=globalTasks[key];
-      if(!obj)return;
-      map.closePopup();
-      openModal(key,obj,obj.csvData);
-    };
-
-    // === モーダル ===
-    const modalOverlay=document.getElementById('modal-overlay');
-    document.getElementById('modal-close').addEventListener('click',()=>{modalOverlay.style.display='none';});
-    modalOverlay.addEventListener('click',e=>{if(e.target===modalOverlay)modalOverlay.style.display='none';});
-
-    const timeOpts=generateTimeOptions();
+    // === 10. モーダル ===
+    var timeOpts=generateTimeOptions();
 
     function openModal(key,obj,cols){
-      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
-      let shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
-      let yoteiStr=obj.date||"未定";
-      let ankenText=getSafeVal(cols,4).trim()||"名称未設定";
+      var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
+      var yoteiStr=obj.date||"未定";
+      var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
 
-      let html=`
-        <div class="modal-header-info">
-          <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${yoteiStr}</div>
-          <div class="modal-title-row">🏷️ ${ankenText}
-            <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
-          </div>
-        </div>
-        <h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>
-        <table class="modal-table">
-      `;
-      globalHeaders.forEach((hdr,index)=>{
-        let val=getSafeVal(cols,index);
-        let dh=val.replace(/\n|\r/g,'<br>');
-        let ct=val.replace(/\s+/g,'');
-        if(index===11&&ct!=="")dh=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ct)}" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ ${val}</a>`;
-        else if(index===6&&ct!=="")dh=`<a href="tel:${ct}" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 ${val}</a>`;
-        html+=`<tr><th>${hdr||`列${index+1}`}</th><td>${dh}</td></tr>`;
+      var html='<div class="modal-header-info">'+
+        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+'</div>'+
+        '<div class="modal-title-row">🏷️ '+ankenText+
+        ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
+        '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
+        '<table class="modal-table">';
+
+      globalHeaders.forEach(function(hdr,index){
+        var val=getSafeVal(cols,index);
+        var dh=val.replace(/\n|\r/g,'<br>');
+        var ct=val.replace(/\s+/g,'');
+        if(index===11&&ct!=="")dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ '+val+'</a>';
+        else if(index===6&&ct!=="")dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 '+val+'</a>';
+        html+='<tr><th>'+(hdr||('列'+(index+1)))+'</th><td>'+dh+'</td></tr>';
       });
-      html+=`</table>`;
+      html+='</table>';
 
-      html+=`
-        <div class="modal-input-section">
-          <h4>📝 入力データ</h4>
-          <div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="${obj.date||''}" /></div>
-          <div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">${timeOpts}</select></div>
-          <div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="${obj.order||''}" /></div>
-          <div style="margin-top:10px;">
-            <button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>
-            <span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>
-          </div>
-        </div>`;
+      html+='<div class="modal-input-section">'+
+        '<h4>📝 入力データ</h4>'+
+        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>'+
+        '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">'+timeOpts+'</select></div>'+
+        '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div>'+
+        '<div style="margin-top:10px;">'+
+        '<button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
+        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>'+
+        '</div></div>';
 
       document.getElementById('modal-body').innerHTML=html;
       modalOverlay.style.display='block';
       document.getElementById('modal-time').value=obj.time||'';
 
       document.getElementById('modal-copy-btn').addEventListener('click',function(){
-        navigator.clipboard.writeText(ankenText).then(()=>{
-          this.textContent="✔ コピー完了！";this.classList.add('copied');
-          setTimeout(()=>{this.textContent="コピー";this.classList.remove('copied');},2000);
+        navigator.clipboard.writeText(ankenText).then(function(){
+          document.getElementById('modal-copy-btn').textContent="✔ コピー完了！";
+          document.getElementById('modal-copy-btn').classList.add('copied');
+          setTimeout(function(){document.getElementById('modal-copy-btn').textContent="コピー";document.getElementById('modal-copy-btn').classList.remove('copied');},2000);
         });
       });
 
       document.getElementById('modal-save-btn').addEventListener('click',function(){
-        let nd=document.getElementById('modal-date').value;
-        let nt=document.getElementById('modal-time').value;
-        let no=document.getElementById('modal-order').value;
+        var nd=document.getElementById('modal-date').value;
+        var nt=document.getElementById('modal-time').value;
+        var no=document.getElementById('modal-order').value;
         database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
         globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
         fullData.app_tasks=globalTasks;
         localStorage.setItem('appData',JSON.stringify(fullData));
-        let msg=document.getElementById('modal-save-msg');
+        var msg=document.getElementById('modal-save-msg');
         msg.style.display='inline';
-        setTimeout(()=>{msg.style.display='none';},2000);
-        document.querySelector('.modal-date-row').innerHTML=`🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${nd||"未定"}`;
+        setTimeout(function(){msg.style.display='none';},2000);
       });
     }
   </script>
