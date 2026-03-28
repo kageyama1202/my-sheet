@@ -63,6 +63,25 @@
         return;
       }
 
+      // 通し番号を振る（seqNoがない案件に新規付与）
+      var tasks = dbData.app_tasks;
+      var maxSeq = 0;
+      Object.values(tasks).forEach(function(t) {
+        if (t.seqNo && t.seqNo > maxSeq) maxSeq = t.seqNo;
+      });
+      var updates = {};
+      Object.keys(tasks).forEach(function(key) {
+        if (!tasks[key].seqNo) {
+          maxSeq++;
+          tasks[key].seqNo = maxSeq;
+          updates['app_tasks/' + key + '/seqNo'] = maxSeq;
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        database.ref().update(updates);
+        console.log("通し番号を " + Object.keys(updates).length + " 件に付与");
+      }
+
       localStorage.setItem('appData', JSON.stringify(dbData));
       
       const now = new Date();
