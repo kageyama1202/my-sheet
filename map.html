@@ -215,7 +215,38 @@
       myMap.closePopup();openModal(key,obj,obj.csvData);
     };
 
-    // === 8. ジオコーディング + プロット（メイン処理） ===
+    // === 8. 住所正規化 ===
+    function normalizeAddress(addr){
+      // 全角英数→半角
+      var s=addr.replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);});
+      // 全角ハイフン類→半角
+      s=s.replace(/[ー−‐―─]/g,'-');
+      // 全角スペース→半角
+      s=s.replace(/　/g,' ');
+      return s.trim();
+    }
+
+    // 番号部分を削って町名レベルにする
+    function shortenAddress(addr){
+      // 末尾の数字・ハイフン・番号を削る（丁目までは残す）
+      var s=addr.replace(/[\d\-]+[号室棟]*\s*$/,'').trim();
+      // さらに末尾の数字を削る
+      s=s.replace(/[\d\-]+\s*$/,'').trim();
+      return s;
+    }
+
+    // Nominatim検索（1回）
+    async function geocodeOnce(query){
+      try{
+        var url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(query)+"&limit=1&countrycodes=jp";
+        var res=await fetch(url,{headers:{'Accept-Language':'ja'}});
+        var data=await res.json();
+        if(data.length>0) return {lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};
+      }catch(e){console.error("Geocodeエラー:",query,e);}
+      return null;
+    }
+
+    // === 9. ジオコーディング + プロット（メイン処理） ===
     async function startGeocoding(){
       var toGeocode=[];
       var alreadyPlotted=0;
@@ -248,24 +279,29 @@
 
       for(var i=0;i<toGeocode.length;i++){
         var item=toGeocode[i];
-        prog.textContent="("+( i+1)+"/"+toGeocode.length+") "+item.addr.substring(0,20)+"...";
+        var normalized=normalizeAddress(item.addr);
+        prog.textContent="("+(i+1)+"/"+toGeocode.length+") "+normalized.substring(0,25)+"...";
 
-        try{
-          var url="https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(item.addr)+"&limit=1";
-          var res=await fetch(url,{headers:{'Accept-Language':'ja'}});
-          var data=await res.json();
+        // 1回目：正規化した住所で検索
+        var result=await geocodeOnce(normalized);
 
-          if(data.length>0){
-            var lat=parseFloat(data[0].lat);
-            var lng=parseFloat(data[0].lon);
-            database.ref('app_tasks/'+item.key).update({lat:lat,lng:lng});
-            globalTasks[item.key].lat=lat;
-            globalTasks[item.key].lng=lng;
-            addMarker(item.key,item.obj,item.cols,lat,lng);
+        // 2回目：見つからなければ番号削って再検索
+        if(!result){
+          var short=shortenAddress(normalized);
+          if(short!==normalized&&short.length>5){
+            result=await geocodeOnce(short);
+            if(!result) console.log("見つからず:", normalized);
           } else {
-            console.log("見つからず:", item.addr);
+            console.log("見つからず:", normalized);
           }
-        }catch(e){console.error("Geocodeエラー:",item.addr,e);}
+        }
+
+        if(result){
+          database.ref('app_tasks/'+item.key).update({lat:result.lat,lng:result.lng});
+          globalTasks[item.key].lat=result.lat;
+          globalTasks[item.key].lng=result.lng;
+          addMarker(item.key,item.obj,item.cols,result.lat,result.lng);
+        }
 
         if(i<toGeocode.length-1) await new Promise(function(r){setTimeout(r,1100);});
       }
