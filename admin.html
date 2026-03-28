@@ -12,10 +12,12 @@
     button { font-size: 18px; padding: 10px 20px; cursor: pointer; border-radius:4px; border:none; background:#007bff; color:#fff; font-weight: bold; width: 100%; transition: 0.2s;}
     button:hover { background:#0056b3; }
     p { font-size: 14px; color: #555; text-align: left; line-height: 1.6; }
+    .top-link { display: inline-block; margin-bottom: 15px; text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
   </style>
 </head>
 <body>
   <div class="box">
+    <a href="index.html" class="top-link">◀ トップメニュー</a>
     <h2 style="color: #333; margin-top: 0;">👑 【管理者用】<br>クラウドへデータ一括保存</h2>
     <p>Salesforceからダウンロードした最新のCSVファイルを選択し、「クラウドへ保存」ボタンを押してください。<br>※現場のiPadからはCSVを読み込む必要がなくなります。</p>
     
@@ -67,9 +69,8 @@
         
         const headers = validLines.shift(); 
         
-        // 既存の「予定」を消さずに、CSVの土台データだけを一括で上書き・追加する魔法の処理
         let updates = {};
-        updates['app_meta/headers'] = headers; // ヘッダー情報を保存
+        updates['app_meta/headers'] = headers;
         
         let invalidChars = new RegExp("[.#$\\[\\]/]", "g");
         validLines.forEach(function(cols) {
