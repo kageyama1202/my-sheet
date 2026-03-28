@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>案件マップ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
+
+    .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .header-bar h3{margin:0;font-size:15px;color:#d32f2f;}
+    .top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
+
+    .filter-bar{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .filter-label{font-weight:bold;color:#fff;background:#007bff;padding:1px 7px;border-radius:3px;font-size:11px;}
+    .filter-checks{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;}
+    .filter-checks label{cursor:pointer;display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap;}
+    .filter-checks input[type="checkbox"]{cursor:pointer;margin:0;width:13px;height:13px;}
+    .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+    .sel-btn{font-size:10px;color:#007bff;cursor:pointer;text-decoration:underline;}
+    .sel-btn.red{color:#dc3545;}
+
+    .geocode-bar{background:#fff3cd;padding:4px 12px;border-bottom:1px solid #ffeeba;font-size:12px;font-weight:bold;color:#856404;display:none;}
+
+    #map{height:calc(100vh - 100px);width:100%;}
+
+    /* モーダル */
+    #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;backdrop-filter:blur(2px);}
+    #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
+    #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
+    .modal-header-info{margin-bottom:12px;}
+    .modal-date-row{font-size:13px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
+    .modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
+    .modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
+    .modal-copy-btn.copied{background:#28a745;}
+    .modal-table{width:100%;border-collapse:collapse;margin-top:12px;}
+    .modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;}
+    .modal-table th{background:#f8f9fa;width:28%;color:#495057;}
+    .modal-input-section{margin-top:18px;}
+    .modal-input-section h4{color:#155724;border-bottom:2px solid #28a745;padding-bottom:4px;font-size:14px;}
+    .modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+    .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
+    .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
+    #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;text-align:center;}
+  </style>
+</head>
+<body>
+  <div id="modal-overlay">
+    <div id="modal-content">
+      <button id="modal-close">✖ 閉じる</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="header-bar">
+    <a href="index.html" class="top-link">◀ トップ</a>
+    <a href="today.html" class="top-link">📋 リスト</a>
+    <a href="calendar.html" class="top-link">📅 カレンダー</a>
+    <h3>🗺️ 案件マップ</h3>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">📌 ステータス</span>
+    <div class="filter-checks" id="statusFilters"></div>
+    <span style="margin-left:10px;"></span>
+    <span class="filter-label">🏷 区分</span>
+    <div class="filter-checks" id="kubunFilters"></div>
+  </div>
+
+  <div class="geocode-bar" id="geocodeBar">📍 住所から座標を取得中... <span id="geocodeProgress"></span></div>
+
+  <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
+  <div id="map"></div>
+
+  <script>
+    const firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+    const database=firebase.database();
+
+    function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+    function formatToYMD(ds){if(!ds)return"";let d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");let p=d.split("-");if(p.length===3)return`${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;return d;}
+    function generateTimeOptions(){let o='<option value="">--:--</option>';for(let h=8;h<=20;h++){let hh=('0'+h).slice(-2);o+=`<option value="${hh}:00">${hh}:00</option><option value="${hh}:30">${hh}:30</option>`;}return o;}
+    function getTodayStr(){let t=new Date();return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;}
+
+    // ステータス→色マッピング
+    const statusColors={
+      '依頼':'#1a73e8',
+      '下見完了':'#34a853',
+      '下見実施中':'#fbbc04',
+      '下見日程確定':'#4285f4',
+      '下見日確認':'#ea8600',
+      '報告完了':'#0d652d',
+      '施工日確認':'#9c27b0',
+      '問題あり':'#d32f2f',
+      '完了':'#888888'
+    };
+    function getStatusColor(s){return statusColors[s]||'#1a73e8';}
+
+    let globalHeaders=[],globalTasks={},fullData=null;
+    try{const s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+
+    if(!fullData||!fullData.app_meta||!fullData.app_tasks){
+      document.getElementById('noDataMsg').style.display='block';
+      document.getElementById('map').style.display='none';
+    } else {
+      globalHeaders=fullData.app_meta.headers;
+      globalTasks=fullData.app_tasks;
+      init();
+    }
+
+    // Leaflet地図
+    const map=L.map('map').setView([43.06,141.35],10); // 札幌中心
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'&copy; OpenStreetMap contributors',maxZoom:18
+    }).addTo(map);
+
+    let allMarkers=[]; // {marker, status, kubun, key, obj, cols}
+
+    async function init(){
+      // フィルタ構築
+      let stSet=new Set(),kbSet=new Set();
+      const todayStr=getTodayStr();
+
+      Object.values(globalTasks).forEach(o=>{
+        let c=o.csvData;if(!c)return;
+        let s=getSafeVal(c,1).replace(/\s+/g,"");
+        let sekouDate=formatToYMD(getSafeVal(c,2));
+        if(s==="完了"&&sekouDate<todayStr)return;
+        if(s)stSet.add(s);
+        let k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbSet.add(k);
+      });
+
+      buildStatusChecks([...stSet].sort());
+      buildKubunChecks([...kbSet].sort());
+
+      // ジオコーディング＆マーカー配置
+      await geocodeAndPlot();
+    }
+
+    function buildStatusChecks(items){
+      const el=document.getElementById('statusFilters');
+      let ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';
+      ba.addEventListener('click',()=>{el.querySelectorAll('input').forEach(c=>c.checked=true);applyFilters();});
+      let bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';
+      bn.addEventListener('click',()=>{el.querySelectorAll('input').forEach(c=>c.checked=false);applyFilters();});
+      el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));
+
+      items.forEach(s=>{
+        let lbl=document.createElement('label');
+        let cb=document.createElement('input');cb.type='checkbox';cb.value=s;cb.checked=true;
+        cb.addEventListener('change',applyFilters);
+        let dot=document.createElement('span');dot.className='legend-dot';dot.style.background=getStatusColor(s);
+        lbl.appendChild(cb);lbl.appendChild(dot);lbl.appendChild(document.createTextNode(' '+s));
+        el.appendChild(lbl);
+      });
+    }
+
+    function buildKubunChecks(items){
+      const el=document.getElementById('kubunFilters');
+      items.forEach(k=>{
+        let lbl=document.createElement('label');
+        let cb=document.createElement('input');cb.type='checkbox';cb.value=k;cb.checked=true;
+        cb.addEventListener('change',applyFilters);
+        lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+k));
+        el.appendChild(lbl);
+      });
+    }
+
+    function getChecked(id){let v=[];document.getElementById(id).querySelectorAll('input:checked').forEach(c=>v.push(c.value));return v;}
+
+    function applyFilters(){
+      let cStat=getChecked('statusFilters');
+      let cKub=getChecked('kubunFilters');
+      allMarkers.forEach(m=>{
+        let show=true;
+        if(cStat.length>0&&!cStat.includes(m.status))show=false;
+        if(cKub.length>0&&!cKub.includes(m.kubun))show=false;
+        if(show){
+          if(!map.hasLayer(m.marker))m.marker.addTo(map);
+        } else {
+          if(map.hasLayer(m.marker))map.removeLayer(m.marker);
+        }
+      });
+    }
+
+    // === ジオコーディング + Firebaseキャッシュ ===
+    async function geocodeAndPlot(){
+      const todayStr=getTodayStr();
+      let toGeocode=[];
+      let entries=Object.entries(globalTasks);
+
+      // まず座標ありをプロット、なしをリストアップ
+      entries.forEach(([key,obj])=>{
+        let cols=obj.csvData;if(!cols)return;
+        let status=getSafeVal(cols,1).replace(/\s+/g,"");
+        let sekouDate=formatToYMD(getSafeVal(cols,2));
+        if(status==="完了"&&sekouDate<todayStr)return;
+
+        let addr=getSafeVal(cols,11).replace(/\s+/g,"");
+        if(!addr)return;
+
+        if(obj.lat&&obj.lng){
+          addMarker(key,obj,cols,obj.lat,obj.lng);
+        } else {
+          toGeocode.push({key,obj,cols,addr});
+        }
+      });
+
+      if(toGeocode.length===0)return;
+
+      // ジオコーディング実行
+      let bar=document.getElementById('geocodeBar');
+      let prog=document.getElementById('geocodeProgress');
+      bar.style.display='block';
+
+      for(let i=0;i<toGeocode.length;i++){
+        let item=toGeocode[i];
+        prog.textContent=`(${i+1}/${toGeocode.length}) ${item.addr.substring(0,20)}...`;
+
+        try{
+          let url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(item.addr)}&limit=1`;
+          let res=await fetch(url,{headers:{'Accept-Language':'ja'}});
+          let data=await res.json();
+
+          if(data.length>0){
+            let lat=parseFloat(data[0].lat);
+            let lng=parseFloat(data[0].lon);
+
+            // Firebaseに保存
+            database.ref('app_tasks/'+item.key).update({lat:lat,lng:lng});
+            // メモリ+LocalStorage更新
+            globalTasks[item.key].lat=lat;
+            globalTasks[item.key].lng=lng;
+
+            addMarker(item.key,item.obj,item.cols,lat,lng);
+          }
+        } catch(e){console.error('Geocode error:',item.addr,e);}
+
+        // Nominatimレート制限: 1秒1件
+        if(i<toGeocode.length-1) await new Promise(r=>setTimeout(r,1100));
+      }
+
+      // LocalStorage更新
+      fullData.app_tasks=globalTasks;
+      localStorage.setItem('appData',JSON.stringify(fullData));
+
+      bar.style.display='none';
+    }
+
+    function addMarker(key,obj,cols,lat,lng){
+      let status=getSafeVal(cols,1).replace(/\s+/g,"");
+      let kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+      let name=getSafeVal(cols,4).trim()||"名称未設定";
+      let company=getSafeVal(cols,5).trim();
+      let color=getStatusColor(status);
+
+      // カスタムアイコン（色付き丸）
+      let icon=L.divIcon({
+        className:'',
+        html:`<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+        iconSize:[14,14],
+        iconAnchor:[7,7],
+        popupAnchor:[0,-10]
+      });
+
+      let marker=L.marker([lat,lng],{icon:icon}).addTo(map);
+
+      // ポップアップ
+      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      marker.bindPopup(`
+        <div style="font-size:13px;min-width:200px;">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">${name}</div>
+          <div style="color:#666;font-size:11px;margin-bottom:4px;">${company}</div>
+          <div><b>状態:</b> <span style="color:${color};font-weight:bold;">${status}</span></div>
+          <div><b>区分:</b> ${kubun}</div>
+          <div><b>施工日:</b> ${sekouStr}</div>
+          <div style="margin-top:6px;">
+            <button onclick="openModalFromMap('${key}')" style="padding:4px 12px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:12px;">詳細を見る</button>
+          </div>
+        </div>
+      `);
+
+      allMarkers.push({marker,status,kubun,key,obj,cols});
+    }
+
+    // ポップアップからモーダルを開く用のグローバル関数
+    window.openModalFromMap=function(key){
+      let obj=globalTasks[key];
+      if(!obj)return;
+      map.closePopup();
+      openModal(key,obj,obj.csvData);
+    };
+
+    // === モーダル ===
+    const modalOverlay=document.getElementById('modal-overlay');
+    document.getElementById('modal-close').addEventListener('click',()=>{modalOverlay.style.display='none';});
+    modalOverlay.addEventListener('click',e=>{if(e.target===modalOverlay)modalOverlay.style.display='none';});
+
+    const timeOpts=generateTimeOptions();
+
+    function openModal(key,obj,cols){
+      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      let shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
+      let yoteiStr=obj.date||"未定";
+      let ankenText=getSafeVal(cols,4).trim()||"名称未設定";
+
+      let html=`
+        <div class="modal-header-info">
+          <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${yoteiStr}</div>
+          <div class="modal-title-row">🏷️ ${ankenText}
+            <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
+          </div>
+        </div>
+        <h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>
+        <table class="modal-table">
+      `;
+      globalHeaders.forEach((hdr,index)=>{
+        let val=getSafeVal(cols,index);
+        let dh=val.replace(/\n|\r/g,'<br>');
+        let ct=val.replace(/\s+/g,'');
+        if(index===11&&ct!=="")dh=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ct)}" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ ${val}</a>`;
+        else if(index===6&&ct!=="")dh=`<a href="tel:${ct}" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 ${val}</a>`;
+        html+=`<tr><th>${hdr||`列${index+1}`}</th><td>${dh}</td></tr>`;
+      });
+      html+=`</table>`;
+
+      html+=`
+        <div class="modal-input-section">
+          <h4>📝 入力データ</h4>
+          <div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="${obj.date||''}" /></div>
+          <div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">${timeOpts}</select></div>
+          <div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="${obj.order||''}" /></div>
+          <div style="margin-top:10px;">
+            <button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>
+            <span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>
+          </div>
+        </div>`;
+
+      document.getElementById('modal-body').innerHTML=html;
+      modalOverlay.style.display='block';
+      document.getElementById('modal-time').value=obj.time||'';
+
+      document.getElementById('modal-copy-btn').addEventListener('click',function(){
+        navigator.clipboard.writeText(ankenText).then(()=>{
+          this.textContent="✔ コピー完了！";this.classList.add('copied');
+          setTimeout(()=>{this.textContent="コピー";this.classList.remove('copied');},2000);
+        });
+      });
+
+      document.getElementById('modal-save-btn').addEventListener('click',function(){
+        let nd=document.getElementById('modal-date').value;
+        let nt=document.getElementById('modal-time').value;
+        let no=document.getElementById('modal-order').value;
+        database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
+        globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
+        fullData.app_tasks=globalTasks;
+        localStorage.setItem('appData',JSON.stringify(fullData));
+        let msg=document.getElementById('modal-save-msg');
+        msg.style.display='inline';
+        setTimeout(()=>{msg.style.display='none';},2000);
+        document.querySelector('.modal-date-row').innerHTML=`🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${nd||"未定"}`;
+      });
+    }
+  </script>
+</body>
+</html>
