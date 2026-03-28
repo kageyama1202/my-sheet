@@ -2,58 +2,83 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>指定日の案件リスト</title>
+  <title>案件管理リスト</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 10px; background-color: #f9f9f9; margin: 0; }
-    .box { background: #fff; padding: 5px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .box h3 { margin: 0; font-size: 14px; color: #d32f2f; }
-    .box button { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius:4px; border:1px solid #999; background:#fff; font-weight: bold; }
-    .btn-success { background: #28a745; color: #fff; border-color: #28a745; }
-    .search-box { display: flex; align-items: center; gap: 5px; margin-left: auto; }
-    .search-box span { font-size: 13px; font-weight: bold; color: #555; }
-    .search-box input { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; width: 180px; }
-    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: 85vh; }
-    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
-    th, td { border: 1px solid #ccc; text-align: left; font-size: 13px; vertical-align: middle; width: 100px; min-width: 100px; max-width: 100px; }
-    th:nth-child(1), td:nth-child(1) { width: 60px; min-width: 60px; max-width: 60px; }
-    th:nth-child(2), td:nth-child(2) { width: 40px; min-width: 40px; max-width: 40px; text-align: center; }
-    th:nth-child(3), td:nth-child(3) { width: 150px; min-width: 150px; max-width: 150px; }
-    th:nth-child(6), td:nth-child(6) { width: 60px; min-width: 60px; max-width: 60px; }
-    th:nth-child(9), td:nth-child(9) { width: 80px; min-width: 80px; max-width: 80px; }
-    th:nth-child(10), td:nth-child(10) { width: 60px; min-width: 60px; max-width: 60px; }
-    th { background-color: #e0e0e0; padding: 6px; }
-    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; }
-    tbody tr:hover { background-color: #f1f8ff; transition: 0.2s; }
-    .cell-inner { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f0f2f5; font-size: 13px; }
 
-    #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
-    .input-form { width: 100%; box-sizing: border-box; padding: 4px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: transparent; }
+    /* === ヘッダーバー === */
+    .header-bar { background: #fff; padding: 8px 12px; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .header-bar h3 { margin: 0; font-size: 15px; color: #d32f2f; }
+    .top-link { text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
+    .search-box { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+    .search-box input { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; width: 180px; font-size: 13px; }
+
+    /* === フィルタパネル === */
+    .filter-panel { background: #fff; border-bottom: 1px solid #ccc; padding: 0 12px; }
+    .filter-row { display: flex; align-items: flex-start; gap: 20px; padding: 6px 0; flex-wrap: wrap; border-bottom: 1px solid #eee; }
+    .filter-row:last-child { border-bottom: none; }
+    .filter-label { font-weight: bold; color: #333; min-width: 70px; padding-top: 2px; white-space: nowrap; }
+    .filter-checks { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+    .filter-checks label { cursor: pointer; display: flex; align-items: center; gap: 2px; font-size: 12px; white-space: nowrap; }
+    .filter-checks input[type="checkbox"] { cursor: pointer; margin: 0; }
+    .filter-toggle { font-size: 11px; color: #007bff; cursor: pointer; text-decoration: underline; margin-left: 8px; }
+
+    /* === 日付フィルタ === */
+    .date-area { display: flex; align-items: center; gap: 8px; }
+    .date-area input[type="date"] { padding: 3px 6px; border: 1px solid #999; border-radius: 4px; font-size: 13px; }
+
+    /* === テーブル === */
+    .table-wrapper { overflow: auto; background-color: #fff; border: 1px solid #ccc; height: calc(100vh - 200px); }
+    table { border-collapse: collapse; table-layout: fixed; width: max-content; }
+    th, td { border: 1px solid #ccc; text-align: left; font-size: 12px; vertical-align: middle; }
+    th { background-color: #e0e0e0; padding: 5px 6px; position: sticky; top: 0; z-index: 10; }
+    .alpha-head th { background-color: #d0d0d0; text-align: center; font-weight: bold; position: sticky; top: 0; z-index: 11; }
+    tbody tr:hover { background-color: #f1f8ff; cursor: pointer; }
+    .cell-inner { padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .col-no { width: 35px; min-width: 35px; max-width: 35px; text-align: center; }
+    .col-status { width: 50px; min-width: 50px; max-width: 50px; }
+    .col-kubun { width: 30px; min-width: 30px; max-width: 30px; text-align: center; }
+    .col-name { width: 180px; min-width: 180px; max-width: 180px; }
+    .col-company { width: 150px; min-width: 150px; max-width: 150px; }
+    .col-tel { width: 110px; min-width: 110px; max-width: 110px; }
+    .col-date { width: 85px; min-width: 85px; max-width: 85px; }
+    .col-memo { width: 200px; min-width: 200px; max-width: 200px; }
+    .col-address { width: 180px; min-width: 180px; max-width: 180px; }
     .link-text { color: #0056b3; text-decoration: underline; font-weight: bold; }
 
+    /* === ツールチップ === */
+    #tooltip { display: none; position: fixed; background-color: #fff; border: 2px solid #28a745; padding: 10px; border-radius: 4px; z-index: 2147483647; white-space: pre-wrap; word-wrap: break-word; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5; color: #333; pointer-events: none; }
+
+    /* === モーダル === */
     #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(2px); }
-    #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 850px; max-height: 88vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
     #modal-close { float: right; font-size: 14px; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
     #modal-close:hover { background: #c82333; }
     .modal-header-info { margin-bottom: 15px; }
-    .modal-date-row { font-size: 14px; color: #555; font-weight: bold; background: #e9ecef; padding: 8px 12px; border-radius: 6px; display: inline-block; }
-    .modal-title-row { font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; display: flex; align-items: center; gap: 10px; }
-    .modal-copy-btn { font-size: 12px; padding: 5px 12px; cursor: pointer; border-radius: 4px; border: none; background: #007bff; color: #fff; font-weight: bold; transition: 0.2s; }
+    .modal-date-row { font-size: 13px; color: #555; font-weight: bold; background: #e9ecef; padding: 8px 12px; border-radius: 6px; display: inline-block; }
+    .modal-title-row { font-size: 18px; font-weight: bold; color: #333; margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+    .modal-copy-btn { font-size: 12px; padding: 5px 12px; cursor: pointer; border-radius: 4px; border: none; background: #007bff; color: #fff; font-weight: bold; }
     .modal-copy-btn.copied { background: #28a745; }
     .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: left; }
-    .modal-table th { background-color: #f8f9fa; width: 30%; color: #495057; }
+    .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 8px 10px; font-size: 13px; text-align: left; }
+    .modal-table th { background-color: #f8f9fa; width: 28%; color: #495057; }
+    .modal-input-section { margin-top: 20px; }
+    .modal-input-section h4 { color: #155724; border-bottom: 2px solid #28a745; padding-bottom: 5px; }
+    .modal-input-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+    .modal-input-row label { font-weight: bold; min-width: 100px; }
+    .modal-input-row input, .modal-input-row select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
-    .date-selector { margin-left: 15px; display: flex; align-items: center; gap: 5px; }
-    .date-selector input { padding: 4px 8px; font-size: 14px; border: 1px solid #999; border-radius: 4px; cursor: pointer; }
-    .top-link { margin-right: 15px; text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
-    .top-link:hover { text-decoration: underline; }
+    /* === 件数表示 === */
+    .count-display { font-size: 13px; font-weight: bold; color: #333; padding: 4px 12px; background: #e8f5e9; border-bottom: 1px solid #ccc; }
 
-    /* チェックボックス抽出エリア */
-    .filter-checks { display: flex; align-items: center; gap: 12px; margin-left: 10px; }
-    .filter-checks label { font-size: 13px; font-weight: bold; color: #333; cursor: pointer; display: flex; align-items: center; gap: 3px; }
-    .filter-checks input[type="checkbox"] { cursor: pointer; }
+    #noDataMsg { display: none; padding: 20px; font-weight: bold; color: #d32f2f; }
+
+    .kanryo-toggle { font-size: 12px; padding: 3px 10px; cursor: pointer; border-radius: 4px; border: 1px solid #999; background: #fff; font-weight: bold; }
+    .kanryo-toggle.active { background: #ffc107; border-color: #ffc107; color: #333; }
+    .small-btn { font-size: 11px; padding: 2px 6px; cursor: pointer; border: 1px solid #ccc; border-radius: 3px; background: #f8f8f8; }
   </style>
 </head>
 <body>
@@ -66,34 +91,66 @@
     </div>
   </div>
 
-  <div class="box">
-    <a href="index.html" class="top-link">◀ トップメニュー</a>
-    <h3>🔥 指定日の案件リスト</h3>
-
-    <div class="date-selector" id="dateArea">
-      <span style="font-size: 13px; font-weight: bold; color: #333;">📅 日付:</span>
-      <input type="date" id="targetDate" />
-    </div>
-
-    <!-- チェックボックスで抽出対象を複数選択 -->
-    <div class="filter-checks">
-      <span style="font-size: 13px; font-weight: bold; color: #333;">🎯 抽出:</span>
-      <label><input type="checkbox" id="chkSekou" checked> 施工日</label>
-      <label><input type="checkbox" id="chkShitami"> 下見日</label>
-      <label><input type="checkbox" id="chkShitamiYotei" checked> 下見予定日</label>
-    </div>
-
-    <div class="search-box" id="searchArea">
-      <span>🔍 検索:</span>
-      <input type="text" id="searchInput" placeholder="全セルから絞り込み..." />
-      <button id="downloadBtn" class="btn-success">表示結果をCSV保存</button>
+  <!-- ヘッダー -->
+  <div class="header-bar">
+    <a href="index.html" class="top-link">◀ トップ</a>
+    <h3>📋 案件管理リスト</h3>
+    <div class="search-box">
+      <span style="font-weight:bold; color:#555;">🔍</span>
+      <input type="text" id="searchInput" placeholder="テキスト検索..." />
     </div>
   </div>
 
-  <div class="table-wrapper">
-    <div id="noDataMsg" style="display: none; padding: 20px; font-weight: bold; color: #d32f2f;">
-      ⚠️ データが見つかりません。トップメニューに戻って「最新データを取得」してください。
+  <!-- フィルタパネル -->
+  <div class="filter-panel">
+    <!-- 日付 -->
+    <div class="filter-row">
+      <span class="filter-label">📅 日付</span>
+      <div class="date-area">
+        <input type="date" id="targetDate" />
+        <button class="small-btn" id="clearDate">クリア</button>
+      </div>
+      <div class="filter-checks">
+        <label><input type="checkbox" id="chkSekou" checked> 施工日</label>
+        <label><input type="checkbox" id="chkShitami"> 下見日</label>
+        <label><input type="checkbox" id="chkShitamiYotei"> 下見予定日</label>
+      </div>
     </div>
+
+    <!-- ステータス -->
+    <div class="filter-row">
+      <span class="filter-label">📌 ステータス</span>
+      <div class="filter-checks" id="statusFilters"></div>
+      <button class="kanryo-toggle" id="kanryoToggle">完了・過去も表示</button>
+    </div>
+
+    <!-- 区分 -->
+    <div class="filter-row">
+      <span class="filter-label">🏷️ 区分</span>
+      <div class="filter-checks" id="kubunFilters"></div>
+    </div>
+
+    <!-- 会社 -->
+    <div class="filter-row">
+      <span class="filter-label">🏢 会社</span>
+      <div class="filter-checks" id="companyFilters"></div>
+      <span class="filter-toggle" id="companyToggle">▶ 展開</span>
+    </div>
+
+    <!-- 地域 -->
+    <div class="filter-row">
+      <span class="filter-label">📍 地域</span>
+      <div class="filter-checks" id="areaFilters"></div>
+      <span class="filter-toggle" id="areaToggle">▶ 展開</span>
+    </div>
+  </div>
+
+  <!-- 件数 -->
+  <div class="count-display" id="countDisplay">-</div>
+
+  <!-- テーブル -->
+  <div class="table-wrapper">
+    <div id="noDataMsg">⚠️ データが見つかりません。トップメニューに戻って「最新データを取得」してください。</div>
     <table id="mainTable">
       <thead id="table-head"></thead>
       <tbody id="table-body"></tbody>
@@ -101,7 +158,7 @@
   </div>
 
   <script>
-    // === Firebase初期化（入力保存用） ===
+    // === Firebase初期化 ===
     const firebaseConfig = {
       apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
       authDomain: "project-6745138395263517914.firebaseapp.com",
@@ -114,29 +171,14 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const database = firebase.database();
 
-    // === tooltip変数を明示的に宣言 ===
     const tooltip = document.getElementById('tooltip');
 
-    // === 表示する列（確定） ===
-    // B=1, D=3, E=4, F=5, G=6, H=7, K=10, L=11, C=2, M=12
+    // 表示列: B=1, D=3, E=4, F=5, G=6(担当者携帯), H=7(下見依頼日), K=10(備考), L=11(住所), C=2(施工日), M=12(下見日)
     const displayCols = [1, 3, 4, 5, 6, 7, 10, 11, 2, 12];
+    const colClasses = ['col-no', 'col-status', 'col-kubun', 'col-name', 'col-company', 'col-tel', 'col-date', 'col-memo', 'col-address', 'col-date', 'col-date'];
 
-    // === ユーティリティ関数 ===
-    function getColLetter(index) {
-      let letter = '';
-      let i = index;
-      while (i >= 0) { letter = String.fromCharCode((i % 26) + 65) + letter; i = Math.floor(i / 26) - 1; }
-      return letter;
-    }
-
-    function generateTimeOptions() {
-      let options = '<option value="">--:--</option>';
-      for (let h = 8; h <= 20; h++) {
-        let hour = ('0' + h).slice(-2);
-        options += `<option value="${hour}:00">${hour}:00</option><option value="${hour}:30">${hour}:30</option>`;
-      }
-      return options;
-    }
+    // === ユーティリティ ===
+    function getColLetter(i) { let l=''; while(i>=0){l=String.fromCharCode((i%26)+65)+l;i=Math.floor(i/26)-1;} return l; }
 
     function getSafeVal(cols, index) {
       if (!cols) return "";
@@ -145,308 +187,364 @@
       return "";
     }
 
-    function formatToYMD(dateString) {
-      if (!dateString) return "";
-      let d = String(dateString).replace(/\s+/g, "").replace(/\//g, "-").replace(/\./g, "-");
-      let parts = d.split("-");
-      if (parts.length === 3) {
-        let y = parts[0];
-        let m = String(parts[1]).padStart(2, '0');
-        let day = String(parts[2]).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-      }
+    function formatToYMD(ds) {
+      if (!ds) return "";
+      let d = String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");
+      let p = d.split("-");
+      if (p.length === 3) return `${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;
       return d;
     }
 
-    // === 日付初期値 ===
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const targetDateInput = document.getElementById('targetDate');
-    targetDateInput.value = `${yyyy}-${mm}-${dd}`;
+    function generateTimeOptions() {
+      let o = '<option value="">--:--</option>';
+      for (let h=8;h<=20;h++) { let hh=('0'+h).slice(-2); o+=`<option value="${hh}:00">${hh}:00</option><option value="${hh}:30">${hh}:30</option>`; }
+      return o;
+    }
 
-    // === チェックボックス要素 ===
-    const chkSekou = document.getElementById('chkSekou');
-    const chkShitami = document.getElementById('chkShitami');
-    const chkShitamiYotei = document.getElementById('chkShitamiYotei');
+    function extractCompany(val) {
+      if (!val) return "";
+      return val.trim().split(/[\s\u3000]+/)[0];
+    }
 
-    // === 検索機能 ===
-    document.getElementById('searchInput').addEventListener('input', function(e) {
-      let word = e.target.value.toLowerCase();
-      let rows = document.getElementById('table-body').getElementsByTagName('tr');
-      for (let i = 0; i < rows.length; i++) {
-        let rowText = rows[i].textContent.toLowerCase();
-        let inputs = rows[i].querySelectorAll('input, select');
-        let inputTexts = "";
-        inputs.forEach(inp => { inputTexts += " " + inp.value; });
-        rows[i].style.display = ((rowText + inputTexts.toLowerCase()).indexOf(word) !== -1) ? '' : 'none';
-      }
-    });
+    function extractArea(addr) {
+      if (!addr) return "";
+      let a = addr.replace(/\s+/g, "");
+      let sapporo = a.match(/札幌市(.+?区)/);
+      if (sapporo) return sapporo[1];
+      let city = a.match(/北海道(.+?市)/);
+      if (city && !city[1].includes('札幌')) return city[1];
+      let town = a.match(/郡(.+?[町村])/);
+      if (town) return town[1];
+      return "その他";
+    }
 
-    // === モーダル ===
-    const modalOverlay = document.getElementById('modal-overlay');
-    document.getElementById('modal-close').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
-    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+    function getTodayStr() {
+      let t = new Date();
+      return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+    }
 
-    // === LocalStorageからデータ読み込み ===
+    // === データ読み込み ===
     let globalHeaders = [];
     let globalTasks = {};
     let fullData = null;
 
     try {
-      const storedData = localStorage.getItem('appData');
-      if (storedData) { fullData = JSON.parse(storedData); }
+      const stored = localStorage.getItem('appData');
+      if (stored) fullData = JSON.parse(stored);
     } catch(e) { console.error("データ読み込みエラー", e); }
 
     if (fullData && fullData.app_meta && fullData.app_tasks) {
       globalHeaders = fullData.app_meta.headers;
       globalTasks = fullData.app_tasks;
+      initFilters();
       renderTable();
     } else {
       document.getElementById('noDataMsg').style.display = 'block';
-      document.getElementById('mainTable').style.display = 'none';
     }
 
-    // === 条件変更で再描画 ===
-    targetDateInput.addEventListener('change', renderTable);
-    chkSekou.addEventListener('change', renderTable);
-    chkShitami.addEventListener('change', renderTable);
-    chkShitamiYotei.addEventListener('change', renderTable);
+    // === 日付入力 ===
+    const targetDateInput = document.getElementById('targetDate');
+    targetDateInput.value = getTodayStr();
+    document.getElementById('clearDate').addEventListener('click', () => { targetDateInput.value = ''; renderTable(); });
 
-    // === メイン描画関数 ===
+    // === イベント ===
+    targetDateInput.addEventListener('change', renderTable);
+    document.getElementById('chkSekou').addEventListener('change', renderTable);
+    document.getElementById('chkShitami').addEventListener('change', renderTable);
+    document.getElementById('chkShitamiYotei').addEventListener('change', renderTable);
+    document.getElementById('searchInput').addEventListener('input', applyTextSearch);
+
+    // 完了トグル
+    let showKanryo = false;
+    document.getElementById('kanryoToggle').addEventListener('click', function() {
+      showKanryo = !showKanryo;
+      this.classList.toggle('active', showKanryo);
+      this.textContent = showKanryo ? '✔ 完了・過去も表示中' : '完了・過去も表示';
+      renderTable();
+    });
+
+    // モーダル
+    const modalOverlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-close').addEventListener('click', () => { modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+
+    // === フィルタ初期化 ===
+    function initFilters() {
+      let statuses = new Set(), kubuns = new Set(), companies = new Set(), areas = new Set();
+
+      Object.values(globalTasks).forEach(obj => {
+        let cols = obj.csvData;
+        if (!cols) return;
+        let s = getSafeVal(cols, 1).replace(/\s+/g, "");
+        if (s && s !== "完了") statuses.add(s);
+        let k = getSafeVal(cols, 3).replace(/\s+/g, "");
+        if (k) kubuns.add(k);
+        let c = extractCompany(getSafeVal(cols, 5));
+        if (c) companies.add(c);
+        let a = extractArea(getSafeVal(cols, 11));
+        if (a) areas.add(a);
+      });
+
+      buildChecks('statusFilters', [...statuses].sort(), true);
+      buildChecks('kubunFilters', [...kubuns].sort(), true);
+      buildChecks('companyFilters', [...companies].sort(), false);
+      setupToggle('companyToggle', 'companyFilters');
+
+      let sortedAreas = [...areas].sort((a,b) => {
+        let aK = a.endsWith('区'), bK = b.endsWith('区');
+        if (aK && !bK) return -1;
+        if (!aK && bK) return 1;
+        return a.localeCompare(b, 'ja');
+      });
+      buildChecks('areaFilters', sortedAreas, false);
+      setupToggle('areaToggle', 'areaFilters');
+    }
+
+    function buildChecks(id, items, allChecked) {
+      const el = document.getElementById(id);
+      let btnA = document.createElement('span');
+      btnA.textContent = '全選択'; btnA.className = 'filter-toggle';
+      btnA.addEventListener('click', () => { el.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=true); renderTable(); });
+      let btnN = document.createElement('span');
+      btnN.textContent = '全解除'; btnN.className = 'filter-toggle'; btnN.style.color = '#dc3545';
+      btnN.addEventListener('click', () => { el.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false); renderTable(); });
+      el.appendChild(btnA); el.appendChild(btnN);
+
+      items.forEach(item => {
+        let lbl = document.createElement('label');
+        let cb = document.createElement('input'); cb.type='checkbox'; cb.value=item; cb.checked=allChecked;
+        cb.addEventListener('change', renderTable);
+        lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' '+item));
+        el.appendChild(lbl);
+      });
+    }
+
+    function setupToggle(toggleId, containerId) {
+      const tog = document.getElementById(toggleId);
+      const el = document.getElementById(containerId);
+      let open = false;
+      el.style.maxHeight = '24px'; el.style.overflow = 'hidden';
+      tog.addEventListener('click', () => {
+        open = !open;
+        el.style.maxHeight = open ? 'none' : '24px';
+        el.style.overflow = open ? 'visible' : 'hidden';
+        tog.textContent = open ? '▼ 閉じる' : '▶ 展開';
+      });
+    }
+
+    function getChecked(id) {
+      let v=[]; document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(c=>v.push(c.value)); return v;
+    }
+
+    // === テキスト検索 ===
+    function applyTextSearch() {
+      let word = document.getElementById('searchInput').value.toLowerCase();
+      let rows = document.getElementById('table-body').getElementsByTagName('tr');
+      let n = 0;
+      for (let i=0; i<rows.length; i++) {
+        let show = rows[i].textContent.toLowerCase().indexOf(word) !== -1;
+        rows[i].style.display = show ? '' : 'none';
+        if (show) n++;
+      }
+      document.getElementById('countDisplay').textContent = `検索結果: ${n} 件`;
+    }
+
+    // === メイン描画 ===
     function renderTable() {
       const thead = document.getElementById('table-head');
       const tbody = document.getElementById('table-body');
-      thead.innerHTML = "";
-      tbody.innerHTML = "";
+      thead.innerHTML = ""; tbody.innerHTML = "";
 
-      // ヘッダー行（アルファベット＋列名）
-      const trAlpha = document.createElement('tr'); trAlpha.className = 'alpha-head';
-      const trHead = document.createElement('tr');
-
-      displayCols.forEach(colIndex => {
-        const thAlpha = document.createElement('th'); thAlpha.textContent = getColLetter(colIndex); trAlpha.appendChild(thAlpha);
-        const thHead = document.createElement('th'); thHead.textContent = globalHeaders[colIndex] || ""; trHead.appendChild(thHead);
-      });
-
-      // 入力フォーム列ヘッダー
-      ['下見予定日', '下見予定時間', '下見順'].forEach(h => {
-        const thAlpha = document.createElement('th'); trAlpha.appendChild(thAlpha);
-        const thHead = document.createElement('th'); thHead.textContent = h; thHead.style.backgroundColor = '#d4edda'; trHead.appendChild(thHead);
-      });
-      thead.appendChild(trAlpha);
-      thead.appendChild(trHead);
-
-      const timeOptions = generateTimeOptions();
+      const todayStr = getTodayStr();
       const selectedDate = targetDateInput.value;
+      const chkS = document.getElementById('chkSekou').checked;
+      const chkD = document.getElementById('chkShitami').checked;
+      const chkY = document.getElementById('chkShitamiYotei').checked;
+      const cStat = getChecked('statusFilters');
+      const cKub = getChecked('kubunFilters');
+      const cComp = getChecked('companyFilters');
+      const cArea = getChecked('areaFilters');
 
-      // === フィルタリング（チェックボックス複数選択） ===
+      // ヘッダー
+      const trA = document.createElement('tr'); trA.className = 'alpha-head';
+      const trH = document.createElement('tr');
+      let thA0 = document.createElement('th'); thA0.textContent='#'; thA0.className='col-no'; trA.appendChild(thA0);
+      let thH0 = document.createElement('th'); thH0.textContent='No.'; thH0.className='col-no'; trH.appendChild(thH0);
+
+      displayCols.forEach((ci,i) => {
+        let a = document.createElement('th'); a.textContent=getColLetter(ci); a.className=colClasses[i+1]||''; trA.appendChild(a);
+        let h = document.createElement('th'); h.textContent=globalHeaders[ci]||""; h.className=colClasses[i+1]||''; trH.appendChild(h);
+      });
+      thead.appendChild(trA); thead.appendChild(trH);
+
+      // フィルタ
       let keys = Object.keys(globalTasks);
-      let validKeys = keys.filter(key => {
-        let dataObj = globalTasks[key];
-        let cols = dataObj.csvData;
+      let valid = keys.filter(key => {
+        let obj = globalTasks[key], cols = obj.csvData;
         if (!cols) return false;
 
-        // 「完了」除外
-        let colB = getSafeVal(cols, 1).replace(/\s+/g, "");
-        if (colB === "完了") return false;
+        let status = getSafeVal(cols,1).replace(/\s+/g,"");
+        let sekouDate = formatToYMD(getSafeVal(cols,2));
 
-        // チェックが1つも入っていなければ全件表示
-        if (!chkSekou.checked && !chkShitami.checked && !chkShitamiYotei.checked) return true;
+        // 完了+過去
+        if (status==="完了" && sekouDate<todayStr && !showKanryo) return false;
 
-        let match = false;
+        // ステータス
+        if (status!=="完了" && cStat.length>0 && !cStat.includes(status)) return false;
 
-        // 施工日（C列 = index 2）
-        if (chkSekou.checked) {
-          let sekouDate = formatToYMD(getSafeVal(cols, 2));
-          if (sekouDate === selectedDate) match = true;
+        // 区分
+        let kubun = getSafeVal(cols,3).replace(/\s+/g,"");
+        if (cKub.length>0 && !cKub.includes(kubun)) return false;
+
+        // 会社
+        let comp = extractCompany(getSafeVal(cols,5));
+        if (cComp.length>0 && !cComp.includes(comp)) return false;
+
+        // 地域
+        let area = extractArea(getSafeVal(cols,11));
+        if (cArea.length>0 && !cArea.includes(area)) return false;
+
+        // 日付
+        if (selectedDate) {
+          let dm = false;
+          if (!chkS && !chkD && !chkY) dm = true;
+          if (chkS && sekouDate===selectedDate) dm=true;
+          if (chkD && formatToYMD(getSafeVal(cols,12))===selectedDate) dm=true;
+          if (chkY && (obj.date||"")===selectedDate) dm=true;
+          if (!dm) return false;
         }
-
-        // 下見日（index 12）
-        if (chkShitami.checked) {
-          let shitamiDate = formatToYMD(getSafeVal(cols, 12));
-          if (shitamiDate === selectedDate) match = true;
-        }
-
-        // 下見予定日（Firebase入力値 = dataObj.date）
-        if (chkShitamiYotei.checked) {
-          let yoteiDate = dataObj.date || "";
-          if (yoteiDate === selectedDate) match = true;
-        }
-
-        return match;
+        return true;
       });
 
-      // 施工日ソート
-      validKeys.sort((a, b) => {
-        let dateA = getSafeVal(globalTasks[a].csvData, 2);
-        let dateB = getSafeVal(globalTasks[b].csvData, 2);
-        return dateA.replace(/\s+/g, '').localeCompare(dateB.replace(/\s+/g, ''));
+      valid.sort((a,b) => {
+        let dA = getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'');
+        let dB = getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,'');
+        return dA.localeCompare(dB);
       });
 
-      // === 行の描画 ===
-      validKeys.forEach(key => {
-        const dataObj = globalTasks[key];
-        const cols = dataObj.csvData;
+      valid.forEach((key,idx) => {
+        const obj = globalTasks[key], cols = obj.csvData;
         const tr = document.createElement('tr');
 
-        let mColText = getSafeVal(cols, 12).replace(/\s+/g, "");
-        let bgColor = (mColText === "") ? "#f8d7da" : "#d4edda";
+        // No.列
+        let tdNo = document.createElement('td'); tdNo.className='col-no';
+        tdNo.textContent = idx+1; tdNo.style.fontWeight='bold'; tdNo.style.color='#888';
+        tr.appendChild(tdNo);
 
-        displayCols.forEach(colIndex => {
-          let c = getSafeVal(cols, colIndex);
-          const td = document.createElement('td');
-          const inner = document.createElement('div'); inner.className = 'cell-inner';
-          let displayText = c.replace(/\n|\r/g, ' ');
-          let cleanText = c.replace(/\s+/g, '');
+        displayCols.forEach((ci,i) => {
+          let c = getSafeVal(cols,ci);
+          let td = document.createElement('td'); td.className = colClasses[i+1]||'';
+          let inner = document.createElement('div'); inner.className='cell-inner';
+          let disp = c.replace(/\n|\r/g,' '), clean = c.replace(/\s+/g,'');
 
-          // 住所列（L列=index 11）→ Googleマップリンク
-          if (colIndex === 11 && cleanText !== '') {
-            let shortText = displayText.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/, '');
-            if (shortText.startsWith('札幌市')) shortText = shortText.replace(/^札幌市/, '');
-            else shortText = shortText.replace(/^.+?郡(?=.*?[町村])/, '');
-            inner.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" class="link-text" title="Googleマップで開く">${shortText}</a>`;
+          if (ci===11 && clean!=='') {
+            let short = disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
+            if (short.startsWith('札幌市')) short=short.replace(/^札幌市/,'');
+            else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
+            inner.innerHTML=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean)}" target="_blank" class="link-text">${short}</a>`;
+          } else if (ci===6 && clean!=='') {
+            inner.innerHTML=`<a href="tel:${clean}" class="link-text">${disp}</a>`;
+          } else {
+            inner.textContent = disp;
           }
-          // 担当者携帯（index 6）→ 電話リンク
-          else if (colIndex === 6 && cleanText !== '') {
-            inner.innerHTML = `<a href="tel:${cleanText}" class="link-text" title="電話をかける">${displayText}</a>`;
-          }
-          else {
-            inner.textContent = displayText;
-          }
-
-          // 住所列の背景色
-          if (colIndex === 11) { td.style.backgroundColor = bgColor; inner.style.fontWeight = 'bold'; }
 
           td.appendChild(inner);
-
-          // ツールチップ
-          if (cleanText !== '') {
-            td.addEventListener('mouseenter', e => { tooltip.textContent = c; tooltip.style.display = 'block'; });
-            td.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
-            td.addEventListener('mouseleave', e => { tooltip.style.display = 'none'; });
+          if (clean!=='') {
+            td.addEventListener('mouseenter',()=>{tooltip.textContent=c;tooltip.style.display='block';});
+            td.addEventListener('mousemove',e=>{tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
+            td.addEventListener('mouseleave',()=>{tooltip.style.display='none';});
           }
           tr.appendChild(td);
         });
 
-        // === 入力フォーム（下見予定日・時間・順番）===
-        const tdDate = document.createElement('td'); tdDate.style.padding = '4px'; tdDate.style.backgroundColor = bgColor;
-        const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.className = 'input-form';
-        dateInput.value = dataObj.date || '';
-        tdDate.appendChild(dateInput); tr.appendChild(tdDate);
-
-        const tdTime = document.createElement('td'); tdTime.style.padding = '4px'; tdTime.style.backgroundColor = bgColor;
-        const timeInput = document.createElement('select'); timeInput.className = 'input-form'; timeInput.innerHTML = timeOptions;
-        timeInput.value = dataObj.time || '';
-        tdTime.appendChild(timeInput); tr.appendChild(tdTime);
-
-        const tdOrder = document.createElement('td'); tdOrder.style.padding = '4px'; tdOrder.style.backgroundColor = bgColor;
-        const orderInput = document.createElement('input'); orderInput.type = 'number'; orderInput.min = '1'; orderInput.className = 'input-form'; orderInput.placeholder = '番号';
-        orderInput.value = dataObj.order || '';
-        tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
-
-        // === 入力変更時 → Firebase保存 + LocalStorage更新 ===
-        const taskRef = database.ref('app_tasks/' + key);
-        function saveToFirebase() {
-          taskRef.update({ date: dateInput.value, time: timeInput.value, order: orderInput.value });
-          globalTasks[key].date = dateInput.value;
-          globalTasks[key].time = timeInput.value;
-          globalTasks[key].order = orderInput.value;
-          fullData.app_tasks = globalTasks;
-          localStorage.setItem('appData', JSON.stringify(fullData));
-        }
-        dateInput.addEventListener('change', saveToFirebase);
-        timeInput.addEventListener('change', saveToFirebase);
-        orderInput.addEventListener('input', saveToFirebase);
-
-        // === モーダル表示 ===
-        tr.addEventListener('click', function(e) {
-          if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName)) return;
-
-          let sekouStr = getSafeVal(cols, 2).replace(/\s+/g, "") || "未定";
-          let shitamiStr = formatToYMD(getSafeVal(cols, 12)) || "未定";
-          let yoteiStr = dateInput.value || "未定";
-
-          // E列（index 4）を表題に使う
-          let ankenText = getSafeVal(cols, 4).trim() || "名称未設定";
-
-          let html = `
-            <div class="modal-header-info">
-              <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 下見予定日: ${yoteiStr}</div>
-              <div class="modal-title-row">
-                🏷️ ${ankenText}
-                <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
-              </div>
-            </div>
-            <h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 全データ</h4>
-            <table class="modal-table">
-          `;
-
-          globalHeaders.forEach((headerName, index) => {
-            let val = getSafeVal(cols, index);
-            let displayHtml = val.replace(/\n|\r/g, '<br>');
-            let cleanText = val.replace(/\s+/g, '');
-
-            if (index === 11 && cleanText !== "") {
-              displayHtml = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText)}" target="_blank" style="color:#0056b3; font-weight:bold; text-decoration:underline;">🗺️ ${val}</a>`;
-            } else if (index === 6 && cleanText !== "") {
-              displayHtml = `<a href="tel:${cleanText}" style="color:#0056b3; font-weight:bold; text-decoration:underline;">📞 ${val}</a>`;
-            }
-            html += `<tr><th>${headerName || `列${index+1}`}</th><td>${displayHtml}</td></tr>`;
-          });
-
-          // ブラウザ入力データも表示
-          html += `<tr><th style="background:#d4edda;">📅 下見予定日（入力）</th><td>${dateInput.value || "未入力"}</td></tr>`;
-          html += `<tr><th style="background:#d4edda;">⏰ 下見予定時間（入力）</th><td>${timeInput.value || "未入力"}</td></tr>`;
-          html += `<tr><th style="background:#d4edda;">🔢 下見順（入力）</th><td>${orderInput.value || "未入力"}</td></tr>`;
-          html += `</table>`;
-
-          document.getElementById('modal-body').innerHTML = html;
-          modalOverlay.style.display = 'block';
-
-          document.getElementById('modal-copy-btn').addEventListener('click', function() {
-            navigator.clipboard.writeText(ankenText).then(() => {
-              this.textContent = "✔ コピー完了！";
-              this.classList.add('copied');
-              setTimeout(() => { this.textContent = "コピー"; this.classList.remove('copied'); }, 2000);
-            });
-          });
-        });
-
+        tr.addEventListener('click', e => { if(e.target.tagName==='A') return; openModal(key,obj,cols); });
         tbody.appendChild(tr);
       });
+
+      document.getElementById('countDisplay').textContent = `表示件数: ${valid.length} 件`;
+      if (document.getElementById('searchInput').value) applyTextSearch();
     }
 
-    // === CSVダウンロード ===
-    document.getElementById('downloadBtn').addEventListener('click', function() {
-      let csvContent = "";
-      const thead = document.getElementById('table-head');
-      const ths = thead.querySelectorAll('tr').item(1).querySelectorAll('th');
-      const headers = [];
-      for (let i = 0; i < ths.length; i++) headers.push('"' + ths.item(i).textContent.replace(/"/g, '""') + '"');
-      csvContent += headers.join(',') + "\r\n";
+    // === モーダル ===
+    const timeOpts = generateTimeOptions();
 
-      const trs = document.getElementById('table-body').querySelectorAll('tr');
-      for (let i = 0; i < trs.length; i++) {
-        if (trs.item(i).style.display === 'none') continue;
-        const rowData = [];
-        const tds = trs.item(i).querySelectorAll('td');
-        for (let j = 0; j < tds.length; j++) {
-          const input = tds.item(j).querySelector('input, select');
-          if (input) rowData.push('"' + input.value.replace(/"/g, '""') + '"');
-          else rowData.push('"' + tds.item(j).textContent.replace(/\n|\r/g, ' ').trim().replace(/"/g, '""') + '"');
+    function openModal(key, obj, cols) {
+      let sekouStr = getSafeVal(cols,2).replace(/\s+/g,"") || "未定";
+      let shitamiStr = formatToYMD(getSafeVal(cols,12)) || "未定";
+      let yoteiStr = obj.date || "未定";
+      let ankenText = getSafeVal(cols,4).trim() || "名称未設定";
+
+      let html = `
+        <div class="modal-header-info">
+          <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 下見予定日: ${yoteiStr}</div>
+          <div class="modal-title-row">
+            🏷️ ${ankenText}
+            <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
+          </div>
+        </div>
+        <h4 style="margin-top:20px; color:#495057; border-bottom:2px solid #ccc; padding-bottom:5px;">📄 CSVデータ</h4>
+        <table class="modal-table">
+      `;
+
+      globalHeaders.forEach((hdr,index) => {
+        let val = getSafeVal(cols,index);
+        let dh = val.replace(/\n|\r/g,'<br>');
+        let ct = val.replace(/\s+/g,'');
+        if (index===11 && ct!=="") {
+          dh = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ct)}" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ ${val}</a>`;
+        } else if (index===6 && ct!=="") {
+          dh = `<a href="tel:${ct}" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 ${val}</a>`;
         }
-        csvContent += rowData.join(',') + "\r\n";
-      }
-      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-      const blob = new Blob([bom, csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url;
-      const targetDate = document.getElementById('targetDate').value.replace(/-/g, '');
-      a.download = "指定日案件リスト_" + targetDate + ".csv";
-      a.click(); window.URL.revokeObjectURL(url);
-    });
+        html += `<tr><th>${hdr||`列${index+1}`}</th><td>${dh}</td></tr>`;
+      });
+      html += `</table>`;
+
+      html += `
+        <div class="modal-input-section">
+          <h4>📝 入力データ</h4>
+          <div class="modal-input-row">
+            <label>📅 下見予定日:</label>
+            <input type="date" id="modal-date" value="${obj.date||''}" />
+          </div>
+          <div class="modal-input-row">
+            <label>⏰ 予定時間:</label>
+            <select id="modal-time">${timeOpts}</select>
+          </div>
+          <div class="modal-input-row">
+            <label>🔢 下見順:</label>
+            <input type="number" id="modal-order" min="1" placeholder="番号" value="${obj.order||''}" />
+          </div>
+          <div style="margin-top:12px;">
+            <button id="modal-save-btn" style="padding:8px 20px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer;">💾 保存</button>
+            <span id="modal-save-msg" style="margin-left:10px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-body').innerHTML = html;
+      modalOverlay.style.display = 'block';
+      document.getElementById('modal-time').value = obj.time || '';
+
+      document.getElementById('modal-copy-btn').addEventListener('click', function() {
+        navigator.clipboard.writeText(ankenText).then(() => {
+          this.textContent="✔ コピー完了！"; this.classList.add('copied');
+          setTimeout(()=>{this.textContent="コピー";this.classList.remove('copied');},2000);
+        });
+      });
+
+      document.getElementById('modal-save-btn').addEventListener('click', function() {
+        let nd=document.getElementById('modal-date').value;
+        let nt=document.getElementById('modal-time').value;
+        let no=document.getElementById('modal-order').value;
+        database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
+        globalTasks[key].date=nd; globalTasks[key].time=nt; globalTasks[key].order=no;
+        fullData.app_tasks=globalTasks;
+        localStorage.setItem('appData',JSON.stringify(fullData));
+        let msg=document.getElementById('modal-save-msg');
+        msg.style.display='inline';
+        setTimeout(()=>{msg.style.display='none';},2000);
+      });
+    }
   </script>
 </body>
 </html>
