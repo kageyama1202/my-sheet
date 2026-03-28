@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>今日のアクション</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
+    .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .header-bar h3{margin:0;font-size:15px;color:#d32f2f;}
+    .top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
+    .date-display{margin-left:auto;font-size:14px;font-weight:bold;color:#333;}
+
+    .dashboard{padding:10px;max-width:1200px;margin:0 auto;}
+
+    .section{background:#fff;border-radius:8px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,0.08);overflow:hidden;}
+    .section-header{padding:8px 14px;font-size:14px;font-weight:bold;color:#fff;display:flex;align-items:center;gap:8px;justify-content:space-between;}
+    .section-header .count{background:rgba(255,255,255,0.3);padding:1px 8px;border-radius:10px;font-size:12px;}
+
+    .bg-red{background:#d32f2f;}
+    .bg-orange{background:#ef6c00;}
+    .bg-blue{background:#1565c0;}
+    .bg-green{background:#2e7d32;}
+    .bg-purple{background:#6a1b9a;}
+
+    .section-body{padding:0;}
+    .action-item{padding:10px 14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s;}
+    .action-item:hover{background:#f8f9ff;}
+    .action-item:last-child{border-bottom:none;}
+
+    .badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:bold;color:#fff;white-space:nowrap;}
+    .badge-new{background:#1a73e8;}
+    .badge-reform{background:#e65100;}
+    .badge-sk{background:#6a1b9a;}
+
+    .item-name{font-weight:bold;font-size:13px;color:#333;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .item-date{font-size:12px;color:#666;white-space:nowrap;}
+    .item-days{font-size:11px;font-weight:bold;padding:2px 6px;border-radius:3px;white-space:nowrap;}
+    .days-urgent{background:#ffcdd2;color:#c62828;}
+    .days-warn{background:#fff9c4;color:#f57f17;}
+    .days-ok{background:#c8e6c9;color:#2e7d32;}
+
+    .empty-msg{padding:12px 14px;color:#999;font-style:italic;font-size:12px;}
+
+    /* モーダル */
+    #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
+    #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
+    #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
+    .modal-header-info{margin-bottom:12px;}
+    .modal-date-row{font-size:13px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
+    .modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
+    .modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
+    .modal-copy-btn.copied{background:#28a745;}
+    .modal-table{width:100%;border-collapse:collapse;margin-top:12px;}
+    .modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;}
+    .modal-table th{background:#f8f9fa;width:28%;color:#495057;}
+    .modal-input-section{margin-top:18px;}
+    .modal-input-section h4{color:#155724;border-bottom:2px solid #28a745;padding-bottom:4px;font-size:14px;}
+    .modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+    .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
+    .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
+    #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;text-align:center;}
+
+    .summary-bar{background:#fff;padding:8px 14px;border-bottom:1px solid #ccc;display:flex;gap:20px;flex-wrap:wrap;}
+    .summary-item{font-size:13px;font-weight:bold;display:flex;align-items:center;gap:4px;}
+    .summary-num{font-size:18px;color:#d32f2f;}
+  </style>
+</head>
+<body>
+  <div id="modal-overlay">
+    <div id="modal-content">
+      <button id="modal-close">✖ 閉じる</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="header-bar">
+    <a href="index.html" class="top-link">◀ トップ</a>
+    <a href="today.html" class="top-link">📋 リスト</a>
+    <a href="calendar.html" class="top-link">📅 カレンダー</a>
+    <h3>🔔 今日のアクション</h3>
+    <div class="date-display" id="dateDisplay"></div>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
+
+  <div class="dashboard" id="dashboard"></div>
+
+  <script>
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+    var database=firebase.database();
+
+    function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+    function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+    function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
+
+    var now=new Date();
+    var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
+    var dayNames=['日','月','火','水','木','金','土'];
+    document.getElementById('dateDisplay').textContent=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日（'+dayNames[now.getDay()]+'）';
+
+    function diffDays(dateStr){
+      if(!dateStr)return 9999;
+      var d=new Date(dateStr);
+      var t=new Date(todayStr);
+      return Math.round((d-t)/(1000*60*60*24));
+    }
+
+    function daysLabel(n){
+      if(n===0)return'今日';
+      if(n===1)return'明日';
+      if(n<0)return Math.abs(n)+'日超過';
+      return n+'日後';
+    }
+
+    function daysClass(n){
+      if(n<=3)return'days-urgent';
+      if(n<=7)return'days-warn';
+      return'days-ok';
+    }
+
+    // データ
+    var globalHeaders=[],globalTasks={},fullData=null;
+    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+
+    if(fullData&&fullData.app_meta&&fullData.app_tasks){
+      globalHeaders=fullData.app_meta.headers;
+      globalTasks=fullData.app_tasks;
+      buildDashboard();
+    } else {
+      document.getElementById('noDataMsg').style.display='block';
+    }
+
+    // モーダル
+    var modalOverlay=document.getElementById('modal-overlay');
+    document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
+    modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
+
+    function buildDashboard(){
+      // カテゴリ分け
+      var callList=[];    // 📞 連絡しろ（リフォーム、下見日未定）
+      var visitList=[];   // 🏃 下見行け（新築、21日前以内）
+      var skVisitList=[];  // 🏃 最終下見行け（新築SK、10日前以内）
+      var emailList=[];   // ✉️ 施工日確認メール送れ（14〜21日前）
+      var reportList=[];  // 📝 報告書書け（下見実施済み＆報告未完了）
+
+      Object.keys(globalTasks).forEach(function(key){
+        var obj=globalTasks[key];
+        var cols=obj.csvData;if(!cols)return;
+        var status=getSafeVal(cols,1).replace(/\s+/g,"");
+        var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+        var name=getSafeVal(cols,4).trim();
+        var company=getSafeVal(cols,5).trim();
+        var sekouDate=formatToYMD(getSafeVal(cols,2));
+        var shitamiDate=formatToYMD(getSafeVal(cols,12));
+        var yoteiDate=obj.date||"";
+
+        if(status==="完了")return;
+        if(status==="報告完了")return;
+        if(status==="下見完了")return;
+
+        var daysTilSekou=diffDays(sekouDate);
+        var isSK=name.indexOf('SK')!==-1;
+
+        // 📞 リフォーム＆連絡未（ステータス=依頼、区分=ﾘ）
+        if(kubun==="ﾘ"&&status==="依頼"){
+          callList.push({key:key,obj:obj,cols:cols,name:name,company:company,sekouDate:sekouDate,days:daysTilSekou,kubun:kubun});
+        }
+
+        // 🏃 新築下見（21日前以内、まだ下見してない）
+        if(kubun==="新"&&daysTilSekou<=21&&daysTilSekou>=0&&status!=="下見完了"){
+          visitList.push({key:key,obj:obj,cols:cols,name:name,company:company,sekouDate:sekouDate,days:daysTilSekou,kubun:kubun});
+        }
+
+        // 🏃 新築SK最終下見（10日前以内、まだ完了してない）
+        if(kubun==="新"&&isSK&&daysTilSekou<=10&&daysTilSekou>=0&&status!=="下見完了"){
+          skVisitList.push({key:key,obj:obj,cols:cols,name:name,company:company,sekouDate:sekouDate,days:daysTilSekou,kubun:kubun});
+        }
+
+        // ✉️ 施工日確認メール（14〜21日前）
+        if(daysTilSekou>=14&&daysTilSekou<=21&&status!=="下見完了"&&status!=="施工日確認"){
+          emailList.push({key:key,obj:obj,cols:cols,name:name,company:company,sekouDate:sekouDate,days:daysTilSekou,kubun:kubun});
+        }
+
+        // 📝 報告書書け（下見日程確定＆下見予定日が過去＝下見行ったけど報告まだ）
+        if(status==="下見日程確定"&&yoteiDate&&yoteiDate<todayStr){
+          reportList.push({key:key,obj:obj,cols:cols,name:name,company:company,sekouDate:sekouDate,days:daysTilSekou,kubun:kubun});
+        }
+      });
+
+      // ソート（日数が少ない順）
+      [callList,visitList,skVisitList,emailList,reportList].forEach(function(list){
+        list.sort(function(a,b){return a.days-b.days;});
+      });
+
+      // サマリーバー
+      var summaryHtml='';
+      summaryHtml+='<div class="summary-item">📞 連絡 <span class="summary-num">'+callList.length+'</span></div>';
+      summaryHtml+='<div class="summary-item">🏃 下見 <span class="summary-num">'+visitList.length+'</span></div>';
+      summaryHtml+='<div class="summary-item">🔨 SK最終 <span class="summary-num">'+skVisitList.length+'</span></div>';
+      summaryHtml+='<div class="summary-item">✉️ 確認メール <span class="summary-num">'+emailList.length+'</span></div>';
+      summaryHtml+='<div class="summary-item">📝 報告書 <span class="summary-num">'+reportList.length+'</span></div>';
+      summaryHtml+='<div class="summary-item" style="margin-left:auto;font-size:14px;">合計 <span class="summary-num">'+(callList.length+visitList.length+skVisitList.length+emailList.length+reportList.length)+'</span></div>';
+      document.getElementById('summaryBar').innerHTML=summaryHtml;
+
+      // セクション描画
+      var dash=document.getElementById('dashboard');
+      dash.innerHTML='';
+
+      renderSection(dash,'📞 連絡して下見日を決めろ','リフォーム案件で先方に未連絡','bg-red',callList);
+      renderSection(dash,'🏃 下見に行け','施工日21日前以内の新築案件','bg-orange',visitList);
+      renderSection(dash,'🔨 SK最終下見に行け','施工日10日前以内のキッチン案件','bg-purple',skVisitList);
+      renderSection(dash,'✉️ 施工日確認メールを送れ','施工日14〜21日前','bg-blue',emailList);
+      renderSection(dash,'📝 報告書を書け','下見日程確定・下見予定日経過済み','bg-green',reportList);
+    }
+
+    function renderSection(container,title,subtitle,bgClass,items){
+      var sec=document.createElement('div');
+      sec.className='section';
+
+      var header=document.createElement('div');
+      header.className='section-header '+bgClass;
+      header.innerHTML=title+' <span style="font-size:11px;font-weight:normal;opacity:0.8;">'+subtitle+'</span><span class="count">'+items.length+'件</span>';
+      sec.appendChild(header);
+
+      var body=document.createElement('div');
+      body.className='section-body';
+
+      if(items.length===0){
+        body.innerHTML='<div class="empty-msg">✔ なし — よくやってる！</div>';
+      } else {
+        items.forEach(function(item){
+          var div=document.createElement('div');
+          div.className='action-item';
+
+          var badgeClass=item.kubun==='ﾘ'?'badge-reform':item.name.indexOf('SK')!==-1?'badge-sk':'badge-new';
+          var badgeText=item.kubun==='ﾘ'?'リフォーム':item.name.indexOf('SK')!==-1?'新築SK':'新築';
+
+          div.innerHTML=
+            '<span class="badge '+badgeClass+'">'+badgeText+'</span>'+
+            '<span class="item-name">'+item.name+'</span>'+
+            '<span style="color:#888;font-size:11px;">'+item.company+'</span>'+
+            '<span class="item-date">施工日: '+item.sekouDate+'</span>'+
+            '<span class="item-days '+daysClass(item.days)+'">'+daysLabel(item.days)+'</span>';
+
+          div.addEventListener('click',function(){openModal(item.key,item.obj,item.cols);});
+          body.appendChild(div);
+        });
+      }
+
+      sec.appendChild(body);
+      container.appendChild(sec);
+    }
+
+    // === モーダル ===
+    var timeOpts=generateTimeOptions();
+
+    function openModal(key,obj,cols){
+      var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
+      var yoteiStr=obj.date||"未定";
+      var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
+
+      var html='<div class="modal-header-info">'+
+        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+'</div>'+
+        '<div class="modal-title-row">🏷️ '+ankenText+
+        ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
+        '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
+        '<table class="modal-table">';
+
+      globalHeaders.forEach(function(hdr,index){
+        var val=getSafeVal(cols,index);
+        var dh=val.replace(/\n|\r/g,'<br>');
+        var ct=val.replace(/\s+/g,'');
+        if(index===11&&ct!=="")dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ '+val+'</a>';
+        else if(index===6&&ct!=="")dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 '+val+'</a>';
+        html+='<tr><th>'+(hdr||('列'+(index+1)))+'</th><td>'+dh+'</td></tr>';
+      });
+      html+='</table>';
+
+      html+='<div class="modal-input-section">'+
+        '<h4>📝 入力データ</h4>'+
+        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>'+
+        '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">'+timeOpts+'</select></div>'+
+        '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div>'+
+        '<div style="margin-top:10px;">'+
+        '<button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
+        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>'+
+        '</div></div>';
+
+      document.getElementById('modal-body').innerHTML=html;
+      modalOverlay.style.display='block';
+      document.getElementById('modal-time').value=obj.time||'';
+
+      document.getElementById('modal-copy-btn').addEventListener('click',function(){
+        navigator.clipboard.writeText(ankenText).then(function(){
+          document.getElementById('modal-copy-btn').textContent="✔ コピー完了！";
+          document.getElementById('modal-copy-btn').classList.add('copied');
+          setTimeout(function(){document.getElementById('modal-copy-btn').textContent="コピー";document.getElementById('modal-copy-btn').classList.remove('copied');},2000);
+        });
+      });
+
+      document.getElementById('modal-save-btn').addEventListener('click',function(){
+        var nd=document.getElementById('modal-date').value;
+        var nt=document.getElementById('modal-time').value;
+        var no=document.getElementById('modal-order').value;
+        database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
+        globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
+        fullData.app_tasks=globalTasks;
+        localStorage.setItem('appData',JSON.stringify(fullData));
+        var msg=document.getElementById('modal-save-msg');
+        msg.style.display='inline';
+        setTimeout(function(){msg.style.display='none';},2000);
+      });
+    }
+  </script>
+</body>
+</html>
