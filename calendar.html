@@ -150,6 +150,8 @@
         var status=getSafeVal(cols,1).replace(/\s+/g,"");
         var sekouDate=formatToYMD(getSafeVal(cols,2));
         if(status==="完了"&&sekouDate<todayStr)return;
+        // 施工日が過去 → 仕事終了、非表示
+        if(sekouDate&&sekouDate<todayStr)return;
 
         var name=getSafeVal(cols,4).trim();
         var shortMatch=name.match(/【(.+?)】/);
