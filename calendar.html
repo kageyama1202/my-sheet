@@ -9,7 +9,6 @@
   <style>
     *{box-sizing:border-box;}
     body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
-
     .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
     .header-bar h3{margin:0;font-size:15px;color:#1a73e8;}
     .top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
@@ -18,34 +17,32 @@
     .nav-btn:hover{background:#f0f0f0;}
     .month-label{font-size:18px;font-weight:bold;color:#333;min-width:140px;text-align:center;}
     .today-btn{font-size:12px;padding:3px 10px;cursor:pointer;border:1px solid #1a73e8;border-radius:4px;background:#1a73e8;color:#fff;font-weight:bold;}
-    .today-btn:hover{background:#1557b0;}
 
-    .legend{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;gap:15px;align-items:center;flex-wrap:wrap;font-size:11px;}
-    .legend-item{display:flex;align-items:center;gap:3px;}
-    .legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block;}
+    .filter-bar{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;gap:15px;align-items:center;flex-wrap:wrap;font-size:12px;}
+    .filter-bar label{cursor:pointer;display:flex;align-items:center;gap:3px;font-weight:bold;}
+    .filter-bar input[type="checkbox"]{cursor:pointer;margin:0;width:14px;height:14px;}
+    .legend-dot{width:12px;height:12px;border-radius:3px;display:inline-block;}
 
-    .cal-wrapper{padding:8px;height:calc(100vh - 100px);display:flex;flex-direction:column;}
+    .cal-wrapper{padding:6px;height:calc(100vh - 90px);display:flex;flex-direction:column;}
     .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;gap:1px;background:#ccc;border:1px solid #ccc;}
-    .cal-header{background:#e8eaed;text-align:center;font-weight:bold;padding:4px;font-size:12px;color:#555;}
+    .cal-header{background:#e8eaed;text-align:center;font-weight:bold;padding:3px;font-size:12px;color:#555;}
     .cal-header.sun{color:#d32f2f;}
     .cal-header.sat{color:#1a73e8;}
-    .cal-cell{background:#fff;padding:2px;display:flex;flex-direction:column;min-height:80px;overflow:hidden;cursor:pointer;position:relative;}
+    .cal-cell{background:#fff;padding:2px;display:flex;flex-direction:column;min-height:75px;overflow:hidden;cursor:pointer;}
     .cal-cell:hover{background:#f8f9ff;}
     .cal-cell.other-month{background:#fafafa;}
     .cal-cell.other-month .day-num{color:#bbb;}
     .cal-cell.today{background:#e8f0fe;}
-    .day-num{font-size:12px;font-weight:bold;color:#333;padding:1px 4px;text-align:right;}
+    .day-num{font-size:11px;font-weight:bold;color:#333;padding:1px 3px;text-align:right;}
     .day-num.sun{color:#d32f2f;}
     .day-num.sat{color:#1a73e8;}
-
-    .cal-event{font-size:10px;padding:1px 4px;margin:1px 2px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.4;}
+    .cal-event{font-size:9px;padding:1px 3px;margin:0 1px 1px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.3;}
     .cal-event:hover{opacity:0.85;}
-    .ev-sekou{background:#c8e6c9;color:#1b5e20;border-left:3px solid #2e7d32;}
-    .ev-shitami{background:#bbdefb;color:#0d47a1;border-left:3px solid #1565c0;}
-    .ev-yotei{background:#fff3e0;color:#e65100;border-left:3px solid #ef6c00;}
-    .cal-more{font-size:10px;color:#1a73e8;font-weight:bold;padding:0 4px;cursor:pointer;}
+    .ev-sekou{background:#c8e6c9;color:#1b5e20;border-left:2px solid #2e7d32;}
+    .ev-shitami{background:#bbdefb;color:#0d47a1;border-left:2px solid #1565c0;}
+    .ev-yotei{background:#fff3e0;color:#e65100;border-left:2px solid #ef6c00;}
+    .cal-more{font-size:9px;color:#1a73e8;font-weight:bold;padding:0 3px;cursor:pointer;}
 
-    /* モーダル */
     #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
     #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
     #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
@@ -63,7 +60,6 @@
     .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
     .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
 
-    /* 日付セルクリック時のリスト表示 */
     .day-list-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:8888;}
     .day-list-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:16px;border-radius:8px;width:85%;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,0.25);}
     .day-list-panel h3{margin:0 0 10px 0;font-size:16px;color:#333;}
@@ -71,7 +67,6 @@
     .day-list-item:hover{background:#e8f4ff;}
     .day-list-item .ev-tag{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:bold;white-space:nowrap;}
     .day-list-close{float:right;font-size:13px;padding:4px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
-
     #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;text-align:center;}
   </style>
 </head>
@@ -102,30 +97,37 @@
     </div>
   </div>
 
-  <div class="legend">
-    <span class="legend-item"><span class="legend-dot" style="background:#2e7d32;"></span> 施工</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#1565c0;"></span> 下見</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#ef6c00;"></span> 下見予定</span>
+  <div class="filter-bar">
+    <label><input type="checkbox" id="chkSekou" checked><span class="legend-dot" style="background:#2e7d32;"></span> 施工</label>
+    <label><input type="checkbox" id="chkShitami" checked><span class="legend-dot" style="background:#1565c0;"></span> 下見</label>
+    <label><input type="checkbox" id="chkYotei" checked><span class="legend-dot" style="background:#ef6c00;"></span> 下見予定</label>
   </div>
 
   <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
-
   <div class="cal-wrapper" id="calWrapper">
     <div class="cal-grid" id="calGrid"></div>
   </div>
 
   <script>
-    const firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-    const database=firebase.database();
+    var database=firebase.database();
 
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
-    function formatToYMD(ds){if(!ds)return"";let d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");let p=d.split("-");if(p.length===3)return`${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;return d;}
-    function generateTimeOptions(){let o='<option value="">--:--</option>';for(let h=8;h<=20;h++){let hh=('0'+h).slice(-2);o+=`<option value="${hh}:00">${hh}:00</option><option value="${hh}:30">${hh}:30</option>`;}return o;}
-    function getTodayStr(){let t=new Date();return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;}
+    function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+    function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
+    function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 
-    let globalHeaders=[],globalTasks={},fullData=null;
-    try{const s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+    // DOM参照
+    var chkSekou=document.getElementById('chkSekou');
+    var chkShitami=document.getElementById('chkShitami');
+    var chkYotei=document.getElementById('chkYotei');
+    var modalOverlay=document.getElementById('modal-overlay');
+    var dayListOverlay=document.getElementById('dayListOverlay');
+
+    // データ読み込み
+    var globalHeaders=[],globalTasks={},fullData=null;
+    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 
     if(fullData&&fullData.app_meta&&fullData.app_tasks){
       globalHeaders=fullData.app_meta.headers;
@@ -135,142 +137,139 @@
       document.getElementById('calWrapper').style.display='none';
     }
 
-    // 日付→案件マップ構築
-    // dateMap[date] = [{key, obj, cols, type:'sekou'|'shitami'|'yotei', label}]
-    let dateMap={};
-    const todayStr=getTodayStr();
+    var todayStr=getTodayStr();
 
-    Object.entries(globalTasks).forEach(([key,obj])=>{
-      let cols=obj.csvData;if(!cols)return;
-      let status=getSafeVal(cols,1).replace(/\s+/g,"");
-      // 完了+過去は除外
-      let sekouDate=formatToYMD(getSafeVal(cols,2));
-      if(status==="完了"&&sekouDate<todayStr)return;
+    // dateMapをチェック状態に応じて動的構築
+    function buildDateMap(){
+      var dm={};
+      var showS=chkSekou.checked, showD=chkShitami.checked, showY=chkYotei.checked;
 
-      let name=getSafeVal(cols,4).trim();
-      // 短縮名（【XX手配】部分だけ or 最初の15文字）
-      let shortMatch=name.match(/【(.+?)】/);
-      let shortName=shortMatch?shortMatch[0]:name.substring(0,12);
+      Object.keys(globalTasks).forEach(function(key){
+        var obj=globalTasks[key];
+        var cols=obj.csvData;if(!cols)return;
+        var status=getSafeVal(cols,1).replace(/\s+/g,"");
+        var sekouDate=formatToYMD(getSafeVal(cols,2));
+        if(status==="完了"&&sekouDate<todayStr)return;
 
-      // 施工日
-      if(sekouDate){
-        if(!dateMap[sekouDate])dateMap[sekouDate]=[];
-        dateMap[sekouDate].push({key,obj,cols,type:'sekou',label:'施工 '+shortName});
-      }
-      // 下見日（index 12）
-      let shitamiDate=formatToYMD(getSafeVal(cols,12));
-      if(shitamiDate){
-        if(!dateMap[shitamiDate])dateMap[shitamiDate]=[];
-        dateMap[shitamiDate].push({key,obj,cols,type:'shitami',label:'下見 '+shortName});
-      }
-      // 下見予定日（Firebase入力）
-      let yoteiDate=obj.date||"";
-      if(yoteiDate){
-        if(!dateMap[yoteiDate])dateMap[yoteiDate]=[];
-        dateMap[yoteiDate].push({key,obj,cols,type:'yotei',label:'予定 '+shortName});
-      }
-    });
+        var name=getSafeVal(cols,4).trim();
+        var shortMatch=name.match(/【(.+?)】/);
+        var shortName=shortMatch?shortMatch[0]:name.substring(0,12);
+
+        if(showS&&sekouDate){
+          if(!dm[sekouDate])dm[sekouDate]=[];
+          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:'施工 '+shortName});
+        }
+        var shitamiDate=formatToYMD(getSafeVal(cols,12));
+        if(showD&&shitamiDate){
+          if(!dm[shitamiDate])dm[shitamiDate]=[];
+          dm[shitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:'下見 '+shortName});
+        }
+        var yoteiDate=obj.date||"";
+        if(showY&&yoteiDate){
+          if(!dm[yoteiDate])dm[yoteiDate]=[];
+          dm[yoteiDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:'予定 '+shortName});
+        }
+      });
+      return dm;
+    }
 
     // カレンダー
-    let currentYear, currentMonth;
-    const now=new Date();
+    var currentYear,currentMonth;
+    var now=new Date();
     currentYear=now.getFullYear();
     currentMonth=now.getMonth();
 
-    document.getElementById('btnPrev').addEventListener('click',()=>{currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}renderCal();});
-    document.getElementById('btnNext').addEventListener('click',()=>{currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}renderCal();});
-    document.getElementById('btnToday').addEventListener('click',()=>{currentYear=now.getFullYear();currentMonth=now.getMonth();renderCal();});
+    document.getElementById('btnPrev').addEventListener('click',function(){currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}renderCal();});
+    document.getElementById('btnNext').addEventListener('click',function(){currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}renderCal();});
+    document.getElementById('btnToday').addEventListener('click',function(){currentYear=now.getFullYear();currentMonth=now.getMonth();renderCal();});
 
-    // モーダル
-    const modalOverlay=document.getElementById('modal-overlay');
-    document.getElementById('modal-close').addEventListener('click',()=>{modalOverlay.style.display='none';});
-    modalOverlay.addEventListener('click',e=>{if(e.target===modalOverlay)modalOverlay.style.display='none';});
+    // チェック変更で再描画
+    chkSekou.addEventListener('change',renderCal);
+    chkShitami.addEventListener('change',renderCal);
+    chkYotei.addEventListener('change',renderCal);
 
-    // 日リスト
-    const dayListOverlay=document.getElementById('dayListOverlay');
-    document.getElementById('dayListClose').addEventListener('click',()=>{dayListOverlay.style.display='none';});
-    dayListOverlay.addEventListener('click',e=>{if(e.target===dayListOverlay)dayListOverlay.style.display='none';});
+    // モーダル閉じる
+    document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
+    modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
+    document.getElementById('dayListClose').addEventListener('click',function(){dayListOverlay.style.display='none';});
+    dayListOverlay.addEventListener('click',function(e){if(e.target===dayListOverlay)dayListOverlay.style.display='none';});
 
     renderCal();
 
     function renderCal(){
-      const grid=document.getElementById('calGrid');
+      var dateMap=buildDateMap();
+      var grid=document.getElementById('calGrid');
       grid.innerHTML='';
+      document.getElementById('monthLabel').textContent=currentYear+'年 '+(currentMonth+1)+'月';
 
-      document.getElementById('monthLabel').textContent=`${currentYear}年 ${currentMonth+1}月`;
-
-      // 曜日ヘッダー
-      const days=['日','月','火','水','木','金','土'];
-      days.forEach((d,i)=>{
-        let div=document.createElement('div');
+      var days=['日','月','火','水','木','金','土'];
+      days.forEach(function(d,i){
+        var div=document.createElement('div');
         div.className='cal-header'+(i===0?' sun':'')+(i===6?' sat':'');
-        div.textContent=d;
-        grid.appendChild(div);
+        div.textContent=d;grid.appendChild(div);
       });
 
-      // 月の最初の日と最後の日
-      let firstDay=new Date(currentYear,currentMonth,1);
-      let lastDay=new Date(currentYear,currentMonth+1,0);
-      let startDow=firstDay.getDay(); // 0=日
-      let totalDays=lastDay.getDate();
+      var firstDay=new Date(currentYear,currentMonth,1);
+      var lastDay=new Date(currentYear,currentMonth+1,0);
+      var startDow=firstDay.getDay();
+      var totalDays=lastDay.getDate();
 
       // 前月埋め
-      let prevLast=new Date(currentYear,currentMonth,0);
-      let prevDays=prevLast.getDate();
-      for(let i=startDow-1;i>=0;i--){
-        let day=prevDays-i;
-        let m=currentMonth-1;let y=currentYear;if(m<0){m=11;y--;}
-        let dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-        grid.appendChild(createCell(day,dateStr,true,startDow-1-i));
+      var prevLast=new Date(currentYear,currentMonth,0);
+      var prevDays=prevLast.getDate();
+      for(var i=startDow-1;i>=0;i--){
+        var day=prevDays-i;
+        var m=currentMonth-1;var y=currentYear;if(m<0){m=11;y--;}
+        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(day).padStart(2,'0');
+        grid.appendChild(createCell(day,ds,true,startDow-1-i,dateMap));
       }
 
       // 当月
-      for(let d=1;d<=totalDays;d++){
-        let dateStr=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        let dow=(startDow+d-1)%7;
-        grid.appendChild(createCell(d,dateStr,false,dow));
+      for(var d=1;d<=totalDays;d++){
+        var ds=currentYear+"-"+String(currentMonth+1).padStart(2,'0')+"-"+String(d).padStart(2,'0');
+        var dow=(startDow+d-1)%7;
+        grid.appendChild(createCell(d,ds,false,dow,dateMap));
       }
 
-      // 次月埋め（6行=42セルになるまで）
-      let totalCells=startDow+totalDays;
-      let remaining=Math.ceil(totalCells/7)*7-totalCells;
-      for(let i=1;i<=remaining;i++){
-        let m=currentMonth+1;let y=currentYear;if(m>11){m=0;y++;}
-        let dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        let dow=(totalCells+i-1)%7;
-        grid.appendChild(createCell(i,dateStr,true,dow));
+      // 次月埋め
+      var totalCells=startDow+totalDays;
+      var remaining=Math.ceil(totalCells/7)*7-totalCells;
+      for(var i=1;i<=remaining;i++){
+        var m=currentMonth+1;var y=currentYear;if(m>11){m=0;y++;}
+        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(i).padStart(2,'0');
+        var dow=(totalCells+i-1)%7;
+        grid.appendChild(createCell(i,ds,true,dow,dateMap));
       }
     }
 
-    function createCell(dayNum,dateStr,isOther,dow){
-      let cell=document.createElement('div');
+    function createCell(dayNum,dateStr,isOther,dow,dateMap){
+      var cell=document.createElement('div');
       cell.className='cal-cell'+(isOther?' other-month':'')+(dateStr===todayStr?' today':'');
 
-      let numDiv=document.createElement('div');
+      var numDiv=document.createElement('div');
       numDiv.className='day-num'+(dow===0?' sun':'')+(dow===6?' sat':'');
       numDiv.textContent=dayNum;
       cell.appendChild(numDiv);
 
-      let events=dateMap[dateStr]||[];
-      let maxShow=3;
+      var events=dateMap[dateStr]||[];
+      var maxShow=3;
 
-      events.slice(0,maxShow).forEach(ev=>{
-        let evDiv=document.createElement('div');
+      events.slice(0,maxShow).forEach(function(ev){
+        var evDiv=document.createElement('div');
         evDiv.className='cal-event ev-'+ev.type;
         evDiv.textContent=ev.label;
-        evDiv.addEventListener('click',e=>{e.stopPropagation();openModal(ev.key,ev.obj,ev.cols);});
+        evDiv.addEventListener('click',function(e){e.stopPropagation();openModal(ev.key,ev.obj,ev.cols);});
         cell.appendChild(evDiv);
       });
 
       if(events.length>maxShow){
-        let more=document.createElement('div');
+        var more=document.createElement('div');
         more.className='cal-more';
-        more.textContent=`他 ${events.length-maxShow} 件`;
+        more.textContent='他 '+(events.length-maxShow)+' 件';
         cell.appendChild(more);
       }
 
-      // セルクリック→日リスト
-      cell.addEventListener('click',()=>{
+      cell.addEventListener('click',function(){
         if(events.length===0)return;
         openDayList(dateStr,events);
       });
@@ -278,99 +277,90 @@
       return cell;
     }
 
-    // 日リストパネル
     function openDayList(dateStr,events){
-      let html=`<h3>📅 ${dateStr}（${events.length}件）</h3>`;
-      events.forEach(ev=>{
-        let tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':'ev-yotei';
-        let tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':'予定';
-        let name=getSafeVal(ev.cols,4).trim()||"名称未設定";
-        let company=getSafeVal(ev.cols,5).trim();
-        html+=`<div class="day-list-item" data-key="${ev.key}">
-          <span class="ev-tag ${tagClass}">${tagText}</span>
-          <span style="font-weight:bold;font-size:13px;">${name}</span>
-          <span style="color:#666;font-size:11px;">${company}</span>
-        </div>`;
+      var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
+      events.forEach(function(ev){
+        var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':'ev-yotei';
+        var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':'予定';
+        var name=getSafeVal(ev.cols,4).trim()||"名称未設定";
+        var company=getSafeVal(ev.cols,5).trim();
+        html+='<div class="day-list-item" data-key="'+ev.key+'">'+
+          '<span class="ev-tag '+tagClass+'">'+tagText+'</span>'+
+          '<span style="font-weight:bold;font-size:13px;">'+name+'</span>'+
+          '<span style="color:#666;font-size:11px;">'+company+'</span></div>';
       });
       document.getElementById('dayListBody').innerHTML=html;
       dayListOverlay.style.display='block';
 
-      // 各アイテムクリック→モーダル
-      document.querySelectorAll('.day-list-item').forEach(item=>{
-        item.addEventListener('click',()=>{
-          let k=item.dataset.key;
-          let obj=globalTasks[k];
-          if(!obj)return;
+      document.querySelectorAll('.day-list-item').forEach(function(item){
+        item.addEventListener('click',function(){
+          var k=item.dataset.key;
+          var obj=globalTasks[k];if(!obj)return;
           dayListOverlay.style.display='none';
           openModal(k,obj,obj.csvData);
         });
       });
     }
 
-    // === モーダル（リストページと同じ） ===
-    const timeOpts=generateTimeOptions();
+    // === モーダル ===
+    var timeOpts=generateTimeOptions();
 
     function openModal(key,obj,cols){
-      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
-      let shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
-      let yoteiStr=obj.date||"未定";
-      let ankenText=getSafeVal(cols,4).trim()||"名称未設定";
+      var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
+      var yoteiStr=obj.date||"未定";
+      var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
 
-      let html=`
-        <div class="modal-header-info">
-          <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${yoteiStr}</div>
-          <div class="modal-title-row">🏷️ ${ankenText}
-            <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
-          </div>
-        </div>
-        <h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>
-        <table class="modal-table">
-      `;
-      globalHeaders.forEach((hdr,index)=>{
-        let val=getSafeVal(cols,index);
-        let dh=val.replace(/\n|\r/g,'<br>');
-        let ct=val.replace(/\s+/g,'');
-        if(index===11&&ct!=="")dh=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ct)}" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ ${val}</a>`;
-        else if(index===6&&ct!=="")dh=`<a href="tel:${ct}" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 ${val}</a>`;
-        html+=`<tr><th>${hdr||`列${index+1}`}</th><td>${dh}</td></tr>`;
+      var html='<div class="modal-header-info">'+
+        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+'</div>'+
+        '<div class="modal-title-row">🏷️ '+ankenText+
+        ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
+        '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
+        '<table class="modal-table">';
+
+      globalHeaders.forEach(function(hdr,index){
+        var val=getSafeVal(cols,index);
+        var dh=val.replace(/\n|\r/g,'<br>');
+        var ct=val.replace(/\s+/g,'');
+        if(index===11&&ct!=="")dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ '+val+'</a>';
+        else if(index===6&&ct!=="")dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 '+val+'</a>';
+        html+='<tr><th>'+(hdr||('列'+(index+1)))+'</th><td>'+dh+'</td></tr>';
       });
-      html+=`</table>`;
+      html+='</table>';
 
-      html+=`
-        <div class="modal-input-section">
-          <h4>📝 入力データ</h4>
-          <div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="${obj.date||''}" /></div>
-          <div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">${timeOpts}</select></div>
-          <div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="${obj.order||''}" /></div>
-          <div style="margin-top:10px;">
-            <button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>
-            <span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>
-          </div>
-        </div>`;
+      html+='<div class="modal-input-section">'+
+        '<h4>📝 入力データ</h4>'+
+        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>'+
+        '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">'+timeOpts+'</select></div>'+
+        '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div>'+
+        '<div style="margin-top:10px;">'+
+        '<button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
+        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>'+
+        '</div></div>';
 
       document.getElementById('modal-body').innerHTML=html;
       modalOverlay.style.display='block';
       document.getElementById('modal-time').value=obj.time||'';
 
       document.getElementById('modal-copy-btn').addEventListener('click',function(){
-        navigator.clipboard.writeText(ankenText).then(()=>{
-          this.textContent="✔ コピー完了！";this.classList.add('copied');
-          setTimeout(()=>{this.textContent="コピー";this.classList.remove('copied');},2000);
+        navigator.clipboard.writeText(ankenText).then(function(){
+          document.getElementById('modal-copy-btn').textContent="✔ コピー完了！";
+          document.getElementById('modal-copy-btn').classList.add('copied');
+          setTimeout(function(){document.getElementById('modal-copy-btn').textContent="コピー";document.getElementById('modal-copy-btn').classList.remove('copied');},2000);
         });
       });
 
       document.getElementById('modal-save-btn').addEventListener('click',function(){
-        let nd=document.getElementById('modal-date').value;
-        let nt=document.getElementById('modal-time').value;
-        let no=document.getElementById('modal-order').value;
+        var nd=document.getElementById('modal-date').value;
+        var nt=document.getElementById('modal-time').value;
+        var no=document.getElementById('modal-order').value;
         database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
         globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
         fullData.app_tasks=globalTasks;
         localStorage.setItem('appData',JSON.stringify(fullData));
-        let msg=document.getElementById('modal-save-msg');
+        var msg=document.getElementById('modal-save-msg');
         msg.style.display='inline';
-        setTimeout(()=>{msg.style.display='none';},2000);
-        document.querySelector('.modal-date-row').innerHTML=`🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${nd||"未定"}`;
+        setTimeout(function(){msg.style.display='none';},2000);
       });
     }
   </script>
