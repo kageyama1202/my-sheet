@@ -130,6 +130,7 @@
       var s=getSafeVal(c,1).replace(/\s+/g,"");
       var sd=formatToYMD(getSafeVal(c,2));
       if(s==="完了"&&sd<todayStr)return;
+      if(sd&&sd<todayStr)return;
       if(s)stSet[s]=true;
       var k=getSafeVal(c,3).replace(/\s+/g,"");
       if(k)kbSet[k]=true;
@@ -258,6 +259,7 @@
         var status=getSafeVal(cols,1).replace(/\s+/g,"");
         var sekouDate=formatToYMD(getSafeVal(cols,2));
         if(status==="完了"&&sekouDate<todayStr)return;
+        if(sekouDate&&sekouDate<todayStr)return;
         var addr=getSafeVal(cols,11).replace(/\s+/g,"");
         if(!addr)return;
 
