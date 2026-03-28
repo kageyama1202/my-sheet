@@ -347,7 +347,7 @@
         const obj=globalTasks[key],cols=obj.csvData;
         const tr=document.createElement('tr');
         let tdNo=document.createElement('td');tdNo.className='col-no';
-        tdNo.textContent=idx+1;tdNo.style.color='#888';tr.appendChild(tdNo);
+        tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
 
         displayCols.forEach((ci,i)=>{
           let c=getSafeVal(cols,ci);
