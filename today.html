@@ -318,7 +318,8 @@
         if(!cols)return false;
         let status=getSafeVal(cols,1).replace(/\s+/g,"");
         let sekouDate=formatToYMD(getSafeVal(cols,2));
-        if(status==="完了"&&sekouDate<today&&!showKanryo)return false;
+        // 施工日が過去 → 基本非表示（トグルで表示可）
+        if(sekouDate<today&&!showKanryo)return false;
         if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
         let kubun=getSafeVal(cols,3).replace(/\s+/g,"");
         if(cKub.length>0&&!cKub.includes(kubun))return false;
