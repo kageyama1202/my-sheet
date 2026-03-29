@@ -81,7 +81,9 @@ body {
   margin: 0 auto;
   padding: 12px;
 }
-.date-group { margin-bottom: 8px; }
+.date-group {
+  margin-bottom: 8px;
+}
 .date-label {
   position: sticky;
   top: 120px;
@@ -124,8 +126,14 @@ body {
 }
 .msg-source.imessage { background: #1b3a1b; color: #66bb6a; }
 .msg-source.gmail { background: #3a1b1b; color: #ef5350; }
-.msg-dir { font-size: 11px; color: #888; }
-.msg-time { font-size: 11px; color: #666; }
+.msg-dir {
+  font-size: 11px;
+  color: #888;
+}
+.msg-time {
+  font-size: 11px;
+  color: #666;
+}
 .msg-contact {
   font-size: 13px;
   font-weight: 600;
@@ -133,15 +141,9 @@ body {
   margin-bottom: 4px;
   word-break: break-all;
 }
-.msg-contact a { color: #64b5f6; text-decoration: none; }
-.msg-contact-name {
-  color: #fff;
-  font-weight: 700;
-}
-.msg-contact-company {
-  font-size: 11px;
-  color: #888;
-  margin-left: 6px;
+.msg-contact a {
+  color: #64b5f6;
+  text-decoration: none;
 }
 .msg-case {
   display: inline-block;
@@ -150,6 +152,16 @@ body {
   border-radius: 10px;
   background: #3e2723;
   color: #ffab40;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.msg-email-match {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: #1a237e;
+  color: #82b1ff;
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -225,25 +237,25 @@ body {
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var allRecords = [];
 var phoneToCases = {};   // phone -> {name, person, key} from app_tasks
-var phoneToContact = {}; // phone -> {name, company} from app_contacts
-var emailToContact = {}; // email -> {name, company} from app_contacts
+var emailToContact = {}; // email -> {name, company, category} from app_contacts
+var phoneToContact = {}; // phone -> {name, company, category} from app_contacts
 var activeFilter = "all";
 var searchText = "";
 
 function normalizePhone(raw) {
   if (!raw) return "";
-  var s = raw.replace(/[\s\-\(\)\.]/g, "");
+  var s = raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, "");
   s = s.replace(/^\+81/, "0");
   s = s.replace(/^81(?=\d{9,10})/, "0");
   s = s.replace(/[^0-9]/g, "");
   return s;
 }
 
-function extractEmail(raw) {
-  if (!raw) return "";
-  var m = raw.match(/<([^>]+)>/);
-  if (m) return m[1].toLowerCase().trim();
-  if (raw.indexOf("@") >= 0) return raw.toLowerCase().trim();
+function extractEmail(fromStr) {
+  if (!fromStr) return "";
+  var match = fromStr.match(/<([^>]+)>/);
+  if (match) return match[1].toLowerCase().trim();
+  if (fromStr.indexOf("@") > -1) return fromStr.toLowerCase().trim();
   return "";
 }
 
@@ -277,57 +289,51 @@ function contactDisplay(rec) {
   if (rec.src === "imessage") {
     var phone = rec.contact || "";
     var cleaned = normalizePhone(phone);
-    var contactInfo = phoneToContact[cleaned];
-    var nameHtml = "";
-    if (contactInfo) {
-      nameHtml = '<span class="msg-contact-name">' + contactInfo.name + '</span>';
-      if (contactInfo.company) {
-        nameHtml += '<span class="msg-contact-company">' + contactInfo.company + '</span>';
-      }
-      nameHtml += '<br>';
+    // Show contact name if found
+    var cInfo = phoneToContact[cleaned];
+    var nameLabel = "";
+    if (cInfo && cInfo.name) {
+      nameLabel = '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company || "") + '</span><br>';
     }
     if (cleaned.length >= 10) {
-      return nameHtml + '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
+      return nameLabel + '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
     }
-    return nameHtml + phone;
+    return nameLabel + phone;
   } else {
-    var rawFrom = rec.contact || "";
-    var email = extractEmail(rawFrom);
-    var contactInfo = emailToContact[email];
-    if (contactInfo) {
-      var html = '<span class="msg-contact-name">' + contactInfo.name + '</span>';
-      if (contactInfo.company) {
-        html += '<span class="msg-contact-company">' + contactInfo.company + '</span>';
-      }
-      html += '<br><span style="color:#666;font-size:11px">' + email + '</span>';
-      return html;
+    var email = extractEmail(rec.contact);
+    var cInfo = emailToContact[email];
+    if (cInfo && cInfo.name) {
+      return '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company || "") + '</span><br><span style="color:#555;font-size:11px">' + email + '</span>';
     }
-    var match = rawFrom.match(/"?([^"<]+)"?\s*<([^>]+)>/);
+    var match = rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
     if (match) {
-      return match[1].trim() + ' <span style="color:#666">' + match[2] + '</span>';
+      return match[1].trim() + '<br><span style="color:#555;font-size:11px">' + match[2] + '</span>';
     }
-    return rawFrom;
+    return rec.contact || "";
   }
 }
 
 function lookupMatch(rec) {
-  // iMessage: phone -> case (from app_tasks)
+  // 1. SMS: phone -> app_tasks (case match)
   if (rec.src === "imessage") {
     var normalized = normalizePhone(rec.contact);
-    if (phoneToCases[normalized]) return phoneToCases[normalized];
-    // Also check if phone is in contacts (work-related)
-    if (phoneToContact[normalized]) {
-      return { name: phoneToContact[normalized].company || "", person: phoneToContact[normalized].name, key: "" };
+    if (phoneToCases[normalized]) {
+      return { type: "case", data: phoneToCases[normalized] };
     }
-    return null;
+    // Also check app_contacts for phone
+    if (phoneToContact[normalized] && phoneToContact[normalized].category !== "その他") {
+      return { type: "contact", data: phoneToContact[normalized] };
+    }
   }
-  // Gmail: email -> contact (from app_contacts)
+  // 2. Gmail: email -> app_contacts
   if (rec.src === "gmail") {
     var email = extractEmail(rec.contact);
     if (emailToContact[email]) {
-      return { name: emailToContact[email].company || "", person: emailToContact[email].name, key: "" };
+      var c = emailToContact[email];
+      if (c.category !== "その他") {
+        return { type: "contact", data: c };
+      }
     }
-    return null;
   }
   return null;
 }
@@ -337,21 +343,18 @@ function matchesFilter(rec) {
   if (activeFilter === "gmail" && rec.src !== "gmail") return false;
   if (activeFilter === "sent" && rec.dir !== "sent") return false;
   if (activeFilter === "received" && rec.dir !== "received") return false;
-  if (activeFilter === "work" && !rec._caseMatch) return false;
+  if (activeFilter === "work" && !rec._match) return false;
   if (searchText) {
     var s = searchText.toLowerCase();
     var hay = ((rec.contact||"") + " " + (rec.subject||"") + " " + (rec.body||"")).toLowerCase();
-    if (rec._caseMatch) {
-      hay += " " + (rec._caseMatch.name || "").toLowerCase();
-      hay += " " + (rec._caseMatch.person || "").toLowerCase();
+    if (rec._match) {
+      if (rec._match.type === "case") {
+        hay += " " + (rec._match.data.name || "") + " " + (rec._match.data.person || "");
+      } else {
+        hay += " " + (rec._match.data.name || "") + " " + (rec._match.data.company || "");
+      }
     }
-    var normalized = normalizePhone(rec.contact);
-    var ci = phoneToContact[normalized];
-    if (ci) hay += " " + (ci.name || "").toLowerCase() + " " + (ci.company || "").toLowerCase();
-    var email = extractEmail(rec.contact);
-    var ei = emailToContact[email];
-    if (ei) hay += " " + (ei.name || "").toLowerCase() + " " + (ei.company || "").toLowerCase();
-    if (hay.indexOf(s) === -1) return false;
+    if (hay.toLowerCase().indexOf(s) === -1) return false;
   }
   return true;
 }
@@ -372,7 +375,7 @@ function render() {
 
   var totalMatched = 0;
   for (var i = 0; i < allRecords.length; i++) {
-    if (allRecords[i]._caseMatch) totalMatched++;
+    if (allRecords[i]._match) totalMatched++;
   }
   document.getElementById("matchSummary").textContent =
     "🔗 仕事紐付き: " + totalMatched + "件 / 未紐付き: " + (allRecords.length - totalMatched) + "件";
@@ -404,7 +407,7 @@ function render() {
       var rec = msgs[m];
       var cardClass = "msg-card " + rec.src;
       if (rec.dir === "sent") cardClass += " sent";
-      if (rec._caseMatch) cardClass += " matched";
+      if (rec._match) cardClass += " matched";
       html += '<div class="' + cardClass + '">';
       html += '<div class="msg-top">';
       html += '<div>';
@@ -415,12 +418,20 @@ function render() {
       html += '</div>';
       html += '<span class="msg-time">' + rec._timeStr + '</span>';
       html += '</div>';
-      if (rec._caseMatch && rec._caseMatch.name) {
-        html += '<div><span class="msg-case">🏗️ ' + rec._caseMatch.name + '</span>';
-        if (rec._caseMatch.person) {
-          html += '<span class="msg-case-person">' + rec._caseMatch.person + '</span>';
+      if (rec._match) {
+        if (rec._match.type === "case") {
+          html += '<div><span class="msg-case">🏗️ ' + rec._match.data.name + '</span>';
+          if (rec._match.data.person) {
+            html += '<span class="msg-case-person">' + rec._match.data.person + '</span>';
+          }
+          html += '</div>';
+        } else {
+          html += '<div><span class="msg-email-match">👤 ' + rec._match.data.name + '</span>';
+          if (rec._match.data.company) {
+            html += '<span class="msg-case-person">' + rec._match.data.company + '</span>';
+          }
+          html += '</div>';
         }
-        html += '</div>';
       }
       html += '<div class="msg-contact">' + contactDisplay(rec) + '</div>';
       if (rec.subject) {
@@ -456,20 +467,18 @@ document.getElementById("searchBox").addEventListener("input", function() {
   }, 300);
 });
 
-// Load state
-var tasksLoaded = false;
-var contactsLoaded = false;
-var commsLoaded = false;
+// Data loading
+var loadState = { tasks: false, contacts: false, comms: false };
 
 function tryRender() {
-  if (!tasksLoaded || !contactsLoaded || !commsLoaded) return;
+  if (!loadState.tasks || !loadState.contacts || !loadState.comms) return;
   for (var i = 0; i < allRecords.length; i++) {
-    allRecords[i]._caseMatch = lookupMatch(allRecords[i]);
+    allRecords[i]._match = lookupMatch(allRecords[i]);
   }
   render();
 }
 
-// Load app_tasks (phone -> case matching)
+// 1. Load app_tasks (phone -> case mapping)
 fetch(FB_URL + "/app_tasks.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -490,55 +499,49 @@ fetch(FB_URL + "/app_tasks.json")
           }
         }
       }
-      console.log("Task phone mappings: " + Object.keys(phoneToCases).length);
+      console.log("Case phone mappings: " + Object.keys(phoneToCases).length);
     }
-    tasksLoaded = true;
+    loadState.tasks = true;
     tryRender();
   })
   .catch(function(e) {
     console.error("Tasks load error:", e);
-    tasksLoaded = true;
+    loadState.tasks = true;
     tryRender();
   });
 
-// Load app_contacts (phone + email -> contact name/company)
+// 2. Load app_contacts (email + phone -> contact mapping)
 fetch(FB_URL + "/app_contacts.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data) {
       var arr = Array.isArray(data) ? data : Object.values(data);
       for (var i = 0; i < arr.length; i++) {
+        if (!arr[i]) continue;
         var c = arr[i];
-        if (!c) continue;
-        var info = { name: c.name || "", company: c.company || "" };
-        // Phone mapping
-        if (c.phone) {
-          var np = normalizePhone(c.phone);
-          if (np.length >= 10 && !phoneToContact[np]) {
-            phoneToContact[np] = info;
-          }
+        var email = (c.email || "").toLowerCase().trim();
+        var phone = normalizePhone(c.phone || "");
+        var info = { name: c.name || "", company: c.company || "", category: c.category || "" };
+        if (email && !emailToContact[email]) {
+          emailToContact[email] = info;
         }
-        // Email mapping
-        if (c.email) {
-          var em = c.email.toLowerCase().trim();
-          if (em && !emailToContact[em]) {
-            emailToContact[em] = info;
-          }
+        if (phone.length >= 10 && !phoneToContact[phone]) {
+          phoneToContact[phone] = info;
         }
       }
-      console.log("Contact phone mappings: " + Object.keys(phoneToContact).length);
       console.log("Contact email mappings: " + Object.keys(emailToContact).length);
+      console.log("Contact phone mappings: " + Object.keys(phoneToContact).length);
     }
-    contactsLoaded = true;
+    loadState.contacts = true;
     tryRender();
   })
   .catch(function(e) {
     console.error("Contacts load error:", e);
-    contactsLoaded = true;
+    loadState.contacts = true;
     tryRender();
   });
 
-// Load app_communications
+// 3. Load app_communications
 fetch(FB_URL + "/app_communications.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -557,7 +560,7 @@ fetch(FB_URL + "/app_communications.json")
       allRecords.push(rec);
     }
     allRecords.sort(function(a, b) { return b._sortKey - a._sortKey; });
-    commsLoaded = true;
+    loadState.comms = true;
     tryRender();
   })
   .catch(function(e) {
