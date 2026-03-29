@@ -1,8 +1,8 @@
-/* shared-modal.js — 共通モーダル（通信履歴+メモ付き） */
+/* shared-modal.js — 共通モーダル（キーワードマッチ対応） */
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
-var modalCommData = null; // キャッシュ
-var modalContactData = null; // キャッシュ
+var modalCommData = null;
+var modalContactData = null;
 
 function normalizePhoneModal(raw) {
   if (!raw) return "";
@@ -57,7 +57,46 @@ function formatToYMDModal(ds) {
   return d;
 }
 
-// 通信データをロード（初回のみ）
+// 案件からキーワードを抽出
+function extractCaseKeywords(csvData) {
+  var keywords = [];
+  var caseName = getSafeValModal(csvData, 4) || "";
+  // 案件名を分割（様邸、手配名など）
+  var parts = caseName.replace(/【[^】]*】/g, " ").replace(/[（()）\[\]]/g, " ").split(/[\s\u3000・]+/);
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (p.length >= 2 && p !== "手配" && p !== "新築" && p !== "工事" && p !== "リフォーム" && p !== "様邸") {
+      keywords.push(p);
+    }
+  }
+  // 「様邸」の前の名前を抽出
+  var nameMatch = caseName.match(/([^\s【】（）]+?)様/);
+  if (nameMatch) keywords.push(nameMatch[1]);
+  // 住所の一部
+  var addr = getSafeValModal(csvData, 11) || "";
+  var addrParts = addr.replace(/北海道/g, "").replace(/札幌市/g, "").match(/[^\s\d\-丁目番号]+/g);
+  if (addrParts) {
+    for (var j = 0; j < addrParts.length; j++) {
+      if (addrParts[j].length >= 2) keywords.push(addrParts[j]);
+    }
+  }
+  return keywords;
+}
+
+// メッセージが案件にマッチするかキーワードスコアリング
+function scoreMessageForCase(msgBody, msgSubject, caseKeywords) {
+  if (!caseKeywords || caseKeywords.length === 0) return 0;
+  var text = ((msgBody || "") + " " + (msgSubject || "")).toLowerCase();
+  if (!text.trim()) return 0;
+  var score = 0;
+  for (var i = 0; i < caseKeywords.length; i++) {
+    if (text.indexOf(caseKeywords[i].toLowerCase()) !== -1) {
+      score += caseKeywords[i].length; // 長いキーワード一致は高スコア
+    }
+  }
+  return score;
+}
+
 function loadCommData(callback) {
   if (modalCommData !== null) { callback(modalCommData); return; }
   fetch(FB_URL + "/app_communications.json")
@@ -71,7 +110,6 @@ function loadCommData(callback) {
     .catch(function () { modalCommData = []; callback([]); });
 }
 
-// 連絡先データをロード（初回のみ）
 function loadContactData(callback) {
   if (modalContactData !== null) { callback(modalContactData); return; }
   fetch(FB_URL + "/app_contacts.json")
@@ -91,46 +129,55 @@ function loadContactData(callback) {
     .catch(function () { modalContactData = {}; callback({}); });
 }
 
-// 案件に関連する通信を取得
+// 案件の通信を取得（キーワードマッチ対応）
 function findCaseComms(csvData, allComms, contacts) {
   var phone = normalizePhoneModal(getSafeValModal(csvData, 6));
-  var person = getSafeValModal(csvData, 5);
-  var caseName = getSafeValModal(csvData, 4);
-  var matched = [];
+  var caseKeywords = extractCaseKeywords(csvData);
 
+  // まず電話番号で候補を絞る
+  var phoneMatched = [];
   for (var i = 0; i < allComms.length; i++) {
     var rec = allComms[i];
     if (!rec) continue;
-    // SMS: 電話番号マッチ
     if (rec.src === "imessage" && phone) {
       var recPhone = normalizePhoneModal(rec.contact);
       if (recPhone === phone) {
-        matched.push(rec);
+        phoneMatched.push(rec);
         continue;
       }
     }
-    // Gmail: 担当者メアドマッチ（連絡先から電話→メアド逆引き）
-    if (rec.src === "gmail" && contacts) {
+    if (rec.src === "gmail" && contacts && phone) {
       var recEmail = extractEmailModal(rec.contact);
-      // app_contactsで同じ電話番号を持つ人のメアドとマッチ
       for (var email in contacts) {
         var ct = contacts[email];
         if (ct.phone && normalizePhoneModal(ct.phone) === phone && email === recEmail) {
-          matched.push(rec);
+          phoneMatched.push(rec);
           break;
         }
       }
     }
   }
 
-  // 日付順（新しい順）
-  matched.sort(function (a, b) {
+  // 同じ電話番号に複数案件があるか確認するため、キーワードスコアで絞り込む
+  var result = [];
+  for (var j = 0; j < phoneMatched.length; j++) {
+    var msg = phoneMatched[j];
+    var score = scoreMessageForCase(msg.body, msg.subject, caseKeywords);
+    // スコア>0: キーワード一致 → この案件のメッセージ
+    // スコア=0: キーワード一致なし → 汎用メッセージ（挨拶等）として含める
+    msg._matchScore = score;
+    result.push(msg);
+  }
+
+  // スコア付きを上に、同スコア内は新しい順
+  result.sort(function (a, b) {
+    if (b._matchScore !== a._matchScore) return b._matchScore - a._matchScore;
     var da = new Date(a.dt).getTime() || 0;
     var db = new Date(b.dt).getTime() || 0;
     return db - da;
   });
 
-  return matched;
+  return result;
 }
 
 function renderCommTimeline(comms) {
@@ -143,10 +190,11 @@ function renderCommTimeline(comms) {
     var rec = comms[i];
     var isSms = rec.src === "imessage";
     var dir = rec.dir === "sent" ? "↑送信" : "↓受信";
-    html += '<div class="comm-item">';
+    var matchIndicator = rec._matchScore > 0 ? ' <span style="color:#ffab40;font-size:9px;">★ キーワード一致</span>' : '';
+    html += '<div class="comm-item"' + (rec._matchScore > 0 ? ' style="border-left:3px solid #ffab40;"' : '') + '>';
     html += '<div class="comm-meta">';
     html += '<div><span class="comm-badge ' + (isSms ? "sms" : "gmail") + '">' + (isSms ? "💬 SMS" : "📧 Gmail") + '</span>';
-    html += ' <span class="comm-dir">' + dir + '</span></div>';
+    html += ' <span class="comm-dir">' + dir + '</span>' + matchIndicator + '</div>';
     html += '<span class="comm-time">' + formatCommDate(rec.dt) + '</span>';
     html += '</div>';
     if (rec.subject) {
@@ -160,7 +208,7 @@ function renderCommTimeline(comms) {
     html += '</div>';
   }
   if (comms.length > 50) {
-    html += '<div class="comm-empty">他 ' + (comms.length - 50) + ' 件（comm.htmlで全件表示）</div>';
+    html += '<div class="comm-empty">他 ' + (comms.length - 50) + ' 件</div>';
   }
   return html;
 }
@@ -177,14 +225,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var timeOpts = generateTimeOptions();
 
   var html = '';
-  // ヘッダー
   html += '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 施工日: ' + sekouStr + '　|　📋 下見日: ' + shitamiStr + '　|　📅 予定日: ' + yoteiStr + '</div>';
   html += '<div class="modal-title-row">🏷️ ' + ankenText;
   html += ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>';
   html += '</div></div>';
 
-  // CSVデータ
   html += '<div class="modal-section"><h4>📄 CSVデータ</h4>';
   html += '<table class="modal-table">';
   for (var idx = 0; idx < globalHeaders.length; idx++) {
@@ -197,7 +243,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</table></div>';
 
-  // 進捗管理
   html += '<div class="modal-section"><h4 class="green">📝 進捗管理</h4>';
   html += '<div style="margin:10px 0;"><label style="font-weight:bold;font-size:13px;">🚦 ステータス:</label>';
   html += '<div id="kanban-bar" style="margin-top:6px;"></div>';
@@ -207,24 +252,20 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<label><input type="checkbox" id="modal-finalReport"' + (obj.finalReport ? ' checked' : '') + '> 📋 最終報告完了</label>';
   html += '</div></div>';
 
-  // 下見スケジュール
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="' + (obj.date || '') + '" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">' + timeOpts + '</select></div>';
   html += '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="' + (obj.order || '') + '" /></div>';
   html += '</div>';
 
-  // メモ欄
   html += '<div class="modal-section"><h4 class="blue">💬 メモ</h4>';
   html += '<textarea class="modal-memo" id="modal-memo" placeholder="自由にメモを入力...">' + (obj.memo || '') + '</textarea>';
   html += '</div>';
 
-  // 通信履歴（後からロード）
   html += '<div class="modal-section"><h4 class="orange">📨 通信履歴 <span id="comm-count" class="comm-count">読み込み中...</span></h4>';
   html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div>';
   html += '</div>';
 
-  // 保存ボタン
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
@@ -234,7 +275,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('modal-overlay').style.display = 'block';
   document.getElementById('modal-time').value = obj.time || '';
 
-  // カンバンバー構築
+  // カンバンバー
   var kanbanStatuses = ['依頼', '連絡済', '下見日確定', '下見実施済', '報告書提出済'];
   var kanbanColors = ['#90a4ae', '#42a5f5', '#ffb300', '#66bb6a', '#26a69a'];
   var sfStatus = getSafeValModal(cols, 1).replace(/\s+/g, "");
@@ -244,7 +285,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   var kanbanBar = document.getElementById('kanban-bar');
   var selectedStatus = currentStatus;
-
   kanbanStatuses.forEach(function (st, i) {
     var btn = document.createElement('div');
     btn.className = 'kanban-step';
@@ -265,7 +305,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   });
   document.getElementById('kanban-sf-note').textContent = 'SF側: ' + sfStatus;
 
-  // コピーボタン
   document.getElementById('modal-copy-btn').addEventListener('click', function () {
     var self = this;
     navigator.clipboard.writeText(ankenText).then(function () {
@@ -274,7 +313,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   });
 
-  // 保存ボタン
   document.getElementById('modal-save-btn').addEventListener('click', function () {
     var nd = document.getElementById('modal-date').value;
     var nt = document.getElementById('modal-time').value;
@@ -297,22 +335,22 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     document.querySelector('.modal-date-row').innerHTML = '🔨 施工日: ' + sekouStr + '　|　📋 下見日: ' + shitamiStr + '　|　📅 予定日: ' + (nd || "未定");
   });
 
-  // 通信履歴をロード
+  // 通信履歴ロード
   loadCommData(function (allComms) {
     loadContactData(function (contacts) {
       var caseComms = findCaseComms(cols, allComms, contacts);
+      var kwCount = 0;
+      for (var k = 0; k < caseComms.length; k++) { if (caseComms[k]._matchScore > 0) kwCount++; }
       document.getElementById('modal-comm-area').innerHTML = renderCommTimeline(caseComms);
-      document.getElementById('comm-count').textContent = caseComms.length + '件';
+      document.getElementById('comm-count').textContent = caseComms.length + '件（キーワード一致: ' + kwCount + '件）';
     });
   });
 
-  // モーダル閉じる
   document.getElementById('modal-close').addEventListener('click', function () {
     document.getElementById('modal-overlay').style.display = 'none';
   });
   document.getElementById('modal-overlay').addEventListener('click', function (e) {
-    if (e.target === document.getElementById('modal-overlay')) {
+    if (e.target === document.getElementById('modal-overlay'))
       document.getElementById('modal-overlay').style.display = 'none';
-    }
   });
 }
