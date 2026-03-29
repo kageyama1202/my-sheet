@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>通信タイムライン</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+.header {
+  background: #1a1d27;
+  border-bottom: 1px solid #2a2d3a;
+  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+}
+.header h1 span { color: #64b5f6; }
+.stats {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 10px;
+}
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filter-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #3a3d4a;
+  background: transparent;
+  color: #aaa;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.filter-btn:hover { border-color: #64b5f6; }
+.search-box {
+  flex: 1;
+  min-width: 150px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #3a3d4a;
+  background: #12141c;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+}
+.search-box:focus { border-color: #2563eb; }
+.search-box::placeholder { color: #666; }
+.timeline {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 12px;
+}
+.date-group {
+  margin-bottom: 8px;
+}
+.date-label {
+  position: sticky;
+  top: 88px;
+  background: #0f1117;
+  padding: 8px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64b5f6;
+  border-bottom: 1px solid #1e2130;
+  margin-bottom: 6px;
+  z-index: 50;
+}
+.msg-card {
+  background: #1a1d27;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 6px;
+  border-left: 3px solid #333;
+  transition: background 0.15s;
+}
+.msg-card:hover { background: #1f2233; }
+.msg-card.imessage { border-left-color: #4caf50; }
+.msg-card.gmail { border-left-color: #f44336; }
+.msg-card.sent { border-left-color: #2196f3; }
+.msg-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.msg-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.msg-source.imessage { background: #1b3a1b; color: #66bb6a; }
+.msg-source.gmail { background: #3a1b1b; color: #ef5350; }
+.msg-dir {
+  font-size: 11px;
+  color: #888;
+}
+.msg-time {
+  font-size: 11px;
+  color: #666;
+}
+.msg-contact {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.msg-contact a {
+  color: #64b5f6;
+  text-decoration: none;
+}
+.msg-subject {
+  font-size: 12px;
+  color: #f0c040;
+  margin-bottom: 4px;
+}
+.msg-body {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.loading {
+  text-align: center;
+  padding: 60px;
+  color: #666;
+  font-size: 14px;
+}
+.back-link {
+  display: inline-block;
+  color: #64b5f6;
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.count-badge {
+  display: inline-block;
+  background: #2a2d3a;
+  color: #aaa;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+.no-results {
+  text-align: center;
+  padding: 40px;
+  color: #555;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back-link">← トップ</a>
+  <h1>📨 <span>通信タイムライン</span></h1>
+  <div class="stats" id="stats">読み込み中...</div>
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">全て</button>
+    <button class="filter-btn" data-filter="imessage">💬 SMS</button>
+    <button class="filter-btn" data-filter="gmail">📧 Gmail</button>
+    <button class="filter-btn" data-filter="sent">↑ 送信</button>
+    <button class="filter-btn" data-filter="received">↓ 受信</button>
+    <input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文）">
+  </div>
+</div>
+
+<div class="timeline" id="timeline">
+  <div class="loading">⏳ Firebaseからデータ取得中...</div>
+</div>
+
+<script>
+var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
+var allRecords = [];
+var activeFilters = { source: "all", dir: "all" };
+var searchText = "";
+
+function parseDate(rec) {
+  if (rec.src === "imessage") {
+    return new Date(rec.dt);
+  } else {
+    try { return new Date(rec.dt); } catch(e) { return new Date(0); }
+  }
+}
+
+function dateKey(d) {
+  var y = d.getFullYear();
+  var m = ("0" + (d.getMonth()+1)).slice(-2);
+  var dd = ("0" + d.getDate()).slice(-2);
+  return y + "-" + m + "-" + dd;
+}
+
+function timeStr(d) {
+  return ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
+}
+
+function dateLabelText(key) {
+  var parts = key.split("-");
+  var d = new Date(parts[0], parts[1]-1, parts[2]);
+  var days = ["日","月","火","水","木","金","土"];
+  return parts[0] + "/" + parseInt(parts[1]) + "/" + parseInt(parts[2]) + " (" + days[d.getDay()] + ")";
+}
+
+function contactDisplay(rec) {
+  if (rec.src === "imessage") {
+    var phone = rec.contact || "";
+    var cleaned = phone.replace(/\+81/, "0").replace(/[^0-9]/g, "");
+    if (cleaned.length >= 10) {
+      return '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
+    }
+    return phone;
+  } else {
+    var match = rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
+    if (match) {
+      return match[1].trim() + ' <span style="color:#666">' + match[2] + '</span>';
+    }
+    return rec.contact || "";
+  }
+}
+
+function matchesFilter(rec) {
+  if (activeFilters.source !== "all" && rec.src !== activeFilters.source) return false;
+  if (activeFilters.dir === "sent" && rec.dir !== "sent") return false;
+  if (activeFilters.dir === "received" && rec.dir !== "received") return false;
+  if (searchText) {
+    var s = searchText.toLowerCase();
+    var hay = ((rec.contact||"") + " " + (rec.subject||"") + " " + (rec.body||"")).toLowerCase();
+    if (hay.indexOf(s) === -1) return false;
+  }
+  return true;
+}
+
+function render() {
+  var filtered = [];
+  for (var i = 0; i < allRecords.length; i++) {
+    if (matchesFilter(allRecords[i])) filtered.push(allRecords[i]);
+  }
+
+  var imCount = 0, gmCount = 0;
+  for (var i = 0; i < filtered.length; i++) {
+    if (filtered[i].src === "imessage") imCount++;
+    else gmCount++;
+  }
+  document.getElementById("stats").textContent =
+    "表示: " + filtered.length + "件（SMS " + imCount + " / Gmail " + gmCount + "）/ 全" + allRecords.length + "件";
+
+  if (filtered.length === 0) {
+    document.getElementById("timeline").innerHTML = '<div class="no-results">該当なし</div>';
+    return;
+  }
+
+  // group by date
+  var groups = {};
+  var groupOrder = [];
+  for (var i = 0; i < filtered.length; i++) {
+    var rec = filtered[i];
+    var key = rec._dateKey;
+    if (!groups[key]) {
+      groups[key] = [];
+      groupOrder.push(key);
+    }
+    groups[key].push(rec);
+  }
+
+  var html = "";
+  for (var g = 0; g < groupOrder.length; g++) {
+    var key = groupOrder[g];
+    var msgs = groups[key];
+    html += '<div class="date-group">';
+    html += '<div class="date-label">' + dateLabelText(key) + '<span class="count-badge">' + msgs.length + '件</span></div>';
+    for (var m = 0; m < msgs.length; m++) {
+      var rec = msgs[m];
+      var cardClass = "msg-card " + rec.src;
+      if (rec.dir === "sent") cardClass += " sent";
+      html += '<div class="' + cardClass + '">';
+      html += '<div class="msg-top">';
+      html += '<div>';
+      html += '<span class="msg-source ' + rec.src + '">' + (rec.src === "imessage" ? "💬 SMS" : "📧 Gmail") + '</span>';
+      if (rec.dir) {
+        html += ' <span class="msg-dir">' + (rec.dir === "sent" ? "↑送信" : "↓受信") + '</span>';
+      }
+      html += '</div>';
+      html += '<span class="msg-time">' + rec._timeStr + '</span>';
+      html += '</div>';
+      html += '<div class="msg-contact">' + contactDisplay(rec) + '</div>';
+      if (rec.subject) {
+        html += '<div class="msg-subject">📋 ' + rec.subject + '</div>';
+      }
+      if (rec.body) {
+        var bodyText = rec.body.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        html += '<div class="msg-body">' + bodyText + '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  document.getElementById("timeline").innerHTML = html;
+}
+
+// Filter buttons
+document.querySelectorAll(".filter-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    var f = this.getAttribute("data-filter");
+    if (f === "all" || f === "imessage" || f === "gmail") {
+      activeFilters.source = f;
+      activeFilters.dir = "all";
+    } else {
+      activeFilters.source = "all";
+      activeFilters.dir = f;
+    }
+    document.querySelectorAll(".filter-btn").forEach(function(b) { b.classList.remove("active"); });
+    this.classList.add("active");
+    render();
+  });
+});
+
+// Search
+var searchTimer = null;
+document.getElementById("searchBox").addEventListener("input", function() {
+  clearTimeout(searchTimer);
+  var val = this.value;
+  searchTimer = setTimeout(function() {
+    searchText = val;
+    render();
+  }, 300);
+});
+
+// Load from Firebase
+fetch(FB_URL + "/app_communications.json")
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data) {
+      document.getElementById("timeline").innerHTML = '<div class="no-results">データなし</div>';
+      return;
+    }
+    var arr = Array.isArray(data) ? data : Object.values(data);
+    for (var i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      var rec = arr[i];
+      var d = parseDate(rec);
+      rec._dateKey = dateKey(d);
+      rec._timeStr = timeStr(d);
+      rec._sortKey = d.getTime();
+      allRecords.push(rec);
+    }
+    allRecords.sort(function(a, b) { return b._sortKey - a._sortKey; });
+    render();
+  })
+  .catch(function(e) {
+    document.getElementById("timeline").innerHTML = '<div class="no-results">エラー: ' + e.message + '</div>';
+  });
+</script>
+</body>
+</html>
