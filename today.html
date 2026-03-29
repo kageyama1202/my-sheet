@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <link rel="stylesheet" href="shared-modal.css">
   <style>
     *{box-sizing:border-box;}
     body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
@@ -53,23 +54,6 @@
     .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
 
     #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
-
-    #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
-    #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
-    #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
-    .modal-header-info{margin-bottom:12px;}
-    .modal-date-row{font-size:13px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
-    .modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
-    .modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
-    .modal-copy-btn.copied{background:#28a745;}
-    .modal-table{width:100%;border-collapse:collapse;margin-top:12px;}
-    .modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;}
-    .modal-table th{background:#f8f9fa;width:28%;color:#495057;}
-    .modal-input-section{margin-top:18px;}
-    .modal-input-section h4{color:#155724;border-bottom:2px solid #28a745;padding-bottom:4px;font-size:14px;}
-    .modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
-    .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
-    .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
 
     .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
     #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
@@ -145,41 +129,40 @@
     </table>
   </div>
 
+  <script src="shared-modal.js"></script>
   <script>
-    const firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-    const database=firebase.database();
+    var database=firebase.database();
 
-    const tooltip=document.getElementById('tooltip');
-    const dateFrom=document.getElementById('dateFrom');
-    const dateTo=document.getElementById('dateTo');
-    const chkSekou=document.getElementById('chkSekou');
-    const chkShitami=document.getElementById('chkShitami');
-    const chkYotei=document.getElementById('chkYotei');
-    const modalOverlay=document.getElementById('modal-overlay');
-    const searchInput=document.getElementById('searchInput');
+    var tooltip=document.getElementById('tooltip');
+    var dateFrom=document.getElementById('dateFrom');
+    var dateTo=document.getElementById('dateTo');
+    var chkSekou=document.getElementById('chkSekou');
+    var chkShitami=document.getElementById('chkShitami');
+    var chkYotei=document.getElementById('chkYotei');
+    var searchInput=document.getElementById('searchInput');
 
-    const displayCols=[1,3,4,5,6,7,10,11,2,12];
-    const colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date'];
+    var displayCols=[1,3,4,5,6,7,10,11,2,12];
+    var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date'];
 
-    function getColLetter(i){let l='';while(i>=0){l=String.fromCharCode((i%26)+65)+l;i=Math.floor(i/26)-1;}return l;}
+    function getColLetter(i){var l='';while(i>=0){l=String.fromCharCode((i%26)+65)+l;i=Math.floor(i/26)-1;}return l;}
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
-    function formatToYMD(ds){if(!ds)return"";let d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");let p=d.split("-");if(p.length===3)return`${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;return d;}
-    function generateTimeOptions(){let o='<option value="">--:--</option>';for(let h=8;h<=20;h++){let hh=('0'+h).slice(-2);o+=`<option value="${hh}:00">${hh}:00</option><option value="${hh}:30">${hh}:30</option>`;}return o;}
+    function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
     function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
-    function extractArea(addr){if(!addr)return"";let a=addr.replace(/\s+/g,"");let s=a.match(/札幌市(.+?区)/);if(s)return s[1];let c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];let t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
-    function getTodayStr(){let t=new Date();return`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;}
-    function addDays(s,n){let d=new Date(s);d.setDate(d.getDate()+n);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+    function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s=a.match(/札幌市(.+?区)/);if(s)return s[1];var c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];var t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
+    function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
+    function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
     function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
 
-    const todayStr=getTodayStr();
+    var todayStr=getTodayStr();
     dateFrom.value=todayStr;dateTo.value=todayStr;
 
-    document.getElementById('dateToday').addEventListener('click',()=>{dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
-    document.getElementById('dateWeek').addEventListener('click',()=>{dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
-    document.getElementById('dateMonth').addEventListener('click',()=>{dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
-    document.getElementById('dateFuture').addEventListener('click',()=>{dateFrom.value=todayStr;dateTo.value='';renderTable();});
-    document.getElementById('dateClear').addEventListener('click',()=>{dateFrom.value='';dateTo.value='';renderTable();});
+    document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
+    document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
+    document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
+    document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
+    document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
     dateFrom.addEventListener('change',renderTable);
     dateTo.addEventListener('change',renderTable);
     chkSekou.addEventListener('change',renderTable);
@@ -187,17 +170,14 @@
     chkYotei.addEventListener('change',renderTable);
     searchInput.addEventListener('input',applyTextSearch);
 
-    let showKanryo=false;
+    var showKanryo=false;
     document.getElementById('kanryoToggle').addEventListener('click',function(){
       showKanryo=!showKanryo;this.classList.toggle('active',showKanryo);
       this.textContent=showKanryo?'✔ 完了表示中':'完了も表示';renderTable();
     });
 
-    document.getElementById('modal-close').addEventListener('click',()=>{modalOverlay.style.display='none';});
-    modalOverlay.addEventListener('click',e=>{if(e.target===modalOverlay)modalOverlay.style.display='none';});
-
-    let globalHeaders=[],globalTasks={},fullData=null;
-    try{const s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+    var globalHeaders=[],globalTasks={},fullData=null;
+    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 
     if(fullData&&fullData.app_meta&&fullData.app_tasks){
       globalHeaders=fullData.app_meta.headers;
@@ -207,128 +187,115 @@
       document.getElementById('noDataMsg').style.display='block';
     }
 
-    // === フィルタ初期化（件数順ソート対応） ===
     function initFilters(){
-      let stMap={},kbMap={},cpMap={},arMap={};
-      Object.values(globalTasks).forEach(o=>{
-        let c=o.csvData;if(!c)return;
-        let s=getSafeVal(c,1).replace(/\s+/g,"");
-        if(s&&s!=="完了") stMap[s]=(stMap[s]||0)+1;
-        let k=getSafeVal(c,3).replace(/\s+/g,"");
+      var stMap={},kbMap={},cpMap={},arMap={};
+      Object.values(globalTasks).forEach(function(o){
+        var c=o.csvData;if(!c)return;
+        var st=getSafeVal(c,1).replace(/\s+/g,"");
+        if(st&&st!=="完了") stMap[st]=(stMap[st]||0)+1;
+        var k=getSafeVal(c,3).replace(/\s+/g,"");
         if(k) kbMap[k]=(kbMap[k]||0)+1;
-        let cp=extractCompany(getSafeVal(c,5));
+        var cp=extractCompany(getSafeVal(c,5));
         if(cp) cpMap[cp]=(cpMap[cp]||0)+1;
-        let ar=extractArea(getSafeVal(c,11));
+        var ar=extractArea(getSafeVal(c,11));
         if(ar) arMap[ar]=(arMap[ar]||0)+1;
       });
-
-      // ステータス・区分はアルファベット順
       buildChecks('statusFilters',sortByCount(stMap),true,true);
       buildChecks('kubunFilters',sortByCount(kbMap),true,false);
-      // 会社・地域は件数多い順
       buildChecks('companyFilters',sortByCount(cpMap),false,true);
       setupToggle('companyToggle','companyFilters');
-      // 地域：区を先、その中で件数順。その後市町村を件数順
-      let areaArr=Object.entries(arMap);
-      let kuArr=areaArr.filter(([k])=>k.endsWith('区')).sort((a,b)=>b[1]-a[1]);
-      let otherArr=areaArr.filter(([k])=>!k.endsWith('区')).sort((a,b)=>b[1]-a[1]);
-      let areaSorted=[...kuArr,...otherArr].map(([k,v])=>({name:k,count:v}));
+      var areaArr=Object.entries(arMap);
+      var kuArr=areaArr.filter(function(a){return a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
+      var otherArr=areaArr.filter(function(a){return!a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
+      var areaSorted=kuArr.concat(otherArr).map(function(a){return{name:a[0],count:a[1]};});
       buildChecksFromArr('areaFilters',areaSorted,false,true);
       setupToggle('areaToggle','areaFilters');
     }
 
-    function sortByCount(map){
-      return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({name:k,count:v}));
-    }
+    function sortByCount(map){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).map(function(a){return{name:a[0],count:a[1]};});}
 
     function buildChecks(id,items,allChecked,showCount){
-      const el=document.getElementById(id);
-      addSelBtns(el);
-      items.forEach(item=>{
-        let lbl=document.createElement('label');
-        let cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;
+      var el=document.getElementById(id);addSelBtns(el);
+      items.forEach(function(item){
+        var lbl=document.createElement('label');
+        var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;
         cb.addEventListener('change',renderTable);
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(' '+item.name+(showCount?`(${item.count})`:'')));
+        lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));
         el.appendChild(lbl);
       });
     }
 
     function buildChecksFromArr(id,items,allChecked,showCount){
-      const el=document.getElementById(id);
-      addSelBtns(el);
-      items.forEach(item=>{
-        let lbl=document.createElement('label');
-        let cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;
+      var el=document.getElementById(id);addSelBtns(el);
+      items.forEach(function(item){
+        var lbl=document.createElement('label');
+        var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;
         cb.addEventListener('change',renderTable);
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(' '+item.name+(showCount?`(${item.count})`:'')));
+        lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));
         el.appendChild(lbl);
       });
     }
 
     function addSelBtns(el){
-      let ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';
-      ba.addEventListener('click',()=>{el.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=true);renderTable();});
-      let bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';
-      bn.addEventListener('click',()=>{el.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false);renderTable();});
+      var ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';
+      ba.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=true;});renderTable();});
+      var bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';
+      bn.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false;});renderTable();});
       el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));
     }
 
     function setupToggle(tid,cid){
-      const tog=document.getElementById(tid),el=document.getElementById(cid);
-      let open=false;
-      tog.addEventListener('click',()=>{
+      var tog=document.getElementById(tid),el=document.getElementById(cid);
+      var open=false;
+      tog.addEventListener('click',function(){
         open=!open;el.style.maxHeight=open?'none':'20px';el.style.overflow=open?'visible':'hidden';
         tog.textContent=open?'▼ 閉じる':'▶ 展開';
       });
     }
 
-    function getChecked(id){let v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(c=>v.push(c.value));return v;}
+    function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(function(c){v.push(c.value);});return v;}
 
     function applyTextSearch(){
-      let w=searchInput.value.toLowerCase();
-      let rows=document.getElementById('table-body').getElementsByTagName('tr');
-      let n=0;
-      for(let i=0;i<rows.length;i++){let s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}
-      document.getElementById('countDisplay').textContent=`検索結果: ${n} 件`;
+      var w=searchInput.value.toLowerCase();
+      var rows=document.getElementById('table-body').getElementsByTagName('tr');
+      var n=0;
+      for(var i=0;i<rows.length;i++){var s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}
+      document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';
     }
 
     function renderTable(){
-      const thead=document.getElementById('table-head');
-      const tbody=document.getElementById('table-body');
+      var thead=document.getElementById('table-head');
+      var tbody=document.getElementById('table-body');
       thead.innerHTML="";tbody.innerHTML="";
 
-      const today=getTodayStr();
-      const from=dateFrom.value,to=dateTo.value;
-      const cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked;
-      const cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters');
-      const cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
+      var today=getTodayStr();
+      var from=dateFrom.value,to=dateTo.value;
+      var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked;
+      var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters');
+      var cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
 
-      // ヘッダー1行のみ（アルファベット行削除）
-      const trH=document.createElement('tr');
-      let h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
-      displayCols.forEach((ci,i)=>{
-        let h=document.createElement('th');h.textContent=globalHeaders[ci]||getColLetter(ci);h.className=colClasses[i+1]||'';trH.appendChild(h);
+      var trH=document.createElement('tr');
+      var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
+      displayCols.forEach(function(ci,i){
+        var h=document.createElement('th');h.textContent=globalHeaders[ci]||getColLetter(ci);h.className=colClasses[i+1]||'';trH.appendChild(h);
       });
       thead.appendChild(trH);
 
-      let valid=Object.keys(globalTasks).filter(key=>{
-        let obj=globalTasks[key],cols=obj.csvData;
+      var valid=Object.keys(globalTasks).filter(function(key){
+        var obj=globalTasks[key],cols=obj.csvData;
         if(!cols)return false;
-        let status=getSafeVal(cols,1).replace(/\s+/g,"");
-        let sekouDate=formatToYMD(getSafeVal(cols,2));
-        // 施工日が過去 → 基本非表示（トグルで表示可）
+        var status=getSafeVal(cols,1).replace(/\s+/g,"");
+        var sekouDate=formatToYMD(getSafeVal(cols,2));
         if(sekouDate<today&&!showKanryo)return false;
         if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
-        let kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+        var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
         if(cKub.length>0&&!cKub.includes(kubun))return false;
-        let comp=extractCompany(getSafeVal(cols,5));
+        var comp=extractCompany(getSafeVal(cols,5));
         if(cComp.length>0&&!cComp.includes(comp))return false;
-        let area=extractArea(getSafeVal(cols,11));
+        var area=extractArea(getSafeVal(cols,11));
         if(cArea.length>0&&!cArea.includes(area))return false;
         if(from||to){
-          let dm=false;
+          var dm=false;
           if(!cS&&!cD&&!cY)dm=true;
           if(cS&&inRange(sekouDate,from,to))dm=true;
           if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;
@@ -338,168 +305,52 @@
         return true;
       });
 
-      valid.sort((a,b)=>{
-        let dA=getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'');
-        let dB=getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,'');
+      valid.sort(function(a,b){
+        var dA=getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'');
+        var dB=getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,'');
         return dA.localeCompare(dB);
       });
 
-      valid.forEach((key,idx)=>{
-        const obj=globalTasks[key],cols=obj.csvData;
-        const tr=document.createElement('tr');
-        let tdNo=document.createElement('td');tdNo.className='col-no';
+      valid.forEach(function(key,idx){
+        var obj=globalTasks[key],cols=obj.csvData;
+        var tr=document.createElement('tr');
+        var tdNo=document.createElement('td');tdNo.className='col-no';
         tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
 
-        displayCols.forEach((ci,i)=>{
-          let c=getSafeVal(cols,ci);
-          let td=document.createElement('td');td.className=colClasses[i+1]||'';
-          let inner=document.createElement('div');inner.className='cell-inner';
-          let disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
+        displayCols.forEach(function(ci,i){
+          var c=getSafeVal(cols,ci);
+          var td=document.createElement('td');td.className=colClasses[i+1]||'';
+          var inner=document.createElement('div');inner.className='cell-inner';
+          var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
 
           if(ci===11&&clean!==''){
-            let short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
+            var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
             if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');
             else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
-            inner.innerHTML=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean)}" target="_blank" class="link-text">${short}</a>`;
+            inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';
           } else if(ci===6&&clean!==''){
-            inner.innerHTML=`<a href="tel:${clean}" class="link-text">${disp}</a>`;
+            inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';
           } else {
             inner.textContent=disp;
           }
           td.appendChild(inner);
           if(clean!==''){
-            td.addEventListener('mouseenter',()=>{tooltip.textContent=c;tooltip.style.display='block';});
-            td.addEventListener('mousemove',e=>{tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
-            td.addEventListener('mouseleave',()=>{tooltip.style.display='none';});
+            td.addEventListener('mouseenter',function(){tooltip.textContent=c;tooltip.style.display='block';});
+            td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
+            td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
           }
           tr.appendChild(td);
         });
 
-        tr.addEventListener('click',e=>{if(e.target.tagName==='A')return;openModal(key,obj,cols);});
+        tr.addEventListener('click',function(e){
+          if(e.target.tagName==='A')return;
+          openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database);
+        });
         tbody.appendChild(tr);
       });
 
-      document.getElementById('countDisplay').textContent=`表示: ${valid.length} 件`;
+      document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';
       if(searchInput.value)applyTextSearch();
-    }
-
-    const timeOpts=generateTimeOptions();
-
-    function openModal(key,obj,cols){
-      let sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
-      let shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
-      let yoteiStr=obj.date||"未定";
-      let ankenText=getSafeVal(cols,4).trim()||"名称未設定";
-
-      let html=`
-        <div class="modal-header-info">
-          <div class="modal-date-row">🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${yoteiStr}</div>
-          <div class="modal-title-row">🏷️ ${ankenText}
-            <button id="modal-copy-btn" class="modal-copy-btn">コピー</button>
-          </div>
-        </div>
-        <h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>
-        <table class="modal-table">
-      `;
-      globalHeaders.forEach((hdr,index)=>{
-        let val=getSafeVal(cols,index);
-        let dh=val.replace(/\n|\r/g,'<br>');
-        let ct=val.replace(/\s+/g,'');
-        if(index===11&&ct!=="")dh=`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ct)}" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ ${val}</a>`;
-        else if(index===6&&ct!=="")dh=`<a href="tel:${ct}" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 ${val}</a>`;
-        html+=`<tr><th>${hdr||`列${index+1}`}</th><td>${dh}</td></tr>`;
-      });
-      html+=`</table>`;
-
-      html+=`
-        <div class="modal-input-section">
-          <h4>📝 進捗管理</h4>
-          <div style="margin:10px 0;">
-            <label style="font-weight:bold;font-size:13px;">🚦 ステータス:</label>
-            <div id="kanban-bar" style="display:flex;gap:0;margin-top:6px;border-radius:6px;overflow:hidden;border:1px solid #ccc;"></div>
-          </div>
-          <div style="margin:10px 0;display:flex;gap:20px;flex-wrap:wrap;">
-            <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;">
-              <input type="checkbox" id="modal-emailSent" style="width:16px;height:16px;cursor:pointer;"${obj.emailSent?' checked':''}> ✉️ 施工日確認メール済
-            </label>
-            <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;">
-              <input type="checkbox" id="modal-finalReport" style="width:16px;height:16px;cursor:pointer;"${obj.finalReport?' checked':''}> 📋 最終報告完了
-            </label>
-          </div>
-        </div>
-        <div class="modal-input-section">
-          <h4>📅 下見スケジュール</h4>
-          <div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="${obj.date||''}" /></div>
-          <div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">${timeOpts}</select></div>
-          <div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="${obj.order||''}" /></div>
-          <div style="margin-top:10px;">
-            <button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>
-            <span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>
-          </div>
-        </div>`;
-
-      document.getElementById('modal-body').innerHTML=html;
-      modalOverlay.style.display='block';
-      document.getElementById('modal-time').value=obj.time||'';
-
-      // カンバンバー構築
-      var kanbanStatuses=['依頼','連絡済','下見日確定','下見実施済','報告書提出済'];
-      var kanbanColors=['#90a4ae','#42a5f5','#ffb300','#66bb6a','#26a69a'];
-      var sfStatus=getSafeVal(cols,1).replace(/\s+/g,"");
-      var sfMap={'下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済'};
-      var currentStatus=obj.localStatus||(sfMap[sfStatus]||sfStatus)||'依頼';
-      if(kanbanStatuses.indexOf(currentStatus)===-1) currentStatus='依頼';
-
-      var kanbanBar=document.getElementById('kanban-bar');
-      var selectedStatus=currentStatus;
-
-      kanbanStatuses.forEach(function(st,i){
-        var btn=document.createElement('div');
-        var isActive=kanbanStatuses.indexOf(selectedStatus)>=i;
-        btn.style.cssText='flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:bold;cursor:pointer;transition:0.2s;'+
-          'background:'+(isActive?kanbanColors[i]:'#f5f5f5')+';color:'+(isActive?'#fff':'#999')+';';
-        btn.textContent=st;
-        btn.addEventListener('click',function(){
-          selectedStatus=st;
-          var btns=kanbanBar.children;
-          for(var j=0;j<btns.length;j++){
-            var act=kanbanStatuses.indexOf(st)>=j;
-            btns[j].style.background=act?kanbanColors[j]:'#f5f5f5';
-            btns[j].style.color=act?'#fff':'#999';
-          }
-        });
-        kanbanBar.appendChild(btn);
-      });
-
-      var sfNote=document.createElement('div');
-      sfNote.style.cssText='margin-top:4px;font-size:11px;color:#888;';
-      sfNote.textContent='SF側: '+sfStatus;
-      kanbanBar.parentNode.appendChild(sfNote);
-
-      document.getElementById('modal-copy-btn').addEventListener('click',function(){
-        navigator.clipboard.writeText(ankenText).then(()=>{
-          this.textContent="✔ コピー完了！";this.classList.add('copied');
-          setTimeout(()=>{this.textContent="コピー";this.classList.remove('copied');},2000);
-        });
-      });
-
-      document.getElementById('modal-save-btn').addEventListener('click',function(){
-        let nd=document.getElementById('modal-date').value;
-        let nt=document.getElementById('modal-time').value;
-        let no=document.getElementById('modal-order').value;
-        let es=document.getElementById('modal-emailSent').checked;
-        let fr=document.getElementById('modal-finalReport').checked;
-        var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,emailSent:es,finalReport:fr};
-        database.ref('app_tasks/'+key).update(updates);
-        globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
-        globalTasks[key].localStatus=selectedStatus;globalTasks[key].emailSent=es;globalTasks[key].finalReport=fr;
-        fullData.app_tasks=globalTasks;
-        localStorage.setItem('appData',JSON.stringify(fullData));
-        let msg=document.getElementById('modal-save-msg');
-        msg.style.display='inline';
-        setTimeout(()=>{msg.style.display='none';},2000);
-        document.querySelector('.modal-date-row').innerHTML=`🔨 施工日: ${sekouStr}　|　📋 下見日: ${shitamiStr}　|　📅 予定日: ${nd||"未定"}`;
-      });
     }
   </script>
 </body>
