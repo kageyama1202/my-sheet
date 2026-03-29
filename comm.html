@@ -30,6 +30,11 @@ body {
 .stats {
   font-size: 12px;
   color: #888;
+  margin-bottom: 4px;
+}
+.match-summary {
+  font-size: 12px;
+  color: #ff9800;
   margin-bottom: 10px;
 }
 .filters {
@@ -53,6 +58,10 @@ body {
   border-color: #2563eb;
   color: #fff;
 }
+.filter-btn.work-filter.active {
+  background: #e65100;
+  border-color: #e65100;
+}
 .filter-btn:hover { border-color: #64b5f6; }
 .search-box {
   flex: 1;
@@ -72,12 +81,10 @@ body {
   margin: 0 auto;
   padding: 12px;
 }
-.date-group {
-  margin-bottom: 8px;
-}
+.date-group { margin-bottom: 8px; }
 .date-label {
   position: sticky;
-  top: 88px;
+  top: 120px;
   background: #0f1117;
   padding: 8px 0 4px;
   font-size: 13px;
@@ -99,6 +106,7 @@ body {
 .msg-card.imessage { border-left-color: #4caf50; }
 .msg-card.gmail { border-left-color: #f44336; }
 .msg-card.sent { border-left-color: #2196f3; }
+.msg-card.matched { border-left-color: #ff9800; }
 .msg-top {
   display: flex;
   justify-content: space-between;
@@ -116,14 +124,8 @@ body {
 }
 .msg-source.imessage { background: #1b3a1b; color: #66bb6a; }
 .msg-source.gmail { background: #3a1b1b; color: #ef5350; }
-.msg-dir {
-  font-size: 11px;
-  color: #888;
-}
-.msg-time {
-  font-size: 11px;
-  color: #666;
-}
+.msg-dir { font-size: 11px; color: #888; }
+.msg-time { font-size: 11px; color: #666; }
 .msg-contact {
   font-size: 13px;
   font-weight: 600;
@@ -131,9 +133,30 @@ body {
   margin-bottom: 4px;
   word-break: break-all;
 }
-.msg-contact a {
-  color: #64b5f6;
-  text-decoration: none;
+.msg-contact a { color: #64b5f6; text-decoration: none; }
+.msg-contact-name {
+  color: #fff;
+  font-weight: 700;
+}
+.msg-contact-company {
+  font-size: 11px;
+  color: #888;
+  margin-left: 6px;
+}
+.msg-case {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: #3e2723;
+  color: #ffab40;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.msg-case-person {
+  font-size: 11px;
+  color: #888;
+  margin-left: 6px;
 }
 .msg-subject {
   font-size: 12px;
@@ -182,13 +205,15 @@ body {
   <a href="index.html" class="back-link">← トップ</a>
   <h1>📨 <span>通信タイムライン</span></h1>
   <div class="stats" id="stats">読み込み中...</div>
+  <div class="match-summary" id="matchSummary"></div>
   <div class="filters">
     <button class="filter-btn active" data-filter="all">全て</button>
     <button class="filter-btn" data-filter="imessage">💬 SMS</button>
     <button class="filter-btn" data-filter="gmail">📧 Gmail</button>
     <button class="filter-btn" data-filter="sent">↑ 送信</button>
     <button class="filter-btn" data-filter="received">↓ 受信</button>
-    <input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文）">
+    <button class="filter-btn work-filter" data-filter="work">🏗️ 仕事のみ</button>
+    <input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文・案件名）">
   </div>
 </div>
 
@@ -199,8 +224,28 @@ body {
 <script>
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var allRecords = [];
-var activeFilters = { source: "all", dir: "all" };
+var phoneToCases = {};   // phone -> {name, person, key} from app_tasks
+var phoneToContact = {}; // phone -> {name, company} from app_contacts
+var emailToContact = {}; // email -> {name, company} from app_contacts
+var activeFilter = "all";
 var searchText = "";
+
+function normalizePhone(raw) {
+  if (!raw) return "";
+  var s = raw.replace(/[\s\-\(\)\.]/g, "");
+  s = s.replace(/^\+81/, "0");
+  s = s.replace(/^81(?=\d{9,10})/, "0");
+  s = s.replace(/[^0-9]/g, "");
+  return s;
+}
+
+function extractEmail(raw) {
+  if (!raw) return "";
+  var m = raw.match(/<([^>]+)>/);
+  if (m) return m[1].toLowerCase().trim();
+  if (raw.indexOf("@") >= 0) return raw.toLowerCase().trim();
+  return "";
+}
 
 function parseDate(rec) {
   if (rec.src === "imessage") {
@@ -231,27 +276,81 @@ function dateLabelText(key) {
 function contactDisplay(rec) {
   if (rec.src === "imessage") {
     var phone = rec.contact || "";
-    var cleaned = phone.replace(/\+81/, "0").replace(/[^0-9]/g, "");
-    if (cleaned.length >= 10) {
-      return '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
+    var cleaned = normalizePhone(phone);
+    var contactInfo = phoneToContact[cleaned];
+    var nameHtml = "";
+    if (contactInfo) {
+      nameHtml = '<span class="msg-contact-name">' + contactInfo.name + '</span>';
+      if (contactInfo.company) {
+        nameHtml += '<span class="msg-contact-company">' + contactInfo.company + '</span>';
+      }
+      nameHtml += '<br>';
     }
-    return phone;
+    if (cleaned.length >= 10) {
+      return nameHtml + '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
+    }
+    return nameHtml + phone;
   } else {
-    var match = rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
+    var rawFrom = rec.contact || "";
+    var email = extractEmail(rawFrom);
+    var contactInfo = emailToContact[email];
+    if (contactInfo) {
+      var html = '<span class="msg-contact-name">' + contactInfo.name + '</span>';
+      if (contactInfo.company) {
+        html += '<span class="msg-contact-company">' + contactInfo.company + '</span>';
+      }
+      html += '<br><span style="color:#666;font-size:11px">' + email + '</span>';
+      return html;
+    }
+    var match = rawFrom.match(/"?([^"<]+)"?\s*<([^>]+)>/);
     if (match) {
       return match[1].trim() + ' <span style="color:#666">' + match[2] + '</span>';
     }
-    return rec.contact || "";
+    return rawFrom;
   }
 }
 
+function lookupMatch(rec) {
+  // iMessage: phone -> case (from app_tasks)
+  if (rec.src === "imessage") {
+    var normalized = normalizePhone(rec.contact);
+    if (phoneToCases[normalized]) return phoneToCases[normalized];
+    // Also check if phone is in contacts (work-related)
+    if (phoneToContact[normalized]) {
+      return { name: phoneToContact[normalized].company || "", person: phoneToContact[normalized].name, key: "" };
+    }
+    return null;
+  }
+  // Gmail: email -> contact (from app_contacts)
+  if (rec.src === "gmail") {
+    var email = extractEmail(rec.contact);
+    if (emailToContact[email]) {
+      return { name: emailToContact[email].company || "", person: emailToContact[email].name, key: "" };
+    }
+    return null;
+  }
+  return null;
+}
+
 function matchesFilter(rec) {
-  if (activeFilters.source !== "all" && rec.src !== activeFilters.source) return false;
-  if (activeFilters.dir === "sent" && rec.dir !== "sent") return false;
-  if (activeFilters.dir === "received" && rec.dir !== "received") return false;
+  if (activeFilter === "imessage" && rec.src !== "imessage") return false;
+  if (activeFilter === "gmail" && rec.src !== "gmail") return false;
+  if (activeFilter === "sent" && rec.dir !== "sent") return false;
+  if (activeFilter === "received" && rec.dir !== "received") return false;
+  if (activeFilter === "work" && !rec._caseMatch) return false;
   if (searchText) {
     var s = searchText.toLowerCase();
     var hay = ((rec.contact||"") + " " + (rec.subject||"") + " " + (rec.body||"")).toLowerCase();
+    if (rec._caseMatch) {
+      hay += " " + (rec._caseMatch.name || "").toLowerCase();
+      hay += " " + (rec._caseMatch.person || "").toLowerCase();
+    }
+    var normalized = normalizePhone(rec.contact);
+    var ci = phoneToContact[normalized];
+    if (ci) hay += " " + (ci.name || "").toLowerCase() + " " + (ci.company || "").toLowerCase();
+    var email = extractEmail(rec.contact);
+    var ei = emailToContact[email];
+    if (ei) hay += " " + (ei.name || "").toLowerCase() + " " + (ei.company || "").toLowerCase();
     if (hay.indexOf(s) === -1) return false;
   }
   return true;
@@ -271,12 +370,18 @@ function render() {
   document.getElementById("stats").textContent =
     "表示: " + filtered.length + "件（SMS " + imCount + " / Gmail " + gmCount + "）/ 全" + allRecords.length + "件";
 
+  var totalMatched = 0;
+  for (var i = 0; i < allRecords.length; i++) {
+    if (allRecords[i]._caseMatch) totalMatched++;
+  }
+  document.getElementById("matchSummary").textContent =
+    "🔗 仕事紐付き: " + totalMatched + "件 / 未紐付き: " + (allRecords.length - totalMatched) + "件";
+
   if (filtered.length === 0) {
     document.getElementById("timeline").innerHTML = '<div class="no-results">該当なし</div>';
     return;
   }
 
-  // group by date
   var groups = {};
   var groupOrder = [];
   for (var i = 0; i < filtered.length; i++) {
@@ -299,6 +404,7 @@ function render() {
       var rec = msgs[m];
       var cardClass = "msg-card " + rec.src;
       if (rec.dir === "sent") cardClass += " sent";
+      if (rec._caseMatch) cardClass += " matched";
       html += '<div class="' + cardClass + '">';
       html += '<div class="msg-top">';
       html += '<div>';
@@ -309,6 +415,13 @@ function render() {
       html += '</div>';
       html += '<span class="msg-time">' + rec._timeStr + '</span>';
       html += '</div>';
+      if (rec._caseMatch && rec._caseMatch.name) {
+        html += '<div><span class="msg-case">🏗️ ' + rec._caseMatch.name + '</span>';
+        if (rec._caseMatch.person) {
+          html += '<span class="msg-case-person">' + rec._caseMatch.person + '</span>';
+        }
+        html += '</div>';
+      }
       html += '<div class="msg-contact">' + contactDisplay(rec) + '</div>';
       if (rec.subject) {
         html += '<div class="msg-subject">📋 ' + rec.subject + '</div>';
@@ -324,24 +437,15 @@ function render() {
   document.getElementById("timeline").innerHTML = html;
 }
 
-// Filter buttons
 document.querySelectorAll(".filter-btn").forEach(function(btn) {
   btn.addEventListener("click", function() {
-    var f = this.getAttribute("data-filter");
-    if (f === "all" || f === "imessage" || f === "gmail") {
-      activeFilters.source = f;
-      activeFilters.dir = "all";
-    } else {
-      activeFilters.source = "all";
-      activeFilters.dir = f;
-    }
+    activeFilter = this.getAttribute("data-filter");
     document.querySelectorAll(".filter-btn").forEach(function(b) { b.classList.remove("active"); });
     this.classList.add("active");
     render();
   });
 });
 
-// Search
 var searchTimer = null;
 document.getElementById("searchBox").addEventListener("input", function() {
   clearTimeout(searchTimer);
@@ -352,7 +456,89 @@ document.getElementById("searchBox").addEventListener("input", function() {
   }, 300);
 });
 
-// Load from Firebase
+// Load state
+var tasksLoaded = false;
+var contactsLoaded = false;
+var commsLoaded = false;
+
+function tryRender() {
+  if (!tasksLoaded || !contactsLoaded || !commsLoaded) return;
+  for (var i = 0; i < allRecords.length; i++) {
+    allRecords[i]._caseMatch = lookupMatch(allRecords[i]);
+  }
+  render();
+}
+
+// Load app_tasks (phone -> case matching)
+fetch(FB_URL + "/app_tasks.json")
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data) {
+      var keys = Object.keys(data);
+      for (var i = 0; i < keys.length; i++) {
+        var task = data[keys[i]];
+        if (!task.csvData) continue;
+        var rawPhone = task.csvData[6] || "";
+        var normalized = normalizePhone(rawPhone);
+        if (normalized.length >= 10) {
+          if (!phoneToCases[normalized]) {
+            phoneToCases[normalized] = {
+              name: task.csvData[4] || "",
+              person: task.csvData[5] || "",
+              key: keys[i]
+            };
+          }
+        }
+      }
+      console.log("Task phone mappings: " + Object.keys(phoneToCases).length);
+    }
+    tasksLoaded = true;
+    tryRender();
+  })
+  .catch(function(e) {
+    console.error("Tasks load error:", e);
+    tasksLoaded = true;
+    tryRender();
+  });
+
+// Load app_contacts (phone + email -> contact name/company)
+fetch(FB_URL + "/app_contacts.json")
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data) {
+      var arr = Array.isArray(data) ? data : Object.values(data);
+      for (var i = 0; i < arr.length; i++) {
+        var c = arr[i];
+        if (!c) continue;
+        var info = { name: c.name || "", company: c.company || "" };
+        // Phone mapping
+        if (c.phone) {
+          var np = normalizePhone(c.phone);
+          if (np.length >= 10 && !phoneToContact[np]) {
+            phoneToContact[np] = info;
+          }
+        }
+        // Email mapping
+        if (c.email) {
+          var em = c.email.toLowerCase().trim();
+          if (em && !emailToContact[em]) {
+            emailToContact[em] = info;
+          }
+        }
+      }
+      console.log("Contact phone mappings: " + Object.keys(phoneToContact).length);
+      console.log("Contact email mappings: " + Object.keys(emailToContact).length);
+    }
+    contactsLoaded = true;
+    tryRender();
+  })
+  .catch(function(e) {
+    console.error("Contacts load error:", e);
+    contactsLoaded = true;
+    tryRender();
+  });
+
+// Load app_communications
 fetch(FB_URL + "/app_communications.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -371,7 +557,8 @@ fetch(FB_URL + "/app_communications.json")
       allRecords.push(rec);
     }
     allRecords.sort(function(a, b) { return b._sortKey - a._sortKey; });
-    render();
+    commsLoaded = true;
+    tryRender();
   })
   .catch(function(e) {
     document.getElementById("timeline").innerHTML = '<div class="no-results">エラー: ' + e.message + '</div>';
