@@ -41,14 +41,15 @@
     .sb{padding:0;}
     .bg-red{background:#c62828;}.bg-orange{background:#e65100;}.bg-purple{background:#6a1b9a;}.bg-blue{background:#1565c0;}.bg-green{background:#2e7d32;}
 
-    .ai{padding:10px 16px;border-bottom:1px solid #252838;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s;}
-    .ai:hover{background:#262940;}.ai:last-child{border-bottom:none;}
+    .ai-row{padding:10px 16px;border-bottom:1px solid #252838;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s;}
+    .ai-row:hover{background:#262940;}.ai-row:last-child{border-bottom:none;}
     .badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:bold;color:#fff;white-space:nowrap;}
     .badge-new{background:#1565c0;}.badge-reform{background:#e65100;}.badge-sk{background:#6a1b9a;}
-    .in{font-weight:bold;font-size:13px;color:#e0e0e0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .ic{color:#888;font-size:11px;white-space:nowrap;}
-    .id{font-size:12px;color:#888;white-space:nowrap;}
-    .dy{font-size:11px;font-weight:bold;padding:2px 8px;border-radius:12px;white-space:nowrap;}
+    .item-name{font-weight:bold;font-size:13px;color:#e0e0e0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .item-co{color:#888;font-size:11px;white-space:nowrap;}
+    .item-dt{font-size:12px;color:#888;white-space:nowrap;}
+    .item-dy{font-size:11px;font-weight:bold;padding:2px 8px;border-radius:12px;white-space:nowrap;}
+    .item-st{font-size:10px;padding:2px 8px;border-radius:8px;background:#2a2d3a;color:#888;white-space:nowrap;}
     .du{background:#4a1c1c;color:#ff6b6b;}.dw{background:#4a3a1c;color:#ffd54f;}.dok{background:#1c4a2e;color:#66bb6a;}
     .empty{padding:16px;color:#555;font-style:italic;font-size:12px;text-align:center;}
 
@@ -60,69 +61,60 @@
     .mab:hover{background:#455a64;}
     .mc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;display:flex;align-items:flex-start;gap:12px;}
     .mc:hover{border-color:#3a3d4a;}
-    .mt{flex:1;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
-    .mti{font-size:11px;color:#555;white-space:nowrap;min-width:80px;text-align:right;}
-    .md{font-size:11px;color:#555;cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid #3a3d4a;background:transparent;}
-    .md:hover{color:#ff6b6b;border-color:#ff6b6b;}
+    .mt-text{flex:1;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+    .mt-time{font-size:11px;color:#555;white-space:nowrap;min-width:80px;text-align:right;}
+    .mt-del{font-size:11px;color:#555;cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid #3a3d4a;background:transparent;}
+    .mt-del:hover{color:#ff6b6b;border-color:#ff6b6b;}
 
     .mail-area{max-width:1000px;margin:0 auto;padding:12px;}
     .mail-top-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
-    .ai-btn{padding:8px 16px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;}
+    .ai-btn{padding:8px 16px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
     .ai-btn.classify{background:#6a1b9a;color:#fff;}.ai-btn.classify:hover{background:#7b1fa2;}
     .ai-btn:disabled{opacity:0.5;cursor:not-allowed;}
-    .ai-status{font-size:12px;color:#888;flex:1;}
+    .ai-sts{font-size:12px;color:#888;flex:1;}
 
     .mlc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;}
-    .mlc:hover{border-color:#3a3d4a;}
-    .mlc.ai-matched{border-left:3px solid #ce93d8;}
+    .mlc:hover{border-color:#3a3d4a;}.mlc.ai-m{border-left:3px solid #ce93d8;}
     .mlt{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
     .mlf{font-size:13px;font-weight:600;color:#ccc;}
     .mlb{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600;color:#fff;margin-right:6px;}
     .mlb.sms{background:#2e7d32;}.mlb.gmail{background:#c62828;}
-    .mltime{font-size:11px;color:#555;}
-    .mlsub{font-size:12px;color:#ffab40;margin-bottom:4px;}
-    .mlsnip{font-size:13px;color:#888;line-height:1.4;}
-    .mlact{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-    .mlbtn{font-size:12px;padding:5px 14px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#aaa;cursor:pointer;}
-    .mlbtn:hover{border-color:#64b5f6;color:#64b5f6;}
-    .mlbtn.del:hover{border-color:#ff6b6b;color:#ff6b6b;}
-    .ai-suggest{font-size:11px;padding:3px 10px;border-radius:8px;background:#3a1c4a;color:#ce93d8;font-weight:600;}
-    .case-select{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:250px;}
-    .case-select:focus{outline:none;border-color:#64b5f6;}
-    .assign-btn{font-size:11px;padding:4px 12px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
-    .assign-btn:hover{background:#388e3c;}
+    .mltm{font-size:11px;color:#555;}
+    .mlsb{font-size:12px;color:#ffab40;margin-bottom:4px;}
+    .mlsn{font-size:13px;color:#888;line-height:1.4;}
+    .mlac{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .ml-btn{font-size:12px;padding:5px 14px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#aaa;cursor:pointer;}
+    .ml-btn:hover{border-color:#64b5f6;color:#64b5f6;}
+    .ml-btn.del:hover{border-color:#ff6b6b;color:#ff6b6b;}
+    .ai-sug{font-size:11px;padding:3px 10px;border-radius:8px;background:#3a1c4a;color:#ce93d8;font-weight:600;margin-top:6px;display:inline-block;}
+    .cs{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:250px;}
+    .cs:focus{outline:none;border-color:#64b5f6;}
+    .as-btn{font-size:11px;padding:4px 12px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
+    .as-btn:hover{background:#388e3c;}
     .mail-empty{text-align:center;padding:40px;color:#555;}
 
-    /* 設定モーダル */
     .settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10000;}
     .settings-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e2130;padding:24px;border-radius:12px;width:90%;max-width:500px;border:1px solid #2a2d3a;}
     .settings-box h3{color:#fff;margin:0 0 16px;font-size:16px;}
-    .settings-row{margin-bottom:12px;}
-    .settings-row label{display:block;font-size:12px;color:#888;margin-bottom:4px;}
-    .settings-row input{width:100%;padding:8px 12px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:13px;}
-    .settings-row input:focus{outline:none;border-color:#64b5f6;}
-    .settings-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
-    .settings-btns button{padding:8px 20px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
-    .settings-save{background:#2e7d32;color:#fff;}.settings-cancel{background:#3a3d4a;color:#ccc;}
+    .sr{margin-bottom:12px;}.sr label{display:block;font-size:12px;color:#888;margin-bottom:4px;}
+    .sr input{width:100%;padding:8px 12px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:13px;}
+    .sr input:focus{outline:none;border-color:#64b5f6;}
+    .sbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+    .sbtns button{padding:8px 20px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
+    .s-save{background:#2e7d32;color:#fff;}.s-cancel{background:#3a3d4a;color:#ccc;}
 
     #noDataMsg{display:none;padding:20px;font-weight:bold;color:#ff6b6b;text-align:center;}
-    @media(max-width:600px){.ai{flex-wrap:wrap;gap:4px;}.ic,.id{font-size:10px;}}
+    @media(max-width:600px){.ai-row{flex-wrap:wrap;gap:4px;}.item-co,.item-dt{font-size:10px;}}
   </style>
 </head>
 <body>
   <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
 
-  <div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-overlay" id="setOv">
     <div class="settings-box">
       <h3>⚙️ API設定</h3>
-      <div class="settings-row">
-        <label>Gemini APIキー（ブラウザに保存、コードには含まれません）</label>
-        <input type="password" id="settingsApiKey" placeholder="AIza..." />
-      </div>
-      <div class="settings-btns">
-        <button class="settings-cancel" id="settingsCancel">キャンセル</button>
-        <button class="settings-save" id="settingsSave">💾 保存</button>
-      </div>
+      <div class="sr"><label>Gemini APIキー（ブラウザのみ保存、コード非含）</label><input type="password" id="setKey" placeholder="AIza..." /></div>
+      <div class="sbtns"><button class="s-cancel" id="setCan">キャンセル</button><button class="s-save" id="setSav">💾 保存</button></div>
     </div>
   </div>
 
@@ -143,25 +135,22 @@
 
   <div id="tab-action" class="tab-content active">
     <div class="summary-bar" id="summaryBar"></div>
-    <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
+    <div id="noDataMsg">⚠️ トップに戻ってデータ取得してください。</div>
     <div class="dashboard" id="dashboard"></div>
   </div>
 
   <div id="tab-memo" class="tab-content">
-    <div class="memo-area">
-      <div class="mia">
-        <textarea class="mi" id="memoInput" placeholder="メモを入力...（Enterで追加、Shift+Enterで改行）" rows="1"></textarea>
-        <button class="mab" id="memoAddBtn">追加</button>
-      </div>
-      <div id="memoList"></div>
-    </div>
+    <div class="memo-area"><div class="mia">
+      <textarea class="mi" id="memoInput" placeholder="メモを入力...（Enterで追加）" rows="1"></textarea>
+      <button class="mab" id="memoAddBtn">追加</button>
+    </div><div id="memoList"></div></div>
   </div>
 
   <div id="tab-mail" class="tab-content">
-    <div class="mail-area" id="mailArea">
+    <div class="mail-area">
       <div class="mail-top-bar">
-        <button class="ai-btn classify" id="aiClassifyBtn" disabled>🤖 AI分類</button>
-        <span class="ai-status" id="aiStatus"></span>
+        <button class="ai-btn classify" id="aiBtn" disabled>🤖 AI分類</button>
+        <span class="ai-sts" id="aiSts"></span>
       </div>
       <div id="mailList"><div class="mail-empty">⏳ 読み込み中...</div></div>
     </div>
@@ -181,73 +170,107 @@
     });});
 
     // 設定
-    document.getElementById('gearBtn').addEventListener('click',function(){
-      document.getElementById('settingsApiKey').value=localStorage.getItem('gemini_api_key')||'';
-      document.getElementById('settingsOverlay').style.display='block';
+    document.getElementById('gearBtn').addEventListener('click',function(){document.getElementById('setKey').value=localStorage.getItem('gemini_api_key')||'';document.getElementById('setOv').style.display='block';});
+    document.getElementById('setCan').addEventListener('click',function(){document.getElementById('setOv').style.display='none';});
+    document.getElementById('setSav').addEventListener('click',function(){
+      var k=document.getElementById('setKey').value.trim();
+      if(k)localStorage.setItem('gemini_api_key',k);else localStorage.removeItem('gemini_api_key');
+      document.getElementById('setOv').style.display='none';chkKey();
     });
-    document.getElementById('settingsCancel').addEventListener('click',function(){document.getElementById('settingsOverlay').style.display='none';});
-    document.getElementById('settingsSave').addEventListener('click',function(){
-      var k=document.getElementById('settingsApiKey').value.trim();
-      if(k)localStorage.setItem('gemini_api_key',k);
-      else localStorage.removeItem('gemini_api_key');
-      document.getElementById('settingsOverlay').style.display='none';
-      checkApiKey();
-    });
-    document.getElementById('settingsOverlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
-
-    function checkApiKey(){
-      var k=localStorage.getItem('gemini_api_key');
-      var btn=document.getElementById('aiClassifyBtn');
-      if(k){btn.disabled=false;btn.title='';}
-      else{btn.disabled=true;btn.title='⚙️からAPIキーを設定してください';}
-      return k;
-    }
+    document.getElementById('setOv').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
+    function chkKey(){var k=localStorage.getItem('gemini_api_key');document.getElementById('aiBtn').disabled=!k;return k;}
 
     // ユーティリティ
-    function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+    function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
     function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
     var now=new Date();
     var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
     var dn=['日','月','火','水','木','金','土'];
     document.getElementById('dateDisplay').textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' ('+dn[now.getDay()]+')';
-    function dd(ds){if(!ds)return 9999;return Math.round((new Date(ds)-new Date(todayStr))/864e5);}
-    function dl(n){if(n===0)return'今日';if(n===1)return'明日';if(n<0)return Math.abs(n)+'日超過';return n+'日後';}
-    function dc(n){if(n<=3)return'du';if(n<=7)return'dw';return'dok';}
+    function diffD(ds){if(!ds)return 9999;return Math.round((new Date(ds)-new Date(todayStr))/864e5);}
+    function dlbl(n){if(n===0)return'今日';if(n===1)return'明日';if(n<0)return Math.abs(n)+'日超過';return n+'日後';}
+    function dcls(n){if(n<=3)return'du';if(n<=7)return'dw';return'dok';}
+
+    // ★ ステータスランク（コア改善）
+    var STATUS_RANKS = {
+      '依頼': 0,
+      '連絡済': 1,
+      '下見日確定': 2,
+      '下見実施済': 3,
+      '報告書提出済': 4,
+      '完了': 5
+    };
+    var SF_TO_LOCAL = {
+      '依頼': '依頼',
+      '下見実施中': '連絡済',
+      '下見日程確定': '下見日確定',
+      '下見完了': '報告書提出済',
+      '完了': '完了'
+    };
+
+    function getEffectiveStatus(obj, cols) {
+      var sf = gv(cols,1).replace(/\s+/g,"");
+      var local = obj.localStatus || "";
+      // SF側をローカル名に変換
+      var sfLocal = SF_TO_LOCAL[sf] || sf;
+      // ランク取得（不明は-1）
+      var sfRank = STATUS_RANKS[sfLocal] !== undefined ? STATUS_RANKS[sfLocal] : -1;
+      var localRank = STATUS_RANKS[local] !== undefined ? STATUS_RANKS[local] : -1;
+      // 進んでる方を採用
+      if (localRank >= sfRank) return { name: local || '依頼', rank: Math.max(localRank, 0) };
+      return { name: sfLocal || '依頼', rank: Math.max(sfRank, 0) };
+    }
+
+    function statusLabel(name) {
+      var colors = {'依頼':'#90a4ae','連絡済':'#42a5f5','下見日確定':'#ffb300','下見実施済':'#66bb6a','報告書提出済':'#26a69a'};
+      return '<span class="item-st" style="background:'+(colors[name]||'#2a2d3a')+';color:#fff;">'+name+'</span>';
+    }
 
     // データ
     var globalHeaders=[],globalTasks={},fullData=null,caseOptions=[];
     try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){}
     if(fullData&&fullData.app_meta&&fullData.app_tasks){
-      globalHeaders=fullData.app_meta.headers;
-      globalTasks=fullData.app_tasks;
-      // 案件リスト構築（仮置き→案件指定用）
+      globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;
       Object.keys(globalTasks).forEach(function(k){
         var t=globalTasks[k];if(!t.csvData)return;
-        var name=gv(t.csvData,4).trim();
-        var sekou=fy(gv(t.csvData,2));
+        var name=gv(t.csvData,4).trim(),sekou=fy(gv(t.csvData,2));
         if(name)caseOptions.push({key:k,name:name,sekou:sekou});
       });
       caseOptions.sort(function(a,b){return(b.sekou||'').localeCompare(a.sekou||'');});
       buildDashboard();
     } else {document.getElementById('noDataMsg').style.display='block';}
+    chkKey();
 
-    checkApiKey();
-
-    // === アクション ===
+    // === アクション（ランク制） ===
     function buildDashboard(){
       var cl=[],vl=[],sl=[],el=[],rl=[];
-      Object.keys(globalTasks).forEach(function(k){
-        var o=globalTasks[k];var c=o.csvData;if(!c)return;
-        var sf=gv(c,1).replace(/\s+/g,""),kb=gv(c,3).replace(/\s+/g,""),nm=gv(c,4).trim(),cp=gv(c,5).trim();
-        var sd=fy(gv(c,2)),yd=o.date||"",ls=o.localStatus||"",es=ls||sf;
-        if(sf==="完了"||es==="報告書提出済")return;
-        var d=dd(sd);if(d<0)return;var sk=nm.indexOf('SK')!==-1;
-        var it={key:k,obj:o,cols:c,name:nm,company:cp,sekouDate:sd,days:d,kubun:kb};
-        if(kb==="ﾘ"&&es==="依頼")cl.push(it);
-        if(kb==="新"&&d<=21&&d>=0&&es!=="下見実施済"&&es!=="報告書提出済")vl.push(it);
-        if(kb==="新"&&sk&&d<=10&&d>=0&&es!=="下見実施済"&&es!=="報告書提出済")sl.push(it);
-        if(d>=14&&d<=21&&!o.emailSent)el.push(it);
-        if(es==="下見実施済"||(es==="下見日確定"&&yd&&yd<todayStr))rl.push(it);
+      Object.keys(globalTasks).forEach(function(key){
+        var obj=globalTasks[key];var cols=obj.csvData;if(!cols)return;
+        var eff = getEffectiveStatus(obj, cols);
+        var rank = eff.rank;
+        var kubun=gv(cols,3).replace(/\s+/g,"");
+        var nm=gv(cols,4).trim(),cp=gv(cols,5).trim();
+        var sd=fy(gv(cols,2)),yd=obj.date||"";
+        var d=diffD(sd);
+        // 施工日が過去 or 完了/報告書提出済 → 除外
+        if(d<0 || rank>=4) return;
+        var isSK=nm.indexOf('SK')!==-1;
+        var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank};
+
+        // 📞 連絡しろ: ﾘ AND rank < 1（まだ依頼のまま）
+        if(kubun==="ﾘ" && rank < 1) cl.push(item);
+
+        // 🏃 下見行け: 新 AND 21日前 AND rank < 3（まだ下見実施してない）
+        if(kubun==="新" && d<=21 && rank < 3) vl.push(item);
+
+        // 🔨 SK最終: 新SK AND 10日前 AND rank < 3
+        if(kubun==="新" && isSK && d<=10 && rank < 3) sl.push(item);
+
+        // ✉️ メール送れ: 14-21日前 AND emailSent=false
+        if(d>=14 && d<=21 && !obj.emailSent) el.push(item);
+
+        // 📝 報告書書け: rank=3（下見実施済）OR rank=2（下見日確定）で予定日過去
+        if(rank===3 || (rank===2 && yd && yd<todayStr)) rl.push(item);
       });
       [cl,vl,sl,el,rl].forEach(function(l){l.sort(function(a,b){return a.days-b.days;});});
       var total=cl.length+vl.length+sl.length+el.length+rl.length;
@@ -260,13 +283,14 @@
         '<div class="sc cg">📝<span class="n">'+rl.length+'</span></div>'+
         '<div class="sc ct">合計<span class="n">'+total+'</span></div>';
       var dash=document.getElementById('dashboard');dash.innerHTML='';
-      rs(dash,'📞 連絡して下見日を決めろ','リフォーム案件・未連絡','bg-red',cl);
-      rs(dash,'🏃 下見に行け','施工日21日前以内','bg-orange',vl);
-      rs(dash,'🔨 SK最終下見','施工日10日前以内','bg-purple',sl);
-      rs(dash,'✉️ 確認メール送れ','施工日14〜21日前','bg-blue',el);
-      rs(dash,'📝 報告書書け','下見済み・報告未完了','bg-green',rl);
+      rSec(dash,'📞 連絡して下見日を決めろ','リフォーム・依頼のまま','bg-red',cl);
+      rSec(dash,'🏃 下見に行け','施工日21日前以内・下見未実施','bg-orange',vl);
+      rSec(dash,'🔨 SK最終下見','施工日10日前以内・下見未実施','bg-purple',sl);
+      rSec(dash,'✉️ 確認メール送れ','施工日14〜21日前・未送信','bg-blue',el);
+      rSec(dash,'📝 報告書書け','下見実施済み・報告未完了','bg-green',rl);
     }
-    function rs(ct,title,sub,bg,items){
+
+    function rSec(ct,title,sub,bg,items){
       var s=document.createElement('div');s.className='section';
       var h=document.createElement('div');h.className='sh '+bg;
       h.innerHTML=title+' <span class="sub">'+sub+'</span><span class="cnt">'+items.length+'件</span>';
@@ -275,10 +299,15 @@
       s.appendChild(h);
       if(!items.length)b.innerHTML='<div class="empty">✔ なし</div>';
       else items.forEach(function(it){
-        var d=document.createElement('div');d.className='ai';
+        var d=document.createElement('div');d.className='ai-row';
         var bc=it.kubun==='ﾘ'?'badge-reform':it.name.indexOf('SK')!==-1?'badge-sk':'badge-new';
         var bt=it.kubun==='ﾘ'?'ﾘ':it.name.indexOf('SK')!==-1?'SK':'新';
-        d.innerHTML='<span class="badge '+bc+'">'+bt+'</span><span class="in">'+it.name+'</span><span class="ic">'+it.company.split(/[\s\u3000]+/)[0]+'</span><span class="id">'+it.sekouDate+'</span><span class="dy '+dc(it.days)+'">'+dl(it.days)+'</span>';
+        d.innerHTML='<span class="badge '+bc+'">'+bt+'</span>'+
+          '<span class="item-name">'+it.name+'</span>'+
+          statusLabel(it.status)+
+          '<span class="item-co">'+it.company.split(/[\s\u3000]+/)[0]+'</span>'+
+          '<span class="item-dt">'+it.sekouDate+'</span>'+
+          '<span class="item-dy '+dcls(it.days)+'">'+dlbl(it.days)+'</span>';
         d.addEventListener('click',function(){openCaseModal(it.key,it.obj,globalHeaders,globalTasks,fullData,database);});
         b.appendChild(d);
       });
@@ -286,144 +315,100 @@
     }
 
     // === 備忘録 ===
-    document.getElementById('memoAddBtn').addEventListener('click',am);
-    document.getElementById('memoInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();am();}});
-    lm();
-    function am(){var i=document.getElementById('memoInput');var t=i.value.trim();if(!t)return;database.ref('app_notes').push({text:t,ts:new Date().toISOString()});i.value='';lm();}
-    function lm(){database.ref('app_notes').orderByChild('ts').once('value',function(sn){
+    document.getElementById('memoAddBtn').addEventListener('click',addM);
+    document.getElementById('memoInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addM();}});
+    loadM();
+    function addM(){var i=document.getElementById('memoInput');var t=i.value.trim();if(!t)return;database.ref('app_notes').push({text:t,ts:new Date().toISOString()});i.value='';loadM();}
+    function loadM(){database.ref('app_notes').orderByChild('ts').once('value',function(sn){
       var d=sn.val(),el=document.getElementById('memoList'),c=document.getElementById('tcM');
       if(!d){el.innerHTML='<div class="mail-empty">メモなし</div>';c.textContent='0';return;}
       var e=[];Object.keys(d).forEach(function(k){e.push({key:k,text:d[k].text,ts:d[k].ts});});
       e.sort(function(a,b){return b.ts.localeCompare(a.ts);});c.textContent=e.length;
       var h='';e.forEach(function(x){
         var dt=new Date(x.ts),ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
-        h+='<div class="mc"><span class="mt">'+x.text.replace(/</g,'&lt;')+'</span><span class="mti">'+ts+'</span><button class="md" data-key="'+x.key+'">✕</button></div>';
+        h+='<div class="mc"><span class="mt-text">'+x.text.replace(/</g,'&lt;')+'</span><span class="mt-time">'+ts+'</span><button class="mt-del" data-key="'+x.key+'">✕</button></div>';
       });el.innerHTML=h;
-      el.querySelectorAll('.md').forEach(function(b){b.addEventListener('click',function(){database.ref('app_notes/'+this.dataset.key).remove();lm();});});
+      el.querySelectorAll('.mt-del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_notes/'+this.dataset.key).remove();loadM();});});
     });}
 
     // === 仮置きメール ===
-    lp();
-    function lp(){database.ref('app_parked_mails').once('value',function(sn){
+    loadP();
+    function loadP(){database.ref('app_parked_mails').once('value',function(sn){
       var pk=sn.val()||{},ml=document.getElementById('mailList'),c=document.getElementById('tcP');
       var e=[];Object.keys(pk).forEach(function(k){e.push({key:k,d:pk[k]});});
       e.sort(function(a,b){return(b.d.ts||'').localeCompare(a.d.ts||'');});c.textContent=e.length;
-      document.getElementById('aiClassifyBtn').disabled=!checkApiKey()||e.length===0;
+      document.getElementById('aiBtn').disabled=!chkKey()||e.length===0;
       if(!e.length){ml.innerHTML='<div class="mail-empty">📭 仮置きなし<br><span style="font-size:12px;color:#666;">comm.htmlの「📬 仮置きに送る」で追加</span></div>';return;}
       var h='';
       e.forEach(function(x){
         var m=x.d,dt=new Date(m.ts);
         var ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
         var badge=m.src==='imessage'?'<span class="mlb sms">SMS</span>':'<span class="mlb gmail">Gmail</span>';
-        var aiSuggest=m.aiSuggest?'<span class="ai-suggest">🤖 AI提案: '+m.aiSuggest+'</span>':'';
-        h+='<div class="mlc'+(m.aiSuggest?' ai-matched':'')+'" data-key="'+x.key+'">';
-        h+='<div class="mlt"><div class="mlf">'+badge+(m.contact||'').replace(/</g,'&lt;')+'</div><span class="mltime">'+ts+'</span></div>';
-        if(m.subject)h+='<div class="mlsub">'+m.subject.replace(/</g,'&lt;')+'</div>';
-        if(m.body)h+='<div class="mlsnip">'+m.body.substring(0,300).replace(/</g,'&lt;')+'</div>';
-        h+=aiSuggest;
-        h+='<div class="mlact">';
-        h+='<select class="case-select" data-key="'+x.key+'"><option value="">案件を選択...</option>';
+        h+='<div class="mlc'+(m.aiSuggest?' ai-m':'')+'" data-key="'+x.key+'">';
+        h+='<div class="mlt"><div class="mlf">'+badge+(m.contact||'').replace(/</g,'&lt;')+'</div><span class="mltm">'+ts+'</span></div>';
+        if(m.subject)h+='<div class="mlsb">'+m.subject.replace(/</g,'&lt;')+'</div>';
+        if(m.body)h+='<div class="mlsn">'+m.body.substring(0,300).replace(/</g,'&lt;')+'</div>';
+        if(m.aiSuggest)h+='<div><span class="ai-sug">🤖 AI提案: '+m.aiSuggest+'</span></div>';
+        h+='<div class="mlac">';
+        h+='<select class="cs" data-key="'+x.key+'"><option value="">案件を選択...</option>';
         caseOptions.forEach(function(co){h+='<option value="'+co.key+'"'+(m.assignedCase===co.key?' selected':'')+'>'+co.name+'</option>';});
-        h+='</select>';
-        h+='<button class="assign-btn" data-key="'+x.key+'">✔ 指定</button>';
-        h+='<button class="mlbtn del" data-key="'+x.key+'">✕ 削除</button>';
-        h+='</div></div>';
+        h+='</select><button class="as-btn" data-key="'+x.key+'">✔ 指定</button>';
+        h+='<button class="ml-btn del" data-key="'+x.key+'">✕ 削除</button></div></div>';
       });
       ml.innerHTML=h;
-      // 削除
-      ml.querySelectorAll('.mlbtn.del').forEach(function(b){b.addEventListener('click',function(){
-        database.ref('app_parked_mails/'+this.dataset.key).remove();lp();
-      });});
-      // 案件指定
-      ml.querySelectorAll('.assign-btn').forEach(function(b){b.addEventListener('click',function(){
-        var k=this.dataset.key;
-        var sel=ml.querySelector('.case-select[data-key="'+k+'"]');
-        var caseKey=sel.value;
-        if(!caseKey){alert('案件を選択してください');return;}
-        // Firebaseに保存：仮置きメールに案件キーを紐付け
-        database.ref('app_parked_mails/'+k+'/assignedCase').set(caseKey);
-        // 通信データにも追加（案件モーダルに表示されるように）
-        var mailData=pk[k];
-        if(mailData){
-          var commEntry={dt:mailData.ts,src:mailData.src||'gmail',dir:mailData.dir||'',contact:mailData.contact||'',subject:mailData.subject||'',body:(mailData.body||'').substring(0,500),assignedCase:caseKey};
-          database.ref('app_communications').push(commEntry);
-        }
-        this.textContent='✔ 指定済';this.style.background='#666';this.disabled=true;
+      ml.querySelectorAll('.ml-btn.del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_parked_mails/'+this.dataset.key).remove();loadP();});});
+      ml.querySelectorAll('.as-btn').forEach(function(b){b.addEventListener('click',function(){
+        var k=this.dataset.key,sel=ml.querySelector('.cs[data-key="'+k+'"]'),ck=sel.value;
+        if(!ck){alert('案件を選択してください');return;}
+        database.ref('app_parked_mails/'+k+'/assignedCase').set(ck);
+        var md=pk[k];
+        if(md){database.ref('app_communications').push({dt:md.ts,src:md.src||'gmail',dir:md.dir||'',contact:md.contact||'',subject:md.subject||'',body:(md.body||'').substring(0,500),assignedCase:ck});}
+        this.textContent='✔ 済';this.style.background='#666';this.disabled=true;
       });});
     });}
 
     // === AI分類 ===
-    document.getElementById('aiClassifyBtn').addEventListener('click',runAiClassify);
-
-    function runAiClassify(){
+    document.getElementById('aiBtn').addEventListener('click',function(){
       var apiKey=localStorage.getItem('gemini_api_key');
-      if(!apiKey){document.getElementById('settingsOverlay').style.display='block';return;}
-      var statusEl=document.getElementById('aiStatus');
-      var btn=document.getElementById('aiClassifyBtn');
-      btn.disabled=true;btn.textContent='🤖 分類中...';
-      statusEl.textContent='Gemini APIに問い合わせ中...';
+      if(!apiKey){document.getElementById('setOv').style.display='block';return;}
+      var sts=document.getElementById('aiSts'),btn=this;
+      btn.disabled=true;btn.textContent='🤖 分類中...';sts.textContent='Gemini APIに問い合わせ中...';
 
       database.ref('app_parked_mails').once('value',function(sn){
         var pk=sn.val()||{};
-        var entries=[];
-        Object.keys(pk).forEach(function(k){if(!pk[k].aiSuggest)entries.push({key:k,d:pk[k]});});
-        if(!entries.length){statusEl.textContent='分類対象なし';btn.disabled=false;btn.textContent='🤖 AI分類';return;}
+        var entries=[];Object.keys(pk).forEach(function(k){if(!pk[k].aiSuggest)entries.push({key:k,d:pk[k]});});
+        if(!entries.length){sts.textContent='分類対象なし';btn.disabled=false;btn.textContent='🤖 AI分類';return;}
 
-        // 案件リストを短く
         var caseList=caseOptions.slice(0,100).map(function(c){return c.name;}).join('\n');
+        var bs=5,batches=[];
+        for(var i=0;i<entries.length;i+=bs)batches.push(entries.slice(i,i+bs));
+        var done=0;
 
-        var batchSize=5;
-        var batches=[];
-        for(var i=0;i<entries.length;i+=batchSize){batches.push(entries.slice(i,i+batchSize));}
-
-        var processed=0;
-        function processBatch(idx){
-          if(idx>=batches.length){
-            statusEl.textContent='完了！ '+processed+'件分類済み';
-            btn.disabled=false;btn.textContent='🤖 AI分類';lp();return;
-          }
+        function proc(idx){
+          if(idx>=batches.length){sts.textContent='完了！ '+done+'件分類済み';btn.disabled=false;btn.textContent='🤖 AI分類';loadP();return;}
           var batch=batches[idx];
-          var msgList=batch.map(function(e,i){
-            return '['+(i+1)+'] 送信元:'+e.d.contact+' 件名:'+(e.d.subject||'なし')+' 本文:'+(e.d.body||'').substring(0,200);
-          }).join('\n');
-
-          var prompt='あなたは建設現場の案件管理アシスタントです。以下のメッセージそれぞれについて、最も関連する案件名を1つだけ選んでください。該当なしの場合は「不明」と答えてください。\n\n'
-            +'【案件一覧】\n'+caseList+'\n\n'
-            +'【メッセージ】\n'+msgList+'\n\n'
-            +'回答はJSON配列で返してください。例: ["案件名1","不明","案件名3","案件名4","不明"]\n'
-            +'JSONのみ、説明不要。';
+          var msgList=batch.map(function(e,i){return '['+(i+1)+'] 送信元:'+e.d.contact+' 件名:'+(e.d.subject||'なし')+' 本文:'+(e.d.body||'').substring(0,200);}).join('\n');
+          var prompt='あなたは建設現場の案件管理アシスタントです。以下のメッセージそれぞれについて、最も関連する案件名を1つだけ選んでください。該当なしの場合は「不明」と答えてください。\n\n【案件一覧】\n'+caseList+'\n\n【メッセージ】\n'+msgList+'\n\n回答はJSON配列で返してください。例:["案件名1","不明","案件名3"]\nJSONのみ、説明不要。';
 
           fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
+            method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
-          })
-          .then(function(r){return r.json();})
-          .then(function(data){
+          }).then(function(r){return r.json();}).then(function(data){
             try{
               var text=data.candidates[0].content.parts[0].text;
-              var clean=text.replace(/```json|```/g,'').trim();
-              var results=JSON.parse(clean);
+              var results=JSON.parse(text.replace(/```json|```/g,'').trim());
               for(var j=0;j<batch.length;j++){
-                var suggest=(results[j]&&results[j]!=='不明')?results[j]:null;
-                if(suggest){
-                  database.ref('app_parked_mails/'+batch[j].key+'/aiSuggest').set(suggest);
-                  processed++;
-                }
+                var sug=(results[j]&&results[j]!=='不明')?results[j]:null;
+                if(sug){database.ref('app_parked_mails/'+batch[j].key+'/aiSuggest').set(sug);done++;}
               }
-            }catch(e){console.error('AI parse error:',e);}
-            statusEl.textContent='処理中... '+(idx+1)+'/'+batches.length+'バッチ';
-            setTimeout(function(){processBatch(idx+1);},1000);
-          })
-          .catch(function(e){
-            console.error('AI error:',e);
-            statusEl.textContent='エラー: '+e.message;
-            btn.disabled=false;btn.textContent='🤖 AI分類';
-          });
+            }catch(e){console.error('AI parse:',e);}
+            sts.textContent='処理中... '+(idx+1)+'/'+batches.length;
+            setTimeout(function(){proc(idx+1);},1000);
+          }).catch(function(e){sts.textContent='エラー: '+e.message;btn.disabled=false;btn.textContent='🤖 AI分類';});
         }
-        processBatch(0);
+        proc(0);
       });
-    }
+    });
   </script>
 </body>
 </html>
