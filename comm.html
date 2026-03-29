@@ -20,195 +20,77 @@ body {
   top: 0;
   z-index: 100;
 }
-.header h1 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 10px;
-}
+.header h1 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 10px; }
 .header h1 span { color: #64b5f6; }
-.stats {
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 4px;
-}
-.match-summary {
-  font-size: 12px;
-  color: #ff9800;
-  margin-bottom: 10px;
-}
-.filters {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
+.stats { font-size: 12px; color: #888; margin-bottom: 4px; }
+.match-summary { font-size: 12px; color: #ff9800; margin-bottom: 10px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .filter-btn {
-  padding: 6px 14px;
-  border-radius: 20px;
-  border: 1px solid #3a3d4a;
-  background: transparent;
-  color: #aaa;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
+  padding: 6px 14px; border-radius: 20px; border: 1px solid #3a3d4a;
+  background: transparent; color: #aaa; font-size: 13px; cursor: pointer; transition: all 0.2s;
 }
-.filter-btn.active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
-.filter-btn.work-filter.active {
-  background: #e65100;
-  border-color: #e65100;
-}
+.filter-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.filter-btn.work-filter.active { background: #e65100; border-color: #e65100; }
 .filter-btn:hover { border-color: #64b5f6; }
 .search-box {
-  flex: 1;
-  min-width: 150px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  border: 1px solid #3a3d4a;
-  background: #12141c;
-  color: #e0e0e0;
-  font-size: 13px;
-  outline: none;
+  flex: 1; min-width: 150px; padding: 6px 12px; border-radius: 20px;
+  border: 1px solid #3a3d4a; background: #12141c; color: #e0e0e0; font-size: 13px; outline: none;
 }
 .search-box:focus { border-color: #2563eb; }
 .search-box::placeholder { color: #666; }
-.timeline {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 12px;
-}
-.date-group {
-  margin-bottom: 8px;
-}
+.timeline { max-width: 800px; margin: 0 auto; padding: 12px; }
+.date-group { margin-bottom: 8px; }
 .date-label {
-  position: sticky;
-  top: 120px;
-  background: #0f1117;
-  padding: 8px 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #64b5f6;
-  border-bottom: 1px solid #1e2130;
-  margin-bottom: 6px;
-  z-index: 50;
+  position: sticky; top: 120px; background: #0f1117; padding: 8px 0 4px;
+  font-size: 13px; font-weight: 600; color: #64b5f6;
+  border-bottom: 1px solid #1e2130; margin-bottom: 6px; z-index: 50;
 }
 .msg-card {
-  background: #1a1d27;
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 6px;
-  border-left: 3px solid #333;
-  transition: background 0.15s;
+  background: #1a1d27; border-radius: 10px; padding: 12px; margin-bottom: 6px;
+  border-left: 3px solid #333; transition: background 0.15s;
 }
 .msg-card:hover { background: #1f2233; }
 .msg-card.imessage { border-left-color: #4caf50; }
 .msg-card.gmail { border-left-color: #f44336; }
 .msg-card.sent { border-left-color: #2196f3; }
 .msg-card.matched { border-left-color: #ff9800; }
-.msg-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
+.msg-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .msg-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  padding: 2px 8px; border-radius: 10px; font-weight: 600;
 }
 .msg-source.imessage { background: #1b3a1b; color: #66bb6a; }
 .msg-source.gmail { background: #3a1b1b; color: #ef5350; }
-.msg-dir {
-  font-size: 11px;
-  color: #888;
-}
-.msg-time {
-  font-size: 11px;
-  color: #666;
-}
-.msg-contact {
-  font-size: 13px;
-  font-weight: 600;
-  color: #ccc;
-  margin-bottom: 4px;
-  word-break: break-all;
-}
-.msg-contact a {
-  color: #64b5f6;
-  text-decoration: none;
-}
+.msg-dir { font-size: 11px; color: #888; }
+.msg-time { font-size: 11px; color: #666; }
+.msg-contact { font-size: 13px; font-weight: 600; color: #ccc; margin-bottom: 4px; word-break: break-all; }
+.msg-contact a { color: #64b5f6; text-decoration: none; }
 .msg-case {
-  display: inline-block;
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 10px;
-  background: #3e2723;
-  color: #ffab40;
-  font-weight: 600;
-  margin-bottom: 4px;
+  display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 10px;
+  background: #3e2723; color: #ffab40; font-weight: 600; margin-bottom: 4px; margin-right: 4px;
 }
+.msg-case.keyword { background: #1b5e20; color: #a5d6a7; }
 .msg-email-match {
-  display: inline-block;
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 10px;
-  background: #1a237e;
-  color: #82b1ff;
-  font-weight: 600;
-  margin-bottom: 4px;
+  display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 10px;
+  background: #1a237e; color: #82b1ff; font-weight: 600; margin-bottom: 4px;
 }
-.msg-case-person {
-  font-size: 11px;
-  color: #888;
-  margin-left: 6px;
-}
-.msg-subject {
-  font-size: 12px;
-  color: #f0c040;
-  margin-bottom: 4px;
-}
-.msg-body {
-  font-size: 13px;
-  color: #aaa;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.loading {
-  text-align: center;
-  padding: 60px;
-  color: #666;
-  font-size: 14px;
-}
-.back-link {
-  display: inline-block;
-  color: #64b5f6;
-  text-decoration: none;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
+.msg-case-person { font-size: 11px; color: #888; margin-left: 6px; }
+.msg-subject { font-size: 12px; color: #f0c040; margin-bottom: 4px; }
+.msg-body { font-size: 13px; color: #aaa; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.loading { text-align: center; padding: 60px; color: #666; font-size: 14px; }
+.back-link { display: inline-block; color: #64b5f6; text-decoration: none; font-size: 13px; margin-bottom: 4px; }
 .count-badge {
-  display: inline-block;
-  background: #2a2d3a;
-  color: #aaa;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  margin-left: 6px;
+  display: inline-block; background: #2a2d3a; color: #aaa; font-size: 11px;
+  padding: 2px 8px; border-radius: 10px; margin-left: 6px;
 }
-.no-results {
-  text-align: center;
-  padding: 40px;
-  color: #555;
+.no-results { text-align: center; padding: 40px; color: #555; }
+.park-btn {
+  font-size: 10px; padding: 3px 10px; border-radius: 12px;
+  border: 1px solid #4e342e; background: transparent; color: #bcaaa4;
+  cursor: pointer; margin-top: 6px;
 }
+.park-btn:hover { border-color: #ff9800; color: #ff9800; }
+.park-btn.done { border-color: #66bb6a; color: #66bb6a; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -233,12 +115,14 @@ body {
   <div class="loading">⏳ Firebaseからデータ取得中...</div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var allRecords = [];
-var phoneToCases = {};   // phone -> {name, person, key} from app_tasks
-var emailToContact = {}; // email -> {name, company, category} from app_contacts
-var phoneToContact = {}; // phone -> {name, company, category} from app_contacts
+var phoneToCasesList = {}; // phone -> [{name,person,key,keywords}]
+var emailToContact = {};
+var phoneToContact = {};
 var activeFilter = "all";
 var searchText = "";
 
@@ -253,86 +137,100 @@ function normalizePhone(raw) {
 
 function extractEmail(fromStr) {
   if (!fromStr) return "";
-  var match = fromStr.match(/<([^>]+)>/);
-  if (match) return match[1].toLowerCase().trim();
+  var m = fromStr.match(/<([^>]+)>/);
+  if (m) return m[1].toLowerCase().trim();
   if (fromStr.indexOf("@") > -1) return fromStr.toLowerCase().trim();
   return "";
 }
 
-function parseDate(rec) {
-  if (rec.src === "imessage") {
-    return new Date(rec.dt);
-  } else {
-    try { return new Date(rec.dt); } catch(e) { return new Date(0); }
+function extractKeywords(csvData) {
+  var keywords = [];
+  var caseName = (csvData[4] || "");
+  var parts = caseName.replace(/【[^】]*】/g, " ").replace(/[（()）\[\]]/g, " ").split(/[\s\u3000・]+/);
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) keywords.push(p.toLowerCase());
   }
+  var nameMatch = caseName.match(/([^\s【】（）]+?)様/);
+  if (nameMatch && nameMatch[1].length >= 2) keywords.push(nameMatch[1].toLowerCase());
+  return keywords;
 }
 
+function scoreMessage(body, subject, keywords) {
+  if (!keywords || keywords.length === 0) return 0;
+  var text = ((body || "") + " " + (subject || "")).toLowerCase();
+  if (!text.trim()) return 0;
+  var score = 0;
+  for (var i = 0; i < keywords.length; i++) {
+    if (text.indexOf(keywords[i]) !== -1) score += keywords[i].length;
+  }
+  return score;
+}
+
+function parseDate(rec) {
+  try { return new Date(rec.dt); } catch(e) { return new Date(0); }
+}
 function dateKey(d) {
-  var y = d.getFullYear();
-  var m = ("0" + (d.getMonth()+1)).slice(-2);
-  var dd = ("0" + d.getDate()).slice(-2);
-  return y + "-" + m + "-" + dd;
+  return d.getFullYear() + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0"+d.getDate()).slice(-2);
 }
-
 function timeStr(d) {
   return ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
 }
-
 function dateLabelText(key) {
-  var parts = key.split("-");
-  var d = new Date(parts[0], parts[1]-1, parts[2]);
+  var p = key.split("-");
+  var d = new Date(p[0], p[1]-1, p[2]);
   var days = ["日","月","火","水","木","金","土"];
-  return parts[0] + "/" + parseInt(parts[1]) + "/" + parseInt(parts[2]) + " (" + days[d.getDay()] + ")";
+  return p[0] + "/" + parseInt(p[1]) + "/" + parseInt(p[2]) + " (" + days[d.getDay()] + ")";
 }
 
 function contactDisplay(rec) {
   if (rec.src === "imessage") {
     var phone = rec.contact || "";
     var cleaned = normalizePhone(phone);
-    // Show contact name if found
     var cInfo = phoneToContact[cleaned];
     var nameLabel = "";
-    if (cInfo && cInfo.name) {
-      nameLabel = '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company || "") + '</span><br>';
-    }
-    if (cleaned.length >= 10) {
-      return nameLabel + '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
-    }
+    if (cInfo && cInfo.name) nameLabel = '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company||"") + '</span><br>';
+    if (cleaned.length >= 10) return nameLabel + '<a href="tel:' + cleaned + '">' + cleaned + '</a>';
     return nameLabel + phone;
   } else {
     var email = extractEmail(rec.contact);
     var cInfo = emailToContact[email];
-    if (cInfo && cInfo.name) {
-      return '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company || "") + '</span><br><span style="color:#555;font-size:11px">' + email + '</span>';
-    }
+    if (cInfo && cInfo.name)
+      return '<span style="color:#82b1ff">' + cInfo.name + '</span> <span style="color:#666">' + (cInfo.company||"") + '</span><br><span style="color:#555;font-size:11px">' + email + '</span>';
     var match = rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
-    if (match) {
-      return match[1].trim() + '<br><span style="color:#555;font-size:11px">' + match[2] + '</span>';
-    }
+    if (match) return match[1].trim() + '<br><span style="color:#555;font-size:11px">' + match[2] + '</span>';
     return rec.contact || "";
   }
 }
 
+// マッチング：電話番号→複数案件→キーワードで最適選択
 function lookupMatch(rec) {
-  // 1. SMS: phone -> app_tasks (case match)
   if (rec.src === "imessage") {
     var normalized = normalizePhone(rec.contact);
-    if (phoneToCases[normalized]) {
-      return { type: "case", data: phoneToCases[normalized] };
+    var cases = phoneToCasesList[normalized];
+    if (cases && cases.length > 0) {
+      if (cases.length === 1) {
+        return { type: "case", data: cases[0], score: 0 };
+      }
+      // 複数案件 → キーワードスコアで判定
+      var bestScore = 0, bestCase = null;
+      for (var i = 0; i < cases.length; i++) {
+        var sc = scoreMessage(rec.body, rec.subject, cases[i].keywords);
+        if (sc > bestScore) { bestScore = sc; bestCase = cases[i]; }
+      }
+      if (bestCase) return { type: "case", data: bestCase, score: bestScore, keyword: true };
+      // キーワード一致なし → 担当者レベルのマッチ（案件特定できず）
+      return { type: "case_ambiguous", data: cases, score: 0 };
     }
-    // Also check app_contacts for phone
     if (phoneToContact[normalized] && phoneToContact[normalized].category !== "その他") {
       return { type: "contact", data: phoneToContact[normalized] };
     }
   }
-  // 2. Gmail: email -> app_contacts
   if (rec.src === "gmail") {
     var email = extractEmail(rec.contact);
     if (emailToContact[email]) {
       var c = emailToContact[email];
-      if (c.category !== "その他") {
-        return { type: "contact", data: c };
-      }
+      if (c.category !== "その他") return { type: "contact", data: c };
     }
   }
   return null;
@@ -348,15 +246,22 @@ function matchesFilter(rec) {
     var s = searchText.toLowerCase();
     var hay = ((rec.contact||"") + " " + (rec.subject||"") + " " + (rec.body||"")).toLowerCase();
     if (rec._match) {
-      if (rec._match.type === "case") {
-        hay += " " + (rec._match.data.name || "") + " " + (rec._match.data.person || "");
-      } else {
-        hay += " " + (rec._match.data.name || "") + " " + (rec._match.data.company || "");
+      if (rec._match.type === "case") hay += " " + (rec._match.data.name||"") + " " + (rec._match.data.person||"");
+      else if (rec._match.type === "contact") hay += " " + (rec._match.data.name||"") + " " + (rec._match.data.company||"");
+      else if (rec._match.type === "case_ambiguous") {
+        for (var i = 0; i < rec._match.data.length; i++) hay += " " + (rec._match.data[i].name||"");
       }
     }
-    if (hay.toLowerCase().indexOf(s) === -1) return false;
+    if (hay.indexOf(s) === -1) return false;
   }
   return true;
+}
+
+function parkMail(rec, btn) {
+  var entry = { src: rec.src, contact: rec.contact||"", subject: rec.subject||"", body: (rec.body||"").substring(0,500), ts: rec.dt, dir: rec.dir||"" };
+  firebase.database().ref('app_parked_mails').push(entry);
+  btn.textContent = "✔ 仮置き済";
+  btn.classList.add("done");
 }
 
 function render() {
@@ -364,88 +269,97 @@ function render() {
   for (var i = 0; i < allRecords.length; i++) {
     if (matchesFilter(allRecords[i])) filtered.push(allRecords[i]);
   }
-
   var imCount = 0, gmCount = 0;
   for (var i = 0; i < filtered.length; i++) {
-    if (filtered[i].src === "imessage") imCount++;
-    else gmCount++;
+    if (filtered[i].src === "imessage") imCount++; else gmCount++;
   }
   document.getElementById("stats").textContent =
     "表示: " + filtered.length + "件（SMS " + imCount + " / Gmail " + gmCount + "）/ 全" + allRecords.length + "件";
 
-  var totalMatched = 0;
+  var totalMatched = 0, kwMatched = 0, ambiguous = 0;
   for (var i = 0; i < allRecords.length; i++) {
-    if (allRecords[i]._match) totalMatched++;
+    if (allRecords[i]._match) {
+      totalMatched++;
+      if (allRecords[i]._match.type === "case" && allRecords[i]._match.keyword) kwMatched++;
+      if (allRecords[i]._match.type === "case_ambiguous") ambiguous++;
+    }
   }
   document.getElementById("matchSummary").textContent =
-    "🔗 仕事紐付き: " + totalMatched + "件 / 未紐付き: " + (allRecords.length - totalMatched) + "件";
+    "🔗 仕事紐付き: " + totalMatched + "件（キーワード特定: " + kwMatched + " / 候補複数: " + ambiguous + "）/ 未紐付き: " + (allRecords.length - totalMatched) + "件";
 
   if (filtered.length === 0) {
     document.getElementById("timeline").innerHTML = '<div class="no-results">該当なし</div>';
     return;
   }
 
-  var groups = {};
-  var groupOrder = [];
+  var groups = {}, groupOrder = [];
   for (var i = 0; i < filtered.length; i++) {
-    var rec = filtered[i];
-    var key = rec._dateKey;
-    if (!groups[key]) {
-      groups[key] = [];
-      groupOrder.push(key);
-    }
-    groups[key].push(rec);
+    var key = filtered[i]._dateKey;
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+    groups[key].push(filtered[i]);
   }
 
   var html = "";
   for (var g = 0; g < groupOrder.length; g++) {
-    var key = groupOrder[g];
-    var msgs = groups[key];
-    html += '<div class="date-group">';
-    html += '<div class="date-label">' + dateLabelText(key) + '<span class="count-badge">' + msgs.length + '件</span></div>';
+    var key = groupOrder[g], msgs = groups[key];
+    html += '<div class="date-group"><div class="date-label">' + dateLabelText(key) + '<span class="count-badge">' + msgs.length + '件</span></div>';
     for (var m = 0; m < msgs.length; m++) {
       var rec = msgs[m];
       var cardClass = "msg-card " + rec.src;
       if (rec.dir === "sent") cardClass += " sent";
       if (rec._match) cardClass += " matched";
       html += '<div class="' + cardClass + '">';
-      html += '<div class="msg-top">';
-      html += '<div>';
+      html += '<div class="msg-top"><div>';
       html += '<span class="msg-source ' + rec.src + '">' + (rec.src === "imessage" ? "💬 SMS" : "📧 Gmail") + '</span>';
-      if (rec.dir) {
-        html += ' <span class="msg-dir">' + (rec.dir === "sent" ? "↑送信" : "↓受信") + '</span>';
-      }
-      html += '</div>';
-      html += '<span class="msg-time">' + rec._timeStr + '</span>';
-      html += '</div>';
+      if (rec.dir) html += ' <span class="msg-dir">' + (rec.dir === "sent" ? "↑送信" : "↓受信") + '</span>';
+      html += '</div><span class="msg-time">' + rec._timeStr + '</span></div>';
+
+      // マッチ表示
       if (rec._match) {
         if (rec._match.type === "case") {
-          html += '<div><span class="msg-case">🏗️ ' + rec._match.data.name + '</span>';
-          if (rec._match.data.person) {
-            html += '<span class="msg-case-person">' + rec._match.data.person + '</span>';
-          }
+          var kwClass = rec._match.keyword ? " keyword" : "";
+          html += '<div><span class="msg-case' + kwClass + '">🏗️ ' + rec._match.data.name + '</span>';
+          if (rec._match.keyword) html += '<span style="font-size:9px;color:#a5d6a7;">★ キーワード特定</span>';
+          if (rec._match.data.person) html += '<span class="msg-case-person">' + rec._match.data.person + '</span>';
           html += '</div>';
-        } else {
-          html += '<div><span class="msg-email-match">👤 ' + rec._match.data.name + '</span>';
-          if (rec._match.data.company) {
-            html += '<span class="msg-case-person">' + rec._match.data.company + '</span>';
+        } else if (rec._match.type === "case_ambiguous") {
+          html += '<div>';
+          for (var ci = 0; ci < Math.min(rec._match.data.length, 3); ci++) {
+            html += '<span class="msg-case">❓ ' + rec._match.data[ci].name + '</span>';
           }
+          if (rec._match.data.length > 3) html += '<span style="font-size:10px;color:#888;">他' + (rec._match.data.length - 3) + '件</span>';
+          html += '</div>';
+        } else if (rec._match.type === "contact") {
+          html += '<div><span class="msg-email-match">👤 ' + rec._match.data.name + '</span>';
+          if (rec._match.data.company) html += '<span class="msg-case-person">' + rec._match.data.company + '</span>';
           html += '</div>';
         }
       }
+
       html += '<div class="msg-contact">' + contactDisplay(rec) + '</div>';
-      if (rec.subject) {
-        html += '<div class="msg-subject">📋 ' + rec.subject + '</div>';
-      }
+      if (rec.subject) html += '<div class="msg-subject">📋 ' + rec.subject + '</div>';
       if (rec.body) {
         var bodyText = rec.body.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         html += '<div class="msg-body">' + bodyText + '</div>';
+      }
+      // 仮置きボタン（仕事関連だが案件特定できない or 未紐付き）
+      if (!rec._match || rec._match.type === "case_ambiguous") {
+        html += '<button class="park-btn" data-idx="' + rec._idx + '">📬 仮置きに送る</button>';
       }
       html += '</div>';
     }
     html += '</div>';
   }
   document.getElementById("timeline").innerHTML = html;
+
+  // 仮置きボタンイベント
+  document.querySelectorAll('.park-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var idx = parseInt(this.dataset.idx);
+      if (allRecords[idx]) parkMail(allRecords[idx], this);
+    });
+  });
 }
 
 document.querySelectorAll(".filter-btn").forEach(function(btn) {
@@ -456,29 +370,33 @@ document.querySelectorAll(".filter-btn").forEach(function(btn) {
     render();
   });
 });
-
 var searchTimer = null;
 document.getElementById("searchBox").addEventListener("input", function() {
   clearTimeout(searchTimer);
   var val = this.value;
-  searchTimer = setTimeout(function() {
-    searchText = val;
-    render();
-  }, 300);
+  searchTimer = setTimeout(function() { searchText = val; render(); }, 300);
 });
 
-// Data loading
+// Firebase初期化（仮置き用）
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914"
+};
+if (typeof firebase !== 'undefined' && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
 var loadState = { tasks: false, contacts: false, comms: false };
 
 function tryRender() {
   if (!loadState.tasks || !loadState.contacts || !loadState.comms) return;
   for (var i = 0; i < allRecords.length; i++) {
+    allRecords[i]._idx = i;
     allRecords[i]._match = lookupMatch(allRecords[i]);
   }
   render();
 }
 
-// 1. Load app_tasks (phone -> case mapping)
+// Load tasks (phone -> multiple cases)
 fetch(FB_URL + "/app_tasks.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -490,27 +408,25 @@ fetch(FB_URL + "/app_tasks.json")
         var rawPhone = task.csvData[6] || "";
         var normalized = normalizePhone(rawPhone);
         if (normalized.length >= 10) {
-          if (!phoneToCases[normalized]) {
-            phoneToCases[normalized] = {
-              name: task.csvData[4] || "",
-              person: task.csvData[5] || "",
-              key: keys[i]
-            };
-          }
+          var caseInfo = {
+            name: task.csvData[4] || "",
+            person: task.csvData[5] || "",
+            key: keys[i],
+            keywords: extractKeywords(task.csvData)
+          };
+          if (!phoneToCasesList[normalized]) phoneToCasesList[normalized] = [];
+          phoneToCasesList[normalized].push(caseInfo);
         }
       }
-      console.log("Case phone mappings: " + Object.keys(phoneToCases).length);
+      var multiCount = 0;
+      for (var p in phoneToCasesList) { if (phoneToCasesList[p].length > 1) multiCount++; }
+      console.log("Phone mappings: " + Object.keys(phoneToCasesList).length + " (multi-case: " + multiCount + ")");
     }
-    loadState.tasks = true;
-    tryRender();
+    loadState.tasks = true; tryRender();
   })
-  .catch(function(e) {
-    console.error("Tasks load error:", e);
-    loadState.tasks = true;
-    tryRender();
-  });
+  .catch(function(e) { console.error(e); loadState.tasks = true; tryRender(); });
 
-// 2. Load app_contacts (email + phone -> contact mapping)
+// Load contacts
 fetch(FB_URL + "/app_contacts.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -522,33 +438,19 @@ fetch(FB_URL + "/app_contacts.json")
         var email = (c.email || "").toLowerCase().trim();
         var phone = normalizePhone(c.phone || "");
         var info = { name: c.name || "", company: c.company || "", category: c.category || "" };
-        if (email && !emailToContact[email]) {
-          emailToContact[email] = info;
-        }
-        if (phone.length >= 10 && !phoneToContact[phone]) {
-          phoneToContact[phone] = info;
-        }
+        if (email && !emailToContact[email]) emailToContact[email] = info;
+        if (phone.length >= 10 && !phoneToContact[phone]) phoneToContact[phone] = info;
       }
-      console.log("Contact email mappings: " + Object.keys(emailToContact).length);
-      console.log("Contact phone mappings: " + Object.keys(phoneToContact).length);
     }
-    loadState.contacts = true;
-    tryRender();
+    loadState.contacts = true; tryRender();
   })
-  .catch(function(e) {
-    console.error("Contacts load error:", e);
-    loadState.contacts = true;
-    tryRender();
-  });
+  .catch(function(e) { console.error(e); loadState.contacts = true; tryRender(); });
 
-// 3. Load app_communications
+// Load communications
 fetch(FB_URL + "/app_communications.json")
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (!data) {
-      document.getElementById("timeline").innerHTML = '<div class="no-results">データなし</div>';
-      return;
-    }
+    if (!data) { document.getElementById("timeline").innerHTML = '<div class="no-results">データなし</div>'; return; }
     var arr = Array.isArray(data) ? data : Object.values(data);
     for (var i = 0; i < arr.length; i++) {
       if (!arr[i]) continue;
@@ -560,12 +462,9 @@ fetch(FB_URL + "/app_communications.json")
       allRecords.push(rec);
     }
     allRecords.sort(function(a, b) { return b._sortKey - a._sortKey; });
-    loadState.comms = true;
-    tryRender();
+    loadState.comms = true; tryRender();
   })
-  .catch(function(e) {
-    document.getElementById("timeline").innerHTML = '<div class="no-results">エラー: ' + e.message + '</div>';
-  });
+  .catch(function(e) { document.getElementById("timeline").innerHTML = '<div class="no-results">エラー: ' + e.message + '</div>'; });
 </script>
 </body>
 </html>
