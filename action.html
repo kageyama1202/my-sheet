@@ -133,7 +133,7 @@ document.getElementById('setSav').addEventListener('click',function(){var k=docu
 document.getElementById('setOv').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
 function chkKey(){var k=localStorage.getItem('gemini_api_key');document.getElementById('aiBtn').disabled=!k;return k;}
 function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
-function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[7]).padStart(2,'0');return d;}
+function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p+"-"+String(p[3]).padStart(2,'0')+"-"+String(p[4]).padStart(2,'0');return d;}
 var now=new Date();var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
 var dn=['日','月','火','水','木','金','土'];
 document.getElementById('dateDisplay').textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' ('+dn[now.getDay()]+')';
@@ -259,7 +259,7 @@ function proc(idx){
 if(idx>=batches.length){sts.textContent='完了！ '+done+'件';btn.disabled=false;btn.textContent='🤖 AI分類';loadP();return;}
 var batch=batches[idx],msgList=batch.map(function(e,i){return'['+(i+1)+'] 送信元:'+e.d.contact+' 件名:'+(e.d.subject||'なし')+' 本文:'+(e.d.body||'').substring(0,200);}).join('\n');
 var prompt='建設案件管理アシスタントです。メッセージごとに最も関連する案件名を1つ選んでください。該当なしは「不明」。\n\n【案件一覧】\n'+caseList+'\n\n【メッセージ】\n'+msgList+'\n\nJSON配列で回答。例:["案件名1","不明"]\nJSONのみ。';
-fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
 }).then(function(r){return r.json();}).then(function(data){
 try{var text=data.candidates.content.parts.text,results=JSON.parse(text.replace(/```json|```/g,'').trim());
 for(var j=0;j<batch.length;j++){var sug=(results[j]&&results[j]!=='不明')?results[j]:null;if(sug){database.ref('app_parked_mails/'+batch[j].key+'/aiSuggest').set(sug);done++;}}}catch(e){console.error(e);}
