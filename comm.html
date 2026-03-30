@@ -92,7 +92,7 @@ var caseOptions=[];
 var activeFilter="work"; 
 var searchText="";
 
-function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
+function np(raw){if(!raw)return"";var s=String(raw).replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m.toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
