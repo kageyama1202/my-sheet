@@ -24,7 +24,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .search-box{flex:1;min-width:150px;padding:6px 12px;border-radius:20px;border:1px solid #3a3d4a;background:#12141c;color:#e0e0e0;font-size:13px;outline:none;}
 .search-box:focus{border-color:#2563eb;}.search-box::placeholder{color:#666;}
 
-.timeline{max-width:1100px;margin:0 auto;padding:12px;} /* 3列が入るように幅を拡張 */
+.timeline{max-width:1100px;margin:0 auto;padding:12px;}
 .date-group{margin-bottom:8px;}
 .date-label{position:sticky;top:130px;background:#0f1117;padding:8px 0 4px;font-size:13px;font-weight:600;color:#64b5f6;border-bottom:1px solid #1e2130;margin-bottom:6px;z-index:50;}
 
@@ -38,19 +38,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .msg-card.assigned{border-left-color:#64b5f6;}
 .msg-card.matched{border-left-color:#ff9800;}
 
-.col-left {
-  width: 50%; min-width: 0; padding: 12px 15px;
-  border-right: 1px solid #2a2d3a;
-}
-.col-center {
-  width: 25%; min-width: 0; padding: 12px 15px;
-  border-right: 1px solid #2a2d3a; display: flex; flex-direction: column; gap: 8px; justify-content: flex-start;
-}
-.col-right {
-  width: 25%; min-width: 0; padding: 12px 15px;
-  display: flex; flex-direction: column; gap: 8px; justify-content: flex-start;
-}
-/* スマホ時の縦積み対応 */
+.col-left { width: 50%; min-width: 0; padding: 12px 15px; border-right: 1px solid #2a2d3a; }
+.col-center { width: 25%; min-width: 0; padding: 12px 15px; border-right: 1px solid #2a2d3a; display: flex; flex-direction: column; gap: 8px; justify-content: flex-start; }
+.col-right { width: 25%; min-width: 0; padding: 12px 15px; display: flex; flex-direction: column; gap: 8px; justify-content: flex-start; }
+
 @media (max-width: 768px) {
   .msg-card { flex-direction: column; }
   .col-left, .col-center, .col-right { width: 100%; border-right: none; padding: 10px; }
@@ -68,16 +59,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .msg-subject{font-size:12px;color:#f0c040;margin-bottom:4px;}
 .msg-body{font-size:12px;color:#aaa;line-height:1.5;white-space:pre-wrap;word-break:break-word; max-height: 120px; overflow-y: auto;}
 
-/* バッジ類 */
-.msg-case{display:inline-block;font-size:11px;padding:4px 10px;border-radius:10px;background:#3e2723;color:#ffab40;font-weight:600;cursor:pointer;transition:0.2s;}
+.msg-case{display:inline-block;font-size:11px;padding:4px 10px;border-radius:10px;background:#3e2723;color:#ffab40;font-weight:600;cursor:pointer;transition:0.2s; margin-bottom:4px; margin-right:4px;}
 .msg-case:hover { filter:brightness(1.2); transform: scale(1.02); }
 .msg-case.keyword{background:#1b5e20;color:#a5d6a7;}
-.msg-email-match{display:inline-block;font-size:11px;padding:4px 10px;border-radius:10px;background:#1a237e;color:#82b1ff;font-weight:600;}
+.msg-email-match{display:inline-block;font-size:11px;padding:4px 10px;border-radius:10px;background:#1a237e;color:#82b1ff;font-weight:600; margin-bottom:4px;}
 .ai-suggest-badge { font-size: 11px; padding: 6px 10px; border-radius: 8px; background: #3a1c4a; color: #ce93d8; font-weight: 600; cursor: pointer; transition: 0.2s; text-align: center; }
 .ai-suggest-badge:hover { filter:brightness(1.2); transform: scale(1.02); }
 .count-badge{display:inline-block;background:#2a2d3a;color:#aaa;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:6px;}
 
-/* アクションUI */
 .assign-sel{padding:6px;border:1px solid #3a3d4a;border-radius:6px;background:#12141c;color:#e0e0e0;font-size:12px;width:100%;}
 .assign-sel:focus{outline:none;border-color:#64b5f6;}
 .assign-go{font-size:12px;padding:8px 0;border-radius:6px;border:none;color:#fff;cursor:pointer;font-weight:bold;width:100%;text-align:center;}
@@ -123,11 +112,10 @@ var phoneToCasesList={};
 var emailToContact={};
 var phoneToContact={};
 var caseOptions=[];
-var activeFilter="work"; // ★デフォルトを「仕事のみ」に変更
+var activeFilter="work"; // デフォルトを「仕事のみ」
 var searchText="";
 var fullCommsLoaded = false;
 
-// モーダル表示用に案件データ全体を保持
 var globalTasks = {};
 var fullData = null;
 try { var s = localStorage.getItem('appData'); if(s) fullData = JSON.parse(s); } catch(e){}
@@ -163,7 +151,8 @@ if(rec.assignedCase){
 if(rec.src==="imessage"){
   var n=np(rec.contact),cases=phoneToCasesList[n];
   if(cases&&cases.length>0){
-    if(cases.length===1)return{type:"case",data:cases,score:0};
+    // ★ ここが原因でした！ cases に修正
+    if(cases.length===1)return{type:"case",data:cases,score:0}; 
     var best=0,bc=null;
     for(var i=0;i<cases.length;i++){var sc=sm(rec.body,rec.subject,cases[i].keywords);if(sc>best){best=sc;bc=cases[i];}}
     if(bc)return{type:"case",data:bc,score:best,keyword:true};
@@ -181,7 +170,7 @@ return null;
 function matchesFilter(rec){
 if(activeFilter==="imessage"&&rec.src!=="imessage")return false;
 if(activeFilter==="gmail"&&rec.src!=="gmail")return false;
-if(activeFilter==="work"&&!rec._match)return false; // ★仕事のみの場合は推測情報がないものを除外
+if(activeFilter==="work"&&!rec._match)return false; 
 if(activeFilter==="unclass"&&(rec.assignedCase || !rec._match || rec._match.type==="manual"))return false;
 if(searchText){
   var s=searchText.toLowerCase();
@@ -196,7 +185,6 @@ if(searchText){
 return true;
 }
 
-// === 直書きでのDOM更新（爆速処理用） ===
 window.assignCase = function(fbKey, source, aiKey) {
   var caseKey = "", caseName = "";
   if (source === 'center') {
@@ -208,17 +196,14 @@ window.assignCase = function(fbKey, source, aiKey) {
     for(var i=0; i<caseOptions.length; i++){ if(caseOptions[i].key===caseKey) caseName=caseOptions[i].name; }
   }
 
-  // DB保存
   database.ref('app_communications/' + fbKey + '/assignedCase').set(caseKey);
   
-  // ローカルデータ更新
   var rec = allRecords.find(function(r){ return r._fbKey === fbKey; });
   if (rec) {
     rec.assignedCase = caseKey;
     rec._match = {type:"manual", data:{name:caseName, key:caseKey}};
   }
 
-  // 画面の該当箇所のみを爆速で更新（スクロールを維持）
   var centerCol = document.getElementById('col-center-' + fbKey);
   if(centerCol) centerCol.innerHTML = '<div class="assign-done">✅ ' + caseName + '<br>に確定済み</div>';
   var rightCol = document.getElementById('ai-col-' + fbKey);
@@ -245,7 +230,7 @@ window.openModalFromComm = function(caseKey) {
 function buildCaseSelect(fbKey, matchObj){
   var preSelect = "";
   if(matchObj && matchObj.type === "case") preSelect = matchObj.data.key;
-  else if(matchObj && matchObj.type === "case_ambiguous" && matchObj.data.length > 0) preSelect = matchObj.data.key;
+  else if(matchObj && matchObj.type === "case_ambiguous" && matchObj.data.length > 0) preSelect = matchObj.data.key; // 複数候補の場合の安全処理
 
   var h='<select class="assign-sel" id="sel-'+fbKey+'"><option value="">案件を選択(変更可)...</option>';
   for(var i=0;i<caseOptions.length;i++){
@@ -270,10 +255,10 @@ else baseTxt += " / 最新100件を表示中（裏側で全件取得中...）";
 document.getElementById("stats").textContent = baseTxt;
 
 var totalM=0,kwM=0,ambi=0,manual=0,unclass=0;
-for(var i=0;i<allRecords.length;i++){
-  var m=allRecords[i]._match;
+for(var i=0;i<filtered.length;i++){
+  var m=filtered[i]._match;
   if(m){totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
-  if(!allRecords[i].assignedCase)unclass++;
+  if(!filtered[i].assignedCase)unclass++;
 }
 document.getElementById("matchSummary").textContent="🔗 紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+" 候補複数:"+ambi+"） ❓未分類:"+unclass;
 
@@ -297,7 +282,7 @@ for(var g=0;g<go.length;g++){
 
     html+='<div class="'+cc+'" id="msg-'+rec._fbKey+'">';
 
-    // 【1列目 (50%)】 通信内容
+    // 【1列目 (50%)】
     html+='<div class="col-left">';
     html+='<div class="msg-top"><div><span class="msg-source '+rec.src+'">'+(rec.src==="imessage"?"💬 SMS":"📧 Gmail")+'</span>';
     if(rec.dir)html+=' <span class="msg-dir">'+(rec.dir==="sent"?"↑送信":"↓受信")+'</span>';
@@ -307,7 +292,7 @@ for(var g=0;g<go.length;g++){
     if(rec.body){var bt=rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;");html+='<div class="msg-body">'+bt+'</div>';}
     html+='</div>';
 
-    // 【2列目 (25%)】 ローカル推測 ＆ 確定UI
+    // 【2列目 (25%)】
     html+='<div class="col-center" id="col-center-'+rec._fbKey+'">';
     if(rec.assignedCase){
       var cName="不明";for(var ci=0;ci<caseOptions.length;ci++){if(caseOptions[ci].key===rec.assignedCase)cName=caseOptions[ci].name;}
@@ -317,6 +302,7 @@ for(var g=0;g<go.length;g++){
       if(rec._match){
         if(rec._match.type==="case"){
           var kwc=rec._match.keyword?" keyword":"";
+          // ★ data.nameが正しく表示されるようになります
           html+='<span class="msg-case'+kwc+'" onclick="openModalFromComm(\''+rec._match.data.key+'\')">🏗️ '+rec._match.data.name;
           if(rec._match.keyword)html+='<span style="font-size:9px;color:#a5d6a7;">★</span>';
           html+='</span>';
@@ -330,14 +316,13 @@ for(var g=0;g<go.length;g++){
         html+='<span style="font-size:11px;color:#888;">ローカル推測なし</span>';
       }
       html+='</div>';
-      // プルダウン（常に表示）と確定ボタン
       html+=buildCaseSelect(rec._fbKey, rec._match);
       html+='<button class="assign-go center-btn" onclick="assignCase(\''+rec._fbKey+'\', \'center\')">✔ ここで確定</button>';
       html+='<button class="park-btn" onclick="parkMail(\''+rec._fbKey+'\')">📬 仮置きへ</button>';
     }
     html+='</div>';
 
-    // 【3列目 (25%)】 AI推測 ＆ 確定UI
+    // 【3列目 (25%)】
     html+='<div class="col-right" id="ai-col-'+rec._fbKey+'">';
     if(rec.assignedCase){
       html+='<div style="font-size:11px;color:#555;text-align:center;margin-top:20px;">処理済み</div>';
@@ -356,13 +341,12 @@ for(var g=0;g<go.length;g++){
     }
     html+='</div>';
 
-    html+='</div>'; // end msg-card
+    html+='</div>'; 
   }
   html+='</div>';
 }
 document.getElementById("timeline").innerHTML=html;
 
-// 描画後、裏側でAI処理開始
 runBackgroundAI(filtered);
 }
 
@@ -416,7 +400,7 @@ function runBackgroundAI(visibleRecords) {
         for (var j = 0; j < batch.length; j++) {
           var rec = batch[j];
           rec._aiSuggested = true;
-          if (rec.assignedCase) continue; // ユーザーが既に確定済みの場合はスキップ
+          if (rec.assignedCase) continue; 
 
           var sug = (results[j] && results[j] !== '不明') ? results[j] : null;
           var matchedKey = "";
@@ -440,7 +424,7 @@ function runBackgroundAI(visibleRecords) {
           }
         }
       } catch(e) { console.error("AI Parse Error", e); }
-      setTimeout(function(){ proc(idx + 1); }, 1000); // 1秒間隔で次へ
+      setTimeout(function(){ proc(idx + 1); }, 1000); 
     }).catch(function(e){ console.error(e); aiProcessing = false; });
   }
   proc(0);
@@ -473,7 +457,6 @@ function fetchAllData() {
   ]).then(function(results) {
     var dataTasks = results; var dataContacts = results[1];
     
-    // Tasks処理
     if(dataTasks){
       globalTasks = dataTasks; var keys=Object.keys(dataTasks);
       for(var i=0;i<keys.length;i++){
@@ -488,7 +471,6 @@ function fetchAllData() {
       caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});
     }
 
-    // Contacts処理
     if(dataContacts){
       var arr = Array.isArray(dataContacts) ? dataContacts : Object.values(dataContacts);
       for(var i=0; i<arr.length; i++) {
@@ -501,21 +483,19 @@ function fetchAllData() {
     }
     loadState.tasks = true; loadState.contacts = true;
 
-    // 通信データの2段階フェッチ
     // 【Step 1】直近100件だけ爆速表示
     database.ref("app_communications").orderByKey().limitToLast(100).once("value").then(function(snap){
       processCommsData(snap.val());
       loadState.comms = true;
-      tryRender(); // ここで画面がサクッと描画される
+      tryRender(); 
 
       // 【Step 2】裏側で全件読み込み
       setTimeout(function(){
         database.ref("app_communications").once("value").then(function(fullSnap){
           processCommsData(fullSnap.val());
           fullCommsLoaded = true;
-          // 表示を邪魔しないように件数テキストだけひっそり更新
-          var imC=0,gmC=0;for(var j=0;j<allRecords.length;j++){if(allRecords[j].src==="imessage")imC++;else gmC++;}
-          document.getElementById("stats").textContent = "表示: " + document.querySelectorAll('.msg-card').length + "件（SMS "+imC+" / Gmail "+gmC+"） / 全" + allRecords.length + "件 読込済";
+          // ★ 全件読み込みが終わった瞬間に、自動で全件を再描画します
+          render(); 
         });
       }, 1500);
     });
@@ -523,7 +503,6 @@ function fetchAllData() {
   }).catch(function(e){console.error(e);});
 }
 
-// 実行
 fetchAllData();
 </script>
 </body>
