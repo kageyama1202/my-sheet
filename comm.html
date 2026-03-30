@@ -1,4 +1,3 @@
-comm.html 完全修正版コード
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -121,7 +120,6 @@ var globalTasks = {};
 var fullData = null;
 try { var s = localStorage.getItem('appData'); if(s) fullData = JSON.parse(s); } catch(e){}
 
-// --- ユーティリティ関数（ご提示ソース準拠） ---
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 function ek(csv){var kw=[];var cn=(csv[2]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());return kw;}
@@ -146,7 +144,6 @@ function cd(rec){
   }
 }
 
-// --- ★修正済みの完璧な推測ロジック ---
 function lookupMatch(rec){
   if(rec.assignedCase){
     for(var i=0;i<caseOptions.length;i++){
@@ -156,7 +153,6 @@ function lookupMatch(rec){
   if(rec.src==="imessage"){
     var n=np(rec.contact),cases=phoneToCasesList[n];
     if(cases&&cases.length>0){
-      // ★以前 cases と書いてぶっ壊した箇所です。cases に完全修正しました。
       if(cases.length===1)return{type:"case",data:cases,score:0}; 
       var best=0,bc=null;
       for(var i=0;i<cases.length;i++){var sc=sm(rec.body,rec.subject,cases[i].keywords);if(sc>best){best=sc;bc=cases[i];}}
@@ -190,7 +186,6 @@ function matchesFilter(rec){
   return true;
 }
 
-// --- 確定・仮置きアクション ---
 window.assignCase = function(fbKey, source, aiKey) {
   var caseKey = "", caseName = "";
   if (source === 'center') {
@@ -246,7 +241,6 @@ function buildCaseSelect(fbKey, matchObj){
   return h;
 }
 
-// --- 描画処理（3列レイアウト） ---
 function render(){
   var filtered=[];
   for(var i=0;i<allRecords.length;i++){
@@ -266,7 +260,7 @@ function render(){
     if(m){totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
     if(!filtered[i].assignedCase)unclass++;
   }
-  document.getElementById("matchSummary").textContent="🔗 紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+" 候補複数:"+ambi+"） ❓未分類:"+unclass;
+  document.getElementById("matchSummary").textContent="🔗 紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+" 候補複数:"+ambi+"） ❓未処理:"+unclass;
 
   if(!filtered.length){document.getElementById("timeline").innerHTML='<div class="no-results">該当なし</div>';return;}
 
@@ -367,7 +361,7 @@ document.getElementById("searchBox").addEventListener("input",function(){clearTi
 var loadState={tasks:false,contacts:false,comms:false};
 function tryRender(){if(!loadState.tasks||!loadState.contacts||!loadState.comms)return;render();}
 
-// --- AIによる裏側での推測処理（非同期） ---
+// --- ★AI処理（モデルを gemini-3-flash-preview に変更） ---
 var aiProcessing = false;
 function runBackgroundAI(visibleRecords) {
   if (aiProcessing) return;
@@ -395,13 +389,28 @@ function runBackgroundAI(visibleRecords) {
 
     var prompt = '建設案件管理アシスタントです。メッセージごとに最も関連する案件名を1つ選んでください。該当なしは「不明」。\n\n【案件一覧】\n'+caseList+'\n\n【メッセージ】\n'+msgList+'\n\nJSON配列で回答。例:["案件名1","不明"]\nJSONのみ。';
 
-    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey, {
+    // ★ご指定の gemini-3-flash-preview モデルに変更
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key='+apiKey, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     }).then(function(r){return r.json();}).then(function(data){
+      
+      if (data.error) {
+        console.error("APIエラー:", data.error.message);
+        for (var j = 0; j < batch.length; j++) {
+           var targetDiv = document.getElementById('ai-col-' + batch[j]._fbKey);
+           if (targetDiv && !batch[j].assignedCase) {
+             targetDiv.innerHTML = '<div style="font-size:11px;color:#d32f2f;text-align:center;margin-top:20px;">🤖 APIエラー<br>設定を確認</div>';
+           }
+        }
+        aiProcessing = false; 
+        return;
+      }
+
       try {
         var text = data.candidates.content.parts.text;
         var results = JSON.parse(text.replace(/```json|```/g, '').trim());
+        
         for (var j = 0; j < batch.length; j++) {
           var rec = batch[j];
           rec._aiSuggested = true;
@@ -422,15 +431,19 @@ function runBackgroundAI(visibleRecords) {
             if (matchedKey) {
               targetDiv.innerHTML = '<div class="ai-suggest-badge" onclick="openModalFromComm(\''+matchedKey+'\')" style="opacity:0; transition:opacity 0.6s;">🤖 AI推測:<br>'+sug+'</div>' +
                                     '<button class="assign-go ai-btn" style="opacity:0; transition:opacity 0.6s;" onclick="assignCase(\''+rec._fbKey+'\', \'right\', \''+matchedKey+'\')">✔ AIで確定</button>';
-              setTimeout((function(el1, el2){ return function(){ el1.style.opacity='1'; el2.style.opacity='1'; }; })(targetDiv.childNodes, targetDiv.childNodes[1]), 50);
+              setTimeout((function(el1, el2){ return function(){ el1.style.opacity='1'; el2.style.opacity='1'; }; })(targetDiv.childNodes, targetDiv.childNodes), 50);
             } else {
               targetDiv.innerHTML = '<div style="font-size:11px;color:#888;text-align:center;margin-top:20px;">🤖 AI: 該当案件なし</div>';
             }
           }
         }
       } catch(e) { console.error("AI Parse Error", e); }
+      
       setTimeout(function(){ proc(idx + 1); }, 1000); 
-    }).catch(function(e){ console.error(e); aiProcessing = false; });
+    }).catch(function(e){ 
+      console.error(e); 
+      aiProcessing = false; 
+    });
   }
   proc(0);
 }
@@ -460,7 +473,6 @@ function fetchAllData() {
     fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}),
     fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();})
   ]).then(function(results) {
-    // ★以前ここで致命的な変数ミス（両方resultsに代入）をしていました。修正済です。
     var dataTasks = results; 
     var dataContacts = results[1];
     
@@ -468,7 +480,6 @@ function fetchAllData() {
       globalTasks = dataTasks; var keys=Object.keys(dataTasks);
       for(var i=0;i<keys.length;i++){
         var t=dataTasks[keys[i]]; if(!t.csvData) continue;
-        // ★配列番号も最新のソースに合わせて完全に修正しました
         var ph=np(t.csvData[4]||""), cn=t.csvData[2]||"", sk=t.csvData[3]||"";
         if(cn) caseOptions.push({key:keys[i], name:cn, sekou:sk});
         if(ph.length>=10){
