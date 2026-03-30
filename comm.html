@@ -3,26 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>通信タイムライン（再構築ベース）</title>
+<title>通信タイムライン（ベース）</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-  /* 余計な装飾を削ぎ落としたシンプルなCSS */
   body { font-family: sans-serif; background: #1a1d27; color: #e0e0e0; margin: 0; padding: 20px; }
   h2 { color: #fff; border-bottom: 2px solid #2a2d3a; padding-bottom: 10px; }
-  .msg-card { background: #1e2130; padding: 15px; margin-bottom: 15px; border-radius: 8px; border-left: 4px solid #64b5f6; }
+  .msg-card { background: #1e2130; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #64b5f6; }
   .msg-meta { font-size: 12px; color: #888; margin-bottom: 8px; }
-  .msg-case { background: #3e2723; color: #ffab40; padding: 3px 10px; border-radius: 4px; font-size: 12px; display: inline-block; margin-bottom: 8px; font-weight: bold; }
-  .msg-contact { font-size: 13px; color: #ccc; margin-bottom: 8px; }
-  .msg-body { font-size: 14px; color: #ddd; white-space: pre-wrap; line-height: 1.5; }
+  .msg-contact { font-size: 13px; color: #ccc; margin-bottom: 4px; font-weight: bold; }
+  .msg-subject { font-size: 13px; color: #f0c040; margin-bottom: 6px; }
+  .msg-body { font-size: 13px; color: #ddd; white-space: pre-wrap; line-height: 1.5; }
   .loading { color: #888; }
 </style>
 </head>
 <body>
 
-<h2>📨 通信タイムライン（仕事関連のみ）</h2>
-<div id="timeline" class="loading">⏳ データを読み込み、紐付けを行っています...</div>
+<h2>📨 通信タイムライン（直近3ヶ月 / 最新100件）</h2>
+<div id="timeline" class="loading">⏳ データを読み込んでいます...</div>
 
 <script>
 // 1. Firebaseの初期化
@@ -33,121 +32,61 @@ var firebaseConfig = {
 };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-// データを格納する変数
-var allWorkRecords = [];
-var phoneToCasesList = {};
-var emailToContact = {};
-var phoneToContact = {};
-var caseOptions = [];
+// 2. 3ヶ月前の日付（ISO文字列）を計算
+var d = new Date();
+d.setMonth(d.getMonth() - 3);
+var threeMonthsAgo = d.toISOString();
 
-// 2. 文字列から電話番号やメールアドレスをきれいに抽出する関数
-function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
-function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[6].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
-// 案件名などからキーワードを抽出する関数
-function ek(csv){var kw=[];var cn=(csv[7]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[6].length>=2)kw.push(nm[6].toLowerCase());return kw;}
-function sm(body,subj,kw){if(!kw||!kw.length)return 0;var t=((body||"")+" "+(subj||"")).toLowerCase();if(!t.trim())return 0;var s=0;for(var i=0;i<kw.length;i++){if(t.indexOf(kw[i])!==-1)s+=kw[i].length;}return s;}
+// 3. Firebaseから app_communications のうち、3ヶ月以内のデータのみ取得
+firebase.database().ref('app_communications')
+  .orderByChild('dt')
+  .startAt(threeMonthsAgo)
+  .once('value')
+  .then(function(snapshot) {
+    var records = [];
+    
+    // データを配列に格納
+    snapshot.forEach(function(child) {
+      records.push(child.val());
+    });
 
-// 3. 通信履歴が「案件」または「連絡先」に紐付くか判定する機能
-function lookupMatch(rec){
-  // 既に手動で案件指定されている場合
-  if(rec.assignedCase){
-    for(var i=0;i<caseOptions.length;i++){
-      if(caseOptions[i].key===rec.assignedCase) return {type:"manual", data: caseOptions[i]};
-    }
-  }
-  // SMSの場合（電話番号でマッチング）
-  if(rec.src==="imessage"){
-    var n=np(rec.contact), cases=phoneToCasesList[n];
-    if(cases&&cases.length>0){
-      var best=0, bc=cases;
-      for(var i=0;i<cases.length;i++){var sc=sm(rec.body,rec.subject,cases[i].keywords);if(sc>best){best=sc;bc=cases[i];}}
-      return {type:"case", data: bc}; // 最も関連性の高い案件を返す
-    }
-    if(phoneToContact[n]&&phoneToContact[n].category!=="その他") return {type:"contact", data: phoneToContact[n]};
-  }
-  // Gmailの場合（メールアドレスでマッチング）
-  if(rec.src==="gmail"){
-    var email=ee(rec.contact);
-    if(emailToContact[email]){
-      var c=emailToContact[email];
-      if(c.category!=="その他") return {type:"contact", data: c};
-    }
-  }
-  return null; // 紐付かなければ null（未分類）
-}
+    // 4. 新しい順（降順）に並び替え
+    records.sort(function(a, b) {
+      return new Date(b.dt) - new Date(a.dt);
+    });
 
-// 4. Firebaseからデータを一括取得して処理開始
-Promise.all([
-  fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_tasks.json").then(r=>r.json()),
-  fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_contacts.json").then(r=>r.json()),
-  fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_communications.json").then(r=>r.json())
-]).then(function([tasks, contacts, comms]){
-  
-  // ① 案件データ（app_tasks）の辞書化
-  if(tasks){
-    Object.keys(tasks).forEach(function(k){
-      var t=tasks[k]; if(!t.csvData) return;
-      var cn=t.csvData[7]||"", ph=np(t.csvData[8]||"");
-      caseOptions.push({key:k, name:cn});
-      if(ph.length>=10){
-        if(!phoneToCasesList[ph]) phoneToCasesList[ph]=[];
-        phoneToCasesList[ph].push({name:cn, key:k, keywords:ek(t.csvData)});
-      }
-    });
-  }
-  
-  // ② 連絡先データ（app_contacts）の辞書化
-  if(contacts){
-    var arr=Array.isArray(contacts)?contacts:Object.values(contacts);
-    arr.forEach(function(c){
-      if(!c) return;
-      var em=ee(c.email||""), ph=np(c.phone||"");
-      var info={name:c.name||"", company:c.company||"", category:c.category||""};
-      if(em) emailToContact[em]=info;
-      if(ph.length>=10) phoneToContact[ph]=info;
-    });
-  }
-  
-  // ③ 通信履歴（app_communications）から「紐付いたものだけ」を抽出
-  if(comms){
-    var arr=Array.isArray(comms)?comms:Object.values(comms);
-    arr.forEach(function(rec){
-      if(!rec) return;
-      var match = lookupMatch(rec);
-      // ★紐付いたもの（matchがnullではない）だけを配列に追加する
-      if(match) { 
-        rec._match = match;
-        allWorkRecords.push(rec);
-      }
-    });
-  }
-  
-  // ④ 新しい順に並び替え
-  allWorkRecords.sort(function(a,b){ return new Date(b.dt) - new Date(a.dt); });
-  
-  // ⑤ 画面にHTMLとして書き出す
-  var html = "";
-  if(allWorkRecords.length === 0) {
-    html = "該当する仕事の通信がありません。";
-  } else {
-    // 最新100件を表示
-    allWorkRecords.slice(0, 100).forEach(function(rec) { 
-      var d = new Date(rec.dt);
-      var dateStr = d.getFullYear() + "/" + (d.getMonth()+1) + "/" + d.getDate() + " " + d.getHours() + ":" + ("0"+d.getMinutes()).slice(-2);
-      var caseName = rec._match.data.name || "名称不明";
-      var sourceIcon = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
-      
-      html += '<div class="msg-card">';
-      html += '<div class="msg-meta">' + sourceIcon + ' | ' + dateStr + '</div>';
-      html += '<div class="msg-case">🏗️ ' + caseName + '</div>';
-      html += '<div class="msg-contact">連絡先: ' + (rec.contact||"").replace(/</g,"&lt;") + '</div>';
-      if(rec.subject) html += '<div style="font-weight:bold;font-size:13px;color:#f0c040;margin-bottom:6px;">件名: ' + rec.subject + '</div>';
-      if(rec.body) html += '<div class="msg-body">' + rec.body.replace(/</g,"&lt;") + '</div>';
-      html += '</div>';
-    });
-  }
-  document.getElementById('timeline').innerHTML = html;
-});
+    // 5. 先行して100件のみ切り出し
+    var displayRecords = records.slice(0, 100);
+
+    // 6. 画面に描画
+    var html = "";
+    if (displayRecords.length === 0) {
+      html = "直近3ヶ月のデータがありません。";
+    } else {
+      displayRecords.forEach(function(rec) {
+        var dt = new Date(rec.dt);
+        var dateStr = dt.getFullYear() + "/" + (dt.getMonth()+1) + "/" + dt.getDate() + " " + dt.getHours() + ":" + ("0"+dt.getMinutes()).slice(-2);
+        var sourceIcon = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
+        
+        html += '<div class="msg-card">';
+        html += '<div class="msg-meta">' + sourceIcon + ' | ' + dateStr + '</div>';
+        // HTMLタグとして誤認識されないようにエスケープ処理
+        html += '<div class="msg-contact">連絡先: ' + (rec.contact || "不明").replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</div>';
+        
+        if (rec.subject) {
+          html += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</div>';
+        }
+        if (rec.body) {
+          html += '<div class="msg-body">' + rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</div>';
+        }
+        html += '</div>';
+      });
+    }
+    document.getElementById('timeline').innerHTML = html;
+  })
+  .catch(function(error) {
+    document.getElementById('timeline').innerHTML = "エラーが発生しました: " + error.message;
+  });
 </script>
 
 </body>
