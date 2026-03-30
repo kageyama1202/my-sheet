@@ -133,7 +133,7 @@ document.getElementById('setSav').addEventListener('click',function(){var k=docu
 document.getElementById('setOv').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
 function chkKey(){var k=localStorage.getItem('gemini_api_key');document.getElementById('aiBtn').disabled=!k;return k;}
 function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
-function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p+"-"+String(p[3]).padStart(2,'0')+"-"+String(p[4]).padStart(2,'0');return d;}
+function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p+"-"+String(p[2]).padStart(2,'0')+"-"+String(p[3]).padStart(2,'0');return d;}
 var now=new Date();var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
 var dn=['日','月','火','水','木','金','土'];
 document.getElementById('dateDisplay').textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' ('+dn[now.getDay()]+')';
@@ -168,7 +168,14 @@ function buildDashboard(){
     if(d<0||rank>=5)return;
     var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank};
 
-    if(rank===0) r0.push(item);
+    // ▼ リフォームと新築（それ以外）のスキップ判定
+    if(rank===0) {
+      if(kubun==="ﾘ") {
+        r0.push(item); // リフォームは「連絡箱（r0）」へ
+      } else {
+        r1.push(item); // 新築等は連絡をスキップして「日程確定箱（r1）」へ
+      }
+    }
     if(rank===1) r1.push(item);
     if(rank===2) r2.push(item);
     if(rank===3) r3.push(item);
@@ -184,8 +191,8 @@ function buildDashboard(){
 
   var dash=document.getElementById('dashboard');dash.innerHTML='';
 
-  rSec(dash,'📞 お客様へ連絡して下見日を調整','ステータス: 依頼','bg-rank0',r0);
-  rSec(dash,'📅 下見日程を確定させる','ステータス: 連絡済','bg-rank1',r1);
+  rSec(dash,'📞 お客様へ連絡して下見日を調整','ステータス: 依頼 (リフォームのみ)','bg-rank0',r0);
+  rSec(dash,'📅 下見日程を確定させる','ステータス: 連絡済 (新築はここから)','bg-rank1',r1);
   rSec(dash,'🏃 現場へ下見に行く','ステータス: 下見日確定','bg-rank2',r2);
   rSec(dash,'📝 報告書を作成・提出する','ステータス: 下見実施済','bg-rank3',r3);
   rSec(dash,'✉️ 施工前の最終確認（メール等）','ステータス: 報告書提出済','bg-rank4',r4);
