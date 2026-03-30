@@ -91,17 +91,17 @@ var firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var database = firebase.database();
 
-// 2. データ抽出用ユーティリティ（既存コードの応用）
+// 2. データ抽出用ユーティリティ（バグ修正済）
 function np(raw){ if(!raw)return""; var s=String(raw).replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,""); s=s.replace(/^\+81/,"0"); s=s.replace(/^81(?=\d{9,10})/,"0"); s=s.replace(/[^0-9]/g,""); return s; }
-function ee(f){ if(!f)return""; var m=String(f).match(/<([^>]+)>/); if(m)return m[3].toLowerCase().trim(); if(String(f).indexOf("@")>-1)return String(f).toLowerCase().trim(); return""; }
+function ee(f){ if(!f)return""; var m=String(f).match(/<([^>]+)>/); if(m&&m[3])return m[3].toLowerCase().trim(); if(String(f).indexOf("@")>-1)return String(f).toLowerCase().trim(); return""; }
 function ek(nameStr){ 
   var kw=[]; var cn=String(nameStr||""); var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/); 
   for(var i=0;i<pts.length;i++){ var p=pts[i].trim(); if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase()); } 
-  var nm=cn.match(/([^\s【】（）]+?)様/); if(nm&&nm[3].length>=2)kw.push(nm[3].toLowerCase()); return kw; 
+  var nm=cn.match(/([^\s【】（）]+?)様/); if(nm&&nm[3]&&nm[3].length>=2)kw.push(nm[3].toLowerCase()); return kw; 
 }
 function sm(body,subj,kw){ 
   if(!kw||!kw.length)return 0; var t=(String(body||"")+" "+String(subj||"")).toLowerCase(); if(!t.trim())return 0; 
-  var s=0; for(var i=0;i<kw.length;i++){ if(t.indexOf(kw[i])!==-1)s+=kw[i].length; } return s; 
+  var s=0; for(var i=0;i<kw.length;i++){ if(kw[i]&&t.indexOf(kw[i])!==-1)s+=kw[i].length; } return s; 
 }
 
 // 状態変数
@@ -122,13 +122,13 @@ Promise.all([
   })
 ]).then(function([tasks, comms]){
   
-  // 案件リストの構築
+  // 案件リストの構築（配列インデックスの指定を修正）
   if(tasks){
     Object.keys(tasks).forEach(function(k){
       var t = tasks[k]; if(!t.csvData) return;
-      var caseName = t.csvData[4] || "名称不明"; // 案件名
-      var phone = np(t.csvData[5] || ""); // 電話番号
-      var keywords = ek(caseName); // 推測用キーワード
+      var caseName = t.csvData[1] || "名称不明"; // インデックス4：案件名
+      var phone = np(t.csvData[2] || "");       // インデックス6：電話番号
+      var keywords = ek(caseName);
       
       var caseObj = { key: k, name: caseName, phone: phone, keywords: keywords };
       caseOptions.push(caseObj);
@@ -170,7 +170,6 @@ function renderTimeline() {
     var dateStr = dt.getFullYear() + "/" + (dt.getMonth()+1) + "/" + dt.getDate() + " " + ("0"+dt.getHours()).slice(-2) + ":" + ("0"+dt.getMinutes()).slice(-2);
     var sourceIcon = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
     
-    // 選択状態や非表示状態のCSSクラス
     var cardClass = "msg-card";
     if (isHidden) cardClass += " hidden-item";
     if (rec._key === selectedKey) cardClass += " selected";
@@ -223,7 +222,7 @@ window.selectMessage = function(key) {
   var candidates = [];
   
   if (rec.src === "imessage") {
-    // SMSの場合は電話番号で完全一致を検索（複数ある場合は全て表示）
+    // SMSの場合は電話番号で完全一致を検索
     var ph = np(rec.contact);
     if (phoneToCases[ph]) {
       candidates = phoneToCases[ph].map(function(c) { return { case: c, score: 999, reason: '電話番号一致' }; });
