@@ -1,276 +1,273 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>今日のアクション</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <link rel="stylesheet" href="shared-modal.css">
-  <style>
-    *{box-sizing:border-box;}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;padding:0;margin:0;background:#1a1d27;color:#e0e0e0;font-size:13px;}
-    .header-bar{background:#12141c;padding:10px 16px;border-bottom:1px solid #2a2d3a;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;}
-    .top-link{text-decoration:none;font-weight:bold;color:#64b5f6;font-size:13px;}
-    .header-bar h3{margin:0;font-size:17px;color:#fff;font-weight:700;}
-    .header-bar h3 span{color:#ff6b6b;}
-    .date-display{margin-left:auto;font-size:13px;font-weight:bold;color:#888;}
-    .gear-btn{font-size:16px;cursor:pointer;color:#888;border:none;background:none;padding:4px;}
-    .gear-btn:hover{color:#fff;}
-    .tab-bar{display:flex;background:#12141c;border-bottom:2px solid #2a2d3a;position:sticky;top:44px;z-index:99;}
-    .tab-btn{flex:1;padding:10px 0;text-align:center;font-size:14px;font-weight:700;cursor:pointer;color:#666;border-bottom:3px solid transparent;transition:0.2s;}
-    .tab-btn:hover{color:#aaa;}
-    .tab-btn.active{color:#fff;border-bottom-color:#ff6b6b;}
-    .tab-btn .tc{font-size:12px;padding:1px 8px;border-radius:10px;margin-left:4px;background:#2a2d3a;color:#888;}
-    .tab-btn.active .tc{background:#ff6b6b;color:#fff;}
-    .tab-content{display:none;}.tab-content.active{display:block;}
-    .summary-bar{padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #2a2d3a;}
-    .sc{padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;}
-    .sc .n{font-size:15px;}
-    .cr{background:#4a1c1c;color:#ff6b6b;}.co{background:#4a2e1c;color:#ffab40;}.cp{background:#3a1c4a;color:#ce93d8;}
-    .cb{background:#1c2e4a;color:#64b5f6;}.cg{background:#1c4a2e;color:#66bb6a;}.ct{background:#2a2d3a;color:#fff;margin-left:auto;}
-    .dashboard{max-width:1000px;margin:0 auto;padding:12px;}
-    .section{background:#1e2130;border-radius:10px;margin-bottom:12px;overflow:hidden;border:1px solid #2a2d3a;}
-    .sh{padding:10px 16px;font-size:14px;font-weight:bold;color:#fff;display:flex;align-items:center;gap:8px;justify-content:space-between;cursor:pointer;transition:0.2s;}
-    .sh:hover{filter:brightness(1.1);}
-    .sh .sub{font-size:11px;font-weight:normal;opacity:0.7;}
-    .sh .cnt{background:rgba(255,255,255,0.15);padding:2px 10px;border-radius:12px;font-size:12px;}
-    .sb{padding:0;}
-    .bg-red{background:#c62828;}.bg-orange{background:#e65100;}.bg-purple{background:#6a1b9a;}.bg-blue{background:#1565c0;}.bg-green{background:#2e7d32;}
-    .ai-row{padding:10px 16px;border-bottom:1px solid #252838;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s;}
-    .ai-row:hover{background:#262940;}.ai-row:last-child{border-bottom:none;}
-    .badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:bold;color:#fff;white-space:nowrap;}
-    .badge-new{background:#1565c0;}.badge-reform{background:#e65100;}.badge-sk{background:#6a1b9a;}
-    .item-name{font-weight:bold;font-size:13px;color:#e0e0e0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .item-co{color:#888;font-size:11px;white-space:nowrap;}
-    .item-dt{font-size:12px;color:#888;white-space:nowrap;}
-    .item-dy{font-size:11px;font-weight:bold;padding:2px 8px;border-radius:12px;white-space:nowrap;}
-    .item-st{font-size:10px;padding:2px 8px;border-radius:8px;color:#fff;white-space:nowrap;}
-    .du{background:#4a1c1c;color:#ff6b6b;}.dw{background:#4a3a1c;color:#ffd54f;}.dok{background:#1c4a2e;color:#66bb6a;}
-    .empty{padding:16px;color:#555;font-style:italic;font-size:12px;text-align:center;}
-    .memo-area{max-width:1000px;margin:0 auto;padding:12px;}
-    .mia{display:flex;gap:8px;margin-bottom:12px;}
-    .mi{flex:1;padding:10px 14px;border:1px solid #3a3d4a;border-radius:10px;background:#12141c;color:#e0e0e0;font-size:14px;font-family:inherit;resize:none;min-height:44px;max-height:150px;}
-    .mi:focus{outline:none;border-color:#64b5f6;}.mi::placeholder{color:#555;}
-    .mab{padding:10px 20px;background:#37474f;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;font-size:14px;}
-    .mab:hover{background:#455a64;}
-    .mc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;display:flex;align-items:flex-start;gap:12px;}
-    .mc:hover{border-color:#3a3d4a;}
-    .mt-text{flex:1;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
-    .mt-time{font-size:11px;color:#555;white-space:nowrap;min-width:80px;text-align:right;}
-    .mt-del{font-size:11px;color:#555;cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid #3a3d4a;background:transparent;}
-    .mt-del:hover{color:#ff6b6b;border-color:#ff6b6b;}
-    .mail-area{max-width:1000px;margin:0 auto;padding:12px;}
-    .mail-top-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
-    .ai-btn{padding:8px 16px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
-    .ai-btn.classify{background:#6a1b9a;color:#fff;}.ai-btn.classify:hover{background:#7b1fa2;}
-    .ai-btn:disabled{opacity:0.5;cursor:not-allowed;}
-    .ai-sts{font-size:12px;color:#888;flex:1;}
-    .mlc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;}
-    .mlc:hover{border-color:#3a3d4a;}.mlc.ai-m{border-left:3px solid #ce93d8;}
-    .mlt{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
-    .mlf{font-size:13px;font-weight:600;color:#ccc;}
-    .mlb{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600;color:#fff;margin-right:6px;}
-    .mlb.sms{background:#2e7d32;}.mlb.gmail{background:#c62828;}
-    .mltm{font-size:11px;color:#555;}
-    .mlsb{font-size:12px;color:#ffab40;margin-bottom:4px;}
-    .mlsn{font-size:13px;color:#888;line-height:1.4;}
-    .mlac{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-    .ml-btn{font-size:12px;padding:5px 14px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#aaa;cursor:pointer;}
-    .ml-btn:hover{border-color:#64b5f6;color:#64b5f6;}
-    .ml-btn.del:hover{border-color:#ff6b6b;color:#ff6b6b;}
-    .ai-sug{font-size:11px;padding:3px 10px;border-radius:8px;background:#3a1c4a;color:#ce93d8;font-weight:600;margin-top:6px;display:inline-block;}
-    .cs{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:250px;}
-    .cs:focus{outline:none;border-color:#64b5f6;}
-    .as-btn{font-size:11px;padding:4px 12px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
-    .as-btn:hover{background:#388e3c;}
-    .mail-empty{text-align:center;padding:40px;color:#555;}
-    .settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10000;}
-    .settings-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e2130;padding:24px;border-radius:12px;width:90%;max-width:500px;border:1px solid #2a2d3a;}
-    .settings-box h3{color:#fff;margin:0 0 16px;font-size:16px;}
-    .sr{margin-bottom:12px;}.sr label{display:block;font-size:12px;color:#888;margin-bottom:4px;}
-    .sr input{width:100%;padding:8px 12px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:13px;}
-    .sr input:focus{outline:none;border-color:#64b5f6;}
-    .sbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
-    .sbtns button{padding:8px 20px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
-    .s-save{background:#2e7d32;color:#fff;}.s-cancel{background:#3a3d4a;color:#ccc;}
-    #noDataMsg{display:none;padding:20px;font-weight:bold;color:#ff6b6b;text-align:center;}
-    @media(max-width:600px){.ai-row{flex-wrap:wrap;gap:4px;}.item-co,.item-dt{font-size:10px;}}
-  </style>
+<meta charset="UTF-8">
+<title>今日のアクション</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<style>
+*{box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;padding:0;margin:0;background:#1a1d27;color:#e0e0e0;font-size:13px;}
+.header-bar{background:#12141c;padding:10px 16px;border-bottom:1px solid #2a2d3a;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;}
+.top-link{text-decoration:none;font-weight:bold;color:#64b5f6;font-size:13px;}
+.header-bar h3{margin:0;font-size:17px;color:#fff;font-weight:700;}
+.header-bar h3 span{color:#ff6b6b;}
+.date-display{margin-left:auto;font-size:13px;font-weight:bold;color:#888;}
+.gear-btn{font-size:16px;cursor:pointer;color:#888;border:none;background:none;padding:4px;}
+.gear-btn:hover{color:#fff;}
+.tab-bar{display:flex;background:#12141c;border-bottom:2px solid #2a2d3a;position:sticky;top:44px;z-index:99;}
+.tab-btn{flex:1;padding:10px 0;text-align:center;font-size:14px;font-weight:700;cursor:pointer;color:#666;border-bottom:3px solid transparent;transition:0.2s;}
+.tab-btn:hover{color:#aaa;}
+.tab-btn.active{color:#fff;border-bottom-color:#ff6b6b;}
+.tab-btn .tc{font-size:12px;padding:1px 8px;border-radius:10px;margin-left:4px;background:#2a2d3a;color:#888;}
+.tab-btn.active .tc{background:#ff6b6b;color:#fff;}
+.tab-content{display:none;}.tab-content.active{display:block;}
+.summary-bar{padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #2a2d3a;}
+.sc{padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;}
+.sc .n{font-size:15px;}
+.c-rank0{background:#37474f;color:#cfd8dc;}.c-rank1{background:#0d47a1;color:#90caf9;}.c-rank2{background:#ff6f00;color:#ffe082;}
+.c-rank3{background:#1b5e20;color:#a5d6a7;}.c-rank4{background:#004d40;color:#80cbc4;}.ct{background:#2a2d3a;color:#fff;margin-left:auto;}
+.dashboard{max-width:1000px;margin:0 auto;padding:12px;}
+.section{background:#1e2130;border-radius:10px;margin-bottom:12px;overflow:hidden;border:1px solid #2a2d3a;}
+.sh{padding:10px 16px;font-size:14px;font-weight:bold;color:#fff;display:flex;align-items:center;gap:8px;justify-content:space-between;cursor:pointer;transition:0.2s;}
+.sh:hover{filter:brightness(1.1);}
+.sh .sub{font-size:11px;font-weight:normal;opacity:0.7;}
+.sh .cnt{background:rgba(255,255,255,0.15);padding:2px 10px;border-radius:12px;font-size:12px;}
+.sb{padding:0;}
+.bg-rank0{background:#90a4ae;}.bg-rank1{background:#42a5f5;}.bg-rank2{background:#ffb300;}.bg-rank3{background:#66bb6a;}.bg-rank4{background:#26a69a;}
+.ai-row{padding:10px 16px;border-bottom:1px solid #252838;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s;}
+.ai-row:hover{background:#262940;}.ai-row:last-child{border-bottom:none;}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:bold;color:#fff;white-space:nowrap;}
+.badge-new{background:#1565c0;}.badge-reform{background:#e65100;}.badge-sk{background:#6a1b9a;}
+.item-name{font-weight:bold;font-size:13px;color:#e0e0e0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item-co{color:#888;font-size:11px;white-space:nowrap;}
+.item-dt{font-size:12px;color:#888;white-space:nowrap;}
+.item-dy{font-size:11px;font-weight:bold;padding:2px 8px;border-radius:12px;white-space:nowrap;}
+.item-st{font-size:10px;padding:2px 8px;border-radius:8px;color:#fff;white-space:nowrap;}
+.du{background:#4a1c1c;color:#ff6b6b;}.dw{background:#4a3a1c;color:#ffd54f;}.dok{background:#1c4a2e;color:#66bb6a;}
+.empty{padding:16px;color:#555;font-style:italic;font-size:12px;text-align:center;}
+.memo-area{max-width:1000px;margin:0 auto;padding:12px;}
+.mia{display:flex;gap:8px;margin-bottom:12px;}
+.mi{flex:1;padding:10px 14px;border:1px solid #3a3d4a;border-radius:10px;background:#12141c;color:#e0e0e0;font-size:14px;font-family:inherit;resize:none;min-height:44px;max-height:150px;}
+.mi:focus{outline:none;border-color:#64b5f6;}.mi::placeholder{color:#555;}
+.mab{padding:10px 20px;background:#37474f;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;font-size:14px;}
+.mab:hover{background:#455a64;}
+.mc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;display:flex;align-items:flex-start;gap:12px;}
+.mc:hover{border-color:#3a3d4a;}
+.mt-text{flex:1;color:#ccc;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+.mt-time{font-size:11px;color:#555;white-space:nowrap;min-width:80px;text-align:right;}
+.mt-del{font-size:11px;color:#555;cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid #3a3d4a;background:transparent;}
+.mt-del:hover{color:#ff6b6b;border-color:#ff6b6b;}
+.mail-area{max-width:1000px;margin:0 auto;padding:12px;}
+.mail-top-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
+.ai-btn{padding:8px 16px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
+.ai-btn.classify{background:#6a1b9a;color:#fff;}.ai-btn.classify:hover{background:#7b1fa2;}
+.ai-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.ai-sts{font-size:12px;color:#888;flex:1;}
+.mlc{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;}
+.mlc:hover{border-color:#3a3d4a;}.mlc.ai-m{border-left:3px solid #ce93d8;}
+.mlt{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.mlf{font-size:13px;font-weight:600;color:#ccc;}
+.mlb{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600;color:#fff;margin-right:6px;}
+.mlb.sms{background:#2e7d32;}.mlb.gmail{background:#c62828;}
+.mltm{font-size:11px;color:#555;}
+.mlsb{font-size:12px;color:#ffab40;margin-bottom:4px;}
+.mlsn{font-size:13px;color:#888;line-height:1.4;}
+.mlac{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.ml-btn{font-size:12px;padding:5px 14px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#aaa;cursor:pointer;}
+.ml-btn:hover{border-color:#64b5f6;color:#64b5f6;}
+.ml-btn.del:hover{border-color:#ff6b6b;color:#ff6b6b;}
+.ai-sug{font-size:11px;padding:3px 10px;border-radius:8px;background:#3a1c4a;color:#ce93d8;font-weight:600;margin-top:6px;display:inline-block;}
+.cs{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:250px;}
+.cs:focus{outline:none;border-color:#64b5f6;}
+.as-btn{font-size:11px;padding:4px 12px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
+.as-btn:hover{background:#388e3c;}
+.mail-empty{text-align:center;padding:40px;color:#555;}
+.settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10000;}
+.settings-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e2130;padding:24px;border-radius:12px;width:90%;max-width:500px;border:1px solid #2a2d3a;}
+.settings-box h3{color:#fff;margin:0 0 16px;font-size:16px;}
+.sr{margin-bottom:12px;}.sr label{display:block;font-size:12px;color:#888;margin-bottom:4px;}
+.sr input{width:100%;padding:8px 12px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:13px;}
+.sr input:focus{outline:none;border-color:#64b5f6;}
+.sbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+.sbtns button{padding:8px 20px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;font-size:13px;}
+.s-save{background:#2e7d32;color:#fff;}.s-cancel{background:#3a3d4a;color:#ccc;}
+#noDataMsg{display:none;padding:20px;font-weight:bold;color:#ff6b6b;text-align:center;}
+@media(max-width:600px){.ai-row{flex-wrap:wrap;gap:4px;}.item-co,.item-dt{font-size:10px;}}
+</style>
 </head>
 <body>
-  <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
-  <div class="settings-overlay" id="setOv"><div class="settings-box"><h3>⚙️ API設定</h3><div class="sr"><label>Gemini APIキー（ブラウザのみ保存）</label><input type="password" id="setKey" placeholder="AIza..." /></div><div class="sbtns"><button class="s-cancel" id="setCan">キャンセル</button><button class="s-save" id="setSav">💾 保存</button></div></div></div>
+<div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
+<div class="settings-overlay" id="setOv"><div class="settings-box"><h3>⚙️ API設定</h3><div class="sr"><label>Gemini APIキー（ブラウザのみ保存）</label><input type="password" id="setKey" placeholder="AIza..." /></div><div class="sbtns"><button class="s-cancel" id="setCan">キャンセル</button><button class="s-save" id="setSav">💾 保存</button></div></div></div>
+<div class="header-bar">
+<a href="index.html" class="top-link">← トップ</a>
+<a href="today.html" class="top-link">📋 リスト</a>
+<a href="comm.html" class="top-link">📨 通信</a>
+<h3>🔔 <span>今日のアクション</span></h3>
+<button class="gear-btn" id="gearBtn" title="API設定">⚙️</button>
+<div class="date-display" id="dateDisplay"></div>
+</div>
+<div class="tab-bar">
+<div class="tab-btn active" data-tab="tab-action">🔔 アクション<span class="tc" id="tcA">-</span></div>
+<div class="tab-btn" data-tab="tab-memo">📋 備忘録<span class="tc" id="tcM">-</span></div>
+<div class="tab-btn" data-tab="tab-mail">📬 仮置き<span class="tc" id="tcP">-</span></div>
+</div>
+<div id="tab-action" class="tab-content active"><div class="summary-bar" id="summaryBar"></div><div id="noDataMsg">⚠️ トップに戻ってデータ取得してください。</div><div class="dashboard" id="dashboard"></div></div>
+<div id="tab-memo" class="tab-content"><div class="memo-area"><div class="mia"><textarea class="mi" id="memoInput" placeholder="メモを入力...（Enterで追加）" rows="1"></textarea><button class="mab" id="memoAddBtn">追加</button></div><div id="memoList"></div></div></div>
+<div id="tab-mail" class="tab-content"><div class="mail-area"><div class="mail-top-bar"><button class="ai-btn classify" id="aiBtn" disabled>🤖 AI分類</button><span class="ai-sts" id="aiSts"></span></div><div id="mailList"><div class="mail-empty">⏳ 読み込み中...</div></div></div></div>
+<script src="shared-modal.js"></script>
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+var database=firebase.database();
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){
+document.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active');});
+document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active');});
+this.classList.add('active');document.getElementById(this.dataset.tab).classList.add('active');
+});});
+document.getElementById('gearBtn').addEventListener('click',function(){document.getElementById('setKey').value=localStorage.getItem('gemini_api_key')||'';document.getElementById('setOv').style.display='block';});
+document.getElementById('setCan').addEventListener('click',function(){document.getElementById('setOv').style.display='none';});
+document.getElementById('setSav').addEventListener('click',function(){var k=document.getElementById('setKey').value.trim();if(k)localStorage.setItem('gemini_api_key',k);else localStorage.removeItem('gemini_api_key');document.getElementById('setOv').style.display='none';chkKey();});
+document.getElementById('setOv').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
+function chkKey(){var k=localStorage.getItem('gemini_api_key');document.getElementById('aiBtn').disabled=!k;return k;}
+function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
+function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[7]).padStart(2,'0');return d;}
+var now=new Date();var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
+var dn=['日','月','火','水','木','金','土'];
+document.getElementById('dateDisplay').textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' ('+dn[now.getDay()]+')';
+function diffD(ds){if(!ds)return 9999;return Math.round((new Date(ds)-new Date(todayStr))/864e5);}
+function dlbl(n){if(n===0)return'今日';if(n===1)return'明日';if(n<0)return Math.abs(n)+'日超過';return n+'日後';}
+function dcls(n){if(n<=3)return'du';if(n<=7)return'dw';return'dok';}
+var STATUS_RANKS={'依頼':0,'連絡済':1,'下見日確定':2,'下見実施済':3,'報告書提出済':4,'完了':5};
+var SF_TO_LOCAL={'依頼':'依頼','下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済','完了':'完了'};
+function getEff(obj,cols){
+var sf=gv(cols,1).replace(/\s+/g,""),local=obj.localStatus||"",sfL=SF_TO_LOCAL[sf]||sf;
+var sR=STATUS_RANKS[sfL]!==undefined?STATUS_RANKS[sfL]:-1,lR=STATUS_RANKS[local]!==undefined?STATUS_RANKS[local]:-1;
+if(lR>=sR)return{name:local||'依頼',rank:Math.max(lR,0)};return{name:sfL||'依頼',rank:Math.max(sR,0)};
+}
+function stLbl(name){var c={'依頼':'#90a4ae','連絡済':'#42a5f5','下見日確定':'#ffb300','下見実施済':'#66bb6a','報告書提出済':'#26a69a'};return'<span class="item-st" style="background:'+(c[name]||'#2a2d3a')+'">'+name+'</span>';}
+var globalHeaders=[],globalTasks={},fullData=null,caseOptions=[];
+try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){}
+if(fullData&&fullData.app_meta&&fullData.app_tasks){
+globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;
+Object.keys(globalTasks).forEach(function(k){var t=globalTasks[k];if(!t.csvData)return;var nm=gv(t.csvData,4).trim(),sk=fy(gv(t.csvData,2));if(nm)caseOptions.push({key:k,name:nm,sekou:sk});});
+caseOptions.sort(function(a,b){return(b.sekou||'').localeCompare(a.sekou||'');});
+buildDashboard();
+}else{document.getElementById('noDataMsg').style.display='block';}
+chkKey();
 
-  <div class="header-bar">
-    <a href="index.html" class="top-link">← トップ</a>
-    <a href="today.html" class="top-link">📋 リスト</a>
-    <a href="comm.html" class="top-link">📨 通信</a>
-    <h3>🔔 <span>今日のアクション</span></h3>
-    <button class="gear-btn" id="gearBtn" title="API設定">⚙️</button>
-    <div class="date-display" id="dateDisplay"></div>
-  </div>
-  <div class="tab-bar">
-    <div class="tab-btn active" data-tab="tab-action">🔔 アクション<span class="tc" id="tcA">-</span></div>
-    <div class="tab-btn" data-tab="tab-memo">📋 備忘録<span class="tc" id="tcM">-</span></div>
-    <div class="tab-btn" data-tab="tab-mail">📬 仮置き<span class="tc" id="tcP">-</span></div>
-  </div>
-  <div id="tab-action" class="tab-content active"><div class="summary-bar" id="summaryBar"></div><div id="noDataMsg">⚠️ トップに戻ってデータ取得してください。</div><div class="dashboard" id="dashboard"></div></div>
-  <div id="tab-memo" class="tab-content"><div class="memo-area"><div class="mia"><textarea class="mi" id="memoInput" placeholder="メモを入力...（Enterで追加）" rows="1"></textarea><button class="mab" id="memoAddBtn">追加</button></div><div id="memoList"></div></div></div>
-  <div id="tab-mail" class="tab-content"><div class="mail-area"><div class="mail-top-bar"><button class="ai-btn classify" id="aiBtn" disabled>🤖 AI分類</button><span class="ai-sts" id="aiSts"></span></div><div id="mailList"><div class="mail-empty">⏳ 読み込み中...</div></div></div></div>
+function buildDashboard(){
+  var r0=[], r1=[], r2=[], r3=[], r4=[];
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key];var cols=obj.csvData;if(!cols)return;
+    var eff=getEff(obj,cols),rank=eff.rank,kubun=gv(cols,3).replace(/\s+/g,""),nm=gv(cols,4).trim(),cp=gv(cols,5).trim();
+    var sd=fy(gv(cols,2)),yd=obj.date||"",d=diffD(sd);
+    
+    if(d<0||rank>=5)return;
+    var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank};
 
-  <script src="shared-modal.js"></script>
-  <script>
-    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
-    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-    var database=firebase.database();
+    if(rank===0) r0.push(item);
+    if(rank===1) r1.push(item);
+    if(rank===2) r2.push(item);
+    if(rank===3) r3.push(item);
+    if(rank===4 && !obj.emailSent) r4.push(item);
+  });
 
-    document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){
-      document.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active');});
-      document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active');});
-      this.classList.add('active');document.getElementById(this.dataset.tab).classList.add('active');
-    });});
+  [r0,r1,r2,r3,r4].forEach(function(l){l.sort(function(a,b){return a.days-b.days;});});
 
-    document.getElementById('gearBtn').addEventListener('click',function(){document.getElementById('setKey').value=localStorage.getItem('gemini_api_key')||'';document.getElementById('setOv').style.display='block';});
-    document.getElementById('setCan').addEventListener('click',function(){document.getElementById('setOv').style.display='none';});
-    document.getElementById('setSav').addEventListener('click',function(){var k=document.getElementById('setKey').value.trim();if(k)localStorage.setItem('gemini_api_key',k);else localStorage.removeItem('gemini_api_key');document.getElementById('setOv').style.display='none';chkKey();});
-    document.getElementById('setOv').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
-    function chkKey(){var k=localStorage.getItem('gemini_api_key');document.getElementById('aiBtn').disabled=!k;return k;}
+  var total=r0.length+r1.length+r2.length+r3.length+r4.length;
+  document.getElementById('tcA').textContent=total;
+  
+  document.getElementById('summaryBar').innerHTML='<div class="sc c-rank0">📞<span class="n">'+r0.length+'</span></div><div class="sc c-rank1">📅<span class="n">'+r1.length+'</span></div><div class="sc c-rank2">🏃<span class="n">'+r2.length+'</span></div><div class="sc c-rank3">📝<span class="n">'+r3.length+'</span></div><div class="sc c-rank4">✉️<span class="n">'+r4.length+'</span></div><div class="sc ct">合計<span class="n">'+total+'</span></div>';
 
-    function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
-    function fy(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
-    var now=new Date();var todayStr=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,'0')+"-"+String(now.getDate()).padStart(2,'0');
-    var dn=['日','月','火','水','木','金','土'];
-    document.getElementById('dateDisplay').textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' ('+dn[now.getDay()]+')';
-    function diffD(ds){if(!ds)return 9999;return Math.round((new Date(ds)-new Date(todayStr))/864e5);}
-    function dlbl(n){if(n===0)return'今日';if(n===1)return'明日';if(n<0)return Math.abs(n)+'日超過';return n+'日後';}
-    function dcls(n){if(n<=3)return'du';if(n<=7)return'dw';return'dok';}
+  var dash=document.getElementById('dashboard');dash.innerHTML='';
 
-    var STATUS_RANKS={'依頼':0,'連絡済':1,'下見日確定':2,'下見実施済':3,'報告書提出済':4,'完了':5};
-    var SF_TO_LOCAL={'依頼':'依頼','下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済','完了':'完了'};
-    function getEff(obj,cols){
-      var sf=gv(cols,1).replace(/\s+/g,""),local=obj.localStatus||"",sfL=SF_TO_LOCAL[sf]||sf;
-      var sR=STATUS_RANKS[sfL]!==undefined?STATUS_RANKS[sfL]:-1,lR=STATUS_RANKS[local]!==undefined?STATUS_RANKS[local]:-1;
-      if(lR>=sR)return{name:local||'依頼',rank:Math.max(lR,0)};return{name:sfL||'依頼',rank:Math.max(sR,0)};
-    }
-    function stLbl(name){var c={'依頼':'#90a4ae','連絡済':'#42a5f5','下見日確定':'#ffb300','下見実施済':'#66bb6a','報告書提出済':'#26a69a'};return'<span class="item-st" style="background:'+(c[name]||'#2a2d3a')+'">'+name+'</span>';}
+  rSec(dash,'📞 お客様へ連絡して下見日を調整','ステータス: 依頼','bg-rank0',r0);
+  rSec(dash,'📅 下見日程を確定させる','ステータス: 連絡済','bg-rank1',r1);
+  rSec(dash,'🏃 現場へ下見に行く','ステータス: 下見日確定','bg-rank2',r2);
+  rSec(dash,'📝 報告書を作成・提出する','ステータス: 下見実施済','bg-rank3',r3);
+  rSec(dash,'✉️ 施工前の最終確認（メール等）','ステータス: 報告書提出済','bg-rank4',r4);
+}
 
-    var globalHeaders=[],globalTasks={},fullData=null,caseOptions=[];
-    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){}
-    if(fullData&&fullData.app_meta&&fullData.app_tasks){
-      globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;
-      Object.keys(globalTasks).forEach(function(k){var t=globalTasks[k];if(!t.csvData)return;var nm=gv(t.csvData,4).trim(),sk=fy(gv(t.csvData,2));if(nm)caseOptions.push({key:k,name:nm,sekou:sk});});
-      caseOptions.sort(function(a,b){return(b.sekou||'').localeCompare(a.sekou||'');});
-      buildDashboard();
-    }else{document.getElementById('noDataMsg').style.display='block';}
-    chkKey();
-
-    function buildDashboard(){
-      var cl=[],vl=[],sl=[],el=[],rl=[];
-      Object.keys(globalTasks).forEach(function(key){
-        var obj=globalTasks[key];var cols=obj.csvData;if(!cols)return;
-        var eff=getEff(obj,cols),rank=eff.rank,kubun=gv(cols,3).replace(/\s+/g,""),nm=gv(cols,4).trim(),cp=gv(cols,5).trim();
-        var sd=fy(gv(cols,2)),yd=obj.date||"",d=diffD(sd);
-        if(d<0||rank>=4)return;
-        var isSK=nm.indexOf('SK')!==-1;
-        var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank};
-        if(kubun==="ﾘ"&&rank<1)cl.push(item);
-        if(kubun==="新"&&d<=21&&rank<3)vl.push(item);
-        if(kubun==="新"&&isSK&&d<=10&&rank<3)sl.push(item);
-        if(d>=14&&d<=21&&!obj.emailSent)el.push(item);
-        if(rank===3||(rank===2&&yd&&yd<todayStr))rl.push(item);
-      });
-      [cl,vl,sl,el,rl].forEach(function(l){l.sort(function(a,b){return a.days-b.days;});});
-      var total=cl.length+vl.length+sl.length+el.length+rl.length;
-      document.getElementById('tcA').textContent=total;
-      document.getElementById('summaryBar').innerHTML='<div class="sc cr">📞<span class="n">'+cl.length+'</span></div><div class="sc co">🏃<span class="n">'+vl.length+'</span></div><div class="sc cp">🔨<span class="n">'+sl.length+'</span></div><div class="sc cb">✉️<span class="n">'+el.length+'</span></div><div class="sc cg">📝<span class="n">'+rl.length+'</span></div><div class="sc ct">合計<span class="n">'+total+'</span></div>';
-      var dash=document.getElementById('dashboard');dash.innerHTML='';
-      rSec(dash,'📞 連絡して下見日を決めろ','リフォーム・依頼のまま','bg-red',cl);
-      rSec(dash,'🏃 下見に行け','施工日21日前以内・下見未実施','bg-orange',vl);
-      rSec(dash,'🔨 SK最終下見','施工日10日前以内・下見未実施','bg-purple',sl);
-      rSec(dash,'✉️ 確認メール送れ','施工日14〜21日前・未送信','bg-blue',el);
-      rSec(dash,'📝 報告書書け','下見実施済み・報告未完了','bg-green',rl);
-    }
-    function rSec(ct,title,sub,bg,items){
-      var s=document.createElement('div');s.className='section';
-      var h=document.createElement('div');h.className='sh '+bg;
-      h.innerHTML=title+' <span class="sub">'+sub+'</span><span class="cnt">'+items.length+'件</span>';
-      var b=document.createElement('div');b.className='sb';var op=items.length>0;b.style.display=op?'block':'none';
-      h.addEventListener('click',function(){op=!op;b.style.display=op?'block':'none';});
-      s.appendChild(h);
-      if(!items.length)b.innerHTML='<div class="empty">✔ なし</div>';
-      else items.forEach(function(it){
-        var d=document.createElement('div');d.className='ai-row';
-        var bc=it.kubun==='ﾘ'?'badge-reform':it.name.indexOf('SK')!==-1?'badge-sk':'badge-new';
-        var bt=it.kubun==='ﾘ'?'ﾘ':it.name.indexOf('SK')!==-1?'SK':'新';
-        d.innerHTML='<span class="badge '+bc+'">'+bt+'</span><span class="item-name">'+it.name+'</span>'+stLbl(it.status)+'<span class="item-co">'+it.company.split(/[\s\u3000]+/)[0]+'</span><span class="item-dt">'+it.sekouDate+'</span><span class="item-dy '+dcls(it.days)+'">'+dlbl(it.days)+'</span>';
-        d.addEventListener('click',function(){openCaseModal(it.key,it.obj,globalHeaders,globalTasks,fullData,database,buildDashboard);});
-        b.appendChild(d);
-      });
-      s.appendChild(b);ct.appendChild(s);
-    }
-
-    document.getElementById('memoAddBtn').addEventListener('click',addM);
-    document.getElementById('memoInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addM();}});
-    loadM();
-    function addM(){var i=document.getElementById('memoInput');var t=i.value.trim();if(!t)return;database.ref('app_notes').push({text:t,ts:new Date().toISOString()});i.value='';loadM();}
-    function loadM(){database.ref('app_notes').orderByChild('ts').once('value',function(sn){
-      var d=sn.val(),el=document.getElementById('memoList'),c=document.getElementById('tcM');
-      if(!d){el.innerHTML='<div class="mail-empty">メモなし</div>';c.textContent='0';return;}
-      var e=[];Object.keys(d).forEach(function(k){e.push({key:k,text:d[k].text,ts:d[k].ts});});
-      e.sort(function(a,b){return b.ts.localeCompare(a.ts);});c.textContent=e.length;
-      var h='';e.forEach(function(x){var dt=new Date(x.ts),ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);h+='<div class="mc"><span class="mt-text">'+x.text.replace(/</g,'&lt;')+'</span><span class="mt-time">'+ts+'</span><button class="mt-del" data-key="'+x.key+'">✕</button></div>';});
-      el.innerHTML=h;el.querySelectorAll('.mt-del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_notes/'+this.dataset.key).remove();loadM();});});
-    });}
-
-    loadP();
-    function loadP(){database.ref('app_parked_mails').once('value',function(sn){
-      var pk=sn.val()||{},ml=document.getElementById('mailList'),c=document.getElementById('tcP');
-      var e=[];Object.keys(pk).forEach(function(k){e.push({key:k,d:pk[k]});});
-      e.sort(function(a,b){return(b.d.ts||'').localeCompare(a.d.ts||'');});c.textContent=e.length;
-      document.getElementById('aiBtn').disabled=!chkKey()||e.length===0;
-      if(!e.length){ml.innerHTML='<div class="mail-empty">📭 仮置きなし<br><span style="font-size:12px;color:#666;">comm.htmlの「📬 仮置きに送る」で追加</span></div>';return;}
-      var h='';e.forEach(function(x){
-        var m=x.d,dt=new Date(m.ts),ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
-        var badge=m.src==='imessage'?'<span class="mlb sms">SMS</span>':'<span class="mlb gmail">Gmail</span>';
-        h+='<div class="mlc'+(m.aiSuggest?' ai-m':'')+'"><div class="mlt"><div class="mlf">'+badge+(m.contact||'').replace(/</g,'&lt;')+'</div><span class="mltm">'+ts+'</span></div>';
-        if(m.subject)h+='<div class="mlsb">'+m.subject.replace(/</g,'&lt;')+'</div>';
-        if(m.body)h+='<div class="mlsn">'+m.body.substring(0,300).replace(/</g,'&lt;')+'</div>';
-        if(m.aiSuggest)h+='<div><span class="ai-sug">🤖 AI: '+m.aiSuggest+'</span></div>';
-        h+='<div class="mlac"><select class="cs" data-key="'+x.key+'"><option value="">案件を選択...</option>';
-        caseOptions.forEach(function(co){h+='<option value="'+co.key+'"'+(m.assignedCase===co.key?' selected':'')+'>'+co.name+'</option>';});
-        h+='</select><button class="as-btn" data-key="'+x.key+'">✔ 指定</button><button class="ml-btn del" data-key="'+x.key+'">✕ 削除</button></div></div>';
-      });ml.innerHTML=h;
-      ml.querySelectorAll('.ml-btn.del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_parked_mails/'+this.dataset.key).remove();loadP();});});
-      ml.querySelectorAll('.as-btn').forEach(function(b){b.addEventListener('click',function(){
-        var k=this.dataset.key,sel=ml.querySelector('.cs[data-key="'+k+'"]'),ck=sel.value;
-        if(!ck){alert('案件を選択');return;}database.ref('app_parked_mails/'+k+'/assignedCase').set(ck);
-        var md=pk[k];if(md)database.ref('app_communications').push({dt:md.ts,src:md.src||'gmail',dir:md.dir||'',contact:md.contact||'',subject:md.subject||'',body:(md.body||'').substring(0,500),assignedCase:ck});
-        this.textContent='✔ 済';this.style.background='#666';this.disabled=true;
-      });});
-    });}
-
-    document.getElementById('aiBtn').addEventListener('click',function(){
-      var apiKey=localStorage.getItem('gemini_api_key');if(!apiKey){document.getElementById('setOv').style.display='block';return;}
-      var sts=document.getElementById('aiSts'),btn=this;btn.disabled=true;btn.textContent='🤖 分類中...';sts.textContent='問い合わせ中...';
-      database.ref('app_parked_mails').once('value',function(sn){
-        var pk=sn.val()||{},entries=[];Object.keys(pk).forEach(function(k){if(!pk[k].aiSuggest)entries.push({key:k,d:pk[k]});});
-        if(!entries.length){sts.textContent='対象なし';btn.disabled=false;btn.textContent='🤖 AI分類';return;}
-        var caseList=caseOptions.slice(0,100).map(function(c){return c.name;}).join('\n');
-        var bs=5,batches=[];for(var i=0;i<entries.length;i+=bs)batches.push(entries.slice(i,i+bs));var done=0;
-        function proc(idx){
-          if(idx>=batches.length){sts.textContent='完了！ '+done+'件';btn.disabled=false;btn.textContent='🤖 AI分類';loadP();return;}
-          var batch=batches[idx],msgList=batch.map(function(e,i){return'['+(i+1)+'] 送信元:'+e.d.contact+' 件名:'+(e.d.subject||'なし')+' 本文:'+(e.d.body||'').substring(0,200);}).join('\n');
-          var prompt='建設案件管理アシスタントです。メッセージごとに最も関連する案件名を1つ選んでください。該当なしは「不明」。\n\n【案件一覧】\n'+caseList+'\n\n【メッセージ】\n'+msgList+'\n\nJSON配列で回答。例:["案件名1","不明"]\nJSONのみ。';
-          fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
-          }).then(function(r){return r.json();}).then(function(data){
-            try{var text=data.candidates[0].content.parts[0].text,results=JSON.parse(text.replace(/```json|```/g,'').trim());
-            for(var j=0;j<batch.length;j++){var sug=(results[j]&&results[j]!=='不明')?results[j]:null;if(sug){database.ref('app_parked_mails/'+batch[j].key+'/aiSuggest').set(sug);done++;}}}catch(e){console.error(e);}
-            sts.textContent=(idx+1)+'/'+batches.length;setTimeout(function(){proc(idx+1);},1000);
-          }).catch(function(e){sts.textContent='エラー';btn.disabled=false;btn.textContent='🤖 AI分類';});
-        }proc(0);
-      });
-    });
-  </script>
+function rSec(ct,title,sub,bg,items){
+var s=document.createElement('div');s.className='section';
+var h=document.createElement('div');h.className='sh '+bg;
+h.innerHTML=title+' <span class="sub">'+sub+'</span><span class="cnt">'+items.length+'件</span>';
+var b=document.createElement('div');b.className='sb';var op=items.length>0;b.style.display=op?'block':'none';
+h.addEventListener('click',function(){op=!op;b.style.display=op?'block':'none';});
+s.appendChild(h);
+if(!items.length)b.innerHTML='<div class="empty">✔ なし</div>';
+else items.forEach(function(it){
+var d=document.createElement('div');d.className='ai-row';
+var bc=it.kubun==='ﾘ'?'badge-reform':it.name.indexOf('SK')!==-1?'badge-sk':'badge-new';
+var bt=it.kubun==='ﾘ'?'ﾘ':it.name.indexOf('SK')!==-1?'SK':'新';
+d.innerHTML='<span class="badge '+bc+'">'+bt+'</span><span class="item-name">'+it.name+'</span>'+stLbl(it.status)+'<span class="item-co">'+it.company.split(/[\s\u3000]+/)+'</span><span class="item-dt">'+it.sekouDate+'</span><span class="item-dy '+dcls(it.days)+'">'+dlbl(it.days)+'</span>';
+d.addEventListener('click',function(){openCaseModal(it.key,it.obj,globalHeaders,globalTasks,fullData,database,buildDashboard);});
+b.appendChild(d);
+});
+s.appendChild(b);ct.appendChild(s);
+}
+document.getElementById('memoAddBtn').addEventListener('click',addM);
+document.getElementById('memoInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addM();}});
+loadM();
+function addM(){var i=document.getElementById('memoInput');var t=i.value.trim();if(!t)return;database.ref('app_notes').push({text:t,ts:new Date().toISOString()});i.value='';loadM();}
+function loadM(){database.ref('app_notes').orderByChild('ts').once('value',function(sn){
+var d=sn.val(),el=document.getElementById('memoList'),c=document.getElementById('tcM');
+if(!d){el.innerHTML='<div class="mail-empty">メモなし</div>';c.textContent='0';return;}
+var e=[];Object.keys(d).forEach(function(k){e.push({key:k,text:d[k].text,ts:d[k].ts});});
+e.sort(function(a,b){return b.ts.localeCompare(a.ts);});c.textContent=e.length;
+var h='';e.forEach(function(x){var dt=new Date(x.ts),ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);h+='<div class="mc"><span class="mt-text">'+x.text.replace(/</g,'&lt;')+'</span><span class="mt-time">'+ts+'</span><button class="mt-del" data-key="'+x.key+'">✕</button></div>';});
+el.innerHTML=h;el.querySelectorAll('.mt-del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_notes/'+this.dataset.key).remove();loadM();});});
+});}
+loadP();
+function loadP(){database.ref('app_parked_mails').once('value',function(sn){
+var pk=sn.val()||{},ml=document.getElementById('mailList'),c=document.getElementById('tcP');
+var e=[];Object.keys(pk).forEach(function(k){e.push({key:k,d:pk[k]});});
+e.sort(function(a,b){return(b.d.ts||'').localeCompare(a.d.ts||'');});c.textContent=e.length;
+document.getElementById('aiBtn').disabled=!chkKey()||e.length===0;
+if(!e.length){ml.innerHTML='<div class="mail-empty">📭 仮置きなし<br><span style="font-size:12px;color:#666;">comm.htmlの「📬 仮置きに送る」で追加</span></div>';return;}
+var h='';e.forEach(function(x){
+var m=x.d,dt=new Date(m.ts),ts=(dt.getMonth()+1)+'/'+dt.getDate()+' '+('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
+var badge=m.src==='imessage'?'<span class="mlb sms">SMS</span>':'<span class="mlb gmail">Gmail</span>';
+h+='<div class="mlc'+(m.aiSuggest?' ai-m':'')+'"><div class="mlt"><div class="mlf">'+badge+(m.contact||'').replace(/</g,'&lt;')+'</div><span class="mltm">'+ts+'</span></div>';
+if(m.subject)h+='<div class="mlsb">'+m.subject.replace(/</g,'&lt;')+'</div>';
+if(m.body)h+='<div class="mlsn">'+m.body.substring(0,300).replace(/</g,'&lt;')+'</div>';
+if(m.aiSuggest)h+='<div><span class="ai-sug">🤖 AI: '+m.aiSuggest+'</span></div>';
+h+='<div class="mlac"><select class="cs" data-key="'+x.key+'"><option value="">案件を選択...</option>';
+caseOptions.forEach(function(co){h+='<option value="'+co.key+'"'+(m.assignedCase===co.key?' selected':'')+'>'+co.name+'</option>';});
+h+='</select><button class="as-btn" data-key="'+x.key+'">✔ 指定</button><button class="ml-btn del" data-key="'+x.key+'">✕ 削除</button></div></div>';
+});ml.innerHTML=h;
+ml.querySelectorAll('.ml-btn.del').forEach(function(b){b.addEventListener('click',function(){database.ref('app_parked_mails/'+this.dataset.key).remove();loadP();});});
+ml.querySelectorAll('.as-btn').forEach(function(b){b.addEventListener('click',function(){
+var k=this.dataset.key,sel=ml.querySelector('.cs[data-key="'+k+'"]'),ck=sel.value;
+if(!ck){alert('案件を選択');return;}database.ref('app_parked_mails/'+k+'/assignedCase').set(ck);
+var md=pk[k];if(md)database.ref('app_communications').push({dt:md.ts,src:md.src||'gmail',dir:md.dir||'',contact:md.contact||'',subject:md.subject||'',body:(md.body||'').substring(0,500),assignedCase:ck});
+this.textContent='✔ 済';this.style.background='#666';this.disabled=true;
+});});
+});}
+document.getElementById('aiBtn').addEventListener('click',function(){
+var apiKey=localStorage.getItem('gemini_api_key');if(!apiKey){document.getElementById('setOv').style.display='block';return;}
+var sts=document.getElementById('aiSts'),btn=this;btn.disabled=true;btn.textContent='🤖 分類中...';sts.textContent='問い合わせ中...';
+database.ref('app_parked_mails').once('value',function(sn){
+var pk=sn.val()||{},entries=[];Object.keys(pk).forEach(function(k){if(!pk[k].aiSuggest)entries.push({key:k,d:pk[k]});});
+if(!entries.length){sts.textContent='対象なし';btn.disabled=false;btn.textContent='🤖 AI分類';return;}
+var caseList=caseOptions.slice(0,100).map(function(c){return c.name;}).join('\n');
+var bs=5,batches=[];for(var i=0;i<entries.length;i+=bs)batches.push(entries.slice(i,i+bs));var done=0;
+function proc(idx){
+if(idx>=batches.length){sts.textContent='完了！ '+done+'件';btn.disabled=false;btn.textContent='🤖 AI分類';loadP();return;}
+var batch=batches[idx],msgList=batch.map(function(e,i){return'['+(i+1)+'] 送信元:'+e.d.contact+' 件名:'+(e.d.subject||'なし')+' 本文:'+(e.d.body||'').substring(0,200);}).join('\n');
+var prompt='建設案件管理アシスタントです。メッセージごとに最も関連する案件名を1つ選んでください。該当なしは「不明」。\n\n【案件一覧】\n'+caseList+'\n\n【メッセージ】\n'+msgList+'\n\nJSON配列で回答。例:["案件名1","不明"]\nJSONのみ。';
+fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+}).then(function(r){return r.json();}).then(function(data){
+try{var text=data.candidates.content.parts.text,results=JSON.parse(text.replace(/```json|```/g,'').trim());
+for(var j=0;j<batch.length;j++){var sug=(results[j]&&results[j]!=='不明')?results[j]:null;if(sug){database.ref('app_parked_mails/'+batch[j].key+'/aiSuggest').set(sug);done++;}}}catch(e){console.error(e);}
+sts.textContent=(idx+1)+'/'+batches.length;setTimeout(function(){proc(idx+1);},1000);
+}).catch(function(e){sts.textContent='エラー';btn.disabled=false;btn.textContent='🤖 AI分類';});
+}proc(0);
+});
+});
+</script>
 </body>
 </html>
