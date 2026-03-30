@@ -48,14 +48,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .back-link{display:inline-block;color:#64b5f6;text-decoration:none;font-size:13px;margin-bottom:4px;}
 
 /* インライン分類UI */
-.assign-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#12141c;padding:8px;border-radius:8px;border:1px solid #3a3d4a;}
-.ai-inline-btn{font-size:11px;padding:5px 12px;border-radius:6px;border:none;background:#6a1b9a;color:#fff;cursor:pointer;font-weight:bold;transition:0.2s;}
+.assign-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.ai-inline-btn{font-size:11px;padding:5px 12px;border-radius:8px;border:none;background:#6a1b9a;color:#fff;cursor:pointer;font-weight:bold;margin-right:2px;}
 .ai-inline-btn:hover{background:#8e24aa;}
 .ai-inline-btn:disabled{opacity:0.5;cursor:not-allowed;}
-.assign-sel{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#1a1d27;color:#e0e0e0;font-size:12px;flex:1;min-width:150px;}
+.assign-sel{padding:4px 8px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:260px;flex:1;}
 .assign-sel:focus{outline:none;border-color:#64b5f6;}
-.assign-go{font-size:11px;padding:5px 14px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
+.assign-go{font-size:11px;padding:5px 12px;border-radius:8px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
 .assign-go:hover{background:#388e3c;}
+.park-btn{font-size:11px;padding:5px 12px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#888;cursor:pointer;margin-left:auto;}
+.park-btn:hover{border-color:#ff9800;color:#ff9800;}
 .assign-done{font-size:11px;color:#64b5f6;font-weight:600;}
 </style>
 </head>
@@ -85,7 +87,6 @@ var database=firebase.database();
 
 var allRecords=[];
 var phoneToCasesList={};
-var emailToCasesList={};
 var emailToContact={};
 var phoneToContact={};
 var caseOptions=[];
@@ -95,31 +96,15 @@ var searchText="";
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 
-// ★バグ修正箇所：csvDataの配列から正しく案件名（4番目）を取得
 function ek(csv){
-    var kw=[];
-    var cn=(csv[2]||""); 
-    var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
+    var kw=[];var cn=(csv[2]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
     for(var i=0;i<pts.length;i++){
-        var p=pts[i].trim();
-        if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());
+        var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());
     }
-    var nm=cn.match(/([^\s【】（）]+?)様/);
-    if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());
-    return kw;
+    var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm.length>=2)kw.push(nm[1].toLowerCase());return kw;
 }
 
-function sm(body,subj,kw){
-    if(!kw||!kw.length)return 0;
-    var t=((body||"")+" "+(subj||"")).toLowerCase();
-    if(!t.trim())return 0;
-    var s=0;
-    for(var i=0;i<kw.length;i++){
-        if(t.indexOf(kw[i])!==-1)s+=kw[i].length;
-    }
-    return s;
-}
-
+function sm(body,subj,kw){if(!kw||!kw.length)return 0;var t=((body||"")+" "+(subj||"")).toLowerCase();if(!t.trim())return 0;var s=0;for(var i=0;i<kw.length;i++){if(t.indexOf(kw[i])!==-1)s+=kw[i].length;}return s;}
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
 function ts(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
@@ -140,7 +125,7 @@ return rec.contact||"";
 }
 }
 
-// ★ステップ1：AIなし文章から仕分け（システム自動判定）
+// ★ STEP 1: 全文キーワード検索による自動仕分け
 function lookupMatch(rec){
   // 手動割当済み
   if(rec.assignedCase){
@@ -149,7 +134,7 @@ function lookupMatch(rec){
     }
   }
 
-  // ① まずは文章（本文＋件名）のキーワードから仕分け
+  // ① まずは文章（本文＋件名）のキーワードから全件検索
   var bestG = 0;
   var bestCases = [];
   for(var i=0; i<caseOptions.length; i++){
@@ -167,18 +152,16 @@ function lookupMatch(rec){
     return {type:"case_ambiguous", data:bestCases, score:bestG}; // 同点で迷ったら未分類へ
   }
 
-  // ② 文章にキーワードが無い短い連絡は、送信元（担当者）から推測
+  // ② 文章にキーワードが無い短い連絡は、送信元の電話番号から推測
   if(rec.src==="imessage"){
     var n=np(rec.contact), cases=phoneToCasesList[n];
     if(cases&&cases.length===1) return {type:"case", data:cases, score:0};
-    if(cases&&cases.length>1) return {type:"case_ambiguous", data:cases, score:0}; // 担当現場が複数なら未分類へ
+    if(cases&&cases.length>1) return {type:"case_ambiguous", data:cases, score:0}; 
     if(phoneToContact[n]&&phoneToContact[n].category!=="その他") return {type:"contact", data:phoneToContact[n]};
   }
   
   if(rec.src==="gmail"){
-    var email=ee(rec.contact), cases=emailToCasesList[email];
-    if(cases&&cases.length===1) return {type:"case", data:cases, score:0};
-    if(cases&&cases.length>1) return {type:"case_ambiguous", data:cases, score:0};
+    var email=ee(rec.contact);
     if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
   }
   
@@ -219,8 +202,14 @@ var row=btn.closest('.assign-row');
 row.innerHTML='<span class="assign-done">✔ '+caseName+' に指定済み</span>';
 }
 
+function parkMail(rec,btn){
+var entry={src:rec.src,contact:rec.contact||"",subject:rec.subject||"",body:(rec.body||"").substring(0,500),ts:rec.dt,dir:rec.dir||""};
+database.ref('app_parked_mails').push(entry);
+btn.textContent="✔ 仮置き済";btn.style.color="#66bb6a";btn.disabled=true;
+}
+
 function buildCaseSelect(fbIdx){
-var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">▼案件を選択(手動指定)...</option>';
+var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">案件を選択...</option>';
 for(var i=0;i<caseOptions.length;i++)h+='<option value="'+caseOptions[i].key+'">'+caseOptions[i].name+'</option>';
 h+='</select>';
 return h;
@@ -234,7 +223,7 @@ document.getElementById("stats").textContent="表示: "+filtered.length+"件（S
 var totalM=0,kwM=0,ambi=0,manual=0,unclass=0;
 for(var i=0;i<allRecords.length;i++){
 var m=allRecords[i]._match;
-if(m){if(m.type!=="case_ambiguous" && m.type!=="contact")totalM++; if(m.type==="case"&&m.keyword)kwM++; if(m.type==="case_ambiguous")ambi++; if(m.type==="manual")manual++;}
+if(m){if(m.type==="case"||m.type==="manual")totalM++; if(m.type==="case"&&m.keyword)kwM++; if(m.type==="case_ambiguous")ambi++; if(m.type==="manual")manual++;}
 if(needsClassify(allRecords[i]))unclass++;
 }
 document.getElementById("matchSummary").textContent="🔗 システム・手動確定:"+totalM+"件 ❓未分類・迷い中:"+unclass+"件";
@@ -249,13 +238,12 @@ for(var m=0;m<msgs.length;m++){
 var rec=msgs[m];
 var cc="msg-card "+rec.src;
 if(rec.dir==="sent")cc+=" sent";
-if(rec._match){if(rec._match.type==="manual")cc+=" assigned";else if(rec._match.type==="case") cc+=" matched";}
+if(rec._match){if(rec._match.type==="manual")cc+=" assigned";else if(rec._match.type==="case")cc+=" matched";}
 html+='<div class="'+cc+'">';
 html+='<div class="msg-top"><div>';
 html+='<span class="msg-source '+rec.src+'">'+(rec.src==="imessage"?"💬 SMS":"📧 Gmail")+'</span>';
 if(rec.dir)html+=' <span class="msg-dir">'+(rec.dir==="sent"?"↑送信":"↓受信")+'</span>';
 html+='</div><span class="msg-time">'+rec._timeStr+'</span></div>';
-
 if(rec._match){
 if(rec._match.type==="case"){
 var kwc=rec._match.keyword?" keyword":"";
@@ -276,17 +264,17 @@ if(rec._match.data.company)html+='<span class="msg-case-person">'+rec._match.dat
 html+='</div>';
 }
 }
-
 html+='<div class="msg-contact">'+cd(rec)+'</div>';
 if(rec.subject)html+='<div class="msg-subject">📋 '+rec.subject+'</div>';
 if(rec.body){var bt=rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;");html+='<div class="msg-body">'+bt+'</div>';}
 
-// ★ステップ2・3：未分類に対して、その場で「AI推測」→「人間が指定」できるUI
+// ★ STEP 2 & 3: 未分類 → インラインでのAI推測・人間指定UI
 if(needsClassify(rec)){
 html+='<div class="assign-row" data-fbidx="'+rec._fbIdx+'">';
-html+='<button class="ai-inline-btn" data-fbidx="'+rec._fbIdx+'">🤖 AIに推測させる</button>';
+html+='<button class="ai-inline-btn" data-fbidx="'+rec._fbIdx+'">🤖 AI推測</button>';
 html+=buildCaseSelect(rec._fbIdx);
-html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 人間が確定</button>';
+html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 指定</button>';
+html+='<button class="park-btn" data-fbidx="'+rec._fbIdx+'">📬 仮置き</button>';
 html+='</div>';
 }
 html+='</div>';
@@ -295,7 +283,7 @@ html+='</div>';
 }
 document.getElementById("timeline").innerHTML=html;
 
-// イベント：人間が指定（ステップ3）
+// STEP 3 イベント（人間が確定）
 document.querySelectorAll('.assign-go').forEach(function(btn){
 btn.addEventListener('click',function(){
 var idx=parseInt(this.dataset.fbidx);
@@ -306,7 +294,14 @@ assignCase(idx,sel.value,caseName,this);
 });
 });
 
-// イベント：AIに推測させる（ステップ2）
+document.querySelectorAll('.park-btn').forEach(function(btn){
+btn.addEventListener('click',function(){
+var idx=parseInt(this.dataset.fbidx);
+if(allRecords[idx])parkMail(allRecords[idx],this);
+});
+});
+
+// STEP 2 イベント（AIに推測させる）
 document.querySelectorAll('.ai-inline-btn').forEach(function(btn){
 btn.addEventListener('click',function(){
 var apiKey = localStorage.getItem('gemini_api_key');
@@ -336,12 +331,13 @@ fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:
         break;
       }
     }
-    selfBtn.textContent = found ? '🤖 AI提案完了(確認して確定して)' : '🤖 AIも不明';
+    selfBtn.textContent = found ? '🤖 提案(横の✔指定を押して)' : '🤖 AIも不明';
     if(found) selfBtn.style.background = '#2e7d32';
   }catch(e){ selfBtn.textContent = '🤖 エラー'; }
 }).catch(function(e){ selfBtn.textContent = '🤖 エラー'; });
 });
 });
+
 }
 
 document.querySelectorAll(".filter-btn").forEach(function(b){b.addEventListener("click",function(){
@@ -361,30 +357,15 @@ if(data){
 var keys=Object.keys(data);
 for(var i=0;i<keys.length;i++){
 var t=data[keys[i]];if(!t.csvData)continue;
-// ★ここの配列インデックスミスを修正済
 var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
 if(cn){
-  var ci = {key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData),person:t.csvData[5]||""};
-  caseOptions.push(ci);
-  
-  if(ph.length>=10){
-    if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];
-    phoneToCasesList[ph].push(ci);
-  }
-  
-  // Gmailアドレスと案件の紐付け作成
-  for(var j=0; j<t.csvData.length; j++){
-    var val = t.csvData[j];
-    if(typeof val === 'string' && val.indexOf('@') > 0){
-      var em = ee(val);
-      if(em){
-        if(!emailToCasesList[em]) emailToCasesList[em] = [];
-        var dup = false;
-        for(var k=0; k<emailToCasesList[em].length; k++){ if(emailToCasesList[em][k].key === keys[i]) dup = true; }
-        if(!dup) emailToCasesList[em].push(ci);
-      }
+    // ★ 修正点: ここでキーワードも配列に持たせておくことで全文検索が機能します
+    var ci={key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData)};
+    caseOptions.push(ci);
+    if(ph.length>=10){
+        if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];
+        phoneToCasesList[ph].push(ci);
     }
-  }
 }
 }
 caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});
@@ -400,7 +381,7 @@ if(em&&!emailToContact[em])emailToContact[em]=info;if(ph.length>=10&&!phoneToCon
 }}loadState.contacts=true;tryRender();
 }).catch(function(e){console.error(e);loadState.contacts=true;tryRender();});
 
-fetch(FB_URL+"/app_communications.json?orderBy=\"$key\"&limitToLast=300").then(function(r){return r.json();}).then(function(data){
+fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(data){
 if(!data){document.getElementById("timeline").innerHTML='<div class="no-results">データなし</div>';return;}
 var arr=Array.isArray(data)?data:Object.values(data);
 for(var i=0;i<arr.length;i++){
