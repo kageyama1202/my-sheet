@@ -1,3 +1,8 @@
+これまでにお話ししたすべての改善（仕事のみを初期表示、キャッシュを利用した爆速化、直近200件の読み込み、誤爆を防ぐ未分類ロジックの強化）を盛り込んだ、最新版の **`comm.html`** の全文コードです。
+
+現在お使いの `comm.html` の中身をすべて消去し、以下のコードをそのまま丸ごと貼り付けて保存してください。
+
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -86,16 +91,16 @@ var emailToContact={};
 var phoneToContact={};
 var caseOptions=[];
 
-// 初期状態を「仕事のみ」にする
-var activeFilter="work";
+// ★ 初期フィルターを「仕事のみ」に設定
+var activeFilter="work"; 
 var searchText="";
 
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
-function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
+function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m.toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
 function ts(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
-function dlt(key){var p=key.split("-");var d=new Date(p,p[1]-1,p[2]);var dn=["日","月","火","水","木","金","土"];return p+"/"+parseInt(p[1])+"/"+parseInt(p[2])+" ("+dn[d.getDay()]+")";}
+function dlt(key){var p=key.split("-");var d=new Date(p,p-1,p);var dn=["日","月","火","水","木","金","土"];return p+"/"+parseInt(p)+"/"+parseInt(p)+" ("+dn[d.getDay()]+")";}
 
 function cd(rec){
 if(rec.src==="imessage"){
@@ -107,7 +112,7 @@ return nl+phone;
 var email=ee(rec.contact),ci=emailToContact[email];
 if(ci&&ci.name)return'<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br><span style="color:#555;font-size:11px">'+email+'</span>';
 var m=rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
-if(m)return m[1].trim()+'<br><span style="color:#555;font-size:11px">'+m[2]+'</span>';
+if(m)return m.trim()+'<br><span style="color:#555;font-size:11px">'+m+'</span>';
 return rec.contact||"";
 }
 }
@@ -278,7 +283,7 @@ document.getElementById("searchBox").addEventListener("input",function(){clearTi
 var loadState={tasks:false,contacts:false,comms:false};
 function tryRender(){if(!loadState.tasks||!loadState.contacts||!loadState.comms)return;for(var i=0;i<allRecords.length;i++){allRecords[i]._match=lookupMatch(allRecords[i]);}render();}
 
-// ローカルキャッシュから案件データを読み込み（高速化）
+// ★ 1. ローカルキャッシュから案件データを読み込み（高速化）
 var cachedData = null;
 try { var s = localStorage.getItem('appData'); if(s) cachedData = JSON.parse(s); } catch(e){}
 
@@ -287,10 +292,10 @@ if (cachedData && cachedData.app_tasks) {
     var keys = Object.keys(data);
     for(var i=0;i<keys.length;i++){
         var t=data[keys[i]];if(!t.csvData)continue;
-        var ph=np(t.csvData[3]||""),cn=t.csvData[4]||"",sk=t.csvData[2]||"";
+        var ph=np(t.csvData||""),cn=t.csvData||"",sk=t.csvData||"";
         if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
         if(ph.length>=10){
-            var ci={name:cn,person:t.csvData[5]||"",key:keys[i]};
+            var ci={name:cn,person:t.csvData||"",key:keys[i]};
             if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
         }
     }
@@ -300,10 +305,10 @@ if (cachedData && cachedData.app_tasks) {
     fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
         if(data){var keys=Object.keys(data);for(var i=0;i<keys.length;i++){
             var t=data[keys[i]];if(!t.csvData)continue;
-            var ph=np(t.csvData[3]||""),cn=t.csvData[4]||"",sk=t.csvData[2]||"";
+            var ph=np(t.csvData||""),cn=t.csvData||"",sk=t.csvData||"";
             if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
             if(ph.length>=10){
-                var ci={name:cn,person:t.csvData[5]||"",key:keys[i]};
+                var ci={name:cn,person:t.csvData||"",key:keys[i]};
                 if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
             }
         }caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});}
@@ -319,7 +324,7 @@ if(em&&!emailToContact[em])emailToContact[em]=info;if(ph.length>=10&&!phoneToCon
 }}loadState.contacts=true;tryRender();
 }).catch(function(e){console.error(e);loadState.contacts=true;tryRender();});
 
-// 通信履歴は最新200件のみ取得（フリーズ防止・高速化）
+// ★ 2. 通信履歴は最新200件のみ取得（フリーズ防止・高速化）
 fetch(FB_URL+"/app_communications.json?orderBy=\"$key\"&limitToLast=200").then(function(r){return r.json();}).then(function(data){
 if(!data){document.getElementById("timeline").innerHTML='<div class="no-results">データなし</div>';return;}
 var arr=Array.isArray(data)?data:Object.values(data);
@@ -334,3 +339,4 @@ loadState.comms=true;tryRender();
 </script>
 </body>
 </html>
+```
