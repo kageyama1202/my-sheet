@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -71,12 +69,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 <button class="filter-btn" data-filter="gmail">📧 Gmail</button>
 <button class="filter-btn" data-filter="sent">↑ 送信</button>
 <button class="filter-btn" data-filter="received">↓ 受信</button>
+<!-- ★ 初期状態を仕事のみにするため active を付与 -->
 <button class="filter-btn work-filter active" data-filter="work">🏗️ 仕事のみ</button>
 <button class="filter-btn unclass" data-filter="unclass">❓ 未分類</button>
 <input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文・案件名）">
 </div>
 </div>
 <div class="timeline" id="timeline"><div class="loading">⏳ 読み込み中...</div></div>
+
 <script>
 var FB_URL="https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",databaseURL:FB_URL,projectId:"project-6745138395263517914"};
@@ -89,15 +89,20 @@ var phoneToContact={};
 var caseOptions=[];
 
 // ★ 初期フィルターを「仕事のみ」に設定
-var activeFilter="work"; 
+var activeFilter="work";
 var searchText="";
 
+// ★ 修正箇所: エラー回避のため String(raw) で必ず文字列にしてから処理
 function np(raw){if(!raw)return"";var s=String(raw).replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
-function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m.toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
+
+function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1]?m[1].toLowerCase().trim():"";if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
+
+function ek(csv){var kw=[];var cn=(csv[2]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[1]&&nm[1].length>=2)kw.push(nm[1].toLowerCase());return kw;}
+
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
 function ts(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
-function dlt(key){var p=key.split("-");var d=new Date(p,p-1,p);var dn=["日","月","火","水","木","金","土"];return p+"/"+parseInt(p)+"/"+parseInt(p)+" ("+dn[d.getDay()]+")";}
+function dlt(key){var p=key.split("-");var d=new Date(p,p[1]-1,p[3]);var dn=["日","月","火","水","木","金","土"];return p+"/"+parseInt(p[1])+"/"+parseInt(p[3])+" ("+dn[d.getDay()]+")";}
 
 function cd(rec){
 if(rec.src==="imessage"){
@@ -109,13 +114,13 @@ return nl+phone;
 var email=ee(rec.contact),ci=emailToContact[email];
 if(ci&&ci.name)return'<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br><span style="color:#555;font-size:11px">'+email+'</span>';
 var m=rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
-if(m)return m.trim()+'<br><span style="color:#555;font-size:11px">'+m+'</span>';
+if(m)return m[1]?m[1].trim()+'<br><span style="color:#555;font-size:11px">'+(m[3]||"")+'</span>':rec.contact;
 return rec.contact||"";
 }
 }
 
 function lookupMatch(rec){
-// 手動・AI割当済み
+// 手動割当済み
 if(rec.assignedCase){
 for(var i=0;i<caseOptions.length;i++){
 if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
@@ -124,11 +129,8 @@ if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOp
 if(rec.src==="imessage"){
 var n=np(rec.contact),cases=phoneToCasesList[n];
 if(cases&&cases.length>0){
-// 案件が1つしかない場合は、迷わずその案件に紐付け
+// ★ 修正箇所：案件が1つだけなら自動確定。複数なら勝手に推測せず必ず「未分類」に回す
 if(cases.length===1)return{type:"case",data:cases,score:0};
-
-// ★修正ポイント: 複数の案件が見つかった場合は、勝手に推測して誤爆するのを防ぐため、
-// 必ず「case_ambiguous（候補複数・未分類）」を返し、人間かAIの判断に委ねる
 return{type:"case_ambiguous",data:cases,score:0};
 }
 if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
@@ -289,10 +291,10 @@ if (cachedData && cachedData.app_tasks) {
     var keys = Object.keys(data);
     for(var i=0;i<keys.length;i++){
         var t=data[keys[i]];if(!t.csvData)continue;
-        var ph=np(t.csvData||""),cn=t.csvData||"",sk=t.csvData||"";
+        var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
         if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
         if(ph.length>=10){
-            var ci={name:cn,person:t.csvData||"",key:keys[i]};
+            var ci={name:cn,person:t.csvData[5]||"",key:keys[i],keywords:ek(t.csvData)};
             if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
         }
     }
@@ -302,10 +304,10 @@ if (cachedData && cachedData.app_tasks) {
     fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
         if(data){var keys=Object.keys(data);for(var i=0;i<keys.length;i++){
             var t=data[keys[i]];if(!t.csvData)continue;
-            var ph=np(t.csvData||""),cn=t.csvData||"",sk=t.csvData||"";
+            var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
             if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
             if(ph.length>=10){
-                var ci={name:cn,person:t.csvData||"",key:keys[i]};
+                var ci={name:cn,person:t.csvData[5]||"",key:keys[i],keywords:ek(t.csvData)};
                 if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
             }
         }caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});}
@@ -336,4 +338,3 @@ loadState.comms=true;tryRender();
 </script>
 </body>
 </html>
-```
