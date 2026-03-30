@@ -80,6 +80,7 @@ var FB_URL="https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",databaseURL:FB_URL,projectId:"project-6745138395263517914"};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
+
 var allRecords=[];
 var emailToContact={};
 var phoneToContact={};
@@ -89,8 +90,32 @@ var searchText="";
 
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
-function ek(csv){var kw=[];var cn=(csv[2]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());return kw;}
-function sm(body,subj,kw){if(!kw||!kw.length)return 0;var t=((body||"")+" "+(subj||"")).toLowerCase();if(!t.trim())return 0;var s=0;for(var i=0;i<kw.length;i++){if(t.indexOf(kw[i])!==-1)s+=kw[i].length;}return s;}
+
+function ek(csv){
+    var kw=[];
+    var cn=(csv[2]||"");
+    if(!cn) return kw;
+    var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
+    for(var i=0;i<pts.length;i++){
+        var p=pts[i].trim();
+        if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());
+    }
+    var nm=cn.match(/([^\s【】（）]+?)様/);
+    if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());
+    return kw;
+}
+
+function sm(body,subj,kw){
+    if(!kw||!kw.length)return 0;
+    var t=((body||"")+" "+(subj||"")).toLowerCase();
+    if(!t.trim())return 0;
+    var s=0;
+    for(var i=0;i<kw.length;i++){
+        if(t.indexOf(kw[i])!==-1)s+=kw[i].length;
+    }
+    return s;
+}
+
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
 function ts(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
@@ -111,51 +136,52 @@ return rec.contact||"";
 }
 }
 
+// ★ 最強の「全文検索→AI→人間」3ステップロジック
 function lookupMatch(rec){
-// 手動割当済み
-if(rec.assignedCase){
-for(var i=0;i<caseOptions.length;i++){
-if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
-}
-}
-
-// ① 全文検索による仕分け（送信元の忖度を完全にやめ、本文と件名のみで勝負）
-var bestG = 0;
-var bestCases = [];
-for(var i=0; i<caseOptions.length; i++){
-  var sc = sm(rec.body, rec.subject, caseOptions[i].keywords);
-  if(sc > 0 && sc > bestG){
-    bestG = sc;
-    bestCases = [caseOptions[i]];
-  } else if(sc > 0 && sc === bestG){
-    bestCases.push(caseOptions[i]);
+  // ① 手動割当済み
+  if(rec.assignedCase){
+    for(var i=0;i<caseOptions.length;i++){
+      if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
+    }
   }
-}
 
-// キーワードが1つでもヒットした場合
-if(bestG > 0){
-  if(bestCases.length === 1){
-    return {type:"case", data:bestCases, score:bestG, keyword:true}; // 1案件に特定できたら即紐付け
-  } else {
-    return {type:"case_ambiguous", data:bestCases, score:bestG}; // 同点で被ったら未分類（AIへ）
+  // ② 担当者での絞り込みを完全に捨て、純粋な全文キーワード検索一本勝負！
+  var bestG = 0;
+  var bestCases = [];
+  for(var i=0; i<caseOptions.length; i++){
+    var sc = sm(rec.body, rec.subject, caseOptions[i].keywords);
+    if(sc > 0 && sc > bestG){
+      bestG = sc;
+      bestCases = [caseOptions[i]];
+    } else if(sc > 0 && sc === bestG){
+      bestCases.push(caseOptions[i]);
+    }
   }
-}
 
-// キーワードが一切ない短い連絡などは、純粋な未分類として送信元（連絡先）だけ表示
-if(rec.src==="imessage"){
-var n=np(rec.contact);
-if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
-}
-if(rec.src==="gmail"){
-var email=ee(rec.contact);
-if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
-}
-return null;
+  // キーワードが1つでもヒットした場合
+  if(bestG > 0){
+    if(bestCases.length === 1){
+      return {type:"case", data:bestCases, score:bestG, keyword:true}; // 1案件に特定できたら一発紐付け
+    } else {
+      return {type:"case_ambiguous", data:bestCases, score:bestG}; // 同点で被ったらAI/人間用に未分類
+    }
+  }
+
+  // ③ キーワードが一切ない短い連絡などは、純粋な未分類として送信元だけ表示
+  if(rec.src==="imessage"){
+    var n=np(rec.contact);
+    if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
+  }
+  if(rec.src==="gmail"){
+    var email=ee(rec.contact);
+    if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
+  }
+  return null;
 }
 
 function needsClassify(rec){
 if(!rec._match)return true;
-if(rec._match.type==="case_ambiguous" || rec._match.type==="contact")return true;
+if(rec._match.type==="case_ambiguous")return true;
 return false;
 }
 
@@ -164,7 +190,7 @@ if(activeFilter==="imessage"&&rec.src!=="imessage")return false;
 if(activeFilter==="gmail"&&rec.src!=="gmail")return false;
 if(activeFilter==="sent"&&rec.dir!=="sent")return false;
 if(activeFilter==="received"&&rec.dir!=="received")return false;
-if(activeFilter==="work"&&(!rec._match || rec._match.type==="contact" || rec._match.type==="case_ambiguous"))return false;
+if(activeFilter==="work"&&!rec._match)return false;
 if(activeFilter==="unclass"&&!needsClassify(rec))return false;
 if(searchText){
 var s=searchText.toLowerCase();
@@ -211,7 +237,7 @@ var m=allRecords[i]._match;
 if(m){if(m.type==="case"||m.type==="manual")totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
 if(needsClassify(allRecords[i]))unclass++;
 }
-document.getElementById("matchSummary").textContent="🔗 確定紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+"） ❓未分類/候補複数:"+unclass;
+document.getElementById("matchSummary").textContent="🔗 紐付済:"+totalM+"（KW自動:"+kwM+" 手動:"+manual+"） ❓未分類/候補複数:"+(ambi+unclass);
 if(!filtered.length){document.getElementById("timeline").innerHTML='<div class="no-results">該当なし</div>';return;}
 var groups={},go=[];
 for(var i=0;i<filtered.length;i++){var k=filtered[i]._dateKey;if(!groups[k]){groups[k]=[];go.push(k);}groups[k].push(filtered[i]);}
@@ -302,7 +328,7 @@ var keys=Object.keys(data);
 for(var i=0;i<keys.length;i++){
 var t=data[keys[i]];if(!t.csvData)continue;
 var cn=t.csvData[2]||"",sk=t.csvData[3]||"";
-if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData),person:t.csvData[4]||""}); // 担当者絞り込み用の配列生成を完全に排除
+if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData),person:t.csvData[4]||""}); // ★ここが直りました！
 }
 caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});
 }
