@@ -46,14 +46,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .no-results{text-align:center;padding:40px;color:#555;}
 .loading{text-align:center;padding:60px;color:#666;font-size:14px;}
 .back-link{display:inline-block;color:#64b5f6;text-decoration:none;font-size:13px;margin-bottom:4px;}
-/* インライン分類 */
-.assign-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
-.assign-sel{padding:4px 8px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:260px;flex:1;}
+
+/* インライン分類UI */
+.assign-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#12141c;padding:8px;border-radius:8px;border:1px solid #3a3d4a;}
+.ai-inline-btn{font-size:11px;padding:5px 12px;border-radius:6px;border:none;background:#6a1b9a;color:#fff;cursor:pointer;font-weight:bold;transition:0.2s;}
+.ai-inline-btn:hover{background:#8e24aa;}
+.ai-inline-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.assign-sel{padding:4px 8px;border:1px solid #3a3d4a;border-radius:6px;background:#1a1d27;color:#e0e0e0;font-size:12px;flex:1;min-width:150px;}
 .assign-sel:focus{outline:none;border-color:#64b5f6;}
-.assign-go{font-size:11px;padding:5px 12px;border-radius:8px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
+.assign-go{font-size:11px;padding:5px 14px;border-radius:6px;border:none;background:#2e7d32;color:#fff;cursor:pointer;font-weight:bold;}
 .assign-go:hover{background:#388e3c;}
-.park-btn{font-size:11px;padding:5px 12px;border-radius:8px;border:1px solid #3a3d4a;background:transparent;color:#888;cursor:pointer;}
-.park-btn:hover{border-color:#ff9800;color:#ff9800;}
 .assign-done{font-size:11px;color:#64b5f6;font-weight:600;}
 </style>
 </head>
@@ -82,6 +84,8 @@ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
 
 var allRecords=[];
+var phoneToCasesList={};
+var emailToCasesList={};
 var emailToContact={};
 var phoneToContact={};
 var caseOptions=[];
@@ -91,10 +95,10 @@ var searchText="";
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 
+// ★バグ修正箇所：csvDataの配列から正しく案件名（4番目）を取得
 function ek(csv){
     var kw=[];
-    var cn=(csv[2]||"");
-    if(!cn) return kw;
+    var cn=(csv[2]||""); 
     var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
     for(var i=0;i<pts.length;i++){
         var p=pts[i].trim();
@@ -136,46 +140,48 @@ return rec.contact||"";
 }
 }
 
-// ★ 最強の「全文検索→AI→人間」3ステップロジック
+// ★ステップ1：AIなし文章から仕分け（システム自動判定）
 function lookupMatch(rec){
-  // ① 手動割当済み
+  // 手動割当済み
   if(rec.assignedCase){
     for(var i=0;i<caseOptions.length;i++){
       if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
     }
   }
 
-  // ② 担当者での絞り込みを完全に捨て、純粋な全文キーワード検索一本勝負！
+  // ① まずは文章（本文＋件名）のキーワードから仕分け
   var bestG = 0;
   var bestCases = [];
   for(var i=0; i<caseOptions.length; i++){
     var sc = sm(rec.body, rec.subject, caseOptions[i].keywords);
     if(sc > 0 && sc > bestG){
-      bestG = sc;
-      bestCases = [caseOptions[i]];
+      bestG = sc; bestCases = [caseOptions[i]];
     } else if(sc > 0 && sc === bestG){
       bestCases.push(caseOptions[i]);
     }
   }
 
-  // キーワードが1つでもヒットした場合
+  // キーワードで1つに絞れた場合は確定
   if(bestG > 0){
-    if(bestCases.length === 1){
-      return {type:"case", data:bestCases, score:bestG, keyword:true}; // 1案件に特定できたら一発紐付け
-    } else {
-      return {type:"case_ambiguous", data:bestCases, score:bestG}; // 同点で被ったらAI/人間用に未分類
-    }
+    if(bestCases.length === 1) return {type:"case", data:bestCases, score:bestG, keyword:true};
+    return {type:"case_ambiguous", data:bestCases, score:bestG}; // 同点で迷ったら未分類へ
   }
 
-  // ③ キーワードが一切ない短い連絡などは、純粋な未分類として送信元だけ表示
+  // ② 文章にキーワードが無い短い連絡は、送信元（担当者）から推測
   if(rec.src==="imessage"){
-    var n=np(rec.contact);
-    if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
+    var n=np(rec.contact), cases=phoneToCasesList[n];
+    if(cases&&cases.length===1) return {type:"case", data:cases, score:0};
+    if(cases&&cases.length>1) return {type:"case_ambiguous", data:cases, score:0}; // 担当現場が複数なら未分類へ
+    if(phoneToContact[n]&&phoneToContact[n].category!=="その他") return {type:"contact", data:phoneToContact[n]};
   }
+  
   if(rec.src==="gmail"){
-    var email=ee(rec.contact);
+    var email=ee(rec.contact), cases=emailToCasesList[email];
+    if(cases&&cases.length===1) return {type:"case", data:cases, score:0};
+    if(cases&&cases.length>1) return {type:"case_ambiguous", data:cases, score:0};
     if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
   }
+  
   return null;
 }
 
@@ -213,14 +219,8 @@ var row=btn.closest('.assign-row');
 row.innerHTML='<span class="assign-done">✔ '+caseName+' に指定済み</span>';
 }
 
-function parkMail(rec,btn){
-var entry={src:rec.src,contact:rec.contact||"",subject:rec.subject||"",body:(rec.body||"").substring(0,500),ts:rec.dt,dir:rec.dir||""};
-database.ref('app_parked_mails').push(entry);
-btn.textContent="✔ 仮置き済";btn.style.color="#66bb6a";btn.disabled=true;
-}
-
 function buildCaseSelect(fbIdx){
-var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">案件を選択...</option>';
+var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">▼案件を選択(手動指定)...</option>';
 for(var i=0;i<caseOptions.length;i++)h+='<option value="'+caseOptions[i].key+'">'+caseOptions[i].name+'</option>';
 h+='</select>';
 return h;
@@ -234,10 +234,10 @@ document.getElementById("stats").textContent="表示: "+filtered.length+"件（S
 var totalM=0,kwM=0,ambi=0,manual=0,unclass=0;
 for(var i=0;i<allRecords.length;i++){
 var m=allRecords[i]._match;
-if(m){if(m.type==="case"||m.type==="manual")totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
+if(m){if(m.type!=="case_ambiguous" && m.type!=="contact")totalM++; if(m.type==="case"&&m.keyword)kwM++; if(m.type==="case_ambiguous")ambi++; if(m.type==="manual")manual++;}
 if(needsClassify(allRecords[i]))unclass++;
 }
-document.getElementById("matchSummary").textContent="🔗 紐付済:"+totalM+"（KW自動:"+kwM+" 手動:"+manual+"） ❓未分類/候補複数:"+(ambi+unclass);
+document.getElementById("matchSummary").textContent="🔗 システム・手動確定:"+totalM+"件 ❓未分類・迷い中:"+unclass+"件";
 if(!filtered.length){document.getElementById("timeline").innerHTML='<div class="no-results">該当なし</div>';return;}
 var groups={},go=[];
 for(var i=0;i<filtered.length;i++){var k=filtered[i]._dateKey;if(!groups[k]){groups[k]=[];go.push(k);}groups[k].push(filtered[i]);}
@@ -255,11 +255,12 @@ html+='<div class="msg-top"><div>';
 html+='<span class="msg-source '+rec.src+'">'+(rec.src==="imessage"?"💬 SMS":"📧 Gmail")+'</span>';
 if(rec.dir)html+=' <span class="msg-dir">'+(rec.dir==="sent"?"↑送信":"↓受信")+'</span>';
 html+='</div><span class="msg-time">'+rec._timeStr+'</span></div>';
+
 if(rec._match){
 if(rec._match.type==="case"){
 var kwc=rec._match.keyword?" keyword":"";
 html+='<div><span class="msg-case'+kwc+'">🏗️ '+rec._match.data.name+'</span>';
-if(rec._match.keyword)html+='<span style="font-size:9px;color:#a5d6a7;">★</span>';
+if(rec._match.keyword)html+='<span style="font-size:9px;color:#a5d6a7;">★KW</span>';
 if(rec._match.data.person)html+='<span class="msg-case-person">'+rec._match.data.person+'</span>';
 html+='</div>';
 }else if(rec._match.type==="manual"){
@@ -275,15 +276,17 @@ if(rec._match.data.company)html+='<span class="msg-case-person">'+rec._match.dat
 html+='</div>';
 }
 }
+
 html+='<div class="msg-contact">'+cd(rec)+'</div>';
 if(rec.subject)html+='<div class="msg-subject">📋 '+rec.subject+'</div>';
 if(rec.body){var bt=rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;");html+='<div class="msg-body">'+bt+'</div>';}
-// 未分類 → インライン分類UI
+
+// ★ステップ2・3：未分類に対して、その場で「AI推測」→「人間が指定」できるUI
 if(needsClassify(rec)){
 html+='<div class="assign-row" data-fbidx="'+rec._fbIdx+'">';
+html+='<button class="ai-inline-btn" data-fbidx="'+rec._fbIdx+'">🤖 AIに推測させる</button>';
 html+=buildCaseSelect(rec._fbIdx);
-html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 指定</button>';
-html+='<button class="park-btn" data-fbidx="'+rec._fbIdx+'">📬 仮置き</button>';
+html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 人間が確定</button>';
 html+='</div>';
 }
 html+='</div>';
@@ -292,7 +295,7 @@ html+='</div>';
 }
 document.getElementById("timeline").innerHTML=html;
 
-// イベント
+// イベント：人間が指定（ステップ3）
 document.querySelectorAll('.assign-go').forEach(function(btn){
 btn.addEventListener('click',function(){
 var idx=parseInt(this.dataset.fbidx);
@@ -302,10 +305,41 @@ var caseName=sel.options[sel.selectedIndex].text;
 assignCase(idx,sel.value,caseName,this);
 });
 });
-document.querySelectorAll('.park-btn').forEach(function(btn){
+
+// イベント：AIに推測させる（ステップ2）
+document.querySelectorAll('.ai-inline-btn').forEach(function(btn){
 btn.addEventListener('click',function(){
-var idx=parseInt(this.dataset.fbidx);
-if(allRecords[idx])parkMail(allRecords[idx],this);
+var apiKey = localStorage.getItem('gemini_api_key');
+if(!apiKey){ alert('APIキーが設定されていません。一度「今日のアクション」画面の歯車マークから設定してください。'); return; }
+
+var idx = parseInt(this.dataset.fbidx);
+var rec = allRecords[idx];
+var selfBtn = this;
+selfBtn.disabled = true;
+selfBtn.textContent = '🤖 推測中...';
+
+var caseList = caseOptions.map(function(c){return c.name;}).join('\n');
+var prompt = '建設案件管理アシスタントです。以下のメッセージに最も関連する案件名を1つ選んでください。該当なしは「不明」。\n\n【案件一覧】\n' + caseList + '\n\n【メッセージ】\n送信元:' + rec.contact + '\n件名:' + (rec.subject||'なし') + '\n本文:' + (rec.body||'').substring(0,300) + '\n\nそのまま案件名のみを回答してください。';
+
+fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+}).then(function(r){return r.json();}).then(function(data){
+  try{
+    var text = data.candidates.content.parts.text.trim();
+    var sel = document.getElementById('sel-'+idx);
+    var found = false;
+    for(var i=0; i<sel.options.length; i++){
+      if(sel.options[i].text === text || text.indexOf(sel.options[i].text) !== -1){
+        sel.selectedIndex = i;
+        found = true;
+        break;
+      }
+    }
+    selfBtn.textContent = found ? '🤖 AI提案完了(確認して確定して)' : '🤖 AIも不明';
+    if(found) selfBtn.style.background = '#2e7d32';
+  }catch(e){ selfBtn.textContent = '🤖 エラー'; }
+}).catch(function(e){ selfBtn.textContent = '🤖 エラー'; });
 });
 });
 }
@@ -327,8 +361,31 @@ if(data){
 var keys=Object.keys(data);
 for(var i=0;i<keys.length;i++){
 var t=data[keys[i]];if(!t.csvData)continue;
-var cn=t.csvData[2]||"",sk=t.csvData[3]||"";
-if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData),person:t.csvData[4]||""}); // ★ここが直りました！
+// ★ここの配列インデックスミスを修正済
+var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
+if(cn){
+  var ci = {key:keys[i],name:cn,sekou:sk,keywords:ek(t.csvData),person:t.csvData[5]||""};
+  caseOptions.push(ci);
+  
+  if(ph.length>=10){
+    if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];
+    phoneToCasesList[ph].push(ci);
+  }
+  
+  // Gmailアドレスと案件の紐付け作成
+  for(var j=0; j<t.csvData.length; j++){
+    var val = t.csvData[j];
+    if(typeof val === 'string' && val.indexOf('@') > 0){
+      var em = ee(val);
+      if(em){
+        if(!emailToCasesList[em]) emailToCasesList[em] = [];
+        var dup = false;
+        for(var k=0; k<emailToCasesList[em].length; k++){ if(emailToCasesList[em][k].key === keys[i]) dup = true; }
+        if(!dup) emailToCasesList[em].push(ci);
+      }
+    }
+  }
+}
 }
 caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});
 }
@@ -343,7 +400,7 @@ if(em&&!emailToContact[em])emailToContact[em]=info;if(ph.length>=10&&!phoneToCon
 }}loadState.contacts=true;tryRender();
 }).catch(function(e){console.error(e);loadState.contacts=true;tryRender();});
 
-fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(data){
+fetch(FB_URL+"/app_communications.json?orderBy=\"$key\"&limitToLast=300").then(function(r){return r.json();}).then(function(data){
 if(!data){document.getElementById("timeline").innerHTML='<div class="no-results">データなし</div>';return;}
 var arr=Array.isArray(data)?data:Object.values(data);
 for(var i=0;i<arr.length;i++){
