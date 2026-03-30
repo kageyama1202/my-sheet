@@ -46,7 +46,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .no-results{text-align:center;padding:40px;color:#555;}
 .loading{text-align:center;padding:60px;color:#666;font-size:14px;}
 .back-link{display:inline-block;color:#64b5f6;text-decoration:none;font-size:13px;margin-bottom:4px;}
-
 /* インライン分類 */
 .assign-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .assign-sel{padding:4px 8px;border:1px solid #3a3d4a;border-radius:8px;background:#12141c;color:#e0e0e0;font-size:12px;max-width:260px;flex:1;}
@@ -59,270 +58,279 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 </style>
 </head>
 <body>
-
 <div class="header">
-  <a href="index.html" class="back-link">← トップ</a>
-  <h1>📨 <span>通信タイムライン</span></h1>
-  <div class="stats" id="stats">読み込み中...</div>
-  <div class="match-summary" id="matchSummary"></div>
-  <div class="filters">
-    <button class="filter-btn active" data-filter="all">全て</button>
-    <button class="filter-btn" data-filter="imessage">💬 SMS</button>
-    <button class="filter-btn" data-filter="gmail">📧 Gmail</button>
-    <button class="filter-btn" data-filter="sent">↑ 送信</button>
-    <button class="filter-btn" data-filter="received">↓ 受信</button>
-    <button class="filter-btn work-filter" data-filter="work">🏗️ 仕事のみ</button>
-    <button class="filter-btn unclass" data-filter="unclass">❓ 未分類</button>
-    <input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文・案件名）">
-  </div>
+<a href="index.html" class="back-link">← トップ</a>
+<h1>📨 <span>通信タイムライン</span></h1>
+<div class="stats" id="stats">読み込み中...</div>
+<div class="match-summary" id="matchSummary"></div>
+<div class="filters">
+<button class="filter-btn" data-filter="all">全て</button>
+<button class="filter-btn" data-filter="imessage">💬 SMS</button>
+<button class="filter-btn" data-filter="gmail">📧 Gmail</button>
+<button class="filter-btn" data-filter="sent">↑ 送信</button>
+<button class="filter-btn" data-filter="received">↓ 受信</button>
+<button class="filter-btn work-filter active" data-filter="work">🏗️ 仕事のみ</button>
+<button class="filter-btn unclass" data-filter="unclass">❓ 未分類</button>
+<input type="text" class="search-box" id="searchBox" placeholder="検索（名前・電話・本文・案件名）">
 </div>
-
+</div>
 <div class="timeline" id="timeline"><div class="loading">⏳ 読み込み中...</div></div>
-
 <script>
 var FB_URL="https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",databaseURL:FB_URL,projectId:"project-6745138395263517914"};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
-
 var allRecords=[];
 var phoneToCasesList={};
 var emailToContact={};
 var phoneToContact={};
 var caseOptions=[];
-var activeFilter="all";
+
+// ★ 初期フィルターを「仕事のみ」に設定
+var activeFilter="work"; 
 var searchText="";
 
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
-function ek(csv){var kw=[];var cn=(csv[4]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());return kw;}
+function ek(csv){var kw=[];var cn=(csv[2]||"");var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);for(var i=0;i<pts.length;i++){var p=pts[i].trim();if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase());}var nm=cn.match(/([^\s【】（）]+?)様/);if(nm&&nm[1].length>=2)kw.push(nm[1].toLowerCase());return kw;}
 function sm(body,subj,kw){if(!kw||!kw.length)return 0;var t=((body||"")+" "+(subj||"")).toLowerCase();if(!t.trim())return 0;var s=0;for(var i=0;i<kw.length;i++){if(t.indexOf(kw[i])!==-1)s+=kw[i].length;}return s;}
-
 function pd(rec){try{return new Date(rec.dt);}catch(e){return new Date(0);}}
 function dk(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);}
 function ts(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
-function dlt(key){var p=key.split("-");var d=new Date(p[0],p[1]-1,p[2]);var dn=["日","月","火","水","木","金","土"];return p[0]+"/"+parseInt(p[1])+"/"+parseInt(p[2])+" ("+dn[d.getDay()]+")";}
+function dlt(key){var p=key.split("-");var d=new Date(p,p[1]-1,p[3]);var dn=["日","月","火","水","木","金","土"];return p+"/"+parseInt(p[1])+"/"+parseInt(p[3])+" ("+dn[d.getDay()]+")";}
 
 function cd(rec){
-  if(rec.src==="imessage"){
-    var phone=rec.contact||"",cl=np(phone),ci=phoneToContact[cl],nl="";
-    if(ci&&ci.name)nl='<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br>';
-    if(cl.length>=10)return nl+'<a href="tel:'+cl+'">'+cl+'</a>';
-    return nl+phone;
-  }else{
-    var email=ee(rec.contact),ci=emailToContact[email];
-    if(ci&&ci.name)return'<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br><span style="color:#555;font-size:11px">'+email+'</span>';
-    var m=rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
-    if(m)return m[1].trim()+'<br><span style="color:#555;font-size:11px">'+m[2]+'</span>';
-    return rec.contact||"";
-  }
+if(rec.src==="imessage"){
+var phone=rec.contact||"",cl=np(phone),ci=phoneToContact[cl],nl="";
+if(ci&&ci.name)nl='<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br>';
+if(cl.length>=10)return nl+'<a href="tel:'+cl+'">'+cl+'</a>';
+return nl+phone;
+}else{
+var email=ee(rec.contact),ci=emailToContact[email];
+if(ci&&ci.name)return'<span style="color:#82b1ff">'+ci.name+'</span> <span style="color:#666">'+(ci.company||"")+'</span><br><span style="color:#555;font-size:11px">'+email+'</span>';
+var m=rec.contact.match(/"?([^"<]+)"?\s*<([^>]+)>/);
+if(m)return m[1].trim()+'<br><span style="color:#555;font-size:11px">'+m[3]+'</span>';
+return rec.contact||"";
+}
 }
 
 function lookupMatch(rec){
-  // 手動割当済み
-  if(rec.assignedCase){
-    for(var i=0;i<caseOptions.length;i++){
-      if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
-    }
-  }
-  if(rec.src==="imessage"){
-    var n=np(rec.contact),cases=phoneToCasesList[n];
-    if(cases&&cases.length>0){
-      if(cases.length===1)return{type:"case",data:cases[0],score:0};
-      var best=0,bc=null;
-      for(var i=0;i<cases.length;i++){var sc=sm(rec.body,rec.subject,cases[i].keywords);if(sc>best){best=sc;bc=cases[i];}}
-      if(bc)return{type:"case",data:bc,score:best,keyword:true};
-      return{type:"case_ambiguous",data:cases,score:0};
-    }
-    if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
-  }
-  if(rec.src==="gmail"){
-    var email=ee(rec.contact);
-    if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
-  }
-  return null;
+if(rec.assignedCase){
+for(var i=0;i<caseOptions.length;i++){
+if(caseOptions[i].key===rec.assignedCase) return{type:"manual",data:{name:caseOptions[i].name,key:rec.assignedCase}};
+}
+}
+if(rec.src==="imessage"){
+var n=np(rec.contact),cases=phoneToCasesList[n];
+if(cases&&cases.length>0){
+if(cases.length===1)return{type:"case",data:cases,score:0};
+var best=0,bc=null;
+for(var i=0;i<cases.length;i++){var sc=sm(rec.body,rec.subject,cases[i].keywords);if(sc>best){best=sc;bc=cases[i];}}
+if(bc)return{type:"case",data:bc,score:best,keyword:true};
+return{type:"case_ambiguous",data:cases,score:0};
+}
+if(phoneToContact[n]&&phoneToContact[n].category!=="その他")return{type:"contact",data:phoneToContact[n]};
+}
+if(rec.src==="gmail"){
+var email=ee(rec.contact);
+if(emailToContact[email]){var c=emailToContact[email];if(c.category!=="その他")return{type:"contact",data:c};}
+}
+return null;
 }
 
 function needsClassify(rec){
-  if(!rec._match)return true;
-  if(rec._match.type==="case_ambiguous")return true;
-  return false;
+if(!rec._match)return true;
+if(rec._match.type==="case_ambiguous")return true;
+return false;
 }
 
 function matchesFilter(rec){
-  if(activeFilter==="imessage"&&rec.src!=="imessage")return false;
-  if(activeFilter==="gmail"&&rec.src!=="gmail")return false;
-  if(activeFilter==="sent"&&rec.dir!=="sent")return false;
-  if(activeFilter==="received"&&rec.dir!=="received")return false;
-  if(activeFilter==="work"&&!rec._match)return false;
-  if(activeFilter==="unclass"&&!needsClassify(rec))return false;
-  if(searchText){
-    var s=searchText.toLowerCase();
-    var hay=((rec.contact||"")+" "+(rec.subject||"")+" "+(rec.body||"")).toLowerCase();
-    if(rec._match){
-      if(rec._match.type==="case"||rec._match.type==="manual")hay+=" "+(rec._match.data.name||"");
-      else if(rec._match.type==="contact")hay+=" "+(rec._match.data.name||"")+" "+(rec._match.data.company||"");
-      else if(rec._match.type==="case_ambiguous")for(var i=0;i<rec._match.data.length;i++)hay+=" "+(rec._match.data[i].name||"");
-    }
-    if(hay.indexOf(s)===-1)return false;
-  }
-  return true;
+if(activeFilter==="imessage"&&rec.src!=="imessage")return false;
+if(activeFilter==="gmail"&&rec.src!=="gmail")return false;
+if(activeFilter==="sent"&&rec.dir!=="sent")return false;
+if(activeFilter==="received"&&rec.dir!=="received")return false;
+if(activeFilter==="work"&&!rec._match)return false;
+if(activeFilter==="unclass"&&!needsClassify(rec))return false;
+if(searchText){
+var s=searchText.toLowerCase();
+var hay=((rec.contact||"")+" "+(rec.subject||"")+" "+(rec.body||"")).toLowerCase();
+if(rec._match){
+if(rec._match.type==="case"||rec._match.type==="manual")hay+=" "+(rec._match.data.name||"");
+else if(rec._match.type==="contact")hay+=" "+(rec._match.data.name||"")+" "+(rec._match.data.company||"");
+else if(rec._match.type==="case_ambiguous")for(var i=0;i<rec._match.data.length;i++)hay+=" "+(rec._match.data[i].name||"");
+}
+if(hay.indexOf(s)===-1)return false;
+}
+return true;
 }
 
 function assignCase(fbIdx,caseKey,caseName,btn){
-  database.ref('app_communications/'+fbIdx+'/assignedCase').set(caseKey);
-  allRecords[fbIdx].assignedCase=caseKey;
-  allRecords[fbIdx]._match={type:"manual",data:{name:caseName,key:caseKey}};
-  var row=btn.closest('.assign-row');
-  row.innerHTML='<span class="assign-done">✔ '+caseName+' に指定済み</span>';
+database.ref('app_communications/'+fbIdx+'/assignedCase').set(caseKey);
+allRecords[fbIdx].assignedCase=caseKey;
+allRecords[fbIdx]._match={type:"manual",data:{name:caseName,key:caseKey}};
+var row=btn.closest('.assign-row');
+row.innerHTML='<span class="assign-done">✔ '+caseName+' に指定済み</span>';
 }
 
 function parkMail(rec,btn){
-  var entry={src:rec.src,contact:rec.contact||"",subject:rec.subject||"",body:(rec.body||"").substring(0,500),ts:rec.dt,dir:rec.dir||""};
-  database.ref('app_parked_mails').push(entry);
-  btn.textContent="✔ 仮置き済";btn.style.color="#66bb6a";btn.disabled=true;
+var entry={src:rec.src,contact:rec.contact||"",subject:rec.subject||"",body:(rec.body||"").substring(0,500),ts:rec.dt,dir:rec.dir||""};
+database.ref('app_parked_mails').push(entry);
+btn.textContent="✔ 仮置き済";btn.style.color="#66bb6a";btn.disabled=true;
 }
 
 function buildCaseSelect(fbIdx){
-  var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">案件を選択...</option>';
-  for(var i=0;i<caseOptions.length;i++)h+='<option value="'+caseOptions[i].key+'">'+caseOptions[i].name+'</option>';
-  h+='</select>';
-  return h;
+var h='<select class="assign-sel" id="sel-'+fbIdx+'"><option value="">案件を選択...</option>';
+for(var i=0;i<caseOptions.length;i++)h+='<option value="'+caseOptions[i].key+'">'+caseOptions[i].name+'</option>';
+h+='</select>';
+return h;
 }
 
 function render(){
-  var filtered=[];
-  for(var i=0;i<allRecords.length;i++){if(matchesFilter(allRecords[i]))filtered.push(allRecords[i]);}
-  var imC=0,gmC=0;for(var i=0;i<filtered.length;i++){if(filtered[i].src==="imessage")imC++;else gmC++;}
-  document.getElementById("stats").textContent="表示: "+filtered.length+"件（SMS "+imC+" / Gmail "+gmC+"）/ 全"+allRecords.length+"件";
-
-  var totalM=0,kwM=0,ambi=0,manual=0,unclass=0;
-  for(var i=0;i<allRecords.length;i++){
-    var m=allRecords[i]._match;
-    if(m){totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
-    if(needsClassify(allRecords[i]))unclass++;
-  }
-  document.getElementById("matchSummary").textContent="🔗 紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+" 候補複数:"+ambi+"） ❓未分類:"+unclass;
-
-  if(!filtered.length){document.getElementById("timeline").innerHTML='<div class="no-results">該当なし</div>';return;}
-
-  var groups={},go=[];
-  for(var i=0;i<filtered.length;i++){var k=filtered[i]._dateKey;if(!groups[k]){groups[k]=[];go.push(k);}groups[k].push(filtered[i]);}
-
-  var html="";
-  for(var g=0;g<go.length;g++){
-    var k=go[g],msgs=groups[k];
-    html+='<div class="date-group"><div class="date-label">'+dlt(k)+'<span class="count-badge">'+msgs.length+'件</span></div>';
-    for(var m=0;m<msgs.length;m++){
-      var rec=msgs[m];
-      var cc="msg-card "+rec.src;
-      if(rec.dir==="sent")cc+=" sent";
-      if(rec._match){if(rec._match.type==="manual")cc+=" assigned";else cc+=" matched";}
-      html+='<div class="'+cc+'">';
-      html+='<div class="msg-top"><div>';
-      html+='<span class="msg-source '+rec.src+'">'+(rec.src==="imessage"?"💬 SMS":"📧 Gmail")+'</span>';
-      if(rec.dir)html+=' <span class="msg-dir">'+(rec.dir==="sent"?"↑送信":"↓受信")+'</span>';
-      html+='</div><span class="msg-time">'+rec._timeStr+'</span></div>';
-
-      if(rec._match){
-        if(rec._match.type==="case"){
-          var kwc=rec._match.keyword?" keyword":"";
-          html+='<div><span class="msg-case'+kwc+'">🏗️ '+rec._match.data.name+'</span>';
-          if(rec._match.keyword)html+='<span style="font-size:9px;color:#a5d6a7;">★</span>';
-          if(rec._match.data.person)html+='<span class="msg-case-person">'+rec._match.data.person+'</span>';
-          html+='</div>';
-        }else if(rec._match.type==="manual"){
-          html+='<div><span class="msg-case manual">✔ '+rec._match.data.name+'</span></div>';
-        }else if(rec._match.type==="case_ambiguous"){
-          html+='<div>';
-          for(var ci=0;ci<Math.min(rec._match.data.length,3);ci++)html+='<span class="msg-case">❓ '+rec._match.data[ci].name+'</span>';
-          if(rec._match.data.length>3)html+='<span style="font-size:10px;color:#888;">他'+(rec._match.data.length-3)+'件</span>';
-          html+='</div>';
-        }else if(rec._match.type==="contact"){
-          html+='<div><span class="msg-email-match">👤 '+rec._match.data.name+'</span>';
-          if(rec._match.data.company)html+='<span class="msg-case-person">'+rec._match.data.company+'</span>';
-          html+='</div>';
-        }
-      }
-
-      html+='<div class="msg-contact">'+cd(rec)+'</div>';
-      if(rec.subject)html+='<div class="msg-subject">📋 '+rec.subject+'</div>';
-      if(rec.body){var bt=rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;");html+='<div class="msg-body">'+bt+'</div>';}
-
-      // 未分類 → インライン分類UI
-      if(needsClassify(rec)){
-        html+='<div class="assign-row" data-fbidx="'+rec._fbIdx+'">';
-        html+=buildCaseSelect(rec._fbIdx);
-        html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 指定</button>';
-        html+='<button class="park-btn" data-fbidx="'+rec._fbIdx+'">📬 仮置き</button>';
-        html+='</div>';
-      }
-      html+='</div>';
-    }
-    html+='</div>';
-  }
-  document.getElementById("timeline").innerHTML=html;
-
-  // イベント
-  document.querySelectorAll('.assign-go').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var idx=parseInt(this.dataset.fbidx);
-      var sel=document.getElementById('sel-'+idx);
-      if(!sel||!sel.value){alert('案件を選択してください');return;}
-      var caseName=sel.options[sel.selectedIndex].text;
-      assignCase(idx,sel.value,caseName,this);
-    });
-  });
-  document.querySelectorAll('.park-btn').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var idx=parseInt(this.dataset.fbidx);
-      if(allRecords[idx])parkMail(allRecords[idx],this);
-    });
-  });
+var filtered=[];
+for(var i=0;i<allRecords.length;i++){if(matchesFilter(allRecords[i]))filtered.push(allRecords[i]);}
+var imC=0,gmC=0;for(var i=0;i<filtered.length;i++){if(filtered[i].src==="imessage")imC++;else gmC++;}
+document.getElementById("stats").textContent="表示: "+filtered.length+"件（SMS "+imC+" / Gmail "+gmC+"）/ 取得した最新"+allRecords.length+"件";
+var totalM=0,kwM=0,ambi=0,manual=0,unclass=0;
+for(var i=0;i<allRecords.length;i++){
+var m=allRecords[i]._match;
+if(m){totalM++;if(m.type==="case"&&m.keyword)kwM++;if(m.type==="case_ambiguous")ambi++;if(m.type==="manual")manual++;}
+if(needsClassify(allRecords[i]))unclass++;
+}
+document.getElementById("matchSummary").textContent="🔗 紐付:"+totalM+"（KW:"+kwM+" 手動:"+manual+" 候補複数:"+ambi+"） ❓未分類:"+unclass;
+if(!filtered.length){document.getElementById("timeline").innerHTML='<div class="no-results">該当なし</div>';return;}
+var groups={},go=[];
+for(var i=0;i<filtered.length;i++){var k=filtered[i]._dateKey;if(!groups[k]){groups[k]=[];go.push(k);}groups[k].push(filtered[i]);}
+var html="";
+for(var g=0;g<go.length;g++){
+var k=go[g],msgs=groups[k];
+html+='<div class="date-group"><div class="date-label">'+dlt(k)+'<span class="count-badge">'+msgs.length+'件</span></div>';
+for(var m=0;m<msgs.length;m++){
+var rec=msgs[m];
+var cc="msg-card "+rec.src;
+if(rec.dir==="sent")cc+=" sent";
+if(rec._match){if(rec._match.type==="manual")cc+=" assigned";else cc+=" matched";}
+html+='<div class="'+cc+'">';
+html+='<div class="msg-top"><div>';
+html+='<span class="msg-source '+rec.src+'">'+(rec.src==="imessage"?"💬 SMS":"📧 Gmail")+'</span>';
+if(rec.dir)html+=' <span class="msg-dir">'+(rec.dir==="sent"?"↑送信":"↓受信")+'</span>';
+html+='</div><span class="msg-time">'+rec._timeStr+'</span></div>';
+if(rec._match){
+if(rec._match.type==="case"){
+var kwc=rec._match.keyword?" keyword":"";
+html+='<div><span class="msg-case'+kwc+'">🏗️ '+rec._match.data.name+'</span>';
+if(rec._match.keyword)html+='<span style="font-size:9px;color:#a5d6a7;">★</span>';
+if(rec._match.data.person)html+='<span class="msg-case-person">'+rec._match.data.person+'</span>';
+html+='</div>';
+}else if(rec._match.type==="manual"){
+html+='<div><span class="msg-case manual">✔ '+rec._match.data.name+'</span></div>';
+}else if(rec._match.type==="case_ambiguous"){
+html+='<div>';
+for(var ci=0;ci<Math.min(rec._match.data.length,3);ci++)html+='<span class="msg-case">❓ '+rec._match.data[ci].name+'</span>';
+if(rec._match.data.length>3)html+='<span style="font-size:10px;color:#888;">他'+(rec._match.data.length-3)+'件</span>';
+html+='</div>';
+}else if(rec._match.type==="contact"){
+html+='<div><span class="msg-email-match">👤 '+rec._match.data.name+'</span>';
+if(rec._match.data.company)html+='<span class="msg-case-person">'+rec._match.data.company+'</span>';
+html+='</div>';
+}
+}
+html+='<div class="msg-contact">'+cd(rec)+'</div>';
+if(rec.subject)html+='<div class="msg-subject">📋 '+rec.subject+'</div>';
+if(rec.body){var bt=rec.body.replace(/</g,"&lt;").replace(/>/g,"&gt;");html+='<div class="msg-body">'+bt+'</div>';}
+if(needsClassify(rec)){
+html+='<div class="assign-row" data-fbidx="'+rec._fbIdx+'">';
+html+=buildCaseSelect(rec._fbIdx);
+html+='<button class="assign-go" data-fbidx="'+rec._fbIdx+'">✔ 指定</button>';
+html+='<button class="park-btn" data-fbidx="'+rec._fbIdx+'">📬 仮置き</button>';
+html+='</div>';
+}
+html+='</div>';
+}
+html+='</div>';
+}
+document.getElementById("timeline").innerHTML=html;
+document.querySelectorAll('.assign-go').forEach(function(btn){
+btn.addEventListener('click',function(){
+var idx=parseInt(this.dataset.fbidx);
+var sel=document.getElementById('sel-'+idx);
+if(!sel||!sel.value){alert('案件を選択してください');return;}
+var caseName=sel.options[sel.selectedIndex].text;
+assignCase(idx,sel.value,caseName,this);
+});
+});
+document.querySelectorAll('.park-btn').forEach(function(btn){
+btn.addEventListener('click',function(){
+var idx=parseInt(this.dataset.fbidx);
+if(allRecords[idx])parkMail(allRecords[idx],this);
+});
+});
 }
 
 document.querySelectorAll(".filter-btn").forEach(function(b){b.addEventListener("click",function(){
-  activeFilter=this.getAttribute("data-filter");
-  document.querySelectorAll(".filter-btn").forEach(function(x){x.classList.remove("active");});
-  this.classList.add("active");render();
+activeFilter=this.getAttribute("data-filter");
+document.querySelectorAll(".filter-btn").forEach(function(x){x.classList.remove("active");});
+this.classList.add("active");render();
 });});
+
 var stm=null;
 document.getElementById("searchBox").addEventListener("input",function(){clearTimeout(stm);var v=this.value;stm=setTimeout(function(){searchText=v;render();},300);});
 
 var loadState={tasks:false,contacts:false,comms:false};
 function tryRender(){if(!loadState.tasks||!loadState.contacts||!loadState.comms)return;for(var i=0;i<allRecords.length;i++){allRecords[i]._match=lookupMatch(allRecords[i]);}render();}
 
-fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
-  if(data){var keys=Object.keys(data);for(var i=0;i<keys.length;i++){
-    var t=data[keys[i]];if(!t.csvData)continue;
-    var ph=np(t.csvData[6]||""),cn=t.csvData[4]||"",sk=t.csvData[2]||"";
-    if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
-    if(ph.length>=10){
-      var ci={name:cn,person:t.csvData[5]||"",key:keys[i],keywords:ek(t.csvData)};
-      if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
+// ★ 1. 案件データはローカルキャッシュから読み込む（高速化）
+var cachedData = null;
+try { var s = localStorage.getItem('appData'); if(s) cachedData = JSON.parse(s); } catch(e){}
+
+if (cachedData && cachedData.app_tasks) {
+    var data = cachedData.app_tasks;
+    var keys = Object.keys(data);
+    for(var i=0;i<keys.length;i++){
+        var t=data[keys[i]];if(!t.csvData)continue;
+        var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
+        if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
+        if(ph.length>=10){
+            var ci={name:cn,person:t.csvData[5]||"",key:keys[i],keywords:ek(t.csvData)};
+            if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
+        }
     }
-  }caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});}
-  loadState.tasks=true;tryRender();
-}).catch(function(e){console.error(e);loadState.tasks=true;tryRender();});
+    caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});
+    loadState.tasks=true; tryRender();
+} else {
+    // キャッシュが無い場合のみサーバーから取得
+    fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
+        if(data){var keys=Object.keys(data);for(var i=0;i<keys.length;i++){
+            var t=data[keys[i]];if(!t.csvData)continue;
+            var ph=np(t.csvData[4]||""),cn=t.csvData[2]||"",sk=t.csvData[3]||"";
+            if(cn)caseOptions.push({key:keys[i],name:cn,sekou:sk});
+            if(ph.length>=10){
+                var ci={name:cn,person:t.csvData[5]||"",key:keys[i],keywords:ek(t.csvData)};
+                if(!phoneToCasesList[ph])phoneToCasesList[ph]=[];phoneToCasesList[ph].push(ci);
+            }
+        }caseOptions.sort(function(a,b){return(b.sekou||"").localeCompare(a.sekou||"");});}
+        loadState.tasks=true;tryRender();
+    }).catch(function(e){console.error(e);loadState.tasks=true;tryRender();});
+}
 
 fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(function(data){
-  if(data){var arr=Array.isArray(data)?data:Object.values(data);for(var i=0;i<arr.length;i++){
-    if(!arr[i])continue;var c=arr[i],em=(c.email||"").toLowerCase().trim(),ph=np(c.phone||"");
-    var info={name:c.name||"",company:c.company||"",category:c.category||""};
-    if(em&&!emailToContact[em])emailToContact[em]=info;if(ph.length>=10&&!phoneToContact[ph])phoneToContact[ph]=info;
-  }}loadState.contacts=true;tryRender();
+if(data){var arr=Array.isArray(data)?data:Object.values(data);for(var i=0;i<arr.length;i++){
+if(!arr[i])continue;var c=arr[i],em=(c.email||"").toLowerCase().trim(),ph=np(c.phone||"");
+var info={name:c.name||"",company:c.company||"",category:c.category||""};
+if(em&&!emailToContact[em])emailToContact[em]=info;if(ph.length>=10&&!phoneToContact[ph])phoneToContact[ph]=info;
+}}loadState.contacts=true;tryRender();
 }).catch(function(e){console.error(e);loadState.contacts=true;tryRender();});
 
-fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(data){
-  if(!data){document.getElementById("timeline").innerHTML='<div class="no-results">データなし</div>';return;}
-  var arr=Array.isArray(data)?data:Object.values(data);
-  for(var i=0;i<arr.length;i++){
-    if(!arr[i])continue;var rec=arr[i];var d=pd(rec);
-    rec._dateKey=dk(d);rec._timeStr=ts(d);rec._sortKey=d.getTime();rec._fbIdx=i;
-    allRecords.push(rec);
-  }
-  allRecords.sort(function(a,b){return b._sortKey-a._sortKey;});
-  loadState.comms=true;tryRender();
+// ★ 2. 通信履歴は最新の200件だけを取得する（高速化とフリーズ防止）
+fetch(FB_URL+"/app_communications.json?orderBy=\"$key\"&limitToLast=200").then(function(r){return r.json();}).then(function(data){
+if(!data){document.getElementById("timeline").innerHTML='<div class="no-results">データなし</div>';return;}
+var arr=Array.isArray(data)?data:Object.values(data);
+for(var i=0;i<arr.length;i++){
+if(!arr[i])continue;var rec=arr[i];var d=pd(rec);
+rec._dateKey=dk(d);rec._timeStr=ts(d);rec._sortKey=d.getTime();rec._fbIdx=i;
+allRecords.push(rec);
+}
+allRecords.sort(function(a,b){return b._sortKey-a._sortKey;});
+loadState.comms=true;tryRender();
 }).catch(function(e){document.getElementById("timeline").innerHTML='<div class="no-results">エラー: '+e.message+'</div>';});
 </script>
 </body>
