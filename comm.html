@@ -111,6 +111,7 @@ var phoneToCasesList={}; // 正規化電話番号 → [{key,name,person,sekou,st
 var emailToContact={};   // メアド → {name,company,category}
 var phoneToContact={};   // 電話番号 → {name,company,category}
 var emailToPhone={};     // メアド → 電話番号（逆引き）
+var nameToPhone={};      // 連絡先の名前（姓） → 電話番号
 var casesByKey={};       // 案件キー → taskオブジェクト
 var globalHeaders=[];
 var globalTasks={};
@@ -369,7 +370,40 @@ document.getElementById("showHiddenToggle").addEventListener("click",function(){
 
 // ===== データ読み込み =====
 var ls={tasks:false,contacts:false,comms:false};
-function tryRender(){if(!ls.tasks||!ls.contacts||!ls.comms)return;renderTimeline();}
+function tryRender(){
+  if(!ls.tasks||!ls.contacts||!ls.comms)return;
+  // ★ 工務担当者(csvData[8])の名前→連絡先の電話番号→案件マッピング
+  if(!ls.crossLinked){
+    ls.crossLinked=true;
+    var added=0;
+    var keys=Object.keys(casesByKey);
+    for(var i=0;i<keys.length;i++){
+      var t=casesByKey[keys[i]];if(!t.csvData)continue;
+      var caseName=gv(t.csvData,4);
+      var person=gv(t.csvData,5);
+      var koumu=gv(t.csvData,8).replace(/\s+/g,""); // 工務担当者名
+      if(!koumu||!caseName)continue;
+      // 工務担当者の姓で連絡先から電話番号を探す
+      var koumuPhone=nameToPhone[koumu];
+      if(koumuPhone){
+        if(!phoneToCasesList[koumuPhone])phoneToCasesList[koumuPhone]=[];
+        // 重複チェック
+        var exists=false;
+        for(var j=0;j<phoneToCasesList[koumuPhone].length;j++){
+          if(phoneToCasesList[koumuPhone][j].key===keys[i]){exists=true;break;}
+        }
+        if(!exists){
+          phoneToCasesList[koumuPhone].push({key:keys[i],name:caseName,person:person});
+          added++;
+        }
+      }
+    }
+    console.log("工務担当者→電話番号→案件: "+added+"件追加");
+    console.log("PhoneMaps(合計):"+Object.keys(phoneToCasesList).length);
+    console.log("NameToPhone:", nameToPhone);
+  }
+  renderTimeline();
+}
 
 // タスク
 fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
@@ -408,6 +442,11 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
       if(em&&!emailToContact[em])emailToContact[em]=info;
       if(ph.length>=10&&!phoneToContact[ph])phoneToContact[ph]=info;
       if(em&&ph.length>=10&&!emailToPhone[em])emailToPhone[em]=ph;
+      // 名前（姓）→電話番号マップ構築
+      if(ph.length>=10&&c.name){
+        var sei=c.name.replace(/[\s\u3000]+/g," ").trim().split(" ")[0].replace(/様$/,"");
+        if(sei.length>=2&&!nameToPhone[sei])nameToPhone[sei]=ph;
+      }
     }
     console.log("Contacts email:"+Object.keys(emailToContact).length+" phone:"+Object.keys(phoneToContact).length);
   }
