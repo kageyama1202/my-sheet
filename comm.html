@@ -153,6 +153,7 @@ function extractSei(name){
 
 var now=new Date();
 var threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
+var threeMonthsAgoStr=threeMonthsAgo.getFullYear()+"-"+("0"+(threeMonthsAgo.getMonth()+1)).slice(-2)+"-"+("0"+threeMonthsAgo.getDate()).slice(-2);
 
 // 連絡先名を取得
 function getContactInfo(rec){
@@ -173,18 +174,30 @@ function getContactInfo(rec){
 function getCasesForRec(rec){
   var ci=getContactInfo(rec);
   var phone=ci.phone;
+  var raw=[];
   // ① 電話番号で案件検索
   if(phone&&phoneToCasesList[phone]){
-    return phoneToCasesList[phone];
+    raw=phoneToCasesList[phone];
   }
   // ② 名前で案件検索（電話番号マッチなしの場合）
-  if(ci.name){
+  if(raw.length===0&&ci.name){
     var seis=extractSei(ci.name);
     for(var si=0;si<seis.length;si++){
-      if(nameToCases[seis[si]])return nameToCases[seis[si]];
+      if(nameToCases[seis[si]]){raw=nameToCases[seis[si]];break;}
     }
   }
-  return[];
+  // フィルタ：完了案件を除外、施工日が3ヶ月以上前も除外
+  var filtered=[];
+  for(var i=0;i<raw.length;i++){
+    var task=casesByKey[raw[i].key];
+    if(!task)continue;
+    var status=gv(task.csvData,1).replace(/\s+/g,"");
+    if(status==="完了")continue;
+    var sekou=gv(task.csvData,2).replace(/\s+/g,"");
+    if(sekou&&sekou<threeMonthsAgoStr)continue;
+    filtered.push(raw[i]);
+  }
+  return filtered;
 }
 
 // Gmail非登録者チェック
@@ -288,9 +301,14 @@ function renderRightPanel(arrIdx){
   var cases=getCasesForRec(rec);
   var html="";
 
-  // 連絡先情報
-  if(ci.name){
-    html+='<div class="r-contact">'+ci.name;
+  // 連絡先情報（クリーンアップ済み）
+  var displayName=ci.name;
+  if(displayName){
+    var cleaned=extractSei(displayName);
+    if(cleaned.length>0)displayName=cleaned.join(" ");
+  }
+  if(displayName){
+    html+='<div class="r-contact">'+displayName;
     if(ci.company)html+='<span class="r-contact-co">'+ci.company+'</span>';
     html+='</div>';
   }
