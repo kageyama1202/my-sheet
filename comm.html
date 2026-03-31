@@ -381,10 +381,18 @@ function tryRender(){
       var t=casesByKey[keys[i]];if(!t.csvData)continue;
       var caseName=gv(t.csvData,4);
       var person=gv(t.csvData,5);
-      var koumu=gv(t.csvData,8).replace(/\s+/g,""); // 工務担当者名
+      var koumu=gv(t.csvData,8).replace(/[\s\u3000]+/g,""); // 工務担当者名
       if(!koumu||!caseName)continue;
-      // 工務担当者の姓で連絡先から電話番号を探す
+      // 工務担当者の名前で連絡先から電話番号を探す
+      // 完全一致 → 姓だけ(先頭2~3文字)一致 の順で試行
       var koumuPhone=nameToPhone[koumu];
+      if(!koumuPhone){
+        // 姓だけで試す（2文字/3文字）
+        for(var len=3;len>=2;len--){
+          var sei=koumu.substring(0,len);
+          if(nameToPhone[sei]){koumuPhone=nameToPhone[sei];break;}
+        }
+      }
       if(koumuPhone){
         if(!phoneToCasesList[koumuPhone])phoneToCasesList[koumuPhone]=[];
         // 重複チェック
@@ -444,7 +452,9 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
       if(em&&ph.length>=10&&!emailToPhone[em])emailToPhone[em]=ph;
       // 名前（姓）→電話番号マップ構築
       if(ph.length>=10&&c.name){
+        var fullName=c.name.replace(/[\s\u3000]+/g,"");
         var sei=c.name.replace(/[\s\u3000]+/g," ").trim().split(" ")[0].replace(/様$/,"");
+        if(fullName.length>=2&&!nameToPhone[fullName])nameToPhone[fullName]=ph;
         if(sei.length>=2&&!nameToPhone[sei])nameToPhone[sei]=ph;
       }
     }
