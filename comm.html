@@ -3,26 +3,36 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ただの通信タイムライン</title>
+<title>通信タイムライン（追跡）</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; margin: 0; }
   h2 { color: #333; font-size: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-top: 0; }
   .msg-card { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #007bff; }
-  .msg-meta { font-size: 12px; color: #666; margin-bottom: 8px; }
+  
+  /* SMSを明確に区別・目立たせる */
+  .msg-card.sms { border-left-color: #28a745; background-color: #f4fdf6; }
+  
+  .msg-meta { font-size: 12px; color: #666; margin-bottom: 8px; font-weight: bold; }
   .msg-contact { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; word-break: break-all; }
   .msg-subject { font-size: 14px; color: #e65100; font-weight: bold; margin-bottom: 5px; word-break: break-all; }
   .msg-body { font-size: 14px; color: #444; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+
+  /* 追跡結果のエリア */
+  .msg-track { margin-top: 12px; padding: 10px; background: #eef2f5; border-radius: 6px; font-size: 13px; color: #333; border: 1px solid #ced4da; }
+  .msg-card.sms .msg-track { background: #e8f5e9; border-color: #c3e6cb; }
+  .track-title { font-weight: bold; color: #0056b3; margin-bottom: 4px; }
+  .msg-card.sms .track-title { color: #155724; }
 </style>
 </head>
 <body>
 
-<h2>ただの通信タイムライン（最新100件）</h2>
-<div id="timeline" style="color: #666;">⏳ 読み込み中...</div>
+<h2>📨 通信タイムライン（最新100件の案件追跡）</h2>
+<div id="timeline" style="color: #666;">⏳ データを読み込み、案件を追跡しています...</div>
 
 <script>
-// Firebaseの初期化 [1][2]
+// Firebase初期化
 const firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
@@ -31,61 +41,161 @@ const firebaseConfig = {
 if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 
-// 通信データ(app_communications)のみを取得して表示する
-database.ref('app_communications').orderByChild('dt').limitToLast(100).once('value')
-  .then(function(snapshot) {
-    const data = snapshot.val();
-    const timelineEl = document.getElementById('timeline');
-    
-    if (!data) {
-      timelineEl.innerHTML = "データがありません。";
-      return;
+// ==========================================
+// shared-modal.js と全く同じ「正しい判定ロジック」
+// ==========================================
+function normalizePhoneModal(raw) {
+  if (!raw) return "";
+  var s = raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, "");
+  s = s.replace(/^\+81/, "0"); s = s.replace(/^81(?=\d{9,10})/, "0");
+  s = s.replace(/[^0-9]/g, ""); return s;
+}
+
+function extractEmailModal(f) {
+  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[1].toLowerCase().trim();
+  if (f.indexOf("@") > -1) return f.toLowerCase().trim(); return "";
+}
+
+function getSafeValModal(c, i) {
+  if (!c) return ""; if (Array.isArray(c)) return c.length > i && c[i] != null ? String(c[i]) : ""; if (typeof c === "object") return c[i] != null ? String(c[i]) : ""; return "";
+}
+
+function extractCaseKeywords(csvData) {
+  var kw = [], cn = getSafeValModal(csvData, 4) || "";
+  var pts = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
+  for (var i = 0; i < pts.length; i++) { var p = pts[i].trim(); if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) kw.push(p); }
+  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[1] && nm[1].length >= 2) kw.push(nm[1]);
+  return kw;
+}
+
+function scoreMessageForCase(body, subj, kw) {
+  if (!kw || !kw.length) return 0; var t = ((body||"")+" "+(subj||"")).toLowerCase(); if (!t.trim()) return 0;
+  var s = 0; for (var i = 0; i < kw.length; i++) { if (t.indexOf(kw[i].toLowerCase()) !== -1) s += kw[i].length; } return s;
+}
+// ==========================================
+
+// 3ヶ月前から取得することで、件数の少ないSMSが消滅するのを防ぐ
+var d = new Date(); d.setMonth(d.getMonth() - 3);
+var threeMonthsAgo = d.toISOString();
+
+Promise.all([
+  fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_tasks.json").then(r=>r.json()),
+  fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_contacts.json").then(r=>r.json()),
+  database.ref('app_communications').orderByChild('dt').startAt(threeMonthsAgo).once('value').then(s => s.val())
+]).then(function(results) {
+  var tasks = results;
+  var contactsData = results[1];
+  var commsData = results[2];
+
+  // ① 連絡先辞書の構築
+  var contactsMap = {};
+  if (contactsData) {
+    var arr = Array.isArray(contactsData) ? contactsData : Object.values(contactsData);
+    for (var i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      var e = (arr[i].email || "").toLowerCase().trim();
+      if (e && !contactsMap[e]) contactsMap[e] = arr[i];
     }
-    
-    // データを配列に入れて新しい順（降順）に並び替える
-    let records = [];
-    Object.keys(data).forEach(function(key) {
-      records.push(data[key]);
+  }
+
+  // ② 案件リストの構築
+  var taskList = [];
+  if (tasks) {
+    Object.keys(tasks).forEach(function(k) {
+      var t = tasks[k]; if(!t.csvData) return;
+      taskList.push({
+        key: k,
+        name: getSafeValModal(t.csvData, 4) || "名称不明",
+        phone: normalizePhoneModal(getSafeValModal(t.csvData, 6)),
+        kw: extractCaseKeywords(t.csvData)
+      });
     });
-    records.sort(function(a, b) {
-      return new Date(b.dt) - new Date(a.dt);
+  }
+
+  // ③ 通信データの格納とソート
+  var allComms = [];
+  if (commsData) {
+    Object.keys(commsData).forEach(function(k) {
+      var r = commsData[k]; r._key = k; allComms.push(r);
     });
-    
-    // 画面に表示するHTMLを作成
-    let html = "";
-    records.forEach(function(rec) {
-      if (!rec) return;
-      
-      // 日時のフォーマット
-      let dtStr = "日時不明";
-      if (rec.dt) {
-        let d = new Date(rec.dt);
-        dtStr = d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() + " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+  // 日付の新しい順（降順）に並び替える
+  allComms.sort(function(a,b) { return new Date(b.dt) - new Date(a.dt); });
+
+  // ★ 最新100件だけを切り出す（全体をソートしてから切り出すのでSMSは絶対に消えません）
+  var displayComms = allComms.slice(0, 100);
+
+  var html = "";
+  displayComms.forEach(function(rec) {
+    var dtStr = "日時不明";
+    if (rec.dt) {
+      var dtObj = new Date(rec.dt);
+      dtStr = dtObj.getFullYear() + "/" + (dtObj.getMonth() + 1) + "/" + dtObj.getDate() + " " + ("0" + dtObj.getHours()).slice(-2) + ":" + ("0" + dtObj.getMinutes()).slice(-2);
+    }
+
+    // ==========================================
+    // タイムライン上で案件を「追跡する」ロジック
+    // ==========================================
+    var targetPhone = null;
+    if (rec.src === "imessage") {
+      targetPhone = normalizePhoneModal(rec.contact);
+    } else if (rec.src === "gmail") {
+      var re = extractEmailModal(rec.contact);
+      // 連絡先を経由して電話番号を取得（正しい仕様）
+      if (contactsMap[re] && contactsMap[re].phone) {
+        targetPhone = normalizePhoneModal(contactsMap[re].phone);
       }
-      
-      const srcIcon = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
-      const contact = rec.contact ? rec.contact.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "宛先不明";
-      const subject = rec.subject ? rec.subject.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
-      const body = rec.body ? rec.body.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
-      
-      html += '<div class="msg-card">';
-      html += '<div class="msg-meta">' + srcIcon + ' | ' + dtStr + '</div>';
-      html += '<div class="msg-contact">連絡先: ' + contact + '</div>';
-      if (subject) {
-        html += '<div class="msg-subject">件名: ' + subject + '</div>';
-      }
-      if (body) {
-        html += '<div class="msg-body">' + body + '</div>';
-      }
-      html += '</div>';
-    });
-    
-    // 描画
-    timelineEl.innerHTML = html;
-  })
-  .catch(function(error) {
-    document.getElementById('timeline').innerHTML = "エラーが発生しました: " + error.message;
+    }
+
+    // 案件の電話番号と照合
+    var matches = [];
+    if (targetPhone) {
+      taskList.forEach(function(t) {
+        if (t.phone === targetPhone) {
+          var sc = scoreMessageForCase(rec.body, rec.subject, t.kw);
+          matches.push({ name: t.name, score: sc });
+        }
+      });
+      matches.sort(function(a,b) { return b.score - a.score; });
+    }
+    // ==========================================
+
+    var isSMS = (rec.src === "imessage");
+    var srcIcon = isSMS ? "💬 SMS" : "📧 Gmail";
+    var cardClass = isSMS ? "msg-card sms" : "msg-card";
+
+    html += '<div class="' + cardClass + '">';
+    html += '<div class="msg-meta">' + srcIcon + ' | ' + dtStr + '</div>';
+    html += '<div class="msg-contact">連絡先: ' + (rec.contact || "不明").replace(/</g, "&lt;") + '</div>';
+    if (rec.subject) html += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g, "&lt;") + '</div>';
+    if (rec.body) html += '<div class="msg-body">' + rec.body.replace(/</g, "&lt;") + '</div>';
+
+    // 追跡結果の表示枠
+    html += '<div class="msg-track">';
+    html += '<div class="track-title">🔍 案件の追跡結果</div>';
+    if (rec.assignedCase) {
+       var assignedName = "指定済み案件";
+       taskList.forEach(function(t) { if(t.key === rec.assignedCase) assignedName = t.name; });
+       html += '<div>✅ <b>' + assignedName + '</b> に紐付け済みです</div>';
+    } else if (matches.length > 0) {
+       html += '<div>🎯 <b>' + matches.name + '</b> (スコア: ' + matches.score + ')</div>';
+       if (matches.length > 1) {
+         html += '<div style="font-size:11px; color:#666; margin-top:4px;">※他 ' + (matches.length - 1) + ' 件の候補あり</div>';
+       }
+    } else {
+       html += '<div style="color:#666;">❓ 追跡できる案件がありません（電話番号不一致など）</div>';
+    }
+    html += '</div>';
+
+    html += '</div>';
   });
+
+  if (html === "") html = "データがありません。";
+  document.getElementById('timeline').innerHTML = html;
+
+}).catch(function(error) {
+  document.getElementById('timeline').innerHTML = "エラーが発生しました: " + error.message;
+});
 </script>
 
 </body>
