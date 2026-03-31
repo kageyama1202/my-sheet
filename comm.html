@@ -29,7 +29,6 @@ h1 {
     font-size: 20px;
     margin-bottom: 20px;
 }
-/* シンプルなタイムライン表示用のスタイル */
 .msg-card {
     background: #1a1d27;
     border-radius: 8px;
@@ -66,13 +65,11 @@ h1 {
 <a href="index.html" class="back-link">← トップ</a>
 <h1>📨 通信タイムライン</h1>
 
-<!-- データの描画領域 -->
 <div id="timeline">
     <div class="loading">⏳ 読み込み中...</div>
 </div>
 
 <script>
-// Firebaseの初期化
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var firebaseConfig = {
     apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
@@ -84,81 +81,110 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// データ取得と表示
-fetch(FB_URL + "/app_communications.json")
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        var timelineEl = document.getElementById("timeline");
+// 元のコードにあったメールアドレス抽出関数
+// "Name <xxx@gmail.com>" のような文字列から "xxx@gmail.com" だけを抜き出す
+function extractEmail(f) {
+    if (!f) return "";
+    var m = f.match(/<([^>]+)>/);
+    if (m) return m[4].toLowerCase().trim();
+    if (f.indexOf("@") > -1) return f.toLowerCase().trim();
+    return "";
+}
+
+// 連絡先データと通信データを同時に取得する
+Promise.all([
+    fetch(FB_URL + "/app_contacts.json").then(function(r){ return r.json(); }),
+    fetch(FB_URL + "/app_communications.json").then(function(r){ return r.json(); })
+]).then(function(results) {
+    var contactsData = results;
+    var commsData = results[4];
+    var timelineEl = document.getElementById("timeline");
+    
+    if (!commsData) {
+        timelineEl.innerHTML = '<div>データがありません</div>';
+        return;
+    }
+
+    // 1. 登録済みメールアドレスの辞書を作成
+    var registeredEmails = {};
+    if (contactsData) {
+        var cArr = Array.isArray(contactsData) ? contactsData : Object.values(contactsData);
+        for (var i = 0; i < cArr.length; i++) {
+            if (!cArr[i]) continue;
+            var em = (cArr[i].email || "").toLowerCase().trim();
+            if (em) {
+                registeredEmails[em] = true; // 登録されているアドレスを記憶
+            }
+        }
+    }
+
+    // 2. 通信データのフィルタリングと整形
+    var allRecords = [];
+    var arr = Array.isArray(commsData) ? commsData : Object.values(commsData);
+
+    for (var i = 0; i < arr.length; i++) {
+        if (!arr[i]) continue;
+        var rec = arr[i];
         
-        if (!data) {
-            timelineEl.innerHTML = '<div>データがありません</div>';
-            return;
-        }
-
-        var allRecords = [];
-        var arr = Array.isArray(data) ? data : Object.values(data);
-
-        // 配列化とソートキーの作成
-        for (var i = 0; i < arr.length; i++) {
-            if (!arr[i]) continue;
-            var rec = arr[i];
-            
-            // 日時のパース
-            var dt = new Date(0);
-            try {
-                if(rec.dt) dt = new Date(rec.dt);
-            } catch(e) {}
-            
-            rec._sortKey = dt.getTime();
-            
-            // 日時フォーマット作成
-            var y = dt.getFullYear();
-            var m = ("0" + (dt.getMonth() + 1)).slice(-2);
-            var d = ("0" + dt.getDate()).slice(-2);
-            var h = ("0" + dt.getHours()).slice(-2);
-            var min = ("0" + dt.getMinutes()).slice(-2);
-            rec._timeStr = y + "/" + m + "/" + d + " " + h + ":" + min;
-
-            allRecords.push(rec);
-        }
-
-        // 時系列で降順ソート（新しい順）
-        allRecords.sort(function(a, b) {
-            return b._sortKey - a._sortKey;
-        });
-
-        // HTML文字列の組み立てと描画
-        var html = "";
-        for (var i = 0; i < allRecords.length; i++) {
-            var rec = allRecords[i];
-            var srcType = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
-            var dirStr = rec.dir === "sent" ? "↑送信" : "↓受信";
-            var cssClass = rec.src === "imessage" ? "imessage" : "gmail";
-
-            html += '<div class="msg-card ' + cssClass + '">';
-            html += '<div class="msg-header">' + srcType + ' | ' + dirStr + ' | ' + rec._timeStr + '</div>';
-            html += '<div class="msg-contact">' + (rec.contact || "宛先不明") + '</div>';
-            
-            if (rec.subject) {
-                html += '<div style="font-weight:bold; color:#f0c040; margin-bottom: 4px; font-size: 13px;">件名: ' + rec.subject + '</div>';
+        // ★ ここがGmailカットのロジック ★
+        if (rec.src === "gmail") {
+            var email = extractEmail(rec.contact);
+            // 抽出したメアドが連絡先辞書になければ表示対象から外す
+            if (!registeredEmails[email]) {
+                continue; 
             }
-            if (rec.body) {
-                // HTMLタグのエスケープ
-                var bodyText = rec.body.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                html += '<div class="msg-body">' + bodyText + '</div>';
-            }
-            
-            html += '</div>';
         }
+        
+        // 日時のパース
+        var dt = new Date(0);
+        try { if(rec.dt) dt = new Date(rec.dt); } catch(e) {}
+        rec._sortKey = dt.getTime();
+        
+        // 日時フォーマット作成
+        var y = dt.getFullYear();
+        var m = ("0" + (dt.getMonth() + 1)).slice(-2);
+        var d = ("0" + dt.getDate()).slice(-2);
+        var h = ("0" + dt.getHours()).slice(-2);
+        var min = ("0" + dt.getMinutes()).slice(-2);
+        rec._timeStr = y + "/" + m + "/" + d + " " + h + ":" + min;
 
-        timelineEl.innerHTML = html;
+        allRecords.push(rec);
+    }
 
-    })
-    .catch(function(error) {
-        document.getElementById("timeline").innerHTML = '<div style="color:red;">エラー: ' + error.message + '</div>';
+    // 時系列で降順ソート（新しい順）
+    allRecords.sort(function(a, b) {
+        return b._sortKey - a._sortKey;
     });
+
+    // 3. HTML文字列の組み立てと描画
+    var html = "";
+    for (var i = 0; i < allRecords.length; i++) {
+        var rec = allRecords[i];
+        var srcType = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
+        var dirStr = rec.dir === "sent" ? "↑送信" : "↓受信";
+        var cssClass = rec.src === "imessage" ? "imessage" : "gmail";
+
+        html += '<div class="msg-card ' + cssClass + '">';
+        html += '<div class="msg-header">' + srcType + ' | ' + dirStr + ' | ' + rec._timeStr + '</div>';
+        html += '<div class="msg-contact">' + (rec.contact || "宛先不明") + '</div>';
+        
+        if (rec.subject) {
+            html += '<div style="font-weight:bold; color:#f0c040; margin-bottom: 4px; font-size: 13px;">件名: ' + rec.subject + '</div>';
+        }
+        if (rec.body) {
+            var bodyText = rec.body.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            html += '<div class="msg-body">' + bodyText + '</div>';
+        }
+        
+        html += '</div>';
+    }
+
+    if(html === "") html = '<div>表示できる通信履歴がありません（全てカットされました）</div>';
+    timelineEl.innerHTML = html;
+
+}).catch(function(error) {
+    document.getElementById("timeline").innerHTML = '<div style="color:red;">エラー: ' + error.message + '</div>';
+});
 
 </script>
 </body>
