@@ -222,6 +222,17 @@ function stLbl(name){
 
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+/* === サブタブ定義 === */
+var SUB_TABS=[
+  {id:'s0',icon:'📞',label:'連絡',cls:'s0'},
+  {id:'s1',icon:'📅',label:'日程確定',cls:'s1'},
+  {id:'s2',icon:'🏃',label:'下見',cls:'s2'},
+  {id:'s3',icon:'📝',label:'報告書',cls:'s3'},
+  {id:'s4',icon:'✉️',label:'確認メール',cls:'s4'}
+];
+
+var activeSubTab='s0';
+
 /* === データ読み込み === */
 var globalHeaders=[],globalTasks={},fullData=null,caseOptions=[];
 try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){}
@@ -233,17 +244,6 @@ if(fullData&&fullData.app_meta&&fullData.app_tasks){
   buildDashboard();
 }else{document.getElementById('noDataMsg').style.display='block';}
 chkKey();
-
-/* === サブタブ定義 === */
-var SUB_TABS=[
-  {id:'s0',icon:'📞',label:'連絡',cls:'s0'},
-  {id:'s1',icon:'📅',label:'日程確定',cls:'s1'},
-  {id:'s2',icon:'🏃',label:'下見',cls:'s2'},
-  {id:'s3',icon:'📝',label:'報告書',cls:'s3'},
-  {id:'s4',icon:'✉️',label:'確認メール',cls:'s4'}
-];
-
-var activeSubTab='s0';
 
 function buildSubTabs(counts){
   var bar=document.getElementById('subTabBar');
