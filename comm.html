@@ -136,6 +136,21 @@ function tstr(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).sli
 function dlt(key){var p=key.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));var dn=["日","月","火","水","木","金","土"];return parseInt(p[1])+"/"+parseInt(p[2])+" ("+dn[d.getDay()]+")";}
 function saveHidden(){localStorage.setItem('comm_hidden',JSON.stringify(hiddenSet));}
 
+// 名前から姓の候補を抽出（「石橋さんタカラ」→「石橋」）
+function extractSei(name){
+  var results=[];
+  var s=name.replace(/[\s\u3000]+/g," ").trim();
+  var parts=s.split(" ");
+  for(var i=0;i<parts.length;i++){
+    var p=parts[i];
+    // 敬称・会社名を除去
+    p=p.replace(/(さん|くん|ちゃん|様|氏|タカラスタンダード|タカラ|土屋ホーム|土屋|アイ工務店|社長|専務|部長|次長|課長|係長|主任|リーダー|代表|取締役|！|!)+$/g,"");
+    p=p.replace(/^\(株\)|^（株）|^\(有\)|^（有）/g,"");
+    if(p.length>=2) results.push(p);
+  }
+  return results;
+}
+
 var now=new Date();
 var threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
 
@@ -164,9 +179,9 @@ function getCasesForRec(rec){
   }
   // ② 名前で案件検索（電話番号マッチなしの場合）
   if(ci.name){
-    var sei=ci.name.replace(/[\s\u3000]+/g," ").trim().split(" ")[0].replace(/様$/,"");
-    if(sei.length>=2&&nameToCases[sei]){
-      return nameToCases[sei];
+    var seis=extractSei(ci.name);
+    for(var si=0;si<seis.length;si++){
+      if(nameToCases[seis[si]])return nameToCases[seis[si]];
     }
   }
   return[];
@@ -486,10 +501,12 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
       if(em&&ph.length>=10&&!emailToPhone[em])emailToPhone[em]=ph;
       // 名前（姓）→電話番号マップ構築
       if(ph.length>=10&&c.name){
+        var seis=extractSei(c.name);
+        for(var si=0;si<seis.length;si++){
+          if(!nameToPhone[seis[si]])nameToPhone[seis[si]]=ph;
+        }
         var fullName=c.name.replace(/[\s\u3000]+/g,"");
-        var sei=c.name.replace(/[\s\u3000]+/g," ").trim().split(" ")[0].replace(/様$/,"");
         if(fullName.length>=2&&!nameToPhone[fullName])nameToPhone[fullName]=ph;
-        if(sei.length>=2&&!nameToPhone[sei])nameToPhone[sei]=ph;
       }
     }
     console.log("Contacts email:"+Object.keys(emailToContact).length+" phone:"+Object.keys(phoneToContact).length);
