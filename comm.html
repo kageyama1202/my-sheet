@@ -31,7 +31,7 @@ body{font-family:sans-serif;margin:0;background:#f5f5f5;}
 
 <script>
 /* ===============================
-   Firebase設定
+   Firebase
 =============================== */
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
@@ -47,14 +47,20 @@ var database = firebase.database();
 var allRecords = [];
 var allTasks = {};
 var phoneToCasesList = {};
-var fbKeyMap = {};
 
 /* ===============================
-   電話番号正規化（超重要）
+   電話正規化
 =============================== */
 function normalizePhone(phone){
   if(!phone) return "";
   return phone.replace(/[^\d]/g, "").replace(/^81/, "0");
+}
+
+/* ===============================
+   有効な電話か判定（超重要）
+=============================== */
+function isValidPhone(phone){
+  return /^\d{10,11}$/.test(phone);
 }
 
 /* ===============================
@@ -69,17 +75,15 @@ async function fetchData(){
 
   allTasks = taskData;
 
-  var i = 0;
   for(var key in commData){
     var rec = commData[key];
     rec._fbKey = key;
     allRecords.push(rec);
-    fbKeyMap[i++] = key;
   }
 }
 
 /* ===============================
-   電話→案件マップ作成
+   電話→案件マップ
 =============================== */
 function buildPhoneMap(){
   phoneToCasesList = {};
@@ -88,7 +92,8 @@ function buildPhoneMap(){
     var task = allTasks[key];
     var phone = normalizePhone(task.csvData[6]);
 
-    if(!phone) continue;
+    // ❗無効な電話は完全除外
+    if(!isValidPhone(phone)) continue;
 
     if(!phoneToCasesList[phone]){
       phoneToCasesList[phone] = [];
@@ -98,22 +103,29 @@ function buildPhoneMap(){
 }
 
 /* ===============================
-   🔥 自動紐付け（安全版）
+   🔥 自動紐付け（完全安全版）
 =============================== */
 async function autoAssignCases(){
   var updates = {};
+  var count = 0;
 
   for(var i=0; i<allRecords.length; i++){
     var rec = allRecords[i];
 
+    // 既にあるなら触らない
     if(rec.assignedCase) continue;
 
+    // ❗iMessage以外は除外（Gmail事故防止）
+    if(rec.src !== "imessage") continue;
+
     var phone = normalizePhone(rec.contact);
-    if(!phone) continue;
+
+    // ❗電話番号じゃないもの完全除外
+    if(!isValidPhone(phone)) continue;
 
     var candidates = phoneToCasesList[phone] || [];
 
-    // ★1件だけなら確定
+    // ❗1件だけの時のみ
     if(candidates.length === 1){
       var caseKey = candidates[0];
 
@@ -121,18 +133,21 @@ async function autoAssignCases(){
 
       if(rec._fbKey){
         updates["app_communications/" + rec._fbKey + "/assignedCase"] = caseKey;
+        count++;
       }
     }
   }
 
-  if(Object.keys(updates).length > 0){
+  if(count > 0){
     await database.ref().update(updates);
-    console.log("auto assigned:", Object.keys(updates).length);
+    console.log("auto assigned SAFE:", count);
+  } else {
+    console.log("auto assigned SAFE: 0");
   }
 }
 
 /* ===============================
-   UI描画
+   UI
 =============================== */
 function renderTimeline(){
   var el = document.getElementById("timeline");
@@ -140,17 +155,19 @@ function renderTimeline(){
 
   allRecords.sort((a,b)=> (b.dt||"").localeCompare(a.dt||""));
 
-  allRecords.forEach(function(rec, idx){
+  allRecords.forEach(function(rec){
     var div = document.createElement("div");
     div.className = "msg";
 
     if(rec.assignedCase) div.classList.add("assigned");
 
     var phone = normalizePhone(rec.contact);
-    var candidates = phoneToCasesList[phone] || [];
 
-    if(!rec.assignedCase && candidates.length === 1){
-      div.classList.add("auto");
+    if(isValidPhone(phone)){
+      var candidates = phoneToCasesList[phone] || [];
+      if(!rec.assignedCase && candidates.length === 1){
+        div.classList.add("auto");
+      }
     }
 
     div.innerHTML = `
@@ -173,6 +190,11 @@ function renderTimeline(){
 function showCases(phone, rec){
   var el = document.getElementById("cases");
   el.innerHTML = "";
+
+  if(!isValidPhone(phone)){
+    el.innerHTML = "候補なし（電話番号不正）";
+    return;
+  }
 
   var list = phoneToCasesList[phone] || [];
 
@@ -206,7 +228,7 @@ async function init(){
   await fetchData();
   buildPhoneMap();
 
-  // 🔥 ここで自動紐付け
+  // 🔥 安全版自動紐付け
   await autoAssignCases();
 
   renderTimeline();
