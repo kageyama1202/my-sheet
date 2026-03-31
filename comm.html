@@ -81,12 +81,11 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// 元のコードにあったメールアドレス抽出関数
-// "Name <xxx@gmail.com>" のような文字列から "xxx@gmail.com" だけを抜き出す
+// 修正済: 元のプログラムのee関数と同じく、正しくアドレスを抽出する [2]
 function extractEmail(f) {
     if (!f) return "";
     var m = f.match(/<([^>]+)>/);
-    if (m) return m[4].toLowerCase().trim();
+    if (m) return m[1].toLowerCase().trim(); // ★ここでm[1]を指定していなかったのがエラーの原因でした
     if (f.indexOf("@") > -1) return f.toLowerCase().trim();
     return "";
 }
@@ -96,8 +95,10 @@ Promise.all([
     fetch(FB_URL + "/app_contacts.json").then(function(r){ return r.json(); }),
     fetch(FB_URL + "/app_communications.json").then(function(r){ return r.json(); })
 ]).then(function(results) {
-    var contactsData = results;
-    var commsData = results[4];
+    // ★データの受け取り方を修正しました
+    var contactsData = results; 
+    var commsData = results[1];    
+    
     var timelineEl = document.getElementById("timeline");
     
     if (!commsData) {
@@ -126,10 +127,10 @@ Promise.all([
         if (!arr[i]) continue;
         var rec = arr[i];
         
-        // ★ ここがGmailカットのロジック ★
+        // ★ ここがGmailカットのロジック
         if (rec.src === "gmail") {
             var email = extractEmail(rec.contact);
-            // 抽出したメアドが連絡先辞書になければ表示対象から外す
+            // 抽出したメアドが連絡先辞書になければ表示対象から外す（スキップ）
             if (!registeredEmails[email]) {
                 continue; 
             }
