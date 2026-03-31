@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>通信タイムライン（フィルタ強化・+81解決版）</title>
+<title>通信タイムライン（+81解決・未登録カット）</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -35,7 +35,7 @@ const firebaseConfig = {
 if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 
-// shared-modal.jsの関数群
+// shared-modal.jsの関数群を利用
 function normalizePhoneModal(raw) {
   if (!raw) return "";
   var s = raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, "");
@@ -44,7 +44,7 @@ function normalizePhoneModal(raw) {
 }
 
 function extractEmailModal(f) {
-  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[2]?m[2].toLowerCase().trim():m.toLowerCase().trim();
+  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[2].toLowerCase().trim();
   if (f.indexOf("@") > -1) return f.toLowerCase().trim(); return "";
 }
 
@@ -56,7 +56,7 @@ function extractCaseKeywords(csvData) {
   var kw = [], cn = getSafeValModal(csvData, 4) || "";
   var pts = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
   for (var i = 0; i < pts.length; i++) { var p = pts[i].trim(); if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) kw.push(p); }
-  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm.length >= 2) kw.push(nm[2]?nm[2]:nm);
+  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[2] && nm[2].length >= 2) kw.push(nm[2]);
   return kw;
 }
 
@@ -111,19 +111,19 @@ Promise.all([
   }
   allComms.sort(function(a,b) { return new Date(b.dt) - new Date(a.dt); });
 
-  // ★ 登録アドレス以外のカット ＆ 100件の切り出し
+  // ★ 未登録のメールを除外して100件を抽出
   var displayComms = [];
   for (var i = 0; i < allComms.length; i++) {
     var rec = allComms[i];
     
-    // Gmailの場合、抽出したアドレスが連絡先辞書(contactsMap)に無ければスキップ（カット）
+    // Gmailの場合、抽出したアドレスが連絡先辞書(contactsMap)に無ければスキップ
     if (rec.src === "gmail") {
       var re = extractEmailModal(rec.contact);
       if (!re || !contactsMap[re]) continue; 
     }
     
     displayComms.push(rec);
-    if (displayComms.length >= 100) break; // 有効なものが100件集まったら終了
+    if (displayComms.length >= 100) break; 
   }
 
   var html = "";
@@ -159,15 +159,16 @@ Promise.all([
     var srcIcon = isSMS ? "💬 SMS" : "📧 Gmail";
     var cardClass = isSMS ? "msg-card sms" : "msg-card";
 
-    // ★ 表示する連絡先テキストも強制的に+81を消したきれいな形式（090...等）にする
+    // ★ 画面表示用の連絡先テキストも強制的に+81を消した形式（090...等）に変換する
     var displayContact = rec.contact || "不明";
     if (isSMS) {
-      displayContact = normalizePhoneModal(rec.contact); // ここで画面表示用の+81問題を解決
+      displayContact = normalizePhoneModal(rec.contact); 
     }
 
     html += '<div class="' + cardClass + '">';
     html += '<div class="msg-meta">' + srcIcon + ' | ' + dtStr + '</div>';
-    // 修正した displayContact を画面に出す
+    
+    // 変換済みの displayContact を表示
     html += '<div class="msg-contact">連絡先: ' + displayContact.replace(/</g, "&lt;") + '</div>';
     
     if (rec.subject) html += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g, "&lt;") + '</div>';
