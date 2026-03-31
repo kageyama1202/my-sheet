@@ -16,6 +16,7 @@ body{font-family:sans-serif;margin:0;background:#f5f5f5;}
 .msg.auto{border-left:4px solid #2196f3;}
 
 .case{padding:6px;border-bottom:1px solid #ddd;}
+.small{font-size:11px;color:#666;}
 </style>
 </head>
 
@@ -57,10 +58,27 @@ function normalizePhone(phone){
 }
 
 /* ===============================
-   有効な電話か判定（超重要）
+   有効電話判定
 =============================== */
 function isValidPhone(phone){
   return /^\d{10,11}$/.test(phone);
+}
+
+/* ===============================
+   Gmail本文から電話抽出
+=============================== */
+function extractPhone(text){
+  if(!text) return "";
+
+  // 090XXXXXXXX
+  var m = text.match(/0\d{9,10}/);
+  if(m) return m[0];
+
+  // +8190XXXXXXXX
+  m = text.match(/\+81\d{9,10}/);
+  if(m) return normalizePhone(m[0]);
+
+  return "";
 }
 
 /* ===============================
@@ -90,20 +108,21 @@ function buildPhoneMap(){
 
   for(var key in allTasks){
     var task = allTasks[key];
+
     var phone = normalizePhone(task.csvData[6]);
 
-    // ❗無効な電話は完全除外
     if(!isValidPhone(phone)) continue;
 
     if(!phoneToCasesList[phone]){
       phoneToCasesList[phone] = [];
     }
+
     phoneToCasesList[phone].push(key);
   }
 }
 
 /* ===============================
-   🔥 自動紐付け（完全安全版）
+   🔥 自動紐付け（Gmail対応安全版）
 =============================== */
 async function autoAssignCases(){
   var updates = {};
@@ -112,20 +131,23 @@ async function autoAssignCases(){
   for(var i=0; i<allRecords.length; i++){
     var rec = allRecords[i];
 
-    // 既にあるなら触らない
+    // 既存は触らない
     if(rec.assignedCase) continue;
 
-    // ❗iMessage以外は除外（Gmail事故防止）
-    if(rec.src !== "imessage") continue;
-
+    // ① contactから
     var phone = normalizePhone(rec.contact);
 
-    // ❗電話番号じゃないもの完全除外
+    // ② ダメなら本文から
+    if(!isValidPhone(phone)){
+      phone = extractPhone(rec.body);
+    }
+
+    // ❗どちらもダメなら終了
     if(!isValidPhone(phone)) continue;
 
     var candidates = phoneToCasesList[phone] || [];
 
-    // ❗1件だけの時のみ
+    // ❗1件のみ
     if(candidates.length === 1){
       var caseKey = candidates[0];
 
@@ -140,10 +162,9 @@ async function autoAssignCases(){
 
   if(count > 0){
     await database.ref().update(updates);
-    console.log("auto assigned SAFE:", count);
-  } else {
-    console.log("auto assigned SAFE: 0");
   }
+
+  console.log("auto assigned GMAIL SAFE:", count);
 }
 
 /* ===============================
@@ -162,18 +183,20 @@ function renderTimeline(){
     if(rec.assignedCase) div.classList.add("assigned");
 
     var phone = normalizePhone(rec.contact);
+    if(!isValidPhone(phone)){
+      phone = extractPhone(rec.body);
+    }
 
-    if(isValidPhone(phone)){
-      var candidates = phoneToCasesList[phone] || [];
-      if(!rec.assignedCase && candidates.length === 1){
-        div.classList.add("auto");
-      }
+    var candidates = isValidPhone(phone) ? (phoneToCasesList[phone] || []) : [];
+
+    if(!rec.assignedCase && candidates.length === 1){
+      div.classList.add("auto");
     }
 
     div.innerHTML = `
       <div><b>${rec.contact || ""}</b></div>
       <div>${rec.body || ""}</div>
-      <div style="font-size:12px;color:#666">${rec.dt || ""}</div>
+      <div class="small">${rec.dt || ""}</div>
     `;
 
     div.onclick = function(){
@@ -192,7 +215,7 @@ function showCases(phone, rec){
   el.innerHTML = "";
 
   if(!isValidPhone(phone)){
-    el.innerHTML = "候補なし（電話番号不正）";
+    el.innerHTML = "候補なし（電話取得不可）";
     return;
   }
 
@@ -228,7 +251,7 @@ async function init(){
   await fetchData();
   buildPhoneMap();
 
-  // 🔥 安全版自動紐付け
+  // 🔥 Gmail対応自動紐付け
   await autoAssignCases();
 
   renderTimeline();
