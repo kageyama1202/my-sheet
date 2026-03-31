@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>通信タイムライン（リスト一体型）</title>
+<title>通信タイムライン（ゼロベース・ダイレクトマッチ）</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -22,14 +22,14 @@
   .badge-assigned { display: inline-block; font-size: 10px; padding: 2px 6px; background: #2e7d32; color: #fff; border-radius: 4px; margin-bottom: 6px; }
   .msg-contact { font-size: 13px; color: #ccc; margin-bottom: 4px; font-weight: bold; word-break: break-all; }
   .msg-subject { font-size: 13px; color: #f0c040; margin-bottom: 6px; word-break: break-all; }
-  .msg-body { font-size: 12px; color: #ddd; white-space: pre-wrap; line-height: 1.4; word-break: break-word; max-height: 100px; overflow-y: auto; }
+  .msg-body { font-size: 12px; color: #ddd; white-space: pre-wrap; line-height: 1.4; word-break: break-word; max-height: 120px; overflow-y: auto; }
   
   /* 右側：紐付け候補と操作パネル */
   .msg-right { flex: 1; padding: 15px; background: #161822; display: flex; flex-direction: column; justify-content: space-between; }
   .candidate-title { font-size: 12px; color: #64b5f6; margin-bottom: 8px; font-weight: bold; }
   .candidate-list { max-height: 120px; overflow-y: auto; margin-bottom: 10px; }
-  .candidate-item { display: block; background: #2a2d3a; padding: 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; font-size: 13px; }
-  .candidate-item:hover { background: #3a3d4a; }
+  .candidate-item { display: block; background: #2a2d3a; padding: 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; font-size: 13px; border: 1px solid transparent; }
+  .candidate-item:hover { border-color: #64b5f6; }
   .candidate-item input { margin-right: 6px; }
   .reason { font-size: 10px; color: #888; margin-left: 20px; }
   
@@ -48,7 +48,7 @@
 <body>
 
 <div class="top-bar">
-  <h2>📨 通信タイムライン（一括表示）</h2>
+  <h2>📨 通信タイムライン（案件ダイレクトマッチ）</h2>
   <label style="cursor: pointer; font-size: 13px; background: #2a2d3a; padding: 6px 12px; border-radius: 6px;">
     <input type="checkbox" id="showHiddenCheck"> 👀 非表示も見る
   </label>
@@ -65,41 +65,62 @@ var firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var database = firebase.database();
 
-// 電話番号の正規化を強化（+81を確実に0にする）
-function np(raw){ 
-  if(!raw) return ""; 
-  // 数字と「+」以外を削除
-  var s = String(raw).replace(/[^\d+]/g, ""); 
-  // 先頭の +81 または 81 を 0 に置換
-  s = s.replace(/^\+?81/, "0"); 
-  return s; 
-}
-// メールアドレス抽出
-function ee(f){ 
-  if(!f) return ""; 
-  var m = String(f).match(/<([^>]+)>/); 
-  if(m && m[1]) return m[1].toLowerCase().trim(); 
-  if(String(f).indexOf("@") > -1) return String(f).toLowerCase().trim(); 
-  return ""; 
-}
-// 案件名推測ロジック
-function ek(nameStr){ 
-  var kw=[]; var cn=String(nameStr||""); var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/); 
-  for(var i=0;i<pts.length;i++){ var p=pts[i].trim(); if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase()); } 
-  var nm=cn.match(/([^\s【】（）]+?)様/); if(nm&&nm[1]&&nm[1].length>=2)kw.push(nm[1].toLowerCase()); return kw; 
-}
-function sm(body,subj,kw){ 
-  if(!kw||!kw.length)return 0; var t=(String(body||"")+" "+String(subj||"")).toLowerCase(); if(!t.trim())return 0; 
-  var s=0; for(var i=0;i<kw.length;i++){ if(kw[i]&&t.indexOf(kw[i])!==-1)s+=kw[i].length; } return s; 
+// 1. ユーティリティ関数（ゼロベースで整理）
+// 電話番号の正規化（+81対応を確実に）
+function normalizePhone(raw) {
+  if (!raw) return "";
+  var s = String(raw).replace(/[^\d+]/g, ""); // 数字と+以外を削除
+  s = s.replace(/^\+?81/, "0"); // +81 または 81 を 0 に変換
+  return s;
 }
 
+// メールアドレスの抽出
+function extractEmail(f) {
+  if (!f) return "";
+  var m = String(f).match(/<([^>]+)>/);
+  if (m && m[1]) return m[1].toLowerCase().trim();
+  if (String(f).indexOf("@") > -1) return String(f).toLowerCase().trim();
+  return "";
+}
+
+// 案件名から推測用キーワードを抽出
+function getKeywords(nameStr) {
+  var kw = [];
+  var cn = String(nameStr || "");
+  var pts = cn.replace(/【[^】]*】/g, " ").replace(/[（()）\[\]]/g, " ").split(/[\s\u3000・]+/);
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i].trim();
+    if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) {
+      kw.push(p.toLowerCase());
+    }
+  }
+  var nm = cn.match(/([^\s【】（）]+?)様/);
+  if (nm && nm[1] && nm[1].length >= 2) kw.push(nm[1].toLowerCase());
+  return kw;
+}
+
+// キーワードが含まれているか点数化
+function getScore(body, subj, kw) {
+  if (!kw || !kw.length) return 0;
+  var text = (String(body || "") + " " + String(subj || "")).toLowerCase();
+  if (!text.trim()) return 0;
+  var score = 0;
+  for (var i = 0; i < kw.length; i++) {
+    if (kw[i] && text.indexOf(kw[i]) !== -1) score += kw[i].length;
+  }
+  return score;
+}
+
+// データ保持用
 var allComms = [];
 var caseOptions = [];
 var phoneToCases = {};
 
+// 直近3ヶ月のデータを取得
 var d = new Date(); d.setMonth(d.getMonth() - 3);
 var threeMonthsAgo = d.toISOString();
 
+// ★ 連絡先(app_contacts)の読み込みを完全に廃止しました
 Promise.all([
   fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_tasks.json").then(r=>r.json()),
   database.ref('app_communications').orderByChild('dt').startAt(threeMonthsAgo).once('value').then(s => {
@@ -107,12 +128,13 @@ Promise.all([
   })
 ]).then(function([tasks, comms]){
   
+  // 案件リストの構築
   if(tasks){
     Object.keys(tasks).forEach(function(k){
       var t = tasks[k]; if(!t.csvData) return;
-      var caseName = t.csvData[2] || "名称不明"; 
-      var phone = np(t.csvData[3] || "");       
-      var keywords = ek(caseName);
+      var caseName = t.csvData[2] || "名称不明"; // インデックス4：案件名
+      var phone = normalizePhone(t.csvData[3] || ""); // インデックス6：電話番号
+      var keywords = getKeywords(caseName);
       
       var caseObj = { key: k, name: caseName, phone: phone, keywords: keywords };
       caseOptions.push(caseObj);
@@ -124,20 +146,18 @@ Promise.all([
     });
   }
   
+  // 通信データの構築
   if(comms){
     Object.keys(comms).forEach(function(k){
       var rec = comms[k]; 
       
-      // ★ Gmailのノイズカット処理
-      if(rec.src === "gmail") {
-        var email = ee(rec.contact);
-        // メールアドレスが取得できない（名前だけの送信元など）は除外
-        if(!email) return; 
-      }
+      // Gmailのノイズ（メアドなし）カット
+      if(rec.src === "gmail" && !extractEmail(rec.contact)) return;
       
       rec._key = k;
       allComms.push(rec);
     });
+    // 新しい順に並び替え
     allComms.sort(function(a,b){ return new Date(b.dt) - new Date(a.dt); });
   }
   
@@ -147,13 +167,14 @@ Promise.all([
   document.getElementById('timeline').innerHTML = "エラーが発生しました: " + e.message;
 });
 
+// 2. 画面描画
 function renderTimeline() {
   var showHidden = document.getElementById('showHiddenCheck').checked;
   var html = "";
   var displayCount = 0;
   
   allComms.forEach(function(rec) {
-    if (displayCount >= 100) return; 
+    if (displayCount >= 100) return; // 最新100件制限
     var isHidden = rec.isHidden === true;
     if (isHidden && !showHidden) return;
     
@@ -167,7 +188,7 @@ function renderTimeline() {
     // 【左側】メッセージ内容
     html += '<div class="msg-left">';
     if (rec.assignedCase) {
-      var foundCase = caseOptions.find(c => c.key === rec.assignedCase);
+      var foundCase = caseOptions.find(function(c){ return c.key === rec.assignedCase; });
       var assignedName = foundCase ? foundCase.name : "指定済み案件";
       html += '<div class="badge-assigned">✔ ' + assignedName + '</div><br>';
     }
@@ -177,27 +198,37 @@ function renderTimeline() {
     if (rec.body) html += '<div class="msg-body">' + rec.body.replace(/</g,"&lt;") + '</div>';
     html += '</div>';
     
-    // 【右側】紐付け候補リスト
+    // 【右側】ゼロベースの紐付け候補リスト
     html += '<div class="msg-right">';
     html += '<div>';
     html += '<div class="candidate-title">🎯 紐付け候補</div>';
     html += '<div class="candidate-list">';
     
     var candidates = [];
+    
+    // ★ダイレクトマッチ判定★
     if (rec.src === "imessage") {
-      var ph = np(rec.contact); // +81対応強化版で抽出
+      // SMSは電話番号で完全一致を狙う
+      var ph = normalizePhone(rec.contact);
       if (phoneToCases[ph]) {
-        candidates = phoneToCases[ph].map(function(c) { return { case: c, score: 999, reason: '電話番号一致' }; });
+        candidates = phoneToCases[ph].map(function(c) { return { case: c, score: 999, reason: '📞 電話番号一致' }; });
       }
-    } else {
+    } 
+    
+    // SMSで電話番号が一致しなかった場合、またはGmailの場合はキーワードで直接判定
+    if (candidates.length === 0) {
       caseOptions.forEach(function(c) {
-        var score = sm(rec.body, rec.subject, c.keywords);
-        if (score > 0) candidates.push({ case: c, score: score, reason: '案件名推測 (スコア:'+score+')' });
+        var score = getScore(rec.body, rec.subject, c.keywords);
+        if (score > 0) {
+          candidates.push({ case: c, score: score, reason: '📝 案件名一致 (スコア:'+score+')' });
+        }
       });
+      // スコアが高い順にソート
       candidates.sort(function(a,b){ return b.score - a.score; });
     }
     
     if (candidates.length > 0) {
+      // 上位5件だけ表示
       candidates.slice(0, 5).forEach(function(cand, idx) {
         var isChecked = (rec.assignedCase === cand.case.key) ? "checked" : (!rec.assignedCase && idx === 0 ? "checked" : "");
         html += '<label class="candidate-item">';
@@ -232,22 +263,26 @@ function renderTimeline() {
   document.getElementById('timeline').innerHTML = html;
 }
 
+// 3. 紐付け保存
 window.assignCase = function(key) {
   var radios = document.getElementsByName('radio_' + key);
   var selectedKey = null;
-  for(var i=0; i<radios.length; i++){ if(radios[i].checked) { selectedKey = radios[i].value; break; } }
-  if(!selectedKey) { alert("案件を選択してください。"); return; }
+  for (var i = 0; i < radios.length; i++) { 
+    if (radios[i].checked) { selectedKey = radios[i].value; break; } 
+  }
+  if (!selectedKey) { alert("案件を選択してください。"); return; }
   
   database.ref('app_communications/' + key + '/assignedCase').set(selectedKey).then(function() {
-    var rec = allComms.find(r => r._key === key);
+    var rec = allComms.find(function(r) { return r._key === key; });
     if(rec) rec.assignedCase = selectedKey;
     renderTimeline();
   });
 };
 
+// 4. 非表示切替
 window.toggleHide = function(key, hideFlag) {
   database.ref('app_communications/' + key + '/isHidden').set(hideFlag).then(function() {
-    var rec = allComms.find(r => r._key === key);
+    var rec = allComms.find(function(r) { return r._key === key; });
     if (rec) rec.isHidden = hideFlag;
     renderTimeline();
   });
