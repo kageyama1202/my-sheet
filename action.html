@@ -66,6 +66,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;pad
 .du{background:#4a1c1c;color:#ff6b6b;}.dw{background:#4a3a1c;color:#ffd54f;}.dok{background:#1c4a2e;color:#66bb6a;}
 .empty{padding:30px;color:#555;font-style:italic;font-size:13px;text-align:center;}
 
+/* === 連絡タブ カード === */
+.contact-card{background:#1e2130;border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid #2a2d3a;cursor:pointer;transition:0.15s;}
+.contact-card:hover{border-color:#3a3d4a;background:#262940;}
+.cc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.cc-name{font-weight:bold;font-size:14px;color:#e0e0e0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cc-mid{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;}
+.phone-link{text-decoration:none;color:#64b5f6;font-size:14px;font-weight:600;padding:4px 12px;border-radius:8px;background:#1a2a3a;display:inline-flex;align-items:center;gap:4px;}
+.phone-link:hover{background:#1e3a5a;}
+.elapsed{font-size:12px;font-weight:bold;padding:3px 10px;border-radius:12px;}
+.elapsed-hot{background:#5a1a1a;color:#ff6b6b;}
+.elapsed-warm{background:#4a3a1c;color:#ffd54f;}
+.elapsed-ok{background:#1c3a2e;color:#66bb6a;}
+.cc-bikou{font-size:12px;color:#999;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;}
+.cc-bottom{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}
+
+
 /* === 備忘録 === */
 .memo-area{max-width:1000px;margin:0 auto;padding:12px;}
 .mia{display:flex;gap:8px;margin-bottom:12px;}
@@ -272,7 +288,11 @@ function buildDashboard(){
     var eff=getEff(obj,cols),rank=eff.rank,kubun=gv(cols,3).replace(/\s+/g,""),nm=gv(cols,4).trim(),cp=gv(cols,5).trim();
     var sd=fy(gv(cols,2)),yd=obj.date||"",d=diffD(sd);
     if(d<0||rank>=5)return;
-    var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank};
+    var phone=gv(cols,6).replace(/[^\d]/g,'');
+    var iraiDate=fy(gv(cols,7));
+    var elapsed=iraiDate?Math.max(0,diffD(iraiDate)*-1):0;
+    var bikou=gv(cols,10).trim();
+    var item={key:key,obj:obj,cols:cols,name:nm,company:cp,sekouDate:sd,days:d,kubun:kubun,status:eff.name,rank:rank,phone:phone,elapsed:elapsed,bikou:bikou};
 
     if(rank===0){
       if(kubun==="ﾘ"){r0.push(item);}else{r1.push(item);}
@@ -283,7 +303,8 @@ function buildDashboard(){
     if(rank===4&&!obj.emailSent)r4.push(item);
   });
 
-  [r0,r1,r2,r3,r4].forEach(function(l){l.sort(function(a,b){return a.days-b.days;});});
+  r0.sort(function(a,b){return b.elapsed-a.elapsed;});
+  [r1,r2,r3,r4].forEach(function(l){l.sort(function(a,b){return a.days-b.days;});});
 
   var total=r0.length+r1.length+r2.length+r3.length+r4.length;
   document.getElementById('tcA').textContent=total;
@@ -318,7 +339,29 @@ function buildDashboard(){
     var html='<div class="dashboard">';
     if(!items.length){
       html+='<div class="empty">✔ '+descs[t.id].split('（')[0]+' — なし</div>';
+    }else if(t.id==='s0'){
+      /* === 連絡タブ: カード表示 === */
+      items.forEach(function(it){
+        var bc=it.kubun==='ﾘ'?'badge-reform':'badge-new';
+        var bt=it.kubun==='ﾘ'?'ﾘ':'新';
+        var ecls=it.elapsed>=5?'elapsed-hot':it.elapsed>=3?'elapsed-warm':'elapsed-ok';
+        html+='<div class="contact-card" data-key="'+it.key+'">';
+        html+='<div class="cc-top">';
+        html+='<span class="badge '+bc+'">'+bt+'</span>';
+        html+='<span class="cc-name">'+escH(it.name)+'</span>';
+        html+='<span class="item-co">'+escH(it.company.split(/[\s\u3000]+/)[0])+'</span>';
+        html+='</div>';
+        html+='<div class="cc-mid">';
+        if(it.phone)html+='<a href="tel:'+it.phone+'" class="phone-link" onclick="event.stopPropagation();">📞 '+it.phone+'</a>';
+        html+='<span class="elapsed '+ecls+'">依頼 '+it.elapsed+'日目</span>';
+        html+='<span class="item-sekou" style="margin-left:auto;">施工 '+it.sekouDate+'</span>';
+        html+='<span class="item-dy '+dcls(it.days)+'">'+dlbl(it.days)+'</span>';
+        html+='</div>';
+        if(it.bikou)html+='<div class="cc-bikou">💬 '+escH(it.bikou)+'</div>';
+        html+='</div>';
+      });
     }else{
+      /* === 他タブ: 通常行表示 === */
       items.forEach(function(it){
         var bc=it.kubun==='ﾘ'?'badge-reform':it.name.indexOf('SK')!==-1?'badge-sk':'badge-new';
         var bt=it.kubun==='ﾘ'?'ﾘ':it.name.indexOf('SK')!==-1?'SK':'新';
@@ -339,7 +382,7 @@ function buildDashboard(){
     ct.appendChild(div);
 
     /* 行クリックでモーダル */
-    div.querySelectorAll('.ai-row').forEach(function(row){
+    div.querySelectorAll('.ai-row,.contact-card').forEach(function(row){
       row.addEventListener('click',function(){
         var k=this.dataset.key;
         openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,buildDashboard);
