@@ -6,87 +6,218 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 30px; background-color: #f0f2f5; text-align: center; }
-    .box { background: #fff; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    input[type="file"] { font-size: 16px; cursor: pointer; margin-bottom: 20px; }
-    button { font-size: 18px; padding: 10px 20px; cursor: pointer; border-radius:4px; border:none; background:#007bff; color:#fff; font-weight: bold; width: 100%; transition: 0.2s;}
-    button:hover { background:#0056b3; }
-    p { font-size: 14px; color: #555; text-align: left; line-height: 1.6; }
-    .top-link { display: inline-block; margin-bottom: 15px; text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;padding:30px;background-color:#1a1d27;text-align:center;color:#e0e0e0;}
+    .box{background:#1e2130;padding:30px;border-radius:12px;max-width:560px;margin:0 auto;border:1px solid #2a2d3a;}
+    input[type="file"]{font-size:14px;cursor:pointer;margin-bottom:20px;color:#ccc;}
+    button{font-size:16px;padding:12px 20px;cursor:pointer;border-radius:8px;border:none;background:#1565c0;color:#fff;font-weight:bold;width:100%;transition:0.2s;}
+    button:hover{background:#1976d2;}
+    button:disabled{opacity:0.5;cursor:not-allowed;}
+    p{font-size:13px;color:#888;text-align:left;line-height:1.7;}
+    .top-link{display:inline-block;margin-bottom:15px;text-decoration:none;font-weight:bold;color:#64b5f6;font-size:14px;}
+    h2{color:#fff;margin-top:0;font-size:18px;}
+    .log{text-align:left;background:#12141c;border-radius:8px;padding:12px;margin-top:16px;font-size:12px;color:#888;line-height:1.8;max-height:300px;overflow-y:auto;display:none;}
+    .log .ok{color:#66bb6a;}.log .warn{color:#ffd54f;}.log .err{color:#ff6b6b;}.log .info{color:#64b5f6;}
   </style>
 </head>
 <body>
   <div class="box">
     <a href="index.html" class="top-link">◀ トップメニュー</a>
-    <h2 style="color: #333; margin-top: 0;">👑 【管理者用】<br>クラウドへデータ一括保存</h2>
-    <p>Salesforceからダウンロードした最新のCSVファイルを選択し、「クラウドへ保存」ボタンを押してください。<br>※現場のiPadからはCSVを読み込む必要がなくなります。</p>
-    
+    <h2>👑 【管理者用】<br>クラウドへデータ一括保存</h2>
+    <p>SalesforceからダウンロードしたCSVを選択し「クラウドへ保存」を押してください。<br>
+    ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
+    ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
+    ・CSVから消えた案件は自動削除されます</p>
+
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn">☁️ 最新データをクラウドへ保存</button>
+    <div class="log" id="logArea"></div>
   </div>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-      authDomain: "project-6745138395263517914.firebaseapp.com",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-      projectId: "project-6745138395263517914",
-      storageBucket: "project-6745138395263517914.firebasestorage.app",
-      messagingSenderId: "1054295910908",
-      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-    };
-    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-    const database = firebase.database();
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+    var database=firebase.database();
 
-    function parseCSV(text) {
-        const result = new Array(); let row = new Array(); let col = ''; let insideQuotes = false;
-        for (let i = 0; i < text.length; i++) {
-            const char = text.charAt(i); const nextChar = text.charAt(i + 1);
-            if (char === '"' && insideQuotes && nextChar === '"') { col += '"'; i++; 
-            } else if (char === '"') { insideQuotes = !insideQuotes;
-            } else if (char === ',' && !insideQuotes) { row.push(col); col = '';
-            } else if ((char === '\n' || char === '\r') && !insideQuotes) {
-                if (char === '\r' && nextChar === '\n') i++; 
-                row.push(col); result.push(row); row = new Array(); col = '';
-            } else { col += char; }
-        }
-        if (col !== '' || row.length > 0) { row.push(col); result.push(row); }
-        return result;
+    var logEl=document.getElementById('logArea');
+    function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
+
+    function parseCSV(text){
+      var result=[],row=[],col='',insideQuotes=false;
+      for(var i=0;i<text.length;i++){
+        var c=text.charAt(i),nc=text.charAt(i+1);
+        if(c==='"'&&insideQuotes&&nc==='"'){col+='"';i++;}
+        else if(c==='"'){insideQuotes=!insideQuotes;}
+        else if(c===','&&!insideQuotes){row.push(col);col='';}
+        else if((c==='\n'||c==='\r')&&!insideQuotes){if(c==='\r'&&nc==='\n')i++;row.push(col);result.push(row);row=[];col='';}
+        else{col+=c;}
+      }
+      if(col!==''||row.length>0){row.push(col);result.push(row);}
+      return result;
     }
 
-    document.getElementById('uploadBtn').addEventListener('click', function() {
-      const fileInput = document.getElementById('csvFile');
-      if (fileInput.files.length === 0) { alert("CSVファイルを選択してください！"); return; }
-      
-      const file = fileInput.files.item(0); 
-      const reader = new FileReader();
-      
-      reader.onload = function(e) {
-        document.getElementById('uploadBtn').textContent = "保存中...";
-        const lines = parseCSV(e.target.result);
-        let validLines = lines.filter(function(line) { return line.join('').replace(/\s+/g, '') !== ''; });
-        if (validLines.length === 0) return;
-        
-        const headers = validLines.shift(); 
-        
-        let updates = {};
-        updates['app_meta/headers'] = headers;
-        
-        let invalidChars = new RegExp("[.#$\\[\\]/]", "g");
-        validLines.forEach(function(cols) {
-            let rowUniqueKey = cols.join("").replace(/\s+/g, "").replace(invalidChars, "_").substring(0, 200);
-            updates['app_tasks/' + rowUniqueKey + '/csvData'] = cols;
-        });
+    /* Firebase安全キー: SF IDからドット等を除去 */
+    var invalidChars=/[.#$\[\]\/]/g;
+    function safeKey(id){return String(id).replace(/\s+/g,'').replace(invalidChars,'_');}
 
-        database.ref().update(updates).then(() => {
-            alert("✅ クラウドへの保存が完了しました！\n\n現場のiPad等の端末からは、アプリを開くだけで最新のデータが見られます。");
-            document.getElementById('uploadBtn').textContent = "☁️ 最新データをクラウドへ保存";
-            fileInput.value = "";
-        }).catch(err => {
-            alert("エラーが発生しました: " + err);
+    /* ローカルフィールド（CSV以外でユーザーが入力したもの） */
+    var LOCAL_FIELDS=['localStatus','date','time','order','emailSent','finalReport','memo','seqNo','lat','lng'];
+
+    function extractLocal(obj){
+      var out={};
+      LOCAL_FIELDS.forEach(function(f){if(obj[f]!==undefined&&obj[f]!==null)out[f]=obj[f];});
+      return out;
+    }
+
+    document.getElementById('uploadBtn').addEventListener('click',function(){
+      var fileInput=document.getElementById('csvFile');
+      if(fileInput.files.length===0){alert('CSVファイルを選択してください');return;}
+      var btn=this;btn.disabled=true;btn.textContent='保存中...';
+      logEl.innerHTML='';logEl.style.display='block';
+
+      var file=fileInput.files.item(0);
+      var reader=new FileReader();
+
+      reader.onload=function(e){
+        log('📄 CSV読み込み完了: '+file.name);
+        var lines=parseCSV(e.target.result);
+        var validLines=lines.filter(function(l){return l.join('').replace(/\s+/g,'')!=='';});
+        if(validLines.length===0){log('CSVが空です','err');btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';return;}
+
+        var headers=validLines.shift();
+        log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
+
+        /* 新CSV → IDベースのマップ作成 */
+        var newMap={};
+        var skipped=0;
+        validLines.forEach(function(cols){
+          var id=String(cols[0]||'').trim();
+          if(!id){skipped++;return;}
+          newMap[safeKey(id)]=cols;
+        });
+        if(skipped>0)log('⚠ ID空白でスキップ: '+skipped+'行','warn');
+        var newKeys=Object.keys(newMap);
+        log('有効案件: '+newKeys.length+'件');
+
+        /* Firebase既存データ取得 */
+        database.ref('app_tasks').once('value',function(sn){
+          var existing=sn.val()||{};
+          var existingKeys=Object.keys(existing);
+          log('既存Firebase: '+existingKeys.length+'件');
+
+          /* === マイグレーション: 旧キー形式からローカルデータを救出 === */
+          /* 旧キー = cols.join全結合ベース、新キー = SF IDベース */
+          /* 旧データのcsvData[0]を見て、新キーにローカルフィールドを移植 */
+          var migrated=0;
+          var localDataByNewKey={};
+
+          existingKeys.forEach(function(oldKey){
+            var oldObj=existing[oldKey];
+            if(!oldObj)return;
+            var oldId='';
+            if(oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
+
+            /* 既に新キー形式なら（oldKey===oldId）そのまま */
+            if(oldId&&newMap[oldId]){
+              var ld=extractLocal(oldObj);
+              if(Object.keys(ld).length>0){
+                if(!localDataByNewKey[oldId])localDataByNewKey[oldId]={};
+                /* 先着優先（同一IDで旧キーと新キー両方ある場合、ローカルデータがある方を優先） */
+                var existing_ld=localDataByNewKey[oldId];
+                LOCAL_FIELDS.forEach(function(f){
+                  if(ld[f]!==undefined&&existing_ld[f]===undefined)existing_ld[f]=ld[f];
+                });
+                if(oldKey!==oldId)migrated++;
+              }
+            }
+          });
+          if(migrated>0)log('🔄 旧キーからローカルデータ移植: '+migrated+'件','ok');
+
+          /* === 更新データ構築 === */
+          var updates={};
+          updates['app_meta/headers']=headers;
+
+          /* 新規・更新 */
+          var addCount=0,updateCount=0;
+          newKeys.forEach(function(nk){
+            var path='app_tasks/'+nk+'/csvData';
+            updates[path]=newMap[nk];
+            /* ローカルデータ復元 */
+            if(localDataByNewKey[nk]){
+              LOCAL_FIELDS.forEach(function(f){
+                if(localDataByNewKey[nk][f]!==undefined)updates['app_tasks/'+nk+'/'+f]=localDataByNewKey[nk][f];
+              });
+            }
+            if(existing[nk])updateCount++;else addCount++;
+          });
+
+          /* 削除: 既存キーのうち新CSVに存在しないもの */
+          /* ただし、新キー形式(SF ID)に変換して新CSVにあるかもチェック */
+          var delCount=0;
+          existingKeys.forEach(function(oldKey){
+            if(newMap[oldKey])return; /* 新CSVにキーがそのまま存在 → 残す */
+            /* 旧キー形式の可能性: csvData[0]で新キーに変換 */
+            var oldObj=existing[oldKey];
+            var oldId='';
+            if(oldObj&&oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
+            if(oldId&&newMap[oldId]){
+              /* 旧キー形式だが案件は生存 → 旧キーを削除（新キーに移行済み） */
+              updates['app_tasks/'+oldKey]=null;
+              delCount++;
+            }else{
+              /* CSVから消えた案件 → 削除 */
+              updates['app_tasks/'+oldKey]=null;
+              delCount++;
+            }
+          });
+
+          log('➕ 新規: '+addCount+' / 🔄 更新: '+updateCount+' / 🗑 削除: '+delCount);
+
+          /* === assignedCase参照の更新 === */
+          /* app_communications/app_parked_mailsのassignedCaseが旧キーを参照していたら新キーに書き換え */
+          var oldToNewKeyMap={};
+          existingKeys.forEach(function(oldKey){
+            var oldObj=existing[oldKey];
+            if(!oldObj||!oldObj.csvData||!oldObj.csvData[0])return;
+            var newKey=safeKey(String(oldObj.csvData[0]).trim());
+            if(oldKey!==newKey&&newMap[newKey])oldToNewKeyMap[oldKey]=newKey;
+          });
+
+          var refFixCount=0;
+          function fixRefs(basePath,callback){
+            if(Object.keys(oldToNewKeyMap).length===0){callback();return;}
+            database.ref(basePath).once('value',function(snap){
+              var data=snap.val()||{};
+              Object.keys(data).forEach(function(k){
+                var ac=data[k].assignedCase;
+                if(ac&&oldToNewKeyMap[ac]){
+                  updates[basePath+'/'+k+'/assignedCase']=oldToNewKeyMap[ac];
+                  refFixCount++;
+                }
+              });
+              callback();
+            });
+          }
+
+          fixRefs('app_communications',function(){
+            fixRefs('app_parked_mails',function(){
+              if(refFixCount>0)log('🔗 assignedCase参照修正: '+refFixCount+'件','ok');
+
+              /* === Firebase一括書き込み === */
+              log('☁️ Firebaseへ書き込み中...');
+              database.ref().update(updates).then(function(){
+                log('✅ 保存完了！','ok');
+                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
+              }).catch(function(err){
+                log('❌ エラー: '+err,'err');
+                alert('エラー: '+err);
+                btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';
+              });
+            });
+          });
         });
       };
-      reader.readAsText(file, 'UTF-8');
+      reader.readAsText(file,'UTF-8');
     });
   </script>
 </body>
