@@ -111,7 +111,7 @@ var phoneToCasesList={}; // 正規化電話番号 → [{key,name,person,sekou,st
 var emailToContact={};   // メアド → {name,company,category}
 var phoneToContact={};   // 電話番号 → {name,company,category}
 var emailToPhone={};     // メアド → 電話番号（逆引き）
-var nameToPhone={};      // 連絡先の名前（姓） → 電話番号
+var nameToPhones={};     // 連絡先の名前（姓） → [電話番号の配列]
 var nameToCases={};      // 担当者名（姓） → [{key,name,person}]
 var casesByKey={};       // 案件キー → taskオブジェクト
 var globalHeaders=[];
@@ -186,18 +186,18 @@ function getCasesForRec(rec){
       if(nameToCases[seis[si]]){raw=nameToCases[seis[si]];break;}
     }
   }
-  // フィルタ：完了案件を除外、施工日が3ヶ月以上前も除外
-  var filtered=[];
-  for(var i=0;i<raw.length;i++){
-    var task=casesByKey[raw[i].key];
-    if(!task)continue;
-    var status=gv(task.csvData,1).replace(/\s+/g,"");
-    if(status==="完了")continue;
-    var sekou=gv(task.csvData,2).replace(/\s+/g,"");
-    if(sekou&&sekou<threeMonthsAgoStr)continue;
-    filtered.push(raw[i]);
-  }
-  return filtered;
+  // ソート：アクティブ案件を上に、施工日新しい順
+  var sorted=raw.slice();
+  sorted.sort(function(a,b){
+    var ta=casesByKey[a.key],tb=casesByKey[b.key];
+    var sa=ta?gv(ta.csvData,1).replace(/\s+/g,""):"";
+    var sb=tb?gv(tb.csvData,1).replace(/\s+/g,""):"";
+    var aComp=sa==="完了"?1:0, bComp=sb==="完了"?1:0;
+    if(aComp!==bComp)return aComp-bComp;
+    var da=ta?gv(ta.csvData,2):"", db=tb?gv(tb.csvData,2):"";
+    return(db||"").localeCompare(da||"");
+  });
+  return sorted;
 }
 
 // Gmail非登録者チェック
@@ -321,7 +321,9 @@ function renderRightPanel(arrIdx){
   html+=(rec.body||"").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</div>';
 
   // 案件候補
-  html+='<div class="r-section"><div class="r-section-title">🏗️ 案件候補（'+cases.length+'件）</div>';
+  var activeCount=0;
+  for(var i=0;i<cases.length;i++){var t=casesByKey[cases[i].key];if(t&&gv(t.csvData,1).replace(/\s+/g,"")!=="完了")activeCount++;}
+  html+='<div class="r-section"><div class="r-section-title">🏗️ 案件候補（アクティブ'+activeCount+'件 / 全'+cases.length+'件）</div>';
   if(cases.length>0){
     var stColor={"依頼":"#90a4ae","下見実施中":"#42a5f5","下見日程確定":"#ffb300","下見完了":"#66bb6a","完了":"#26a69a"};
     for(var i=0;i<cases.length;i++){
@@ -331,7 +333,8 @@ function renderRightPanel(arrIdx){
       var sekou=task?gv(task.csvData,2):"";
       var person=task?gv(task.csvData,5):"";
       var isChecked=rec.assignedCase===c.key;
-      html+='<div class="r-case'+(isChecked?" checked":"")+'">';
+      var isComplete=status==="完了";
+      html+='<div class="r-case'+(isChecked?" checked":"")+'" style="'+(isComplete?"opacity:0.4;":"")+'">';
       html+='<input type="checkbox" data-casekey="'+c.key+'" data-arridx="'+arrIdx+'"'+(isChecked?" checked":"")+'>';
       html+='<div class="r-case-info"><div class="r-case-name">'+c.name+'</div>';
       html+='<div class="r-case-meta">施工:'+sekou+' '+person+'</div>';
@@ -420,19 +423,17 @@ function tryRender(){
       var person=gv(t.csvData,5);
       var koumu=gv(t.csvData,8).replace(/[\s\u3000]+/g,""); // 工務担当者名
       if(!koumu||!caseName)continue;
-      // 工務担当者の名前で連絡先から電話番号を探す
-      // 完全一致 → 姓だけ(先頭2~3文字)一致 の順で試行
-      var koumuPhone=nameToPhone[koumu];
-      if(!koumuPhone){
-        // 姓だけで試す（2文字/3文字）
+      // 工務担当者の名前で連絡先から電話番号を探す（複数対応）
+      var koumuPhones=nameToPhones[koumu]||[];
+      if(!koumuPhones.length){
         for(var len=3;len>=2;len--){
           var sei=koumu.substring(0,len);
-          if(nameToPhone[sei]){koumuPhone=nameToPhone[sei];break;}
+          if(nameToPhones[sei]){koumuPhones=nameToPhones[sei];break;}
         }
       }
-      if(koumuPhone){
+      for(var pi=0;pi<koumuPhones.length;pi++){
+        var koumuPhone=koumuPhones[pi];
         if(!phoneToCasesList[koumuPhone])phoneToCasesList[koumuPhone]=[];
-        // 重複チェック
         var exists=false;
         for(var j=0;j<phoneToCasesList[koumuPhone].length;j++){
           if(phoneToCasesList[koumuPhone][j].key===keys[i]){exists=true;break;}
@@ -445,7 +446,7 @@ function tryRender(){
     }
     console.log("工務担当者→電話番号→案件: "+added+"件追加");
     console.log("PhoneMaps(合計):"+Object.keys(phoneToCasesList).length);
-    console.log("NameToPhone:", nameToPhone);
+    console.log("NameToPhones:", nameToPhones);
 
     // ★ 名前→案件マッピング（csvData[5]の担当者名、csvData[8]の工務担当者名）
     for(var i=0;i<keys.length;i++){
@@ -517,14 +518,13 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
       if(em&&!emailToContact[em])emailToContact[em]=info;
       if(ph.length>=10&&!phoneToContact[ph])phoneToContact[ph]=info;
       if(em&&ph.length>=10&&!emailToPhone[em])emailToPhone[em]=ph;
-      // 名前（姓）→電話番号マップ構築
+      // 名前（姓）→電話番号マップ構築（同姓複数対応）
       if(ph.length>=10&&c.name){
         var seis=extractSei(c.name);
         for(var si=0;si<seis.length;si++){
-          if(!nameToPhone[seis[si]])nameToPhone[seis[si]]=ph;
+          if(!nameToPhones[seis[si]])nameToPhones[seis[si]]=[];
+          if(nameToPhones[seis[si]].indexOf(ph)===-1)nameToPhones[seis[si]].push(ph);
         }
-        var fullName=c.name.replace(/[\s\u3000]+/g,"");
-        if(fullName.length>=2&&!nameToPhone[fullName])nameToPhone[fullName]=ph;
       }
     }
     console.log("Contacts email:"+Object.keys(emailToContact).length+" phone:"+Object.keys(phoneToContact).length);
