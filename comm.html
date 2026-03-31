@@ -112,6 +112,7 @@ var emailToContact={};   // メアド → {name,company,category}
 var phoneToContact={};   // 電話番号 → {name,company,category}
 var emailToPhone={};     // メアド → 電話番号（逆引き）
 var nameToPhone={};      // 連絡先の名前（姓） → 電話番号
+var nameToCases={};      // 担当者名（姓） → [{key,name,person}]
 var casesByKey={};       // 案件キー → taskオブジェクト
 var globalHeaders=[];
 var globalTasks={};
@@ -157,13 +158,16 @@ function getContactInfo(rec){
 function getCasesForRec(rec){
   var ci=getContactInfo(rec);
   var phone=ci.phone;
-  // SMSは電話番号直引き
-  if(rec.src==="imessage"&&phone&&phoneToCasesList[phone]){
+  // ① 電話番号で案件検索
+  if(phone&&phoneToCasesList[phone]){
     return phoneToCasesList[phone];
   }
-  // Gmailはメアド→電話番号→案件
-  if(rec.src==="gmail"&&phone&&phoneToCasesList[phone]){
-    return phoneToCasesList[phone];
+  // ② 名前で案件検索（電話番号マッチなしの場合）
+  if(ci.name){
+    var sei=ci.name.replace(/[\s\u3000]+/g," ").trim().split(" ")[0].replace(/様$/,"");
+    if(sei.length>=2&&nameToCases[sei]){
+      return nameToCases[sei];
+    }
   }
   return[];
 }
@@ -409,6 +413,36 @@ function tryRender(){
     console.log("工務担当者→電話番号→案件: "+added+"件追加");
     console.log("PhoneMaps(合計):"+Object.keys(phoneToCasesList).length);
     console.log("NameToPhone:", nameToPhone);
+
+    // ★ 名前→案件マッピング（csvData[5]の担当者名、csvData[8]の工務担当者名）
+    for(var i=0;i<keys.length;i++){
+      var t=casesByKey[keys[i]];if(!t.csvData)continue;
+      var caseName=gv(t.csvData,4);
+      var person=gv(t.csvData,5);
+      if(!caseName)continue;
+      var caseEntry={key:keys[i],name:caseName,person:person};
+      // csvData[5]から担当者名（スペース区切りの2語目以降）
+      var personParts=person.replace(/[\s\u3000]+/g," ").trim().split(" ");
+      for(var p=1;p<personParts.length;p++){
+        var nm=personParts[p].replace(/様$/,"");
+        if(nm.length>=2){
+          if(!nameToCases[nm])nameToCases[nm]=[];
+          var dup=false;for(var d=0;d<nameToCases[nm].length;d++){if(nameToCases[nm][d].key===keys[i]){dup=true;break;}}
+          if(!dup)nameToCases[nm].push(caseEntry);
+        }
+      }
+      // csvData[8]から工務担当者名
+      var koumu2=gv(t.csvData,8).replace(/[\s\u3000]+/g,"");
+      if(koumu2.length>=2){
+        var koumuSei=koumu2.substring(0,Math.min(koumu2.length,3));
+        if(koumuSei.length>=2){
+          if(!nameToCases[koumuSei])nameToCases[koumuSei]=[];
+          var dup2=false;for(var d=0;d<nameToCases[koumuSei].length;d++){if(nameToCases[koumuSei][d].key===keys[i]){dup2=true;break;}}
+          if(!dup2)nameToCases[koumuSei].push(caseEntry);
+        }
+      }
+    }
+    console.log("NameToCases(名前→案件):", Object.keys(nameToCases).length+"名分");
   }
   renderTimeline();
 }
