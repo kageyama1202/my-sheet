@@ -16,7 +16,7 @@ body{font-family:sans-serif;margin:0;background:#f5f5f5;}
 .msg.auto{border-left:4px solid #2196f3;}
 
 .case{padding:6px;border-bottom:1px solid #ddd;}
-.small{font-size:11px;color:#666;}
+button{margin-top:4px;}
 </style>
 </head>
 
@@ -31,9 +31,7 @@ body{font-family:sans-serif;margin:0;background:#f5f5f5;}
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-/* ===============================
-   Firebase
-=============================== */
+/* Firebase */
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
@@ -42,223 +40,226 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var database = firebase.database();
 
-/* ===============================
-   グローバル
-=============================== */
+/* グローバル */
 var allRecords = [];
 var allTasks = {};
 var phoneToCasesList = {};
 
-/* ===============================
-   電話正規化
-=============================== */
-function normalizePhone(phone){
-  if(!phone) return "";
-  return phone.replace(/[^\d]/g, "").replace(/^81/, "0");
+/* 電話処理 */
+function normalizePhone(p){
+  if(!p) return "";
+  return p.replace(/[^\d]/g,"").replace(/^81/,"0");
 }
-
-/* ===============================
-   有効電話判定
-=============================== */
-function isValidPhone(phone){
-  return /^\d{10,11}$/.test(phone);
+function isValidPhone(p){
+  return /^\d{10,11}$/.test(p);
 }
-
-/* ===============================
-   Gmail本文から電話抽出
-=============================== */
 function extractPhone(text){
   if(!text) return "";
-
-  // 090XXXXXXXX
   var m = text.match(/0\d{9,10}/);
   if(m) return m[0];
-
-  // +8190XXXXXXXX
   m = text.match(/\+81\d{9,10}/);
   if(m) return normalizePhone(m[0]);
-
   return "";
 }
 
-/* ===============================
-   データ取得
-=============================== */
+/* データ取得 */
 async function fetchData(){
-  var commSnap = await database.ref("app_communications").once("value");
-  var taskSnap = await database.ref("app_tasks").once("value");
+  var comm = await database.ref("app_communications").once("value");
+  var tasks = await database.ref("app_tasks").once("value");
 
-  var commData = commSnap.val() || {};
-  var taskData = taskSnap.val() || {};
+  allTasks = tasks.val() || {};
+  var data = comm.val() || {};
 
-  allTasks = taskData;
-
-  for(var key in commData){
-    var rec = commData[key];
-    rec._fbKey = key;
-    allRecords.push(rec);
+  for(var k in data){
+    var r = data[k];
+    r._fbKey = k;
+    allRecords.push(r);
   }
 }
 
-/* ===============================
-   電話→案件マップ
-=============================== */
+/* 電話→案件 */
 function buildPhoneMap(){
   phoneToCasesList = {};
-
-  for(var key in allTasks){
-    var task = allTasks[key];
-
-    var phone = normalizePhone(task.csvData[6]);
-
+  for(var k in allTasks){
+    var phone = normalizePhone(allTasks[k].csvData[6]);
     if(!isValidPhone(phone)) continue;
 
     if(!phoneToCasesList[phone]){
-      phoneToCasesList[phone] = [];
+      phoneToCasesList[phone]=[];
     }
-
-    phoneToCasesList[phone].push(key);
+    phoneToCasesList[phone].push(k);
   }
 }
 
-/* ===============================
-   🔥 自動紐付け（Gmail対応安全版）
-=============================== */
-async function autoAssignCases(){
+/* 自動紐付け（安全） */
+async function autoAssign(){
   var updates = {};
   var count = 0;
 
-  for(var i=0; i<allRecords.length; i++){
-    var rec = allRecords[i];
+  for(var i=0;i<allRecords.length;i++){
+    var r = allRecords[i];
+    if(r.assignedCase) continue;
 
-    // 既存は触らない
-    if(rec.assignedCase) continue;
-
-    // ① contactから
-    var phone = normalizePhone(rec.contact);
-
-    // ② ダメなら本文から
+    var phone = normalizePhone(r.contact);
     if(!isValidPhone(phone)){
-      phone = extractPhone(rec.body);
+      phone = extractPhone(r.body);
     }
-
-    // ❗どちらもダメなら終了
     if(!isValidPhone(phone)) continue;
 
-    var candidates = phoneToCasesList[phone] || [];
+    var list = phoneToCasesList[phone]||[];
 
-    // ❗1件のみ
-    if(candidates.length === 1){
-      var caseKey = candidates[0];
-
-      rec.assignedCase = caseKey;
-
-      if(rec._fbKey){
-        updates["app_communications/" + rec._fbKey + "/assignedCase"] = caseKey;
-        count++;
-      }
+    if(list.length===1){
+      var key = list[0];
+      r.assignedCase = key;
+      updates["app_communications/"+r._fbKey+"/assignedCase"]=key;
+      count++;
     }
   }
 
-  if(count > 0){
-    await database.ref().update(updates);
-  }
-
-  console.log("auto assigned GMAIL SAFE:", count);
+  if(count>0) await database.ref().update(updates);
+  console.log("auto assigned:",count);
 }
 
-/* ===============================
-   UI
-=============================== */
-function renderTimeline(){
+/* AI */
+function buildPrompt(msg,list){
+return `
+あなたは案件紐付け担当です。
+不明なら必ずNONE。
+
+メッセージ:
+${msg}
+
+案件:
+${list.map((c,i)=>i+1+". "+c).join("\n")}
+
+答え:
+番号 or NONE
+`;
+}
+
+async function callAI(prompt){
+  var key = localStorage.getItem("gemini_api_key");
+
+  var res = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key="+key,
+    {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.2}
+      })
+    }
+  );
+
+  var d = await res.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || "NONE";
+}
+
+async function runAI(rec,cases){
+  var prompt = buildPrompt(rec.body||"", cases.map(c=>c.name));
+  var r = await callAI(prompt);
+  r = r.trim();
+
+  if(r==="NONE") return null;
+
+  var i = parseInt(r)-1;
+  if(i>=0 && i<cases.length) return cases[i].key;
+
+  return null;
+}
+
+/* UI */
+function render(){
   var el = document.getElementById("timeline");
-  el.innerHTML = "";
+  el.innerHTML="";
 
   allRecords.sort((a,b)=> (b.dt||"").localeCompare(a.dt||""));
 
-  allRecords.forEach(function(rec){
-    var div = document.createElement("div");
-    div.className = "msg";
+  allRecords.forEach(function(r){
+    var d=document.createElement("div");
+    d.className="msg";
+    if(r.assignedCase) d.classList.add("assigned");
 
-    if(rec.assignedCase) div.classList.add("assigned");
-
-    var phone = normalizePhone(rec.contact);
-    if(!isValidPhone(phone)){
-      phone = extractPhone(rec.body);
-    }
-
-    var candidates = isValidPhone(phone) ? (phoneToCasesList[phone] || []) : [];
-
-    if(!rec.assignedCase && candidates.length === 1){
-      div.classList.add("auto");
-    }
-
-    div.innerHTML = `
-      <div><b>${rec.contact || ""}</b></div>
-      <div>${rec.body || ""}</div>
-      <div class="small">${rec.dt || ""}</div>
+    d.innerHTML=`
+      <b>${r.contact||""}</b><br>
+      ${r.body||""}<br>
+      <small>${r.dt||""}</small>
     `;
 
-    div.onclick = function(){
-      showCases(phone, rec);
+    d.onclick=function(){
+      showCases(r);
     };
 
-    el.appendChild(div);
+    el.appendChild(d);
   });
 }
 
-/* ===============================
-   右パネル
-=============================== */
-function showCases(phone, rec){
-  var el = document.getElementById("cases");
-  el.innerHTML = "";
+/* 右 */
+function showCases(rec){
+  var el=document.getElementById("cases");
+  el.innerHTML="";
 
+  var phone = normalizePhone(rec.contact);
   if(!isValidPhone(phone)){
-    el.innerHTML = "候補なし（電話取得不可）";
-    return;
+    phone = extractPhone(rec.body);
   }
 
-  var list = phoneToCasesList[phone] || [];
+  var list = phoneToCasesList[phone]||[];
 
-  list.forEach(function(caseKey){
-    var task = allTasks[caseKey];
+  var cases = list.map(k=>({
+    key:k,
+    name:allTasks[k].csvData[4]
+  }));
 
-    var div = document.createElement("div");
-    div.className = "case";
+  /* AIボタン */
+  var btn=document.createElement("button");
+  btn.innerText="🤖 AI提案";
 
-    div.innerHTML = `
-      <div>${task.csvData[4]}</div>
-      <button onclick="assign('${rec._fbKey}','${caseKey}')">割当</button>
+  btn.onclick=async function(){
+    btn.innerText="判定中...";
+    var k = await runAI(rec,cases);
+    btn.innerText="🤖 AI提案";
+
+    if(!k){
+      alert("AI判定不可");
+      return;
+    }
+
+    cases.sort(c=>c.key===k?-1:1);
+    showCases(rec);
+  };
+
+  el.appendChild(btn);
+
+  cases.forEach(function(c){
+    var d=document.createElement("div");
+    d.className="case";
+
+    d.innerHTML=`
+      ${c.name}<br>
+      <button onclick="assign('${rec._fbKey}','${c.key}')">✔決定</button>
     `;
 
-    el.appendChild(div);
+    el.appendChild(d);
   });
 }
 
-/* ===============================
-   手動割当
-=============================== */
-function assign(fbKey, caseKey){
-  database.ref("app_communications/" + fbKey + "/assignedCase").set(caseKey);
+/* 手動 */
+function assign(fb,key){
+  database.ref("app_communications/"+fb+"/assignedCase").set(key);
   location.reload();
 }
 
-/* ===============================
-   初期化
-=============================== */
+/* 初期化 */
 async function init(){
   await fetchData();
   buildPhoneMap();
-
-  // 🔥 Gmail対応自動紐付け
-  await autoAssignCases();
-
-  renderTimeline();
+  await autoAssign();
+  render();
 }
 
 init();
-
 </script>
 
 </body>
