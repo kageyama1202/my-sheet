@@ -3,23 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>通信タイムライン（追跡）</title>
+<title>通信タイムライン（フィルタ強化・+81解決版）</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; margin: 0; }
   h2 { color: #333; font-size: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-top: 0; }
   .msg-card { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #007bff; }
-  
-  /* SMSを明確に区別・目立たせる */
   .msg-card.sms { border-left-color: #28a745; background-color: #f4fdf6; }
-  
   .msg-meta { font-size: 12px; color: #666; margin-bottom: 8px; font-weight: bold; }
   .msg-contact { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; word-break: break-all; }
   .msg-subject { font-size: 14px; color: #e65100; font-weight: bold; margin-bottom: 5px; word-break: break-all; }
   .msg-body { font-size: 14px; color: #444; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-
-  /* 追跡結果のエリア */
   .msg-track { margin-top: 12px; padding: 10px; background: #eef2f5; border-radius: 6px; font-size: 13px; color: #333; border: 1px solid #ced4da; }
   .msg-card.sms .msg-track { background: #e8f5e9; border-color: #c3e6cb; }
   .track-title { font-weight: bold; color: #0056b3; margin-bottom: 4px; }
@@ -28,11 +23,10 @@
 </head>
 <body>
 
-<h2>📨 通信タイムライン（最新100件の案件追跡）</h2>
+<h2>📨 通信タイムライン（登録者のみ・+81解決済）</h2>
 <div id="timeline" style="color: #666;">⏳ データを読み込み、案件を追跡しています...</div>
 
 <script>
-// Firebase初期化
 const firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
@@ -41,9 +35,7 @@ const firebaseConfig = {
 if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 
-// ==========================================
-// shared-modal.js と全く同じ「正しい判定ロジック」
-// ==========================================
+// shared-modal.jsの関数群
 function normalizePhoneModal(raw) {
   if (!raw) return "";
   var s = raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, "");
@@ -52,7 +44,7 @@ function normalizePhoneModal(raw) {
 }
 
 function extractEmailModal(f) {
-  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[1].toLowerCase().trim();
+  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[2]?m[2].toLowerCase().trim():m.toLowerCase().trim();
   if (f.indexOf("@") > -1) return f.toLowerCase().trim(); return "";
 }
 
@@ -64,7 +56,7 @@ function extractCaseKeywords(csvData) {
   var kw = [], cn = getSafeValModal(csvData, 4) || "";
   var pts = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
   for (var i = 0; i < pts.length; i++) { var p = pts[i].trim(); if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) kw.push(p); }
-  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[1] && nm[1].length >= 2) kw.push(nm[1]);
+  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm.length >= 2) kw.push(nm[2]?nm[2]:nm);
   return kw;
 }
 
@@ -72,9 +64,7 @@ function scoreMessageForCase(body, subj, kw) {
   if (!kw || !kw.length) return 0; var t = ((body||"")+" "+(subj||"")).toLowerCase(); if (!t.trim()) return 0;
   var s = 0; for (var i = 0; i < kw.length; i++) { if (t.indexOf(kw[i].toLowerCase()) !== -1) s += kw[i].length; } return s;
 }
-// ==========================================
 
-// 3ヶ月前から取得することで、件数の少ないSMSが消滅するのを防ぐ
 var d = new Date(); d.setMonth(d.getMonth() - 3);
 var threeMonthsAgo = d.toISOString();
 
@@ -84,8 +74,8 @@ Promise.all([
   database.ref('app_communications').orderByChild('dt').startAt(threeMonthsAgo).once('value').then(s => s.val())
 ]).then(function(results) {
   var tasks = results;
-  var contactsData = results[1];
-  var commsData = results[2];
+  var contactsData = results[2];
+  var commsData = results[3];
 
   // ① 連絡先辞書の構築
   var contactsMap = {};
@@ -119,11 +109,22 @@ Promise.all([
       var r = commsData[k]; r._key = k; allComms.push(r);
     });
   }
-  // 日付の新しい順（降順）に並び替える
   allComms.sort(function(a,b) { return new Date(b.dt) - new Date(a.dt); });
 
-  // ★ 最新100件だけを切り出す（全体をソートしてから切り出すのでSMSは絶対に消えません）
-  var displayComms = allComms.slice(0, 100);
+  // ★ 登録アドレス以外のカット ＆ 100件の切り出し
+  var displayComms = [];
+  for (var i = 0; i < allComms.length; i++) {
+    var rec = allComms[i];
+    
+    // Gmailの場合、抽出したアドレスが連絡先辞書(contactsMap)に無ければスキップ（カット）
+    if (rec.src === "gmail") {
+      var re = extractEmailModal(rec.contact);
+      if (!re || !contactsMap[re]) continue; 
+    }
+    
+    displayComms.push(rec);
+    if (displayComms.length >= 100) break; // 有効なものが100件集まったら終了
+  }
 
   var html = "";
   displayComms.forEach(function(rec) {
@@ -133,21 +134,16 @@ Promise.all([
       dtStr = dtObj.getFullYear() + "/" + (dtObj.getMonth() + 1) + "/" + dtObj.getDate() + " " + ("0" + dtObj.getHours()).slice(-2) + ":" + ("0" + dtObj.getMinutes()).slice(-2);
     }
 
-    // ==========================================
-    // タイムライン上で案件を「追跡する」ロジック
-    // ==========================================
     var targetPhone = null;
     if (rec.src === "imessage") {
       targetPhone = normalizePhoneModal(rec.contact);
     } else if (rec.src === "gmail") {
       var re = extractEmailModal(rec.contact);
-      // 連絡先を経由して電話番号を取得（正しい仕様）
       if (contactsMap[re] && contactsMap[re].phone) {
         targetPhone = normalizePhoneModal(contactsMap[re].phone);
       }
     }
 
-    // 案件の電話番号と照合
     var matches = [];
     if (targetPhone) {
       taskList.forEach(function(t) {
@@ -158,19 +154,25 @@ Promise.all([
       });
       matches.sort(function(a,b) { return b.score - a.score; });
     }
-    // ==========================================
 
     var isSMS = (rec.src === "imessage");
     var srcIcon = isSMS ? "💬 SMS" : "📧 Gmail";
     var cardClass = isSMS ? "msg-card sms" : "msg-card";
 
+    // ★ 表示する連絡先テキストも強制的に+81を消したきれいな形式（090...等）にする
+    var displayContact = rec.contact || "不明";
+    if (isSMS) {
+      displayContact = normalizePhoneModal(rec.contact); // ここで画面表示用の+81問題を解決
+    }
+
     html += '<div class="' + cardClass + '">';
     html += '<div class="msg-meta">' + srcIcon + ' | ' + dtStr + '</div>';
-    html += '<div class="msg-contact">連絡先: ' + (rec.contact || "不明").replace(/</g, "&lt;") + '</div>';
+    // 修正した displayContact を画面に出す
+    html += '<div class="msg-contact">連絡先: ' + displayContact.replace(/</g, "&lt;") + '</div>';
+    
     if (rec.subject) html += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g, "&lt;") + '</div>';
     if (rec.body) html += '<div class="msg-body">' + rec.body.replace(/</g, "&lt;") + '</div>';
 
-    // 追跡結果の表示枠
     html += '<div class="msg-track">';
     html += '<div class="track-title">🔍 案件の追跡結果</div>';
     if (rec.assignedCase) {
@@ -185,12 +187,10 @@ Promise.all([
     } else {
        html += '<div style="color:#666;">❓ 追跡できる案件がありません（電話番号不一致など）</div>';
     }
-    html += '</div>';
-
-    html += '</div>';
+    html += '</div></div>';
   });
 
-  if (html === "") html = "データがありません。";
+  if (html === "") html = "表示できる通信データがありません。";
   document.getElementById('timeline').innerHTML = html;
 
 }).catch(function(error) {
