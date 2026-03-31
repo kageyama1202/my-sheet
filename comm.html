@@ -10,7 +10,6 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-/* ベースとなる最低限のスタイル */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
     background: #0f1117;
@@ -55,9 +54,7 @@ h1 {
     white-space: pre-wrap;
     word-break: break-word;
 }
-.loading {
-    color: #666;
-}
+.loading { color: #666; }
 </style>
 </head>
 <body>
@@ -81,11 +78,11 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// 修正済: 元のプログラムのee関数と同じく、正しくアドレスを抽出する [2]
+// アドレス抽出関数
 function extractEmail(f) {
     if (!f) return "";
     var m = f.match(/<([^>]+)>/);
-    if (m) return m[1].toLowerCase().trim(); // ★ここでm[1]を指定していなかったのがエラーの原因でした
+    if (m) return m[4].toLowerCase().trim();
     if (f.indexOf("@") > -1) return f.toLowerCase().trim();
     return "";
 }
@@ -95,9 +92,10 @@ Promise.all([
     fetch(FB_URL + "/app_contacts.json").then(function(r){ return r.json(); }),
     fetch(FB_URL + "/app_communications.json").then(function(r){ return r.json(); })
 ]).then(function(results) {
-    // ★データの受け取り方を修正しました
-    var contactsData = results; 
-    var commsData = results[1];    
+    
+    // ★前回のミス部分：ここでと[4]を指定していなかったためバグが起きていました
+    var contactsData = results; // 1つ目の結果（連絡先）
+    var commsData = results[4];    // 2つ目の結果（通信データ）
     
     var timelineEl = document.getElementById("timeline");
     
@@ -114,7 +112,7 @@ Promise.all([
             if (!cArr[i]) continue;
             var em = (cArr[i].email || "").toLowerCase().trim();
             if (em) {
-                registeredEmails[em] = true; // 登録されているアドレスを記憶
+                registeredEmails[em] = true; 
             }
         }
     }
@@ -127,10 +125,9 @@ Promise.all([
         if (!arr[i]) continue;
         var rec = arr[i];
         
-        // ★ ここがGmailカットのロジック
+        // Gmailの場合、登録済みメアド辞書になければスキップ（カット）
         if (rec.src === "gmail") {
             var email = extractEmail(rec.contact);
-            // 抽出したメアドが連絡先辞書になければ表示対象から外す（スキップ）
             if (!registeredEmails[email]) {
                 continue; 
             }
@@ -141,7 +138,6 @@ Promise.all([
         try { if(rec.dt) dt = new Date(rec.dt); } catch(e) {}
         rec._sortKey = dt.getTime();
         
-        // 日時フォーマット作成
         var y = dt.getFullYear();
         var m = ("0" + (dt.getMonth() + 1)).slice(-2);
         var d = ("0" + dt.getDate()).slice(-2);
@@ -186,7 +182,6 @@ Promise.all([
 }).catch(function(error) {
     document.getElementById("timeline").innerHTML = '<div style="color:red;">エラー: ' + error.message + '</div>';
 });
-
 </script>
 </body>
 </html>
