@@ -3,86 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>通信タイムライン（左右分割・紐付けUI）</title>
+<title>通信タイムライン（リスト一体型）</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-  /* 全体のリセットと基本設定（左寄せ） */
-  body { font-family: sans-serif; background: #1a1d27; color: #e0e0e0; margin: 0; padding: 0; text-align: left; height: 100vh; display: flex; flex-direction: column; }
-  
-  /* 上部ヘッダー */
-  .top-bar { display: flex; align-items: center; justify-content: space-between; background: #12141c; border-bottom: 2px solid #2a2d3a; padding: 15px 20px; flex-shrink: 0; }
+  body { font-family: sans-serif; background: #1a1d27; color: #e0e0e0; margin: 0; padding: 20px; text-align: left; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #2a2d3a; padding-bottom: 10px; margin-bottom: 20px; }
   h2 { margin: 0; color: #fff; font-size: 18px; }
-  .toggle-label { cursor: pointer; font-size: 13px; background: #2a2d3a; padding: 6px 12px; border-radius: 6px; border: 1px solid #3a3d4a; user-select: none; }
   
-  /* 左右分割コンテナ */
-  .split-container { display: flex; flex: 1; overflow: hidden; }
+  /* メッセージカード（1行で左右に並べる） */
+  .msg-row { display: flex; background: #1e2130; margin-bottom: 15px; border-radius: 8px; border-left: 4px solid #64b5f6; overflow: hidden; }
+  .msg-row.hidden-item { opacity: 0.4; border-left-color: #555; background: #12141c; }
   
-  /* 左側：タイムライン (50%) */
-  .left-pane { flex: 1; width: 50%; overflow-y: auto; padding: 15px; border-right: 2px solid #2a2d3a; }
-  
-  /* 右側：操作パネル (50%) */
-  .right-pane { flex: 1; width: 50%; overflow-y: auto; padding: 20px; background: #161822; }
-  
-  /* メッセージカード */
-  .msg-card { background: #1e2130; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #64b5f6; cursor: pointer; transition: 0.2s; }
-  .msg-card:hover { filter: brightness(1.2); }
-  .msg-card.selected { border-left-color: #ffab40; background: #262a3d; }
-  .msg-card.hidden-item { opacity: 0.4; border-left-color: #555; background: #12141c; }
-  
+  /* 左側：メッセージ内容 */
+  .msg-left { flex: 1; padding: 15px; border-right: 1px solid #2a2d3a; min-width: 0; }
   .msg-meta { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .badge-assigned { display: inline-block; font-size: 10px; padding: 2px 6px; background: #2e7d32; color: #fff; border-radius: 4px; margin-bottom: 6px; }
   .msg-contact { font-size: 13px; color: #ccc; margin-bottom: 4px; font-weight: bold; word-break: break-all; }
   .msg-subject { font-size: 13px; color: #f0c040; margin-bottom: 6px; word-break: break-all; }
-  .msg-body { font-size: 12px; color: #ddd; white-space: pre-wrap; line-height: 1.4; word-break: break-word; }
-  .badge-assigned { display: inline-block; font-size: 10px; padding: 2px 6px; background: #2e7d32; color: #fff; border-radius: 4px; margin-bottom: 4px; }
+  .msg-body { font-size: 12px; color: #ddd; white-space: pre-wrap; line-height: 1.4; word-break: break-word; max-height: 100px; overflow-y: auto; }
   
-  /* 右パネル内のUI */
-  .detail-box { background: #1e2130; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #3a3d4a; }
-  .candidate-item { display: block; background: #2a2d3a; padding: 10px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
-  .candidate-item:hover { border-color: #64b5f6; }
-  .candidate-item input { margin-right: 10px; }
+  /* 右側：紐付け候補と操作パネル */
+  .msg-right { flex: 1; padding: 15px; background: #161822; display: flex; flex-direction: column; justify-content: space-between; }
+  .candidate-title { font-size: 12px; color: #64b5f6; margin-bottom: 8px; font-weight: bold; }
+  .candidate-list { max-height: 120px; overflow-y: auto; margin-bottom: 10px; }
+  .candidate-item { display: block; background: #2a2d3a; padding: 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; font-size: 13px; }
+  .candidate-item:hover { background: #3a3d4a; }
+  .candidate-item input { margin-right: 6px; }
+  .reason { font-size: 10px; color: #888; margin-left: 20px; }
   
-  .btn-primary { background: #1a73e8; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; margin-bottom: 10px; }
-  .btn-primary:hover { background: #0d47a1; }
-  .btn-hide { background: #3a3d4a; color: #ccc; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; }
-  .btn-hide:hover { background: #ff6b6b; color: #fff; }
+  /* ボタン類 */
+  .action-buttons { display: flex; gap: 10px; }
+  .btn-assign { background: #1a73e8; color: #fff; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; flex: 1; }
+  .btn-hide { background: #3a3d4a; color: #ccc; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
   .btn-restore { background: #2e7d32; color: #fff; }
   
-  .empty-msg { color: #888; text-align: center; padding: 40px 0; }
-  
-  /* スマホ等へのレスポンシブ対応（画面が狭い場合は縦積み） */
   @media (max-width: 768px) {
-    .split-container { flex-direction: column; }
-    .left-pane, .right-pane { width: 100%; height: 50%; border-right: none; border-bottom: 2px solid #2a2d3a; }
+    .msg-row { flex-direction: column; }
+    .msg-left { border-right: none; border-bottom: 1px solid #2a2d3a; }
   }
 </style>
 </head>
 <body>
 
 <div class="top-bar">
-  <h2>📨 通信紐付けパネル</h2>
-  <label class="toggle-label">
+  <h2>📨 通信タイムライン（一括表示）</h2>
+  <label style="cursor: pointer; font-size: 13px; background: #2a2d3a; padding: 6px 12px; border-radius: 6px;">
     <input type="checkbox" id="showHiddenCheck"> 👀 非表示も見る
   </label>
 </div>
 
-<div class="split-container">
-  <!-- 左半分：タイムライン -->
-  <div class="left-pane" id="timeline">
-    <div class="empty-msg">⏳ データを読み込んでいます...</div>
-  </div>
-  
-  <!-- 右半分：詳細・紐付け操作 -->
-  <div class="right-pane" id="action-panel">
-    <div class="empty-msg" style="margin-top: 50px;">
-      👈 左のタイムラインからメッセージを選択すると<br>ここに詳細と紐付け候補が表示されます。
-    </div>
-  </div>
-</div>
+<div id="timeline" style="color: #888; text-align: center; padding: 40px 0;">⏳ データを読み込んでいます...</div>
 
 <script>
-// 1. Firebase初期化
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
@@ -91,30 +65,41 @@ var firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var database = firebase.database();
 
-// 2. データ抽出用ユーティリティ（バグ修正済）
-function np(raw){ if(!raw)return""; var s=String(raw).replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,""); s=s.replace(/^\+81/,"0"); s=s.replace(/^81(?=\d{9,10})/,"0"); s=s.replace(/[^0-9]/g,""); return s; }
-function ee(f){ if(!f)return""; var m=String(f).match(/<([^>]+)>/); if(m&&m[3])return m[3].toLowerCase().trim(); if(String(f).indexOf("@")>-1)return String(f).toLowerCase().trim(); return""; }
+// 電話番号の正規化を強化（+81を確実に0にする）
+function np(raw){ 
+  if(!raw) return ""; 
+  // 数字と「+」以外を削除
+  var s = String(raw).replace(/[^\d+]/g, ""); 
+  // 先頭の +81 または 81 を 0 に置換
+  s = s.replace(/^\+?81/, "0"); 
+  return s; 
+}
+// メールアドレス抽出
+function ee(f){ 
+  if(!f) return ""; 
+  var m = String(f).match(/<([^>]+)>/); 
+  if(m && m[1]) return m[1].toLowerCase().trim(); 
+  if(String(f).indexOf("@") > -1) return String(f).toLowerCase().trim(); 
+  return ""; 
+}
+// 案件名推測ロジック
 function ek(nameStr){ 
   var kw=[]; var cn=String(nameStr||""); var pts=cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/); 
   for(var i=0;i<pts.length;i++){ var p=pts[i].trim(); if(p.length>=2&&["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p)===-1)kw.push(p.toLowerCase()); } 
-  var nm=cn.match(/([^\s【】（）]+?)様/); if(nm&&nm[3]&&nm[3].length>=2)kw.push(nm[3].toLowerCase()); return kw; 
+  var nm=cn.match(/([^\s【】（）]+?)様/); if(nm&&nm[1]&&nm[1].length>=2)kw.push(nm[1].toLowerCase()); return kw; 
 }
 function sm(body,subj,kw){ 
   if(!kw||!kw.length)return 0; var t=(String(body||"")+" "+String(subj||"")).toLowerCase(); if(!t.trim())return 0; 
   var s=0; for(var i=0;i<kw.length;i++){ if(kw[i]&&t.indexOf(kw[i])!==-1)s+=kw[i].length; } return s; 
 }
 
-// 状態変数
 var allComms = [];
 var caseOptions = [];
 var phoneToCases = {};
-var selectedKey = null;
 
-// 直近3ヶ月の日付計算
 var d = new Date(); d.setMonth(d.getMonth() - 3);
 var threeMonthsAgo = d.toISOString();
 
-// 3. データ取得
 Promise.all([
   fetch("https://project-6745138395263517914-default-rtdb.firebaseio.com/app_tasks.json").then(r=>r.json()),
   database.ref('app_communications').orderByChild('dt').startAt(threeMonthsAgo).once('value').then(s => {
@@ -122,12 +107,11 @@ Promise.all([
   })
 ]).then(function([tasks, comms]){
   
-  // 案件リストの構築（配列インデックスの指定を修正）
   if(tasks){
     Object.keys(tasks).forEach(function(k){
       var t = tasks[k]; if(!t.csvData) return;
-      var caseName = t.csvData[1] || "名称不明"; // インデックス4：案件名
-      var phone = np(t.csvData[2] || "");       // インデックス6：電話番号
+      var caseName = t.csvData[2] || "名称不明"; 
+      var phone = np(t.csvData[3] || "");       
       var keywords = ek(caseName);
       
       var caseObj = { key: k, name: caseName, phone: phone, keywords: keywords };
@@ -140,10 +124,18 @@ Promise.all([
     });
   }
   
-  // 通信データの構築
   if(comms){
     Object.keys(comms).forEach(function(k){
-      var rec = comms[k]; rec._key = k;
+      var rec = comms[k]; 
+      
+      // ★ Gmailのノイズカット処理
+      if(rec.src === "gmail") {
+        var email = ee(rec.contact);
+        // メールアドレスが取得できない（名前だけの送信元など）は除外
+        if(!email) return; 
+      }
+      
+      rec._key = k;
       allComms.push(rec);
     });
     allComms.sort(function(a,b){ return new Date(b.dt) - new Date(a.dt); });
@@ -155,153 +147,112 @@ Promise.all([
   document.getElementById('timeline').innerHTML = "エラーが発生しました: " + e.message;
 });
 
-// 4. 左側（タイムライン）の描画
 function renderTimeline() {
   var showHidden = document.getElementById('showHiddenCheck').checked;
   var html = "";
   var displayCount = 0;
   
   allComms.forEach(function(rec) {
-    if (displayCount >= 100) return; // 最新100件制限
+    if (displayCount >= 100) return; 
     var isHidden = rec.isHidden === true;
     if (isHidden && !showHidden) return;
     
     var dt = new Date(rec.dt);
     var dateStr = dt.getFullYear() + "/" + (dt.getMonth()+1) + "/" + dt.getDate() + " " + ("0"+dt.getHours()).slice(-2) + ":" + ("0"+dt.getMinutes()).slice(-2);
     var sourceIcon = rec.src === "imessage" ? "💬 SMS" : "📧 Gmail";
+    var rowClass = isHidden ? "msg-row hidden-item" : "msg-row";
     
-    var cardClass = "msg-card";
-    if (isHidden) cardClass += " hidden-item";
-    if (rec._key === selectedKey) cardClass += " selected";
+    html += '<div class="' + rowClass + '">';
     
-    html += '<div class="' + cardClass + '" onclick="selectMessage(\'' + rec._key + '\')">';
-    
-    // すでに案件に紐付け済みの場合はバッジを表示
+    // 【左側】メッセージ内容
+    html += '<div class="msg-left">';
     if (rec.assignedCase) {
-      var assignedName = "指定済み案件";
       var foundCase = caseOptions.find(c => c.key === rec.assignedCase);
-      if (foundCase) assignedName = foundCase.name;
-      html += '<div class="badge-assigned">✔ ' + assignedName + '</div>';
+      var assignedName = foundCase ? foundCase.name : "指定済み案件";
+      html += '<div class="badge-assigned">✔ ' + assignedName + '</div><br>';
     }
-    
     html += '<div class="msg-meta">' + sourceIcon + ' | ' + dateStr + '</div>';
     html += '<div class="msg-contact">連絡先: ' + (rec.contact || "不明").replace(/</g,"&lt;") + '</div>';
     if (rec.subject) html += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g,"&lt;") + '</div>';
-    if (rec.body) {
-      var snippet = rec.body.replace(/</g,"&lt;");
-      if(snippet.length > 50) snippet = snippet.substring(0, 50) + "..."; // 左側は短く表示
-      html += '<div class="msg-body">' + snippet + '</div>';
+    if (rec.body) html += '<div class="msg-body">' + rec.body.replace(/</g,"&lt;") + '</div>';
+    html += '</div>';
+    
+    // 【右側】紐付け候補リスト
+    html += '<div class="msg-right">';
+    html += '<div>';
+    html += '<div class="candidate-title">🎯 紐付け候補</div>';
+    html += '<div class="candidate-list">';
+    
+    var candidates = [];
+    if (rec.src === "imessage") {
+      var ph = np(rec.contact); // +81対応強化版で抽出
+      if (phoneToCases[ph]) {
+        candidates = phoneToCases[ph].map(function(c) { return { case: c, score: 999, reason: '電話番号一致' }; });
+      }
+    } else {
+      caseOptions.forEach(function(c) {
+        var score = sm(rec.body, rec.subject, c.keywords);
+        if (score > 0) candidates.push({ case: c, score: score, reason: '案件名推測 (スコア:'+score+')' });
+      });
+      candidates.sort(function(a,b){ return b.score - a.score; });
+    }
+    
+    if (candidates.length > 0) {
+      candidates.slice(0, 5).forEach(function(cand, idx) {
+        var isChecked = (rec.assignedCase === cand.case.key) ? "checked" : (!rec.assignedCase && idx === 0 ? "checked" : "");
+        html += '<label class="candidate-item">';
+        html += '<input type="radio" name="radio_' + rec._key + '" value="' + cand.case.key + '" ' + isChecked + '>';
+        html += '<strong>' + cand.case.name + '</strong>';
+        html += '<div class="reason">' + cand.reason + '</div>';
+        html += '</label>';
+      });
+    } else {
+      html += '<div style="color:#aaa; font-size:12px;">該当しそうな案件が見つかりません。</div>';
+    }
+    html += '</div></div>';
+    
+    // 操作ボタン
+    html += '<div class="action-buttons">';
+    if (candidates.length > 0) {
+      html += '<button class="btn-assign" onclick="assignCase(\'' + rec._key + '\')">✔ この案件に紐付ける</button>';
+    }
+    if (isHidden) {
+      html += '<button class="btn-hide btn-restore" onclick="toggleHide(\'' + rec._key + '\', false)">👁️ 戻す</button>';
+    } else {
+      html += '<button class="btn-hide" onclick="toggleHide(\'' + rec._key + '\', true)">✖ 隠す</button>';
     }
     html += '</div>';
+    
+    html += '</div>'; // end msg-right
+    html += '</div>'; // end msg-row
     displayCount++;
   });
   
-  if (displayCount === 0) html = "<div class='empty-msg'>表示する通信がありません。</div>";
+  if (displayCount === 0) html = "表示する通信がありません。";
   document.getElementById('timeline').innerHTML = html;
 }
 
-// 5. メッセージ選択時の処理（右パネルの描画と推測ロジック）
-window.selectMessage = function(key) {
-  selectedKey = key;
-  renderTimeline(); // 左側の選択状態を更新
+window.assignCase = function(key) {
+  var radios = document.getElementsByName('radio_' + key);
+  var selectedKey = null;
+  for(var i=0; i<radios.length; i++){ if(radios[i].checked) { selectedKey = radios[i].value; break; } }
+  if(!selectedKey) { alert("案件を選択してください。"); return; }
   
-  var rec = allComms.find(function(r){ return r._key === key; });
-  if (!rec) return;
-  
-  var panelHtml = '<h3>通信の詳細と紐付け</h3>';
-  
-  // 上部：メッセージ全文
-  panelHtml += '<div class="detail-box">';
-  panelHtml += '<div class="msg-contact">連絡先: ' + (rec.contact||"").replace(/</g,"&lt;") + '</div>';
-  if (rec.subject) panelHtml += '<div class="msg-subject">件名: ' + rec.subject.replace(/</g,"&lt;") + '</div>';
-  if (rec.body) panelHtml += '<div class="msg-body">' + rec.body.replace(/</g,"&lt;") + '</div>';
-  panelHtml += '</div>';
-  
-  // 下部：マッチング候補の推測
-  panelHtml += '<h4 style="color:#64b5f6; margin-bottom:10px;">🎯 紐付け候補 (推測)</h4>';
-  var candidates = [];
-  
-  if (rec.src === "imessage") {
-    // SMSの場合は電話番号で完全一致を検索
-    var ph = np(rec.contact);
-    if (phoneToCases[ph]) {
-      candidates = phoneToCases[ph].map(function(c) { return { case: c, score: 999, reason: '電話番号一致' }; });
-    }
-  } else {
-    // メール等は件名・本文から案件名をスコア付けして推測
-    caseOptions.forEach(function(c) {
-      var score = sm(rec.body, rec.subject, c.keywords);
-      if (score > 0) candidates.push({ case: c, score: score, reason: '案件名推測 (スコア:'+score+')' });
-    });
-    // スコア順に並び替え
-    candidates.sort(function(a,b){ return b.score - a.score; });
-  }
-  
-  panelHtml += '<div class="detail-box">';
-  if (candidates.length > 0) {
-    // 上位5件まで表示
-    var topCandidates = candidates.slice(0, 5);
-    topCandidates.forEach(function(cand, idx) {
-      // すでに指定済みの案件なら最初からチェックを入れる
-      var isChecked = (rec.assignedCase === cand.case.key) ? "checked" : "";
-      // 未指定の場合はスコアが一番高いものをデフォルト選択
-      if (!rec.assignedCase && idx === 0) isChecked = "checked";
-      
-      panelHtml += '<label class="candidate-item">';
-      panelHtml += '<input type="radio" name="caseSel" value="' + cand.case.key + '" ' + isChecked + '>';
-      panelHtml += '<strong>' + cand.case.name + '</strong>';
-      panelHtml += '<div style="font-size:11px; color:#888; margin-left:25px;">' + cand.reason + '</div>';
-      panelHtml += '</label>';
-    });
-    panelHtml += '<button class="btn-primary" onclick="assignSelectedCase(\'' + key + '\')">✔ 選択した案件に紐付ける</button>';
-  } else {
-    panelHtml += '<div style="color:#aaa; font-size:13px; margin-bottom:15px;">該当しそうな案件が見つかりませんでした。</div>';
-  }
-  panelHtml += '</div>';
-  
-  // 非表示・復元操作ボタン
-  if (rec.isHidden) {
-    panelHtml += '<button class="btn-hide btn-restore" onclick="toggleHide(\'' + key + '\', false)">👁️ 非表示を解除して戻す</button>';
-  } else {
-    panelHtml += '<button class="btn-hide" onclick="toggleHide(\'' + key + '\', true)">✖ この通信を隠す（非表示）</button>';
-  }
-  
-  document.getElementById('action-panel').innerHTML = panelHtml;
-};
-
-// 6. 紐付けるボタンを押した処理
-window.assignSelectedCase = function(key) {
-  var radios = document.getElementsByName('caseSel');
-  var selectedCaseKey = null;
-  for(var i=0; i<radios.length; i++){
-    if(radios[i].checked) { selectedCaseKey = radios[i].value; break; }
-  }
-  if(!selectedCaseKey) { alert("紐付ける案件を選択してください。"); return; }
-  
-  // Firebaseに割り当て情報を保存
-  database.ref('app_communications/' + key + '/assignedCase').set(selectedCaseKey).then(function() {
-    var rec = allComms.find(function(r) { return r._key === key; });
-    if(rec) rec.assignedCase = selectedCaseKey;
+  database.ref('app_communications/' + key + '/assignedCase').set(selectedKey).then(function() {
+    var rec = allComms.find(r => r._key === key);
+    if(rec) rec.assignedCase = selectedKey;
     renderTimeline();
-    alert("紐付けを保存しました！");
   });
 };
 
-// 7. 非表示（隠す/戻す）処理
 window.toggleHide = function(key, hideFlag) {
   database.ref('app_communications/' + key + '/isHidden').set(hideFlag).then(function() {
-    var rec = allComms.find(function(r) { return r._key === key; });
+    var rec = allComms.find(r => r._key === key);
     if (rec) rec.isHidden = hideFlag;
-    
-    // 右パネルをリセット
-    selectedKey = null;
-    document.getElementById('action-panel').innerHTML = '<div class="empty-msg" style="margin-top: 50px;">👈 左のタイムラインからメッセージを選択すると<br>ここに詳細と紐付け候補が表示されます。</div>';
-    
     renderTimeline();
   });
 };
 
-// トグル切り替え時
 document.getElementById('showHiddenCheck').addEventListener('change', renderTimeline);
 
 </script>
