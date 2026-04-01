@@ -3,557 +3,150 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>メーラー</title>
+<title>試験用メーラー</title>
+<!-- Firebase v8 (既存の他ページと互換性を持たせるため) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#1a1a2e;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column}
-a{color:#64b5f6;text-decoration:none}
-
-/* ── Header ── */
-.header{background:#16213e;padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #0f3460;position:sticky;top:0;z-index:100}
-.header a.back{font-size:22px;line-height:1}
-.header h1{font-size:16px;font-weight:600;flex:1}
-.header .gear{font-size:20px;cursor:pointer;opacity:0.7;transition:opacity .2s}
-.header .gear:hover{opacity:1}
-
-/* ── Settings overlay ── */
-.settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;justify-content:center;align-items:center}
-.settings-overlay.open{display:flex}
-.settings-box{background:#1e2a45;border:1px solid #0f3460;border-radius:10px;padding:20px;width:90%;max-width:360px}
-.settings-box h3{margin-bottom:14px;font-size:15px}
-.settings-box label{display:block;font-size:13px;color:#aaa;margin-bottom:4px}
-.settings-box input{width:100%;padding:8px 10px;background:#16213e;border:1px solid #333;border-radius:6px;color:#e0e0e0;font-size:14px;margin-bottom:12px}
-.settings-box .btn-row{display:flex;gap:8px;justify-content:flex-end}
-.settings-box button{padding:7px 16px;border:none;border-radius:6px;font-size:13px;cursor:pointer}
-.settings-box .save-btn{background:#0f3460;color:#e0e0e0}
-.settings-box .cancel-btn{background:#333;color:#aaa}
-
-/* ── Main layout ── */
-.main{display:flex;flex:1;overflow:hidden}
-.left-panel{width:340px;min-width:260px;border-right:1px solid #0f3460;display:flex;flex-direction:column;background:#16213e}
-.right-panel{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:16px 20px}
-
-/* ── Search / filter ── */
-.search-bar{padding:10px 12px;border-bottom:1px solid #0f3460}
-.search-bar input{width:100%;padding:8px 10px;background:#1a1a2e;border:1px solid #333;border-radius:6px;color:#e0e0e0;font-size:13px}
-.search-bar input::placeholder{color:#666}
-
-/* ── Case list ── */
-.case-list{flex:1;overflow-y:auto}
-.case-item{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;transition:background .15s}
-.case-item:hover{background:rgba(255,255,255,.04)}
-.case-item.active{background:#0f3460;border-left:3px solid #64b5f6}
-.case-item .case-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.case-item .case-meta{font-size:11px;color:#888;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
-.case-item .case-meta .tag{padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600}
-.case-item .tag-ri{background:#5c3d2e;color:#f0a060}
-.case-item .tag-shin{background:#1e3a2f;color:#60d090}
-.case-count{padding:8px 14px;font-size:11px;color:#888;border-bottom:1px solid #0f3460}
-
-/* ── Template tabs ── */
-.tpl-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
-.tpl-tab{padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #333;background:#1a1a2e;color:#aaa;transition:all .15s;white-space:nowrap}
-.tpl-tab.active{border-color:#64b5f6;color:#64b5f6;background:#0f3460}
-.tpl-tab:hover:not(.active){background:#222}
-
-/* ── Case summary bar ── */
-.case-summary{background:#16213e;border:1px solid #0f3460;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.7}
-.case-summary .label{color:#888;font-size:11px}
-.case-summary .val{color:#e0e0e0}
-.no-case{color:#666;font-style:italic;padding:40px 0;text-align:center;font-size:14px}
-
-/* ── Compose area ── */
-.compose{display:flex;flex-direction:column;gap:10px;flex:1}
-.compose label{font-size:12px;color:#888;margin-bottom:2px}
-.compose input,.compose textarea{width:100%;padding:9px 12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#e0e0e0;font-size:13px;font-family:inherit}
-.compose textarea{flex:1;min-height:180px;resize:vertical;line-height:1.7}
-.compose input:focus,.compose textarea:focus{outline:none;border-color:#64b5f6}
-
-.field-row{display:flex;gap:10px;align-items:flex-end}
-.field-row .field{flex:1}
-.to-method{font-size:11px;color:#64b5f6;padding:6px 0}
-
-/* ── Action buttons ── */
-.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;padding-bottom:20px}
-.actions button,.actions a{padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:opacity .15s}
-.actions button:hover,.actions a:hover{opacity:0.85}
-.btn-mail{background:#1565c0;color:#fff}
-.btn-sms{background:#2e7d32;color:#fff}
-.btn-copy{background:#555;color:#e0e0e0}
-.btn-sent{background:#e65100;color:#fff}
-.btn-sent.done{background:#333;color:#888;cursor:default}
-
-/* ── Responsive ── */
-@media(max-width:700px){
-  .main{flex-direction:column}
-  .left-panel{width:100%;max-height:40vh;border-right:none;border-bottom:1px solid #0f3460}
-  .right-panel{padding:12px 14px}
-}
-
-/* scrollbar */
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+  body { font-family: sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+  .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .warning { color: #d32f2f; font-size: 14px; font-weight: bold; margin-bottom: 20px; padding: 10px; background: #ffebee; border-left: 4px solid #d32f2f; }
+  label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+  select, input, textarea { width: 100%; margin-top: 5px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .btn-group { margin-top: 10px; display: flex; gap: 10px; }
+  button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
+  .tmpl-btn { background: #e0e0e0; color: #333; }
+  .tmpl-btn:hover { background: #d5d5d5; }
+  .submit-btn { background: #1976d2; color: white; font-weight: bold; margin-top: 20px; width: 100%; font-size: 16px; }
+  .submit-btn:hover { background: #1565c0; }
+  #statusMsg { display: block; margin-top: 10px; font-weight: bold; color: #2e7d32; text-align: center; }
 </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
-<div class="header">
-  <a class="back" href="index.html">←</a>
-  <h1>✉️ メーラー</h1>
-  <span class="gear" id="gearBtn">⚙️</span>
-</div>
+<div class="container">
+  <h2>✉️ 試験用メーラー (独立環境)</h2>
+  <div class="warning">※ comm.html等、既存のシステムには一切干渉しません。app_parked_mails への保存テスト専用ページです。</div>
 
-<!-- ── Settings overlay ── -->
-<div class="settings-overlay" id="settingsOverlay">
-  <div class="settings-box">
-    <h3>⚙️ 送信者設定</h3>
-    <label>自分の名前（テンプレートに使用）</label>
-    <input type="text" id="senderNameInput" placeholder="例: 影山">
-    <label>会社名</label>
-    <input type="text" id="senderCompanyInput" placeholder="例: タカラスタンダード">
-    <div class="btn-row">
-      <button class="cancel-btn" id="settingsCancel">キャンセル</button>
-      <button class="save-btn" id="settingsSave">保存</button>
-    </div>
-  </div>
-</div>
+  <label>案件選択 (app_tasksから取得):</label>
+  <select id="taskSelect">
+    <option value="">-- 読込中 --</option>
+  </select>
 
-<!-- ── Main ── -->
-<div class="main">
-  <!-- Left: Case list -->
-  <div class="left-panel">
-    <div class="search-bar">
-      <input type="text" id="searchInput" placeholder="🔍 案件名・担当者で検索">
-    </div>
-    <div class="case-count" id="caseCount"></div>
-    <div class="case-list" id="caseList"></div>
+  <label>宛先 (連絡先・電話番号):</label>
+  <input type="text" id="toInput" placeholder="宛先を入力">
+
+  <label>テンプレート選択:</label>
+  <div class="btn-group">
+    <button class="tmpl-btn" onclick="applyTemplate('reform')">リフォーム問合</button>
+    <button class="tmpl-btn" onclick="applyTemplate('takara')">施工日確定(タカラ)</button>
+    <button class="tmpl-btn" onclick="applyTemplate('sms')">施工日確定(先方SMS)</button>
   </div>
 
-  <!-- Right: Composer -->
-  <div class="right-panel">
-    <div class="tpl-tabs" id="tplTabs">
-      <div class="tpl-tab active" data-tpl="reform_inquiry">📞 リフォーム問合</div>
-      <div class="tpl-tab" data-tpl="confirm_takara">📧 施工日確定タカラ</div>
-      <div class="tpl-tab" data-tpl="confirm_client_sms">💬 施工日確定先方SMS</div>
-    </div>
+  <label>件名:</label>
+  <input type="text" id="subjectInput" placeholder="件名 (SMSの場合は空欄可)">
 
-    <div id="noCaseMsg" class="no-case">← 左の案件リストから選択してください</div>
+  <label>本文:</label>
+  <textarea id="bodyInput" rows="10" placeholder="本文を入力..."></textarea>
 
-    <div id="composeArea" style="display:none;flex:1;display:none;flex-direction:column">
-      <!-- Case summary -->
-      <div class="case-summary" id="caseSummary"></div>
-
-      <!-- Compose form -->
-      <div class="compose" id="composeForm">
-        <div class="field-row">
-          <div class="field">
-            <label>宛先</label>
-            <input type="text" id="toField" placeholder="自動入力されます">
-          </div>
-        </div>
-        <div class="to-method" id="toMethod"></div>
-
-        <div id="subjectRow">
-          <label>件名</label>
-          <input type="text" id="subjectField">
-        </div>
-
-        <label>本文</label>
-        <textarea id="bodyField"></textarea>
-
-        <div class="actions" id="actionBtns"></div>
-      </div>
-    </div>
-  </div>
+  <button class="submit-btn" onclick="saveToParkedMails()">仮置き保存 (app_parked_mailsへ書き込み)</button>
+  <span id="statusMsg"></span>
 </div>
 
 <script>
-/* ========================================================
-   メーラーページ — mailer.html
-   案件テンプレートメール/SMS作成
-   ======================================================== */
-
-// ── Firebase config ──
-var firebaseConfig = {
-  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-  projectId: "project-6745138395263517914"
-};
-
-var database = null;
-var allTasks = {};
-var allContacts = [];
-var selectedKey = null;
-var currentTpl = 'reform_inquiry';
-
-// ── Settings ──
-var senderName = localStorage.getItem('mailer_sender_name') || '';
-var senderCompany = localStorage.getItem('mailer_sender_company') || '';
-
-// ── Init ──
-document.addEventListener('DOMContentLoaded', function() {
-  loadData();
-  initFirebase();
-  bindEvents();
-  if (!senderName) {
-    document.getElementById('settingsOverlay').classList.add('open');
-  }
-});
-
-function loadData() {
-  try {
-    var raw = localStorage.getItem('app_tasks');
-    allTasks = raw ? JSON.parse(raw) : {};
-  } catch(e) { allTasks = {}; }
-  try {
-    var rawC = localStorage.getItem('app_contacts');
-    allContacts = rawC ? JSON.parse(rawC) : [];
-  } catch(e) { allContacts = []; }
-  renderCaseList('');
-}
-
-function initFirebase() {
-  var script = document.createElement('script');
-  script.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
-  script.onload = function() {
-    var s2 = document.createElement('script');
-    s2.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
-    s2.onload = function() {
-      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-      database = firebase.database();
-    };
-    document.head.appendChild(s2);
+  // Firebase設定
+  var firebaseConfig = {
+    apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+    databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+    projectId: "project-6745138395263517914"
   };
-  document.head.appendChild(script);
-}
-
-// ── Render case list ──
-function renderCaseList(query) {
-  var list = document.getElementById('caseList');
-  var keys = Object.keys(allTasks);
-  var q = (query || '').toLowerCase();
-
-  // Sort by seqNo desc
-  keys.sort(function(a,b) {
-    var sa = allTasks[a].seqNo || 0;
-    var sb = allTasks[b].seqNo || 0;
-    return sb - sa;
-  });
-
-  var filtered = keys.filter(function(k) {
-    var obj = allTasks[k];
-    if (!obj || !obj.csvData) return false;
-    var name = (obj.csvData[4] || '').toLowerCase();
-    var tanto = (obj.csvData[5] || '').toLowerCase();
-    var addr = (obj.csvData[11] || '').toLowerCase();
-    return !q || name.indexOf(q) >= 0 || tanto.indexOf(q) >= 0 || addr.indexOf(q) >= 0;
-  });
-
-  document.getElementById('caseCount').textContent = filtered.length + ' 件';
-
-  var html = '';
-  for (var i = 0; i < filtered.length; i++) {
-    var k = filtered[i];
-    var obj = allTasks[k];
-    var csv = obj.csvData || [];
-    var kubun = csv[3] || '';
-    var tagClass = kubun === 'ﾘ' ? 'tag-ri' : 'tag-shin';
-    var tagLabel = kubun === 'ﾘ' ? 'ﾘ' : '新';
-    var sekou = csv[2] || '';
-    var rankInfo = getEffectiveRank(obj);
-
-    html += '<div class="case-item' + (k === selectedKey ? ' active' : '') + '" data-key="' + k + '">'
-      + '<div class="case-name">' + escH(csv[4] || '(名称なし)') + '</div>'
-      + '<div class="case-meta">'
-      + '<span class="tag ' + tagClass + '">' + tagLabel + '</span>'
-      + '<span>施工:' + escH(sekou) + '</span>'
-      + '<span>' + rankInfo.label + '</span>'
-      + '</div></div>';
+  
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
   }
-  list.innerHTML = html || '<div style="padding:20px;color:#666;text-align:center">案件がありません</div>';
-}
+  var database = firebase.database();
+  var tasksData = {};
 
-// ── Event bindings ──
-function bindEvents() {
-  // Search
-  document.getElementById('searchInput').addEventListener('input', function() {
-    renderCaseList(this.value);
+  // app_tasksから案件リストを取得してプルダウンを生成
+  database.ref('app_tasks').once('value', function(snapshot) {
+    tasksData = snapshot.val() || {};
+    var select = document.getElementById('taskSelect');
+    select.innerHTML = '<option value="">-- 案件を選択してください --</option>';
+    
+    for (var key in tasksData) {
+      var task = tasksData[key];
+      if (task.csvData) {
+        // index 4: 管理名, index 8: 工務担当者
+        var caseName = task.csvData[5] || "名称不明"; 
+        var inCharge = task.csvData[6] ? " (" + task.csvData[6] + ")" : "";
+        var option = document.createElement('option');
+        option.value = key;
+        option.textContent = caseName + inCharge;
+        select.appendChild(option);
+      }
+    }
   });
 
-  // Case click (delegation)
-  document.getElementById('caseList').addEventListener('click', function(e) {
-    var item = e.target.closest('.case-item');
-    if (!item) return;
-    selectedKey = item.getAttribute('data-key');
-    renderCaseList(document.getElementById('searchInput').value);
-    populateComposer();
-  });
+  // 3種の定型文テンプレート
+  var templates = {
+    reform: {
+      subject: "【お問い合わせ】リフォームの件",
+      body: "お世話になっております。\nリフォームの件につきまして、以下の通りお問い合わせ申し上げます。\n\n詳細："
+    },
+    takara: {
+      subject: "【ご報告】施工日確定のお知らせ",
+      body: "タカラ担当者様\n\nお世話になっております。\n担当案件の施工日が確定いたしましたので、ご報告申し上げます。\n\nよろしくお願いいたします。"
+    },
+    sms: {
+      subject: "",
+      body: "お世話になっております。施工日が確定いたしました。当日はよろしくお願いいたします。"
+    }
+  };
 
-  // Template tabs
-  document.getElementById('tplTabs').addEventListener('click', function(e) {
-    var tab = e.target.closest('.tpl-tab');
-    if (!tab) return;
-    var tabs = document.querySelectorAll('.tpl-tab');
-    for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-    tab.classList.add('active');
-    currentTpl = tab.getAttribute('data-tpl');
-    if (selectedKey) populateComposer();
-  });
-
-  // Settings
-  document.getElementById('gearBtn').addEventListener('click', openSettings);
-  document.getElementById('settingsCancel').addEventListener('click', closeSettings);
-  document.getElementById('settingsSave').addEventListener('click', saveSettings);
-  document.getElementById('settingsOverlay').addEventListener('click', function(e) {
-    if (e.target === this) closeSettings();
-  });
-}
-
-function openSettings() {
-  document.getElementById('senderNameInput').value = senderName;
-  document.getElementById('senderCompanyInput').value = senderCompany;
-  document.getElementById('settingsOverlay').classList.add('open');
-}
-function closeSettings() {
-  document.getElementById('settingsOverlay').classList.remove('open');
-}
-function saveSettings() {
-  senderName = document.getElementById('senderNameInput').value.trim();
-  senderCompany = document.getElementById('senderCompanyInput').value.trim();
-  localStorage.setItem('mailer_sender_name', senderName);
-  localStorage.setItem('mailer_sender_company', senderCompany);
-  closeSettings();
-  if (selectedKey) populateComposer();
-}
-
-// ── Populate composer ──
-function populateComposer() {
-  var obj = allTasks[selectedKey];
-  if (!obj || !obj.csvData) return;
-
-  document.getElementById('noCaseMsg').style.display = 'none';
-  var area = document.getElementById('composeArea');
-  area.style.display = 'flex';
-
-  var csv = obj.csvData;
-  var caseName = csv[4] || '';
-  var sekouDate = csv[2] || '';
-  var kubun = csv[3] || '';
-  var tantouFull = csv[5] || '';
-  var phone = csv[6] || '';
-  var komuName = csv[8] || '';
-  var address = csv[11] || '';
-  var shitamiDate = csv[12] || '';
-  var localDate = obj.date || '';
-
-  // Parse
-  var tantouParts = tantouFull.split(/[\s　]+/);
-  var companyName = tantouParts[0] || '';
-  var tantouName = tantouParts.slice(1).join(' ') || tantouFull;
-  var koujiContent = getKoujiContent(caseName);
-  var rankInfo = getEffectiveRank(obj);
-
-  // Case summary
-  var summaryHtml = '<span class="label">案件:</span> <span class="val">' + escH(caseName) + '</span><br>'
-    + '<span class="label">施工日:</span> <span class="val">' + escH(sekouDate) + '</span>'
-    + '　<span class="label">区分:</span> <span class="val">' + escH(kubun) + '</span>'
-    + '　<span class="label">状態:</span> <span class="val">' + rankInfo.label + '</span><br>'
-    + '<span class="label">打合担当:</span> <span class="val">' + escH(tantouFull) + '</span>'
-    + '　<span class="label">TEL:</span> <span class="val">' + escH(phone) + '</span><br>'
-    + '<span class="label">工務担当:</span> <span class="val">' + escH(komuName) + '</span>'
-    + '　<span class="label">住所:</span> <span class="val">' + escH(address) + '</span>';
-  document.getElementById('caseSummary').innerHTML = summaryHtml;
-
-  // Template-specific
-  var to = '';
-  var subject = '';
-  var body = '';
-  var method = ''; // 'sms' or 'email'
-  var methodLabel = '';
-
-  var myName = senderName || '（⚙️設定で名前を入力）';
-  var myCompany = senderCompany || 'タカラスタンダード';
-
-  if (currentTpl === 'reform_inquiry') {
-    // リフォーム問合 → SMS to 打合担当者
-    to = phone;
-    method = 'sms';
-    methodLabel = '📱 SMS → 打合担当者 (' + escH(tantouName) + ')';
-    body = tantouName + '様\n'
-      + 'お世話になっております。' + myCompany + 'の' + myName + 'と申します。\n'
-      + caseName + 'の下見日程を調整させていただきたくご連絡しました。\n'
-      + 'ご都合のよい日時がございましたらお知らせください。\n'
-      + 'よろしくお願いいたします。';
-
-  } else if (currentTpl === 'confirm_takara') {
-    // 施工日確定 → Email to 工務担当者
-    var komuEmail = lookupContactEmail(komuName);
-    to = komuEmail || '（連絡先に' + komuName + 'のメアドが見つかりません）';
-    method = 'email';
-    methodLabel = '📧 Email → 工務担当者 (' + escH(komuName) + ')';
-    subject = '【施工日確認】' + caseName;
-    body = komuName + 'さん\n'
-      + 'お疲れ様です。' + myName + 'です。\n\n'
-      + '下記案件の施工日をご確認ください。\n\n'
-      + '案件名: ' + caseName + '\n'
-      + '施工日: ' + sekouDate + '\n'
-      + '住所: ' + address + '\n'
-      + '工事内容: ' + koujiContent + '\n'
-      + '打合担当: ' + tantouFull + '\n'
-      + (shitamiDate ? '下見日: ' + shitamiDate + '\n' : '')
-      + '\nよろしくお願いいたします。';
-
-  } else if (currentTpl === 'confirm_client_sms') {
-    // 施工日確定先方 → SMS to 打合担当者
-    to = phone;
-    method = 'sms';
-    methodLabel = '📱 SMS → 打合担当者 (' + escH(tantouName) + ')';
-    body = tantouName + '様\n'
-      + 'お世話になっております。' + myCompany + 'の' + myName + 'です。\n'
-      + caseName + 'の施工日が' + sekouDate + 'で確定いたしました。\n'
-      + '当日はよろしくお願いいたします。';
-  }
-
-  // Fill fields
-  document.getElementById('toField').value = to;
-  document.getElementById('toMethod').innerHTML = methodLabel;
-  document.getElementById('subjectField').value = subject;
-  document.getElementById('subjectRow').style.display = (method === 'email') ? 'block' : 'none';
-  document.getElementById('bodyField').value = body;
-
-  // Action buttons
-  renderActionButtons(method, obj);
-}
-
-function renderActionButtons(method, obj) {
-  var btns = document.getElementById('actionBtns');
-  var html = '';
-
-  if (method === 'sms') {
-    html += '<a class="btn-sms" id="btnSend" href="#" onclick="doSendSMS();return false">💬 SMSで送信</a>';
-  } else {
-    html += '<a class="btn-mail" id="btnSend" href="#" onclick="doSendEmail();return false">📧 メールで送信</a>';
-  }
-
-  html += '<button class="btn-copy" onclick="doCopy()">📋 本文コピー</button>';
-
-  // emailSent button (for confirm templates)
-  if (currentTpl === 'confirm_takara' || currentTpl === 'confirm_client_sms') {
-    var isDone = obj.emailSent === true;
-    html += '<button class="btn-sent' + (isDone ? ' done' : '') + '" id="btnMarkSent" onclick="markEmailSent()">'
-      + (isDone ? '✅ 確認メール済' : '📮 送信済にする') + '</button>';
-  }
-
-  btns.innerHTML = html;
-}
-
-// ── Send actions ──
-function doSendSMS() {
-  var to = document.getElementById('toField').value.trim();
-  var body = document.getElementById('bodyField').value;
-  var cleanPhone = to.replace(/[^\d+]/g, '');
-  window.open('sms:' + encodeURIComponent(cleanPhone) + '&body=' + encodeURIComponent(body), '_self');
-}
-
-function doSendEmail() {
-  var to = document.getElementById('toField').value.trim();
-  var subject = document.getElementById('subjectField').value;
-  var body = document.getElementById('bodyField').value;
-  window.location.href = 'mailto:' + encodeURIComponent(to)
-    + '?subject=' + encodeURIComponent(subject)
-    + '&body=' + encodeURIComponent(body);
-}
-
-function doCopy() {
-  var body = document.getElementById('bodyField').value;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(body).then(function() {
-      showToast('コピーしました');
-    });
-  } else {
-    var ta = document.createElement('textarea');
-    ta.value = body;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('コピーしました');
-  }
-}
-
-function markEmailSent() {
-  if (!selectedKey || !database) return;
-  var obj = allTasks[selectedKey];
-  if (obj.emailSent === true) return;
-
-  database.ref('app_tasks/' + selectedKey + '/emailSent').set(true).then(function() {
-    obj.emailSent = true;
-    // Update localStorage
-    localStorage.setItem('app_tasks', JSON.stringify(allTasks));
-    populateComposer();
-    showToast('✅ emailSent = true に更新');
-  }).catch(function(err) {
-    showToast('Firebase保存エラー: ' + err.message);
-  });
-}
-
-// ── Contact lookup ──
-function lookupContactEmail(name) {
-  if (!name || !allContacts || !allContacts.length) return '';
-  for (var i = 0; i < allContacts.length; i++) {
-    var c = allContacts[i];
-    var cName = c.name || c[0] || '';
-    var cEmail = c.email || c[1] || '';
-    if (cName && name && cName.indexOf(name) >= 0 && cEmail) {
-      return cEmail;
+  // テンプレートをフォームに適用
+  function applyTemplate(type) {
+    var tmpl = templates[type];
+    if(tmpl) {
+      document.getElementById('subjectInput').value = tmpl.subject;
+      document.getElementById('bodyInput').value = tmpl.body;
     }
   }
-  return '';
-}
 
-// ── Helpers ──
-function getKoujiContent(caseName) {
-  var parts = [];
-  if (/SK/i.test(caseName)) parts.push('キッチン');
-  if (/SB/i.test(caseName)) parts.push('バス');
-  if (/SU/i.test(caseName)) parts.push('洗面');
-  return parts.length ? parts.join('・') + '工事' : '工事';
-}
+  // app_parked_mails へ保存
+  function saveToParkedMails() {
+    var taskKey = document.getElementById('taskSelect').value;
+    var toVal = document.getElementById('toInput').value;
+    var subjVal = document.getElementById('subjectInput').value;
+    var bodyVal = document.getElementById('bodyInput').value;
 
-function getEffectiveRank(obj) {
-  var csv = obj.csvData || [];
-  var sfStatus = csv[1] || '';
-  var localStatus = obj.localStatus || '';
+    if (!bodyVal) {
+      alert("本文が入力されていません。");
+      return;
+    }
 
-  var sfRankMap = {'依頼':0,'下見実施中':1,'下見日程確定':2,'下見完了':4,'完了':5};
-  var localRankMap = {'依頼':0,'連絡済':1,'下見日確定':2,'下見実施済':3,'報告書提出済':4,'完了':5};
-  var sfRank = sfRankMap[sfStatus] !== undefined ? sfRankMap[sfStatus] : 0;
-  var lcRank = localRankMap[localStatus] !== undefined ? localRankMap[localStatus] : -1;
-  var rank = Math.max(sfRank, lcRank);
+    var mailData = {
+      assignedCase: taskKey, // 手動紐付け用キー
+      to: toVal,
+      subject: subjVal,
+      body: bodyVal,
+      status: "parked",
+      createdAt: new Date().toISOString()
+    };
 
-  var labels = ['依頼','連絡済','下見日確定','下見実施済','報告書提出済','完了'];
-  return { rank: rank, label: labels[rank] || '依頼' };
-}
-
-function escH(s) {
-  var d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-function showToast(msg) {
-  var t = document.createElement('div');
-  t.textContent = msg;
-  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:opacity .3s';
-  document.body.appendChild(t);
-  requestAnimationFrame(function() { t.style.opacity = '1'; });
-  setTimeout(function() {
-    t.style.opacity = '0';
-    setTimeout(function() { document.body.removeChild(t); }, 300);
-  }, 2000);
-}
+    // 自動キーで追加
+    database.ref('app_parked_mails').push(mailData)
+      .then(function() {
+        var msg = document.getElementById('statusMsg');
+        msg.textContent = "✅ app_parked_mails に仮置き保存しました！";
+        // フォームリセット
+        document.getElementById('subjectInput').value = "";
+        document.getElementById('bodyInput').value = "";
+        setTimeout(function(){ msg.textContent = ""; }, 4000);
+      })
+      .catch(function(error) {
+        alert("保存エラー: " + error.message);
+      });
+  }
 </script>
 </body>
 </html>
