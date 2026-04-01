@@ -223,20 +223,43 @@
     }
   });
 
-  // ★修正箇所：配列のインデックスが消えないようにスペース付きで抽出
+  // ★修正箇所：会社名、担当者名の両方から徹底的に連絡先を検索するロジック
   function findContactInfo(fullName) {
     if (!fullName || fullName === "未登録") return { email: "", phone: "" };
+    
     var parts = fullName.split(/[\s　]+/);
-    // index 1 または 0 にスペースを入れて指定（誤認防止）
-    var searchName = parts.length > 1 ? parts[ 1 ] : parts[ 0 ];
-
-    for (var i in contactsList) {
-      var c = contactsList[i];
-      if (c && c.name && c.name.indexOf(searchName) !== -1) {
-        return { email: c.email || "", phone: c.phone || "" };
-      }
+    var searchTerms = [];
+    
+    // ①まずはフルネームで完全一致・部分一致を狙う
+    searchTerms.push(fullName); 
+    if (parts.length > 1) {
+      // ②会社名（土屋ホームなど）で検索をかける
+      searchTerms.push(parts[ 0 ]); 
+      // ③担当者名（石橋など）で検索をかける
+      searchTerms.push(parts[ 1 ]); 
     }
-    return { email: "", phone: "" };
+
+    var resultEmail = "";
+    var resultPhone = "";
+
+    // 優先順位(フルネーム > 会社名 > 担当者名)で名簿を走査
+    for (var j = 0; j < searchTerms.length; j++) {
+      var term = searchTerms[j];
+      if (!term) continue;
+
+      for (var i in contactsList) {
+        var c = contactsList[i];
+        if (c && c.name && c.name.indexOf(term) !== -1) {
+          // 見つかった場合、まだ空欄なら取得する（会社名でメアドが見つかればそれをセット）
+          if (!resultEmail && c.email) resultEmail = c.email;
+          if (!resultPhone && c.phone) resultPhone = c.phone;
+        }
+      }
+      // メアドも電話も両方埋まったら検索終了
+      if (resultEmail && resultPhone) break;
+    }
+
+    return { email: resultEmail, phone: resultPhone };
   }
 
   function openModal(key, taskObj) {
@@ -261,7 +284,7 @@
       "<div><span class='lbl'>電話番号:</span> " + (phoneCsv || "未登録") + "</div>" +
       "<div><span class='lbl'>タカラ担当:</span> " + takaraRep + "</div>";
 
-    // アドレスと電話番号の検索を実行
+    // アドレスと電話番号の強力な検索を実行
     var clientContact = findContactInfo(clientName);
     var takaraContact = findContactInfo(takaraRep);
 
@@ -283,13 +306,15 @@
     document.getElementById('phone-takara').value = takaraContact.phone;
     document.getElementById('email-takara').value = takaraContact.email;
     document.getElementById('subject-takara').value = "【ご報告】施工日確定のお知らせ";
-    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認ほどよろしくお願いいたします。";
+    // ★「ご確認のほど」に修正
+    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
 
     // --- ブロック3：先方・建築業者向け ---
     document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
     document.getElementById('email-sms').value = clientContact.email;
     document.getElementById('subject-sms').value = "施工日確定のお知らせ";
-    document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】になっております、ご確認ご周知のほどよろしくお願いいたします。";
+    // ★「ご確認のほど」に修正
+    document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
 
     var mailStatus = taskObj.mailStatus || {};
     updateBadge('reform', mailStatus.reform);
