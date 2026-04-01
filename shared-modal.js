@@ -37,6 +37,22 @@ function extractCaseKeywords(csvData) {
   var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[1].length >= 2) kw.push(nm[1]);
   return kw;
 }
+
+/* 案件名からマッチ用の人名・キーワードを抽出（より厳格版） */
+function extractCaseNameParts(csvData) {
+  var cn = getSafeValModal(csvData, 4) || "";
+  var parts = [];
+  /* 「武田 敏雄」「佐藤」など人名を抽出 */
+  var cleaned = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ");
+  var tokens = cleaned.split(/[\s\u3000・]+/);
+  var skip = ["手配","新築","工事","リフォーム","様邸","Free","SK","SB","SU","様","邸"];
+  for (var i = 0; i < tokens.length; i++) {
+    var t = tokens[i].replace(/様$/, "").trim();
+    if (t.length >= 2 && skip.indexOf(t) === -1) parts.push(t);
+  }
+  return parts;
+}
+
 function scoreMessageForCase(body, subj, kw) {
   if (!kw || !kw.length) return 0; var t = ((body||"")+" "+(subj||"")).toLowerCase(); if (!t.trim()) return 0;
   var s = 0; for (var i = 0; i < kw.length; i++) { if (t.indexOf(kw[i].toLowerCase()) !== -1) s += kw[i].length; } return s;
@@ -62,19 +78,68 @@ function loadContactData(cb) {
 function findCaseComms(csvData, allComms, contacts, caseKey) {
   var phone = normalizePhoneModal(getSafeValModal(csvData, 6));
   var kw = extractCaseKeywords(csvData);
+  var nameParts = extractCaseNameParts(csvData);
   var result = [];
+  var matchedIdx = {}; /* 既にマッチ済みのインデックス */
+
   for (var i = 0; i < allComms.length; i++) {
     var rec = allComms[i]; if (!rec) continue;
-    if (rec.assignedCase && rec.assignedCase === caseKey) { rec._matchScore = 100; result.push(rec); continue; }
-    if (rec.src === "imessage" && phone) {
-      if (normalizePhoneModal(rec.contact) === phone) { rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw); result.push(rec); continue; }
+
+    /* ① assignedCase 手動紐付け */
+    if (rec.assignedCase && rec.assignedCase === caseKey) {
+      rec._matchScore = 100; rec._matchType = 'manual';
+      result.push(rec); matchedIdx[i] = true; continue;
     }
+
+    /* ② 電話番号マッチ（iMessage） */
+    if (rec.src === "imessage" && phone) {
+      if (normalizePhoneModal(rec.contact) === phone) {
+        rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw);
+        rec._matchType = rec._matchScore > 0 ? 'phone+kw' : 'phone';
+        result.push(rec); matchedIdx[i] = true; continue;
+      }
+    }
+
+    /* ③ メール→連絡先→電話番号マッチ（Gmail） */
     if (rec.src === "gmail" && contacts && phone) {
       var re = extractEmailModal(rec.contact);
-      for (var em in contacts) { var ct = contacts[em]; if (ct.phone && normalizePhoneModal(ct.phone) === phone && em === re) { rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw); result.push(rec); break; } }
+      for (var em in contacts) {
+        var ct = contacts[em];
+        if (ct.phone && normalizePhoneModal(ct.phone) === phone && em === re) {
+          rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw);
+          rec._matchType = rec._matchScore > 0 ? 'phone+kw' : 'phone';
+          result.push(rec); matchedIdx[i] = true; break;
+        }
+      }
     }
   }
-  result.sort(function(a,b) { if (b._matchScore !== a._matchScore) return b._matchScore - a._matchScore; return (new Date(b.dt).getTime()||0) - (new Date(a.dt).getTime()||0); });
+
+  /* ④ 案件名マッチ: body/subjectに案件名の人名等が含まれるか */
+  if (nameParts.length > 0) {
+    for (var j = 0; j < allComms.length; j++) {
+      if (matchedIdx[j]) continue;
+      var rec2 = allComms[j]; if (!rec2) continue;
+      var text = ((rec2.body || "") + " " + (rec2.subject || "")).toLowerCase();
+      if (!text.trim()) continue;
+      var nameScore = 0;
+      for (var n = 0; n < nameParts.length; n++) {
+        if (text.indexOf(nameParts[n].toLowerCase()) !== -1) nameScore += nameParts[n].length;
+      }
+      if (nameScore >= 2) {
+        rec2._matchScore = nameScore;
+        rec2._matchType = 'name';
+        result.push(rec2); matchedIdx[j] = true;
+      }
+    }
+  }
+
+  result.sort(function(a,b) {
+    /* manual > phone+kw > name > phone の順、同一グループ内は日時順 */
+    var order = { 'manual': 4, 'phone+kw': 3, 'name': 2, 'phone': 1 };
+    var ao = order[a._matchType] || 0, bo = order[b._matchType] || 0;
+    if (ao !== bo) return bo - ao;
+    return (new Date(b.dt).getTime()||0) - (new Date(a.dt).getTime()||0);
+  });
   return result;
 }
 
@@ -83,8 +148,23 @@ function renderCommTimeline(comms) {
   var html = "", lim = Math.min(comms.length, 50);
   for (var i = 0; i < lim; i++) {
     var r = comms[i], sm = r.src === "imessage", dir = r.dir === "sent" ? "↑送信" : "↓受信";
-    var ind = r._matchScore >= 100 ? ' <span style="color:#64b5f6;font-size:9px;">✔ 手動</span>' : r._matchScore > 0 ? ' <span style="color:#ffab40;font-size:9px;">★ KW</span>' : '';
-    var bd = r._matchScore >= 100 ? 'border-left:3px solid #64b5f6;' : r._matchScore > 0 ? 'border-left:3px solid #ffab40;' : '';
+
+    /* マッチタイプ別ラベル */
+    var ind = '', bd = '';
+    if (r._matchType === 'manual') {
+      ind = ' <span style="color:#64b5f6;font-size:9px;">✔ 手動</span>';
+      bd = 'border-left:3px solid #64b5f6;';
+    } else if (r._matchType === 'name') {
+      ind = ' <span style="color:#ab47bc;font-size:9px;">📎 名前</span>';
+      bd = 'border-left:3px solid #ab47bc;';
+    } else if (r._matchType === 'phone+kw') {
+      ind = ' <span style="color:#ffab40;font-size:9px;">★ KW</span>';
+      bd = 'border-left:3px solid #ffab40;';
+    } else if (r._matchType === 'phone') {
+      bd = '';
+      ind = '';
+    }
+
     html += '<div class="comm-item" style="'+bd+'"><div class="comm-meta"><div><span class="comm-badge '+(sm?"sms":"gmail")+'">'+(sm?"💬":"📧")+'</span> <span class="comm-dir">'+dir+'</span>'+ind+'</div>';
     html += '<span class="comm-time">'+formatCommDate(r.dt)+'</span></div>';
     if (r.subject) html += '<div class="comm-subject">'+r.subject+'</div>';
@@ -154,7 +234,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var sfMap={'下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済'};
   var sfLocal=sfMap[sfStatus]||sfStatus||'依頼';
   var localSt=obj.localStatus||'';
-  // ランク制：進んでる方を採用
   var sfRank=kanbanStatuses.indexOf(sfLocal);if(sfRank===-1)sfRank=0;
   var localRank=kanbanStatuses.indexOf(localSt);if(localRank===-1)localRank=-1;
   var currentStatus=localRank>=sfRank?localSt:sfLocal;
@@ -185,31 +264,37 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
 
-    // ローカルデータ即時更新
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
     globalTasks[key].localStatus=selectedStatus;globalTasks[key].emailSent=es;
     globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
     if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
 
-    // ヘッダー更新
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
-    // SFノート更新
     document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+selectedStatus;
 
-    // 保存メッセージ
     var msg=document.getElementById('modal-save-msg');
     msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
 
-    // ★ コールバック（ダッシュボード再描画など）
     if(typeof onSaveCallback==='function') onSaveCallback();
   });
 
   // 通信履歴
   loadCommData(function(allComms){loadContactData(function(contacts){
     var cc=findCaseComms(cols,allComms,contacts,key);
-    var kwC=0,manC=0;for(var k=0;k<cc.length;k++){if(cc[k]._matchScore>=100)manC++;else if(cc[k]._matchScore>0)kwC++;}
+    var manC=0,kwC=0,nameC=0,phoneC=0;
+    for(var k=0;k<cc.length;k++){
+      if(cc[k]._matchType==='manual')manC++;
+      else if(cc[k]._matchType==='name')nameC++;
+      else if(cc[k]._matchType==='phone+kw')kwC++;
+      else phoneC++;
+    }
     document.getElementById('modal-comm-area').innerHTML=renderCommTimeline(cc);
-    document.getElementById('comm-count').textContent=cc.length+'件（手動:'+manC+' KW:'+kwC+'）';
+    var cntParts=[];
+    if(manC)cntParts.push('手動:'+manC);
+    if(kwC)cntParts.push('KW:'+kwC);
+    if(nameC)cntParts.push('名前:'+nameC);
+    if(phoneC)cntParts.push('TEL:'+phoneC);
+    document.getElementById('comm-count').textContent=cc.length+'件'+(cntParts.length?' （'+cntParts.join(' / ')+'）':'');
   });});
 
   // 閉じる
