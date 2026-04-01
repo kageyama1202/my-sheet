@@ -17,6 +17,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .hd-filters{display:flex;gap:6px;flex-wrap:wrap;padding:4px 16px 8px;background:#1a1d27;border-bottom:1px solid #2a2d3a;}
 .fb{padding:4px 12px;border-radius:16px;border:1px solid #3a3d4a;background:transparent;color:#888;font-size:12px;cursor:pointer;}
 .fb.active{background:#2563eb;border-color:#2563eb;color:#fff;}.fb:hover{border-color:#64b5f6;}
+.fb.unmatched-filter.active{background:#b71c1c;border-color:#b71c1c;}
 .hd-search{flex:1;min-width:120px;padding:4px 10px;border-radius:16px;border:1px solid #3a3d4a;background:#12141c;color:#e0e0e0;font-size:12px;outline:none;}
 .hd-search:focus{border-color:#2563eb;}
 .show-hidden-toggle{font-size:11px;color:#64b5f6;cursor:pointer;margin-left:8px;}
@@ -33,10 +34,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .mc:hover{background:#1f2233;}.mc.sel{background:#1f2940;border-left-color:#64b5f6;}
 .mc.sms-card{border-left-color:#4caf50;}.mc.gmail-card{border-left-color:#ef5350;}
 .mc.assigned-card{border-left-color:#ffab40;}
+.mc.unmatched-card{border-left-color:#ff1744;background:#1a1317;}
+.mc.unmatched-card:hover{background:#251a1f;}
 .mc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .mc-badge{font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;color:#fff;}
 .mc-badge.sms{background:#2e7d32;}.mc-badge.gm{background:#c62828;}
 .mc-dir{font-size:10px;color:#888;margin-left:4px;}
+.mc-unmatched-lbl{font-size:9px;padding:1px 6px;border-radius:6px;background:#b71c1c;color:#fff;font-weight:600;margin-left:6px;}
 .mc-time{font-size:10px;color:#666;}
 .mc-contact{font-size:12px;font-weight:600;color:#ccc;margin-bottom:3px;}
 .mc-contact a{color:#64b5f6;text-decoration:none;}
@@ -85,6 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
   <button class="fb" data-f="gmail">📧 Gmail</button>
   <button class="fb" data-f="sent">↑送信</button>
   <button class="fb" data-f="recv">↓受信</button>
+  <button class="fb unmatched-filter" data-f="unmatched">❓ 未分類</button>
   <span class="show-hidden-toggle" id="showHiddenToggle">👁 非表示を表示</span>
   <input class="hd-search" id="searchBox" placeholder="検索...">
 </div>
@@ -104,16 +109,15 @@ var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
 
-// ===== データ =====
-var allRecords=[];      // 表示用配列（ソート済み、フィルタ前の全件）
-var fbKeyMap={};         // allRecordsインデックス → Firebase配列キー
-var phoneToCasesList={}; // 正規化電話番号 → [{key,name,person,sekou,status}]
-var emailToContact={};   // メアド → {name,company,category}
-var phoneToContact={};   // 電話番号 → {name,company,category}
-var emailToPhone={};     // メアド → 電話番号（逆引き）
-var nameToPhones={};     // 連絡先の名前（姓） → [電話番号の配列]
-var nameToCases={};      // 担当者名（姓） → [{key,name,person}]
-var casesByKey={};       // 案件キー → taskオブジェクト
+var allRecords=[];
+var fbKeyMap={};
+var phoneToCasesList={};
+var emailToContact={};
+var phoneToContact={};
+var emailToPhone={};
+var nameToPhones={};
+var nameToCases={};
+var casesByKey={};
 var globalHeaders=[];
 var globalTasks={};
 var fullData=null;
@@ -121,12 +125,12 @@ var hiddenSet={};
 var activeFilter="all";
 var searchText="";
 var showHidden=false;
-var selectedArrIdx=-1;   // allRecords上のインデックス
+var selectedArrIdx=-1;
+var unmatchedCache={}; /* arrIdx → bool: 案件候補0件かどうかのキャッシュ */
 
 try{var hd=localStorage.getItem('comm_hidden');if(hd)hiddenSet=JSON.parse(hd);}catch(e){}
 try{var sd=localStorage.getItem('appData');if(sd){fullData=JSON.parse(sd);if(fullData.app_meta)globalHeaders=fullData.app_meta.headers;if(fullData.app_tasks)globalTasks=fullData.app_tasks;}}catch(e){}
 
-// ===== ユーティリティ =====
 function np(raw){if(!raw)return"";var s=raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g,"");s=s.replace(/^\+81/,"0");s=s.replace(/^81(?=\d{9,10})/,"0");s=s.replace(/[^0-9]/g,"");return s;}
 function ee(f){if(!f)return"";var m=f.match(/<([^>]+)>/);if(m)return m[1].toLowerCase().trim();if(f.indexOf("@")>-1)return f.toLowerCase().trim();return"";}
 function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";return"";}
@@ -136,14 +140,12 @@ function tstr(d){return("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).sli
 function dlt(key){var p=key.split("-");var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));var dn=["日","月","火","水","木","金","土"];return parseInt(p[1])+"/"+parseInt(p[2])+" ("+dn[d.getDay()]+")";}
 function saveHidden(){localStorage.setItem('comm_hidden',JSON.stringify(hiddenSet));}
 
-// 名前から姓の候補を抽出（「石橋さんタカラ」→「石橋」）
 function extractSei(name){
   var results=[];
   var s=name.replace(/[\s\u3000]+/g," ").trim();
   var parts=s.split(" ");
   for(var i=0;i<parts.length;i++){
     var p=parts[i];
-    // 敬称・会社名を除去
     p=p.replace(/(さん|くん|ちゃん|様|氏|タカラスタンダード|タカラ|土屋ホーム|土屋|アイ工務店|社長|専務|部長|次長|課長|係長|主任|リーダー|代表|取締役|！|!)+$/g,"");
     p=p.replace(/^\(株\)|^（株）|^\(有\)|^（有）/g,"");
     if(p.length>=2) results.push(p);
@@ -153,9 +155,7 @@ function extractSei(name){
 
 var now=new Date();
 var threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
-var threeMonthsAgoStr=threeMonthsAgo.getFullYear()+"-"+("0"+(threeMonthsAgo.getMonth()+1)).slice(-2)+"-"+("0"+threeMonthsAgo.getDate()).slice(-2);
 
-// 連絡先名を取得
 function getContactInfo(rec){
   if(rec.src==="imessage"){
     var ph=np(rec.contact);
@@ -170,40 +170,42 @@ function getContactInfo(rec){
   }
 }
 
-// このメッセージに関連する案件候補を取得
 function getCasesForRec(rec){
   var ci=getContactInfo(rec);
   var phone=ci.phone;
   var raw=[];
-  // ① 電話番号で案件検索
-  if(phone&&phoneToCasesList[phone]){
-    raw=phoneToCasesList[phone];
-  }
-  // ② 名前で案件検索（電話番号マッチなしの場合）
+  if(phone&&phoneToCasesList[phone]){raw=phoneToCasesList[phone];}
   if(raw.length===0&&ci.name){
     var seis=extractSei(ci.name);
-    for(var si=0;si<seis.length;si++){
-      if(nameToCases[seis[si]]){raw=nameToCases[seis[si]];break;}
-    }
+    for(var si=0;si<seis.length;si++){if(nameToCases[seis[si]]){raw=nameToCases[seis[si]];break;}}
   }
-  // ソート：アクティブ案件を上に、施工日新しい順
   var sorted=raw.slice();
   sorted.sort(function(a,b){
     var ta=casesByKey[a.key],tb=casesByKey[b.key];
     var sa=ta?gv(ta.csvData,1).replace(/\s+/g,""):"";
     var sb=tb?gv(tb.csvData,1).replace(/\s+/g,""):"";
-    var aComp=sa==="完了"?1:0, bComp=sb==="完了"?1:0;
+    var aComp=sa==="完了"?1:0,bComp=sb==="完了"?1:0;
     if(aComp!==bComp)return aComp-bComp;
-    var da=ta?gv(ta.csvData,2):"", db=tb?gv(tb.csvData,2):"";
+    var da=ta?gv(ta.csvData,2):"",db=tb?gv(tb.csvData,2):"";
     return(db||"").localeCompare(da||"");
   });
   return sorted;
 }
 
-// Gmail非登録者チェック
 function isRegistered(rec){
   if(rec.src==="imessage")return true;
   return!!emailToContact[ee(rec.contact)];
+}
+
+/* 未分類判定（キャッシュ付き） */
+function isUnmatched(arrIdx){
+  if(unmatchedCache[arrIdx]!==undefined)return unmatchedCache[arrIdx];
+  var rec=allRecords[arrIdx];
+  if(!rec){unmatchedCache[arrIdx]=false;return false;}
+  if(rec.assignedCase){unmatchedCache[arrIdx]=false;return false;}
+  var cases=getCasesForRec(rec);
+  unmatchedCache[arrIdx]=cases.length===0;
+  return unmatchedCache[arrIdx];
 }
 
 function matchesFilter(rec,arrIdx){
@@ -211,6 +213,7 @@ function matchesFilter(rec,arrIdx){
   if(activeFilter==="gmail"&&rec.src!=="gmail")return false;
   if(activeFilter==="sent"&&rec.dir!=="sent")return false;
   if(activeFilter==="recv"&&rec.dir!=="received")return false;
+  if(activeFilter==="unmatched"&&!isUnmatched(arrIdx))return false;
   if(rec.src==="gmail"&&!isRegistered(rec))return false;
   if(hiddenSet[arrIdx]&&!showHidden)return false;
   if(searchText){
@@ -220,16 +223,21 @@ function matchesFilter(rec,arrIdx){
   return true;
 }
 
-// ===== タイムライン描画 =====
 function renderTimeline(){
   var filtered=[];
   for(var i=0;i<allRecords.length;i++){
     if(matchesFilter(allRecords[i],i))filtered.push({rec:allRecords[i],arrIdx:i});
   }
 
-  var imC=0,gmC=0,hidC=Object.keys(hiddenSet).length;
+  var imC=0,gmC=0,hidC=Object.keys(hiddenSet).length,unmC=0;
   for(var i=0;i<filtered.length;i++){if(filtered[i].rec.src==="imessage")imC++;else gmC++;}
-  document.getElementById("hdStats").textContent="表示:"+filtered.length+" (SMS:"+imC+" Gmail:"+gmC+") 非表示:"+hidC;
+  /* 未分類カウント（全件ベース） */
+  for(var i=0;i<allRecords.length;i++){
+    if(allRecords[i].src==="gmail"&&!isRegistered(allRecords[i]))continue;
+    if(hiddenSet[i])continue;
+    if(isUnmatched(i))unmC++;
+  }
+  document.getElementById("hdStats").textContent="表示:"+filtered.length+" (SMS:"+imC+" Gmail:"+gmC+") 未分類:"+unmC+" 非表示:"+hidC;
 
   if(!filtered.length){document.getElementById("timeline").innerHTML='<div style="text-align:center;padding:40px;color:#555;">該当なし</div>';return;}
 
@@ -250,13 +258,16 @@ function renderTimeline(){
       var arrIdx=item.arrIdx;
       var ci=getContactInfo(rec);
       var isSms=rec.src==="imessage";
+      var unmatched=isUnmatched(arrIdx);
       var cls="mc "+(isSms?"sms-card":"gmail-card");
       if(rec.assignedCase)cls+=" assigned-card";
+      else if(unmatched)cls+=" unmatched-card";
       if(arrIdx===selectedArrIdx)cls+=" sel";
 
       html+='<div class="'+cls+'" data-arridx="'+arrIdx+'" style="'+(hiddenSet[arrIdx]?'opacity:0.4;':'')+'">';
       html+='<div class="mc-top"><div><span class="mc-badge '+(isSms?"sms":"gm")+'">'+(isSms?"SMS":"Gmail")+'</span>';
       if(rec.dir)html+='<span class="mc-dir">'+(rec.dir==="sent"?"↑":"↓")+'</span>';
+      if(unmatched)html+='<span class="mc-unmatched-lbl">❓ 未分類</span>';
       html+='</div><span class="mc-time">'+rec._timeStr+'</span></div>';
 
       if(ci.name){
@@ -280,7 +291,6 @@ function renderTimeline(){
   }
   document.getElementById("timeline").innerHTML=html;
 
-  // クリックイベント
   document.querySelectorAll('.mc').forEach(function(el){
     el.addEventListener('click',function(){
       var arrIdx=parseInt(this.dataset.arridx);
@@ -292,7 +302,6 @@ function renderTimeline(){
   });
 }
 
-// ===== 右パネル描画 =====
 function renderRightPanel(arrIdx){
   var rec=allRecords[arrIdx];
   if(!rec){document.getElementById("rightPanel").innerHTML='<div class="r-empty">データなし</div>';return;}
@@ -301,12 +310,8 @@ function renderRightPanel(arrIdx){
   var cases=getCasesForRec(rec);
   var html="";
 
-  // 連絡先情報（クリーンアップ済み）
   var displayName=ci.name;
-  if(displayName){
-    var cleaned=extractSei(displayName);
-    if(cleaned.length>0)displayName=cleaned.join(" ");
-  }
+  if(displayName){var cleaned=extractSei(displayName);if(cleaned.length>0)displayName=cleaned.join(" ");}
   if(displayName){
     html+='<div class="r-contact">'+displayName;
     if(ci.company)html+='<span class="r-contact-co">'+ci.company+'</span>';
@@ -315,12 +320,10 @@ function renderRightPanel(arrIdx){
   if(ci.phone)html+='<div class="r-phone">📱 '+ci.phone+'</div>';
   if(ci.email)html+='<div class="r-phone">📧 '+ci.email+'</div>';
 
-  // メッセージプレビュー
   html+='<div class="r-msg-preview">';
   if(rec.subject)html+='<b style="color:#f0c040">'+rec.subject.replace(/</g,"&lt;")+'</b>\n';
   html+=(rec.body||"").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</div>';
 
-  // 案件候補
   var activeCount=0;
   for(var i=0;i<cases.length;i++){var t=casesByKey[cases[i].key];if(t&&gv(t.csvData,1).replace(/\s+/g,"")!=="完了")activeCount++;}
   html+='<div class="r-section"><div class="r-section-title">🏗️ 案件候補（アクティブ'+activeCount+'件 / 全'+cases.length+'件）</div>';
@@ -344,16 +347,14 @@ function renderRightPanel(arrIdx){
       html+='</div>';
     }
   }else{
-    html+='<div class="r-no-case">この連絡先の電話番号に紐づく案件がありません。<br><span style="font-size:10px;color:#555;">電話番号: '+(ci.phone||"不明")+'</span></div>';
+    html+='<div class="r-no-case">❓ この連絡先に紐づく案件がありません。<br><span style="font-size:10px;color:#555;">電話番号: '+(ci.phone||"不明")+'</span></div>';
   }
   html+='</div>';
 
-  // 非表示チェック
   html+='<div class="r-hide-row"><label><input type="checkbox" id="hideCheck"'+(hiddenSet[arrIdx]?" checked":"")+'> 🚫 このメッセージを非表示にする</label></div>';
 
   document.getElementById("rightPanel").innerHTML=html;
 
-  // 案件チェック（ラジオ的：1つだけ）
   document.querySelectorAll('.r-case input[type="checkbox"]').forEach(function(cb){
     cb.addEventListener('change',function(){
       var caseKey=this.dataset.casekey;
@@ -371,11 +372,12 @@ function renderRightPanel(arrIdx){
         database.ref('app_communications/'+fbIdx+'/assignedCase').remove();
         allRecords[aIdx].assignedCase=null;
       }
+      /* キャッシュクリア＆再描画 */
+      delete unmatchedCache[aIdx];
       renderTimeline();
     });
   });
 
-  // モーダルボタン
   document.querySelectorAll('.r-modal-btn').forEach(function(btn){
     btn.addEventListener('click',function(e){
       e.stopPropagation();
@@ -387,14 +389,12 @@ function renderRightPanel(arrIdx){
     });
   });
 
-  // 非表示チェック
   document.getElementById('hideCheck').addEventListener('change',function(){
     if(this.checked)hiddenSet[arrIdx]=true;else delete hiddenSet[arrIdx];
     saveHidden();renderTimeline();
   });
 }
 
-// ===== フィルター =====
 document.querySelectorAll(".fb").forEach(function(b){b.addEventListener("click",function(){
   activeFilter=this.dataset.f;
   document.querySelectorAll(".fb").forEach(function(x){x.classList.remove("active");});
@@ -408,11 +408,9 @@ document.getElementById("showHiddenToggle").addEventListener("click",function(){
   renderTimeline();
 });
 
-// ===== データ読み込み =====
 var ls={tasks:false,contacts:false,comms:false};
 function tryRender(){
   if(!ls.tasks||!ls.contacts||!ls.comms)return;
-  // ★ 工務担当者(csvData[8])の名前→連絡先の電話番号→案件マッピング
   if(!ls.crossLinked){
     ls.crossLinked=true;
     var added=0;
@@ -421,9 +419,8 @@ function tryRender(){
       var t=casesByKey[keys[i]];if(!t.csvData)continue;
       var caseName=gv(t.csvData,4);
       var person=gv(t.csvData,5);
-      var koumu=gv(t.csvData,8).replace(/[\s\u3000]+/g,""); // 工務担当者名
+      var koumu=gv(t.csvData,8).replace(/[\s\u3000]+/g,"");
       if(!koumu||!caseName)continue;
-      // 工務担当者の名前で連絡先から電話番号を探す（複数対応）
       var koumuPhones=nameToPhones[koumu]||[];
       if(!koumuPhones.length){
         for(var len=3;len>=2;len--){
@@ -444,18 +441,12 @@ function tryRender(){
         }
       }
     }
-    console.log("工務担当者→電話番号→案件: "+added+"件追加");
-    console.log("PhoneMaps(合計):"+Object.keys(phoneToCasesList).length);
-    console.log("NameToPhones:", nameToPhones);
-
-    // ★ 名前→案件マッピング（csvData[5]の担当者名、csvData[8]の工務担当者名）
     for(var i=0;i<keys.length;i++){
       var t=casesByKey[keys[i]];if(!t.csvData)continue;
       var caseName=gv(t.csvData,4);
       var person=gv(t.csvData,5);
       if(!caseName)continue;
       var caseEntry={key:keys[i],name:caseName,person:person};
-      // csvData[5]から担当者名（スペース区切りの2語目以降）
       var personParts=person.replace(/[\s\u3000]+/g," ").trim().split(" ");
       for(var p=1;p<personParts.length;p++){
         var nm=personParts[p].replace(/様$/,"");
@@ -465,7 +456,6 @@ function tryRender(){
           if(!dup)nameToCases[nm].push(caseEntry);
         }
       }
-      // csvData[8]から工務担当者名
       var koumu2=gv(t.csvData,8).replace(/[\s\u3000]+/g,"");
       if(koumu2.length>=2){
         var koumuSei=koumu2.substring(0,Math.min(koumu2.length,3));
@@ -476,12 +466,12 @@ function tryRender(){
         }
       }
     }
-    console.log("NameToCases(名前→案件):", Object.keys(nameToCases).length+"名分");
+    /* 未分類キャッシュリセット */
+    unmatchedCache={};
   }
   renderTimeline();
 }
 
-// タスク
 fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(function(data){
   if(data){
     globalTasks=data;
@@ -489,7 +479,6 @@ fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(functio
     for(var i=0;i<keys.length;i++){
       var t=data[keys[i]];if(!t.csvData)continue;
       casesByKey[keys[i]]=t;
-      // csvData[6] = 担当者携帯
       var ph=np(gv(t.csvData,6));
       var caseName=gv(t.csvData,4);
       var person=gv(t.csvData,5);
@@ -498,15 +487,10 @@ fetch(FB_URL+"/app_tasks.json").then(function(r){return r.json();}).then(functio
         phoneToCasesList[ph].push({key:keys[i],name:caseName,person:person});
       }
     }
-    console.log("Cases:"+Object.keys(casesByKey).length+" PhoneMaps:"+Object.keys(phoneToCasesList).length);
-    // デバッグ：電話番号ごとの案件数
-    var multi=0;for(var p in phoneToCasesList){if(phoneToCasesList[p].length>1)multi++;}
-    console.log("複数案件の電話番号:"+multi);
   }
   ls.tasks=true;tryRender();
 }).catch(function(e){console.error(e);ls.tasks=true;tryRender();});
 
-// 連絡先
 fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(function(data){
   if(data){
     var arr=Array.isArray(data)?data:Object.values(data);
@@ -518,7 +502,6 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
       if(em&&!emailToContact[em])emailToContact[em]=info;
       if(ph.length>=10&&!phoneToContact[ph])phoneToContact[ph]=info;
       if(em&&ph.length>=10&&!emailToPhone[em])emailToPhone[em]=ph;
-      // 名前（姓）→電話番号マップ構築（同姓複数対応）
       if(ph.length>=10&&c.name){
         var seis=extractSei(c.name);
         for(var si=0;si<seis.length;si++){
@@ -527,33 +510,14 @@ fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(func
         }
       }
     }
-    console.log("Contacts email:"+Object.keys(emailToContact).length+" phone:"+Object.keys(phoneToContact).length);
   }
   ls.contacts=true;tryRender();
 }).catch(function(e){console.error(e);ls.contacts=true;tryRender();});
 
-// 通信
 fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(data){
   if(!data){document.getElementById("timeline").innerHTML='<div style="text-align:center;padding:40px;color:#555;">データなし</div>';return;}
   var arr=Array.isArray(data)?data:Object.values(data);
   var fbKeys=Array.isArray(data)?null:Object.keys(data);
-  for(var i=0;i<arr.length;i++){
-    if(!arr[i])continue;
-    var rec=arr[i];var d=pd(rec);
-    if(d<threeMonthsAgo)continue;
-    rec._dateKey=dk(d);rec._timeStr=tstr(d);rec._sortKey=d.getTime();
-    var arrIdx=allRecords.length;
-    // Firebase上のキー（配列ならインデックス、オブジェクトならキー）
-    fbKeyMap[arrIdx]=fbKeys?fbKeys[i]:i;
-    allRecords.push(rec);
-  }
-  allRecords.sort(function(a,b){return b._sortKey-a._sortKey;});
-  // ソート後にfbKeyMapを再構築
-  var tempMap={};
-  for(var idx in fbKeyMap){tempMap[allRecords.indexOf(allRecords[idx])]=fbKeyMap[idx];}
-  // ソートで順序変わるので別の方法で管理
-  // → 各レコードにfbKeyを直接持たせる
-  // やり直し
   allRecords=[];
   for(var i=0;i<arr.length;i++){
     if(!arr[i])continue;
@@ -564,12 +528,8 @@ fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).the
     allRecords.push(rec);
   }
   allRecords.sort(function(a,b){return b._sortKey-a._sortKey;});
-  // fbKeyMapをソート後のインデックスで再構築
   fbKeyMap={};
-  for(var i=0;i<allRecords.length;i++){
-    fbKeyMap[i]=allRecords[i]._fbKey;
-  }
-  console.log("Communications:"+allRecords.length);
+  for(var i=0;i<allRecords.length;i++){fbKeyMap[i]=allRecords[i]._fbKey;}
   ls.comms=true;tryRender();
 }).catch(function(e){document.getElementById("timeline").innerHTML='<div style="text-align:center;padding:40px;color:#555;">エラー: '+e.message+'</div>';});
 </script>
