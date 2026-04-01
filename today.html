@@ -42,15 +42,17 @@
     .col-name{width:170px;min-width:170px;max-width:170px;}
     .col-company{width:140px;min-width:140px;max-width:140px;}
     .col-tel{width:105px;min-width:105px;max-width:105px;}
-    .col-date{width:80px;min-width:80px;max-width:80px;}
+    .col-date{width:92px;min-width:92px;max-width:92px;}
     .col-memo{width:190px;min-width:190px;max-width:190px;}
     .col-address{width:170px;min-width:170px;max-width:170px;}
+    .col-yotei{width:92px;min-width:92px;max-width:92px;}
     .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
     #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
     .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
     #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
     .kanryo-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #999;background:#fff;font-weight:bold;}
     .kanryo-toggle.active{background:#ffc107;border-color:#ffc107;color:#333;}
+    .yotei-cell{color:#7b1fa2;font-weight:600;}
   </style>
 </head>
 <body>
@@ -78,9 +80,12 @@
     var database=firebase.database();
     var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
     var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),searchInput=document.getElementById('searchInput');
-    var displayCols=[1,3,4,5,6,7,10,11,2,12];
-    var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date'];
-    function getColLetter(i){var l='';while(i>=0){l=String.fromCharCode((i%26)+65)+l;i=Math.floor(i/26)-1;}return l;}
+
+    /* displayCols: CSV列インデックス。-1は「下見予定日（obj.date）」を意味する特殊値 */
+    var displayCols=[1,3,4,5,6,7,10,11,2,12,-1];
+    var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date','col-yotei'];
+    var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','下見予定日'];
+
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
     function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
     function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
@@ -122,8 +127,22 @@
       var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
       var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked;
       var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
-      var trH=document.createElement('tr');var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
-      displayCols.forEach(function(ci,i){var h=document.createElement('th');h.textContent=globalHeaders[ci]||getColLetter(ci);h.className=colClasses[i+1]||'';trH.appendChild(h);});thead.appendChild(trH);
+
+      /* ヘッダー行 */
+      var trH=document.createElement('tr');
+      var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
+      for(var hi=0;hi<displayCols.length;hi++){
+        var h=document.createElement('th');
+        h.className=colClasses[hi+1]||'';
+        if(displayCols[hi]===-1){
+          h.textContent='下見予定日';
+        }else{
+          h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';
+        }
+        trH.appendChild(h);
+      }
+      thead.appendChild(trH);
+
       var valid=Object.keys(globalTasks).filter(function(key){
         var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
         var status=getSafeVal(cols,1).replace(/\s+/g,""),sekouDate=formatToYMD(getSafeVal(cols,2));
@@ -135,19 +154,47 @@
         if(from||to){var dm=false;if(!cS&&!cD&&!cY)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(!dm)return false;}return true;
       });
       valid.sort(function(a,b){return getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'').localeCompare(getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,''));});
+
       valid.forEach(function(key,idx){
         var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
         var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
-        displayCols.forEach(function(ci,i){
-          var c=getSafeVal(cols,ci),td=document.createElement('td');td.className=colClasses[i+1]||'';
-          var inner=document.createElement('div');inner.className='cell-inner';var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
-          if(ci===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
-          else if(ci===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
-          else{inner.textContent=disp;}
+
+        for(var ci2=0;ci2<displayCols.length;ci2++){
+          var colIdx=displayCols[ci2];
+          var td=document.createElement('td');
+          td.className=colClasses[ci2+1]||'';
+          var inner=document.createElement('div');
+          inner.className='cell-inner';
+
+          if(colIdx===-1){
+            /* 下見予定日（Firebaseフィールド） */
+            var yotei=obj.date||'';
+            inner.textContent=yotei;
+            if(yotei)inner.classList.add('yotei-cell');
+          }else{
+            var c=getSafeVal(cols,colIdx);
+            var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
+            if(colIdx===11&&clean!==''){
+              var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
+              if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');
+              else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
+              inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';
+            }else if(colIdx===6&&clean!==''){
+              inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';
+            }else{
+              inner.textContent=disp;
+            }
+            if(clean!==''){
+              td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));
+              td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
+              td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
+            }
+          }
+
           td.appendChild(inner);
-          if(clean!==''){td.addEventListener('mouseenter',function(){tooltip.textContent=c;tooltip.style.display='block';});td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}
           tr.appendChild(td);
-        });
+        }
+
         tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
         tbody.appendChild(tr);
       });
