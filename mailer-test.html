@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -52,7 +53,6 @@
     <span class="close-btn" onclick="closeModal()">×</span>
     <h2>✉️ メール作成</h2>
     
-    <!-- 正しい参照値で表示するエリア -->
     <div class="case-info" id="caseInfoArea"></div>
 
     <label>テンプレート選択 (宛先・件名・本文を自動セット):</label>
@@ -107,10 +107,10 @@
     for (var key in tasks) {
       var task = tasks[key];
       if (task.csvData) {
-        // インデックスを修正 [4]:管理名, [3]:施工日, [5]:工務担当
-        var caseName = task.csvData[4] || "名称不明"; 
-        var consDate = task.csvData[3] || "未定";     
-        var inCharge = task.csvData[5] || "未定";     
+        // HANDOFF.md の正しいインデックスを参照
+        var consDate = task.csvData[3] || "未定";     // 施工日
+        var caseName = task.csvData[4] || "名称不明"; // 管理名
+        var inCharge = task.csvData[5] || "未定";     // 工務担当者
         
         var card = document.createElement('div');
         card.className = "task-card";
@@ -132,11 +132,12 @@
     currentTemplateType = "";
     
     var csv = taskObj.csvData || [];
-    var consDate   = csv[3] || "未定";     // [3] 施工日
-    var caseName   = csv[4] || "名称不明"; // [4] 案件名(管理名)
-    var clientName = csv[1] || "未登録";   // [1] 打合担当者(先方)
-    var phone      = csv[2] || "未登録";   // [2] 電話番号
-    var takaraRep  = csv[5] || "未登録";   // [5] 工務担当者(タカラ)
+    // HANDOFF.md の正しいインデックスを参照
+    var consDate   = csv[3] || "未定";     // 施工日
+    var caseName   = csv[4] || "名称不明"; // 案件名(管理名)
+    var clientName = csv[1] || "未登録";   // 打合担当者(先方)
+    var phone      = csv[2] || "未登録";   // 電話番号
+    var takaraRep  = csv[5] || "未登録";   // 工務担当者(タカラ)
 
     var infoArea = document.getElementById('caseInfoArea');
     infoArea.innerHTML = 
@@ -203,18 +204,18 @@
     var to = "", subj = "", body = "";
 
     if (type === 'reform') {
-      to = phone; // リフォームは先方へ
+      to = phone; 
       subj = "【お問い合わせ】リフォームの件 (" + caseName + ")";
       body = clientName + " 様\n\nお世話になっております。\n「" + caseName + "」のリフォームの件につきまして、以下の通りお問い合わせ申し上げます。\n\n詳細：";
     } 
     else if (type === 'takara') {
-      to = takaraRep + " (タカラ)"; // タカラ担当者へ
+      to = takaraRep + " (タカラ)"; 
       subj = "【ご報告】施工日確定のお知らせ (" + caseName + ")";
       body = takaraRep + " 様\n\nお世話になっております。\n担当案件の施工日が確定いたしましたので、ご報告申し上げます。\n\n■ 案件名: " + caseName + "\n■ 施工日: " + consDate + "\n■ 打合担当: " + clientName + " 様\n\nよろしくお願いいたします。";
     } 
     else if (type === 'sms') {
-      to = phone; // SMSは先方の電話番号へ
-      subj = ""; // SMSなので件名なし
+      to = phone; 
+      subj = ""; 
       body = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】に確定いたしました。当日はよろしくお願いいたします。";
     }
 
