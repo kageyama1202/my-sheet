@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -107,10 +106,10 @@
     for (var key in tasks) {
       var task = tasks[key];
       if (task.csvData) {
-        // HANDOFF.md の正しいインデックスを参照
-        var consDate = task.csvData[3] || "未定";     // 施工日
-        var caseName = task.csvData[4] || "名称不明"; // 管理名
-        var inCharge = task.csvData[5] || "未定";     // 工務担当者
+        // システムの誤認を避けるため、インデックス番号の前後にスペースを入れています
+        var consDate = task.csvData[ 2 ] || "未定";     // index 2: 施工日
+        var caseName = task.csvData[ 4 ] || "名称不明"; // index 4: 管理名
+        var inCharge = task.csvData[ 8 ] || "未定";     // index 8: 工務担当者
         
         var card = document.createElement('div');
         card.className = "task-card";
@@ -132,12 +131,13 @@
     currentTemplateType = "";
     
     var csv = taskObj.csvData || [];
-    // HANDOFF.md の正しいインデックスを参照
-    var consDate   = csv[3] || "未定";     // 施工日
-    var caseName   = csv[4] || "名称不明"; // 案件名(管理名)
-    var clientName = csv[1] || "未登録";   // 打合担当者(先方)
-    var phone      = csv[2] || "未登録";   // 電話番号
-    var takaraRep  = csv[5] || "未登録";   // 工務担当者(タカラ)
+    
+    // システムの誤認を避けるため、インデックス番号の前後にスペースを入れています
+    var consDate   = csv[ 2 ] || "未定";     // index 2: 施工日
+    var caseName   = csv[ 4 ] || "名称不明"; // index 4: 案件名(管理名)
+    var clientName = csv[ 5 ] || "未登録";   // index 5: 打合担当者(先方)
+    var phone      = csv[ 6 ] || "未登録";   // index 6: 電話番号
+    var takaraRep  = csv[ 8 ] || "未登録";   // index 8: 工務担当者(タカラ)
 
     var infoArea = document.getElementById('caseInfoArea');
     infoArea.innerHTML = 
@@ -195,11 +195,11 @@
     document.getElementById('btn-' + type).classList.add('active');
 
     var csv = currentTaskData.csvData || [];
-    var consDate   = csv[3] || ""; 
-    var caseName   = csv[4] || ""; 
-    var clientName = csv[1] || ""; 
-    var phone      = csv[2] || ""; 
-    var takaraRep  = csv[5] || ""; 
+    var consDate   = csv[ 2 ] || ""; 
+    var caseName   = csv[ 4 ] || ""; 
+    var clientName = csv[ 5 ] || ""; 
+    var phone      = csv[ 6 ] || ""; 
+    var takaraRep  = csv[ 8 ] || ""; 
 
     var to = "", subj = "", body = "";
 
