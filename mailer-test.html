@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>試験用メーラー・本番仕様</title>
+<title>試験用メーラー・一括表示仕様</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -19,42 +19,39 @@
   
   /* モーダル */
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-  .modal-content { background: #fff; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 20px; border-radius: 8px; position: relative; }
-  .close-btn { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #666; }
+  .modal-content { background: #fff; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 20px; border-radius: 8px; position: relative; }
+  .close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #666; background: #fff; border-radius: 50%; width: 40px; height: 40px; text-align: center; line-height: 36px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
   
   .case-info { background: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #1976d2; line-height: 1.6; }
   .case-info span.lbl { font-weight: bold; display: inline-block; width: 100px; color: #555; }
   
-  label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
-  input, textarea { width: 100%; margin-top: 5px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  .hint { font-size: 12px; color: #666; margin-top: 2px; }
+  /* 各種フォーム要素 */
+  label { display: block; margin-top: 10px; font-weight: bold; font-size: 13px; color: #444; }
+  input, textarea { width: 100%; margin-top: 3px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
   
-  /* 宛先コンテナ（横並び） */
+  /* 一括表示用のテンプレートブロック */
+  .template-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .template-block h3 { margin-top: 0; font-size: 16px; color: #1976d2; display: flex; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+  
   .dest-container { display: flex; gap: 10px; margin-top: 5px; }
   .dest-box { flex: 1; }
   .dest-box label { margin-top: 0; font-size: 12px; color: #555; }
 
-  .btn-group { margin-top: 10px; display: flex; gap: 10px; flex-direction: column; }
-  .tmpl-btn { background: #e0e0e0; color: #333; padding: 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; text-align: left; display: flex; align-items: center; }
-  .tmpl-btn:hover { background: #d5d5d5; }
-  .tmpl-btn.active { background: #e3f2fd; border: 2px solid #1976d2; font-weight: bold; }
-  
   .badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; margin-right: 10px; min-width: 30px; text-align: center; }
   .badge-red { background: #d32f2f; }
   .badge-green { background: #2e7d32; }
 
   /* アクションボタン群 */
-  .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-  .launch-btn { flex: 1; min-width: 140px; color: white; font-weight: bold; padding: 15px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
-  .btn-sms { background: #00796b; } /* SMS用カラー */
+  .action-buttons { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
+  .launch-btn, .save-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
+  .btn-sms { background: #00796b; } 
   .btn-sms:hover { background: #004d40; }
-  .btn-email { background: #1976d2; } /* メール用カラー */
+  .btn-email { background: #1976d2; } 
   .btn-email:hover { background: #1565c0; }
-  
-  .save-btn { flex: 1; min-width: 140px; background: #2e7d32; color: white; font-weight: bold; padding: 15px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
+  .save-btn { background: #2e7d32; }
   .save-btn:hover { background: #1b5e20; }
   
-  #statusMsg { display: block; margin-top: 10px; font-weight: bold; color: #d32f2f; text-align: center; }
+  #statusMsg { display: block; margin-bottom: 15px; font-weight: bold; color: #1976d2; text-align: center; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -74,47 +71,92 @@
 <div id="testModal" class="modal-overlay">
   <div class="modal-content">
     <span class="close-btn" onclick="closeModal()">×</span>
-    <h2>✉️ 連絡作成（SMS/メール選択）</h2>
+    <h2 style="margin-top:0;">✉️ 連絡作成・送信一括パネル</h2>
     
+    <!-- 案件情報 -->
     <div class="case-info" id="caseInfoArea"></div>
 
-    <label>連絡内容テンプレート:</label>
-    <div class="btn-group">
-      <button id="btn-reform" class="tmpl-btn" onclick="applyTemplate('reform')">
-        <span id="badge-reform" class="badge badge-red">未</span> リフォーム問合
-      </button>
-      <button id="btn-takara" class="tmpl-btn" onclick="applyTemplate('takara')">
-        <span id="badge-takara" class="badge badge-red">未</span> 施工日確定 (タカラ向け)
-      </button>
-      <button id="btn-sms" class="tmpl-btn" onclick="applyTemplate('sms')">
-        <span id="badge-sms" class="badge badge-red">未</span> 施工日確定 (先方・建築業者向け)
-      </button>
-    </div>
-
-    <label>宛先情報 (連絡先から自動検索):</label>
-    <div class="dest-container">
-      <div class="dest-box">
-        <label>📱 電話番号 (SMS用)</label>
-        <input type="text" id="toPhoneInput" placeholder="090-XXXX-XXXX">
-      </div>
-      <div class="dest-box">
-        <label>📧 メールアドレス (Email用)</label>
-        <input type="text" id="toEmailInput" placeholder="メールアドレス">
-      </div>
-    </div>
-
-    <label>件名 (メール送信時のみ使用):</label>
-    <input type="text" id="subjectInput" placeholder="件名">
-
-    <label>本文: <span class="hint">※ここで自由に文章を書き足し・修正してから起動できます</span></label>
-    <textarea id="bodyInput" rows="6" placeholder="本文を入力..."></textarea>
-
-    <div class="action-buttons" id="actionButtonsArea" style="display:none;">
-      <button class="launch-btn btn-sms" onclick="launchApp('sms')">📱 SMSを起動</button>
-      <button class="launch-btn btn-email" onclick="launchApp('email')">📧 メールを起動</button>
-      <button class="save-btn" onclick="saveToParkedMails()">💾 履歴を保存 (🟢済)</button>
-    </div>
+    <!-- ステータス・案内メッセージ -->
     <span id="statusMsg"></span>
+
+    <!-- ============================================== -->
+    <!-- ブロック1：リフォーム問合 -->
+    <!-- ============================================== -->
+    <div class="template-block">
+      <h3><span id="badge-reform" class="badge badge-red">未</span> リフォーム問合</h3>
+      <div class="dest-container">
+        <div class="dest-box">
+          <label>📱 電話番号</label>
+          <input type="text" id="phone-reform" placeholder="090-XXXX-XXXX">
+        </div>
+        <div class="dest-box">
+          <label>📧 メールアドレス</label>
+          <input type="text" id="email-reform" placeholder="メールアドレス">
+        </div>
+      </div>
+      <label>件名:</label>
+      <input type="text" id="subject-reform" placeholder="件名">
+      <label>本文:</label>
+      <textarea id="body-reform" rows="3"></textarea>
+      <div class="action-buttons">
+        <button class="launch-btn btn-sms" onclick="launchApp('reform', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn btn-email" onclick="launchApp('reform', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('reform')">💾 履歴保存 (🟢済)</button>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ブロック2：施工日確定 (タカラ向け) -->
+    <!-- ============================================== -->
+    <div class="template-block">
+      <h3><span id="badge-takara" class="badge badge-red">未</span> 施工日確定 (タカラ向け)</h3>
+      <div class="dest-container">
+        <div class="dest-box">
+          <label>📱 電話番号</label>
+          <input type="text" id="phone-takara" placeholder="090-XXXX-XXXX">
+        </div>
+        <div class="dest-box">
+          <label>📧 メールアドレス</label>
+          <input type="text" id="email-takara" placeholder="メールアドレス">
+        </div>
+      </div>
+      <label>件名:</label>
+      <input type="text" id="subject-takara" placeholder="件名">
+      <label>本文:</label>
+      <textarea id="body-takara" rows="3"></textarea>
+      <div class="action-buttons">
+        <button class="launch-btn btn-sms" onclick="launchApp('takara', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn btn-email" onclick="launchApp('takara', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('takara')">💾 履歴保存 (🟢済)</button>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ブロック3：施工日確定 (先方・建築業者向け) -->
+    <!-- ============================================== -->
+    <div class="template-block">
+      <h3><span id="badge-sms" class="badge badge-red">未</span> 施工日確定 (先方・建築業者向け)</h3>
+      <div class="dest-container">
+        <div class="dest-box">
+          <label>📱 電話番号</label>
+          <input type="text" id="phone-sms" placeholder="090-XXXX-XXXX">
+        </div>
+        <div class="dest-box">
+          <label>📧 メールアドレス</label>
+          <input type="text" id="email-sms" placeholder="メールアドレス">
+        </div>
+      </div>
+      <label>件名:</label>
+      <input type="text" id="subject-sms" placeholder="件名">
+      <label>本文:</label>
+      <textarea id="body-sms" rows="3"></textarea>
+      <div class="action-buttons">
+        <button class="launch-btn btn-sms" onclick="launchApp('sms', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn btn-email" onclick="launchApp('sms', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('sms')">💾 履歴保存 (🟢済)</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -131,8 +173,8 @@
   
   var currentCaseKey = ""; 
   var currentTaskData = null;
-  var currentTemplateType = ""; 
   var contactsList = []; 
+  var lastUsedMethod = {}; // 各ブロックで最後に使った送信方法(sms/email)を記憶
 
   // 0. 連絡先データ取得
   database.ref('app_contacts').on('value', function(snap) {
@@ -177,7 +219,7 @@
       var task = tasks[key];
       if (task.csvData) {
         var status = task.csvData[ 1 ] || "";
-        if (status === "完了") continue; // 完了は非表示
+        if (status === "完了") continue; 
 
         var consDate = task.csvData[ 2 ] || "未定";     
         var caseName = task.csvData[ 4 ] || "名称不明"; 
@@ -196,17 +238,32 @@
     }
   });
 
-  // 3. モーダル起動
+  function findContactInfo(fullName) {
+    if (!fullName || fullName === "未登録") return { email: "", phone: "" };
+    var parts = fullName.split(/[\s　]+/);
+    var searchName = parts.length > 1 ? parts[1] : parts;
+
+    for (var i in contactsList) {
+      var c = contactsList[i];
+      if (c && c.name && c.name.indexOf(searchName) !== -1) {
+        return { email: c.email || "", phone: c.phone || "" };
+      }
+    }
+    return { email: "", phone: "" };
+  }
+
+  // 3. モーダル起動＆3つのフォーム全てにデータをセット
   function openModal(key, taskObj) {
     currentCaseKey = key;
     currentTaskData = taskObj;
-    currentTemplateType = "";
+    lastUsedMethod = {}; // 記憶リセット
+    document.getElementById('statusMsg').textContent = "";
     
     var csv = taskObj.csvData || [];
     var consDate   = csv[ 2 ] || "未定";     
     var caseName   = csv[ 4 ] || "名称不明"; 
     var clientName = csv[ 5 ] || "未登録";   
-    var phone      = csv[ 6 ] || "未登録";   
+    var phoneCsv   = csv[ 6 ] || "";   
     var takaraRep  = csv[ 8 ] || "未登録";   
 
     var infoArea = document.getElementById('caseInfoArea');
@@ -214,24 +271,36 @@
       "<div><span class='lbl'>案件名:</span> " + caseName + "</div>" +
       "<div><span class='lbl'>施工日:</span> " + consDate + "</div>" +
       "<div><span class='lbl'>先方ご芳名:</span> " + clientName + "</div>" +
-      "<div><span class='lbl'>電話番号:</span> " + phone + "</div>" +
+      "<div><span class='lbl'>電話番号:</span> " + (phoneCsv || "未登録") + "</div>" +
       "<div><span class='lbl'>タカラ担当:</span> " + takaraRep + "</div>";
-      
+
+    // 連絡先検索
+    var clientContact = findContactInfo(clientName);
+    var takaraContact = findContactInfo(takaraRep);
+
+    // --- ブロック1：リフォーム ---
+    document.getElementById('phone-reform').value = phoneCsv || clientContact.phone;
+    document.getElementById('email-reform').value = clientContact.email;
+    document.getElementById('subject-reform').value = "【お問い合わせ】リフォームの件";
+    document.getElementById('body-reform').value = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
+
+    // --- ブロック2：タカラ向け ---
+    document.getElementById('phone-takara').value = takaraContact.phone;
+    document.getElementById('email-takara').value = takaraContact.email;
+    document.getElementById('subject-takara').value = "【ご報告】施工日確定のお知らせ";
+    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
+
+    // --- ブロック3：先方・建築業者向け ---
+    document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
+    document.getElementById('email-sms').value = clientContact.email;
+    document.getElementById('subject-sms').value = "施工日確定のお知らせ";
+    document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】になっております、ご確認ご周知のほどよろしくお願いいたします。";
+
+    // バッジの状態をFirebaseから取得して更新
     var mailStatus = taskObj.mailStatus || {};
     updateBadge('reform', mailStatus.reform);
     updateBadge('takara', mailStatus.takara);
     updateBadge('sms', mailStatus.sms);
-
-    document.getElementById('toPhoneInput').value = "";
-    document.getElementById('toEmailInput').value = "";
-    document.getElementById('subjectInput').value = "";
-    document.getElementById('bodyInput').value = "";
-    document.getElementById('statusMsg').textContent = "";
-    
-    document.getElementById('btn-reform').classList.remove('active');
-    document.getElementById('btn-takara').classList.remove('active');
-    document.getElementById('btn-sms').classList.remove('active');
-    document.getElementById('actionButtonsArea').style.display = "none"; 
 
     document.getElementById('testModal').style.display = "flex";
   }
@@ -253,88 +322,21 @@
     }
   }
 
-  // 名前から連絡先を検索（「株式会社〇〇 山田」などのスペース区切りに対応）
-  function findContactInfo(fullName) {
-    if (!fullName || fullName === "未登録") return { email: "", phone: "" };
-    
-    // スペースで分割して担当者名（後ろの方）を抽出
-    var parts = fullName.split(/[\s　]+/);
-    var searchName = parts.length > 1 ? parts[1] : parts;
-
-    for (var i in contactsList) {
-      var c = contactsList[i];
-      if (c && c.name && c.name.indexOf(searchName) !== -1) {
-        return { email: c.email || "", phone: c.phone || "" };
-      }
-    }
-    return { email: "", phone: "" };
-  }
-
-  // 4. テンプレート適用（全てSMSライクな短文）
-  function applyTemplate(type) {
-    currentTemplateType = type;
-    
-    document.getElementById('btn-reform').classList.remove('active');
-    document.getElementById('btn-takara').classList.remove('active');
-    document.getElementById('btn-sms').classList.remove('active');
-    document.getElementById('btn-' + type).classList.add('active');
-
-    var csv = currentTaskData.csvData || [];
-    var consDate   = csv[ 2 ] || ""; 
-    var caseName   = csv[ 4 ] || ""; 
-    var clientName = csv[ 5 ] || ""; 
-    var phoneCsv   = csv[ 6 ] || ""; 
-    var takaraRep  = csv[ 8 ] || ""; 
-
-    var toPhone = "", toEmail = "", subj = "", body = "";
-    document.getElementById('actionButtonsArea').style.display = "flex"; 
-
-    // 対象者の連絡先を検索
-    var clientContact = findContactInfo(clientName);
-    var takaraContact = findContactInfo(takaraRep);
-
-    if (type === 'reform') {
-      toPhone = phoneCsv || clientContact.phone; 
-      toEmail = clientContact.email;
-      subj = "【お問い合わせ】リフォームの件"; 
-      body = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
-    } 
-    else if (type === 'takara') {
-      toPhone = takaraContact.phone;
-      toEmail = takaraContact.email;
-      subj = "【ご報告】施工日確定のお知らせ";
-      body = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認ほどよろしくお願いいたします。";
-    } 
-    else if (type === 'sms') {
-      toPhone = phoneCsv || clientContact.phone;
-      toEmail = clientContact.email;
-      subj = "施工日確定のお知らせ"; 
-      body = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】になっております、ご確認ご周知のほどよろしくお願いいたします。";
-    }
-
-    document.getElementById('toPhoneInput').value = toPhone;
-    document.getElementById('toEmailInput').value = toEmail;
-    document.getElementById('subjectInput').value = subj;
-    document.getElementById('bodyInput').value = body;
-  }
-
-  // 5. 選択した方式(sms/email)でアプリを起動
-  var lastUsedMethod = "sms"; // 保存時にどちらを使ったか記録用
-
-  function launchApp(method) {
-    lastUsedMethod = method;
-    var subj = document.getElementById('subjectInput').value;
-    var body = document.getElementById('bodyInput').value;
+  // 4. 指定ブロックのアプリを起動
+  function launchApp(type, method) {
+    lastUsedMethod[type] = method;
+    var toPhone = document.getElementById('phone-' + type).value;
+    var toEmail = document.getElementById('email-' + type).value;
+    var subj = document.getElementById('subject-' + type).value;
+    var body = document.getElementById('body-' + type).value;
 
     if (method === 'email') {
-      var toEmail = document.getElementById('toEmailInput').value;
       if (!toEmail) {
         alert("メールアドレスが入力されていません。");
         return;
       }
       window.location.href = "mailto:" + encodeURIComponent(toEmail) + "?subject=" + encodeURIComponent(subj) + "&body=" + encodeURIComponent(body);
     } else {
-      var toPhone = document.getElementById('toPhoneInput').value;
       if (!toPhone) {
         alert("電話番号が入力されていません。");
         return;
@@ -346,23 +348,23 @@
     
     var msg = document.getElementById('statusMsg');
     msg.style.color = "#1976d2";
-    msg.textContent = "起動しました。送信を終えたら「💾 履歴を保存」を押してください。";
+    msg.textContent = "🚀 アプリを起動しました。送信を終えたらそのブロックの「💾 履歴保存」を押してください。";
   }
 
-  // 6. 履歴の保存
-  function saveToParkedMails() {
+  // 5. 指定ブロックの履歴を保存
+  function saveToParkedMails(type) {
     if (!currentCaseKey) return;
-    if (!currentTemplateType) return;
     
-    var toPhoneVal = document.getElementById('toPhoneInput').value;
-    var toEmailVal = document.getElementById('toEmailInput').value;
-    var subjVal = document.getElementById('subjectInput').value;
-    var bodyVal = document.getElementById('bodyInput').value;
+    var toPhoneVal = document.getElementById('phone-' + type).value;
+    var toEmailVal = document.getElementById('email-' + type).value;
+    var subjVal = document.getElementById('subject-' + type).value;
+    var bodyVal = document.getElementById('body-' + type).value;
+    var method = lastUsedMethod[type] || 'sms'; // 起動していない場合はデフォルトsms扱い
 
     var mailData = {
       assignedCase: currentCaseKey,
-      mailType: currentTemplateType,
-      sendMethod: lastUsedMethod, // sms or email
+      mailType: type,
+      sendMethod: method,
       toPhone: toPhoneVal,
       toEmail: toEmailVal,
       subject: subjVal,
@@ -373,22 +375,22 @@
 
     database.ref('app_parked_mails').push(mailData)
       .then(function() {
-        var statusRef = database.ref('app_tasks/' + currentCaseKey + '/mailStatus/' + currentTemplateType);
+        var statusRef = database.ref('app_tasks/' + currentCaseKey + '/mailStatus/' + type);
         return statusRef.set(true);
       })
       .then(function() {
         var msg = document.getElementById('statusMsg');
         msg.style.color = "#2e7d32";
-        msg.textContent = "✅ 履歴を保存し、送信済(🟢)に更新しました。";
+        msg.textContent = "✅ 履歴を保存し、対象を送信済(🟢)にしました。続けて他の送信も可能です。";
         
         if(!currentTaskData.mailStatus) currentTaskData.mailStatus = {};
-        currentTaskData.mailStatus[currentTemplateType] = true;
-        updateBadge(currentTemplateType, true);
-
+        currentTaskData.mailStatus[type] = true;
+        updateBadge(type, true);
+        
+        // メッセージは数秒後に消す（モーダルは閉じない）
         setTimeout(function(){ 
           msg.textContent = ""; 
-          closeModal(); 
-        }, 1500);
+        }, 4000);
       });
   }
 </script>
