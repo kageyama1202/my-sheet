@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>試験用メーラー・一括表示仕様</title>
+<title>試験用メーラー・表示切り替え仕様</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
@@ -56,7 +56,6 @@
 </head>
 <body>
 
-<!-- 送信待ちアラート -->
 <div id="pendingAlert" class="pending-alert">
   <h3>⚠️ 送信待ち（仮置き）のメッセージがあります</h3>
   <div id="pendingList"></div>
@@ -73,16 +72,13 @@
     <span class="close-btn" onclick="closeModal()">×</span>
     <h2 style="margin-top:0;">✉️ 連絡作成・送信一括パネル</h2>
     
-    <!-- 案件情報 -->
     <div class="case-info" id="caseInfoArea"></div>
-
-    <!-- ステータス・案内メッセージ -->
     <span id="statusMsg"></span>
 
     <!-- ============================================== -->
-    <!-- ブロック1：リフォーム問合 -->
+    <!-- ブロック1：リフォーム問合 (区分が「ﾘ」の時のみ表示) -->
     <!-- ============================================== -->
-    <div class="template-block">
+    <div class="template-block" id="block-reform">
       <h3><span id="badge-reform" class="badge badge-red">未</span> リフォーム問合</h3>
       <div class="dest-container">
         <div class="dest-box">
@@ -174,14 +170,12 @@
   var currentCaseKey = ""; 
   var currentTaskData = null;
   var contactsList = []; 
-  var lastUsedMethod = {}; // 各ブロックで最後に使った送信方法(sms/email)を記憶
+  var lastUsedMethod = {}; 
 
-  // 0. 連絡先データ取得
   database.ref('app_contacts').on('value', function(snap) {
     contactsList = snap.val() || [];
   });
 
-  // 1. 仮置きアラート
   database.ref('app_parked_mails').on('value', function(snap) {
     var parked = snap.val() || {};
     var pendingList = document.getElementById('pendingList');
@@ -209,7 +203,6 @@
     }
   });
 
-  // 2. 案件リスト描画
   database.ref('app_tasks').on('value', function(snapshot) {
     var tasks = snapshot.val() || {};
     var container = document.getElementById('tasksContainer');
@@ -222,12 +215,14 @@
         if (status === "完了") continue; 
 
         var consDate = task.csvData[ 2 ] || "未定";     
+        var kubun    = task.csvData[ 3 ] || "";         // 工事区分
         var caseName = task.csvData[ 4 ] || "名称不明"; 
         var inCharge = task.csvData[ 8 ] || "未定";     
         
         var card = document.createElement('div');
         card.className = "task-card";
-        card.innerHTML = "<strong>" + caseName + "</strong> <span style='font-size:11px;color:#666;'>[" + status + "]</span><br><small>施工日: " + consDate + " / 工務担当: " + inCharge + "</small>";
+        // リスト上にも工事区分が分かるように少し追記
+        card.innerHTML = "<strong>" + caseName + "</strong> <span style='font-size:11px;color:#666;'>[" + kubun + " / " + status + "]</span><br><small>施工日: " + consDate + " / 工務担当: " + inCharge + "</small>";
         
         (function(k, t) {
           card.onclick = function() { openModal(k, t); };
@@ -241,7 +236,7 @@
   function findContactInfo(fullName) {
     if (!fullName || fullName === "未登録") return { email: "", phone: "" };
     var parts = fullName.split(/[\s　]+/);
-    var searchName = parts.length > 1 ? parts[1] : parts;
+    var searchName = parts.length > 1 ? parts : parts;
 
     for (var i in contactsList) {
       var c = contactsList[i];
@@ -252,15 +247,15 @@
     return { email: "", phone: "" };
   }
 
-  // 3. モーダル起動＆3つのフォーム全てにデータをセット
   function openModal(key, taskObj) {
     currentCaseKey = key;
     currentTaskData = taskObj;
-    lastUsedMethod = {}; // 記憶リセット
+    lastUsedMethod = {}; 
     document.getElementById('statusMsg').textContent = "";
     
     var csv = taskObj.csvData || [];
     var consDate   = csv[ 2 ] || "未定";     
+    var kubun      = csv[ 3 ] || "";         // index 3: 工事区分名
     var caseName   = csv[ 4 ] || "名称不明"; 
     var clientName = csv[ 5 ] || "未登録";   
     var phoneCsv   = csv[ 6 ] || "";   
@@ -268,15 +263,22 @@
 
     var infoArea = document.getElementById('caseInfoArea');
     infoArea.innerHTML = 
-      "<div><span class='lbl'>案件名:</span> " + caseName + "</div>" +
+      "<div><span class='lbl'>案件名:</span> " + caseName + " <span style='color:#1976d2;font-size:12px;'>[" + kubun + "]</span></div>" +
       "<div><span class='lbl'>施工日:</span> " + consDate + "</div>" +
       "<div><span class='lbl'>先方ご芳名:</span> " + clientName + "</div>" +
       "<div><span class='lbl'>電話番号:</span> " + (phoneCsv || "未登録") + "</div>" +
       "<div><span class='lbl'>タカラ担当:</span> " + takaraRep + "</div>";
 
-    // 連絡先検索
     var clientContact = findContactInfo(clientName);
     var takaraContact = findContactInfo(takaraRep);
+
+    // ★ 工事区分によるリフォーム問合ブロックの表示切り替え ★
+    var blockReform = document.getElementById('block-reform');
+    if (kubun.indexOf("ﾘ") !== -1 || kubun.indexOf("リ") !== -1) {
+      blockReform.style.display = "block"; // リフォームなら表示
+    } else {
+      blockReform.style.display = "none";  // リフォーム以外(新築など)は隠す
+    }
 
     // --- ブロック1：リフォーム ---
     document.getElementById('phone-reform').value = phoneCsv || clientContact.phone;
@@ -288,7 +290,7 @@
     document.getElementById('phone-takara').value = takaraContact.phone;
     document.getElementById('email-takara').value = takaraContact.email;
     document.getElementById('subject-takara').value = "【ご報告】施工日確定のお知らせ";
-    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
+    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認ほどよろしくお願いいたします。";
 
     // --- ブロック3：先方・建築業者向け ---
     document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
@@ -296,7 +298,6 @@
     document.getElementById('subject-sms').value = "施工日確定のお知らせ";
     document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】になっております、ご確認ご周知のほどよろしくお願いいたします。";
 
-    // バッジの状態をFirebaseから取得して更新
     var mailStatus = taskObj.mailStatus || {};
     updateBadge('reform', mailStatus.reform);
     updateBadge('takara', mailStatus.takara);
@@ -322,7 +323,6 @@
     }
   }
 
-  // 4. 指定ブロックのアプリを起動
   function launchApp(type, method) {
     lastUsedMethod[type] = method;
     var toPhone = document.getElementById('phone-' + type).value;
@@ -351,7 +351,6 @@
     msg.textContent = "🚀 アプリを起動しました。送信を終えたらそのブロックの「💾 履歴保存」を押してください。";
   }
 
-  // 5. 指定ブロックの履歴を保存
   function saveToParkedMails(type) {
     if (!currentCaseKey) return;
     
@@ -359,7 +358,7 @@
     var toEmailVal = document.getElementById('email-' + type).value;
     var subjVal = document.getElementById('subject-' + type).value;
     var bodyVal = document.getElementById('body-' + type).value;
-    var method = lastUsedMethod[type] || 'sms'; // 起動していない場合はデフォルトsms扱い
+    var method = lastUsedMethod[type] || 'sms'; 
 
     var mailData = {
       assignedCase: currentCaseKey,
@@ -387,7 +386,6 @@
         currentTaskData.mailStatus[type] = true;
         updateBadge(type, true);
         
-        // メッセージは数秒後に消す（モーダルは閉じない）
         setTimeout(function(){ 
           msg.textContent = ""; 
         }, 4000);
