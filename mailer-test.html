@@ -12,7 +12,7 @@
   .task-card { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; border-left: 5px solid #1976d2; }
   .task-card:hover { background: #e3f2fd; }
   
-  /* 送信待ち（仮置き）アラート */
+  /* 送信待ちアラート */
   .pending-alert { max-width: 600px; margin: 0 auto 20px auto; background: #ffebee; border: 2px solid #d32f2f; border-radius: 6px; padding: 15px; display: none; }
   .pending-alert h3 { color: #d32f2f; margin-top: 0; }
   .pending-item { background: #fff; padding: 10px; margin-bottom: 5px; border-radius: 4px; border-left: 4px solid #d32f2f; font-size: 14px; }
@@ -25,11 +25,9 @@
   .case-info { background: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #1976d2; line-height: 1.6; }
   .case-info span.lbl { font-weight: bold; display: inline-block; width: 100px; color: #555; }
   
-  /* 各種フォーム要素 */
   label { display: block; margin-top: 10px; font-weight: bold; font-size: 13px; color: #444; }
   input, textarea { width: 100%; margin-top: 3px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
   
-  /* 一括表示用のテンプレートブロック */
   .template-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .template-block h3 { margin-top: 0; font-size: 16px; color: #1976d2; display: flex; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
   
@@ -41,7 +39,6 @@
   .badge-red { background: #d32f2f; }
   .badge-green { background: #2e7d32; }
 
-  /* アクションボタン群 */
   .action-buttons { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
   .launch-btn, .save-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
   .btn-sms { background: #00796b; } 
@@ -75,9 +72,7 @@
     <div class="case-info" id="caseInfoArea"></div>
     <span id="statusMsg"></span>
 
-    <!-- ============================================== -->
-    <!-- ブロック1：リフォーム問合 (区分が「ﾘ」の時のみ表示) -->
-    <!-- ============================================== -->
+    <!-- ブロック1：リフォーム問合 -->
     <div class="template-block" id="block-reform">
       <h3><span id="badge-reform" class="badge badge-red">未</span> リフォーム問合</h3>
       <div class="dest-container">
@@ -101,9 +96,7 @@
       </div>
     </div>
 
-    <!-- ============================================== -->
     <!-- ブロック2：施工日確定 (タカラ向け) -->
-    <!-- ============================================== -->
     <div class="template-block">
       <h3><span id="badge-takara" class="badge badge-red">未</span> 施工日確定 (タカラ向け)</h3>
       <div class="dest-container">
@@ -127,9 +120,7 @@
       </div>
     </div>
 
-    <!-- ============================================== -->
     <!-- ブロック3：施工日確定 (先方・建築業者向け) -->
-    <!-- ============================================== -->
     <div class="template-block">
       <h3><span id="badge-sms" class="badge badge-red">未</span> 施工日確定 (先方・建築業者向け)</h3>
       <div class="dest-container">
@@ -215,13 +206,12 @@
         if (status === "完了") continue; 
 
         var consDate = task.csvData[ 2 ] || "未定";     
-        var kubun    = task.csvData[ 3 ] || "";         // 工事区分
+        var kubun    = task.csvData[ 3 ] || "";         
         var caseName = task.csvData[ 4 ] || "名称不明"; 
         var inCharge = task.csvData[ 8 ] || "未定";     
         
         var card = document.createElement('div');
         card.className = "task-card";
-        // リスト上にも工事区分が分かるように少し追記
         card.innerHTML = "<strong>" + caseName + "</strong> <span style='font-size:11px;color:#666;'>[" + kubun + " / " + status + "]</span><br><small>施工日: " + consDate + " / 工務担当: " + inCharge + "</small>";
         
         (function(k, t) {
@@ -233,10 +223,12 @@
     }
   });
 
+  // ★修正箇所：配列のインデックスが消えないようにスペース付きで抽出
   function findContactInfo(fullName) {
     if (!fullName || fullName === "未登録") return { email: "", phone: "" };
     var parts = fullName.split(/[\s　]+/);
-    var searchName = parts.length > 1 ? parts : parts;
+    // index 1 または 0 にスペースを入れて指定（誤認防止）
+    var searchName = parts.length > 1 ? parts[ 1 ] : parts[ 0 ];
 
     for (var i in contactsList) {
       var c = contactsList[i];
@@ -255,7 +247,7 @@
     
     var csv = taskObj.csvData || [];
     var consDate   = csv[ 2 ] || "未定";     
-    var kubun      = csv[ 3 ] || "";         // index 3: 工事区分名
+    var kubun      = csv[ 3 ] || "";         
     var caseName   = csv[ 4 ] || "名称不明"; 
     var clientName = csv[ 5 ] || "未登録";   
     var phoneCsv   = csv[ 6 ] || "";   
@@ -269,15 +261,16 @@
       "<div><span class='lbl'>電話番号:</span> " + (phoneCsv || "未登録") + "</div>" +
       "<div><span class='lbl'>タカラ担当:</span> " + takaraRep + "</div>";
 
+    // アドレスと電話番号の検索を実行
     var clientContact = findContactInfo(clientName);
     var takaraContact = findContactInfo(takaraRep);
 
-    // ★ 工事区分によるリフォーム問合ブロックの表示切り替え ★
+    // 工事区分による表示切り替え
     var blockReform = document.getElementById('block-reform');
     if (kubun.indexOf("ﾘ") !== -1 || kubun.indexOf("リ") !== -1) {
-      blockReform.style.display = "block"; // リフォームなら表示
+      blockReform.style.display = "block"; 
     } else {
-      blockReform.style.display = "none";  // リフォーム以外(新築など)は隠す
+      blockReform.style.display = "none";  
     }
 
     // --- ブロック1：リフォーム ---
