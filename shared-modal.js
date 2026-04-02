@@ -1,303 +1,50 @@
-/* shared-modal.js — 共通モーダル（保存コールバック対応） */
-
-var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
-var modalCommData = null;
-var modalContactData = null;
-
-function normalizePhoneModal(raw) {
-  if (!raw) return "";
-  var s = raw.replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, "");
-  s = s.replace(/^\+81/, "0"); s = s.replace(/^81(?=\d{9,10})/, "0");
-  s = s.replace(/[^0-9]/g, ""); return s;
-}
-function extractEmailModal(f) {
-  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[1].toLowerCase().trim();
-  if (f.indexOf("@") > -1) return f.toLowerCase().trim(); return "";
-}
-function generateTimeOptions() {
-  var o = '<option value="">--:--</option>';
-  for (var h = 8; h <= 20; h++) { var hh = ("0"+h).slice(-2); o += '<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>'; }
-  return o;
-}
-function formatCommDate(dt) {
-  try { var d = new Date(dt); return (d.getMonth()+1)+"/"+d.getDate()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); } catch(e) { return dt; }
-}
-function getSafeValModal(c, i) {
-  if (!c) return ""; if (Array.isArray(c)) return c.length > i && c[i] != null ? String(c[i]) : ""; if (typeof c === "object") return c[i] != null ? String(c[i]) : ""; return "";
-}
-function formatToYMDModal(ds) {
-  if (!ds) return ""; var d = String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-"); var p = d.split("-");
-  if (p.length === 3) return p[0]+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[2]).padStart(2,"0"); return d;
-}
-
-function extractCaseKeywords(csvData) {
-  var kw = [], cn = getSafeValModal(csvData, 4) || "";
-  var pts = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
-  for (var i = 0; i < pts.length; i++) { var p = pts[i].trim(); if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) kw.push(p); }
-  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[1].length >= 2) kw.push(nm[1]);
-  return kw;
-}
-
-/* 案件名からマッチ用の人名・キーワードを抽出（より厳格版） */
-function extractCaseNameParts(csvData) {
-  var cn = getSafeValModal(csvData, 4) || "";
-  var parts = [];
-  /* 「武田 敏雄」「佐藤」など人名を抽出 */
-  var cleaned = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ");
-  var tokens = cleaned.split(/[\s\u3000・]+/);
-  var skip = ["手配","新築","工事","リフォーム","様邸","Free","SK","SB","SU","様","邸"];
-  for (var i = 0; i < tokens.length; i++) {
-    var t = tokens[i].replace(/様$/, "").trim();
-    if (t.length >= 2 && skip.indexOf(t) === -1) parts.push(t);
-  }
-  return parts;
-}
-
-function scoreMessageForCase(body, subj, kw) {
-  if (!kw || !kw.length) return 0; var t = ((body||"")+" "+(subj||"")).toLowerCase(); if (!t.trim()) return 0;
-  var s = 0; for (var i = 0; i < kw.length; i++) { if (t.indexOf(kw[i].toLowerCase()) !== -1) s += kw[i].length; } return s;
-}
-
-function loadCommData(cb) {
-  if (modalCommData !== null) { cb(modalCommData); return; }
-  fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(d) {
-    if (!d) { modalCommData = []; cb([]); return; }
-    var a = Array.isArray(d) ? d : Object.values(d); modalCommData = a.filter(function(r){return r!=null;}); cb(modalCommData);
-  }).catch(function(){modalCommData=[];cb([]);});
-}
-function loadContactData(cb) {
-  if (modalContactData !== null) { cb(modalContactData); return; }
-  fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(function(d) {
-    if (!d) { modalContactData = {}; cb({}); return; }
-    var a = Array.isArray(d) ? d : Object.values(d), map = {};
-    for (var i = 0; i < a.length; i++) { if (!a[i]) continue; var e = (a[i].email||"").toLowerCase().trim(); if (e && !map[e]) map[e] = a[i]; }
-    modalContactData = map; cb(map);
-  }).catch(function(){modalContactData={};cb({});});
-}
-
-function findCaseComms(csvData, allComms, contacts, caseKey) {
-  var phone = normalizePhoneModal(getSafeValModal(csvData, 6));
-  var kw = extractCaseKeywords(csvData);
-  var nameParts = extractCaseNameParts(csvData);
-  var result = [];
-  var matchedIdx = {}; /* 既にマッチ済みのインデックス */
-
-  for (var i = 0; i < allComms.length; i++) {
-    var rec = allComms[i]; if (!rec) continue;
-
-    /* ① assignedCase 手動紐付け */
-    if (rec.assignedCase && rec.assignedCase === caseKey) {
-      rec._matchScore = 100; rec._matchType = 'manual';
-      result.push(rec); matchedIdx[i] = true; continue;
-    }
-
-    /* ② 電話番号マッチ（iMessage） */
-    if (rec.src === "imessage" && phone) {
-      if (normalizePhoneModal(rec.contact) === phone) {
-        rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw);
-        rec._matchType = rec._matchScore > 0 ? 'phone+kw' : 'phone';
-        result.push(rec); matchedIdx[i] = true; continue;
-      }
-    }
-
-    /* ③ メール→連絡先→電話番号マッチ（Gmail） */
-    if (rec.src === "gmail" && contacts && phone) {
-      var re = extractEmailModal(rec.contact);
-      for (var em in contacts) {
-        var ct = contacts[em];
-        if (ct.phone && normalizePhoneModal(ct.phone) === phone && em === re) {
-          rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw);
-          rec._matchType = rec._matchScore > 0 ? 'phone+kw' : 'phone';
-          result.push(rec); matchedIdx[i] = true; break;
-        }
-      }
-    }
-  }
-
-  /* ④ 案件名マッチ: body/subjectに案件名の人名等が含まれるか */
-  if (nameParts.length > 0) {
-    for (var j = 0; j < allComms.length; j++) {
-      if (matchedIdx[j]) continue;
-      var rec2 = allComms[j]; if (!rec2) continue;
-      var text = ((rec2.body || "") + " " + (rec2.subject || "")).toLowerCase();
-      if (!text.trim()) continue;
-      var nameScore = 0;
-      for (var n = 0; n < nameParts.length; n++) {
-        if (text.indexOf(nameParts[n].toLowerCase()) !== -1) nameScore += nameParts[n].length;
-      }
-      if (nameScore >= 2) {
-        rec2._matchScore = nameScore;
-        rec2._matchType = 'name';
-        result.push(rec2); matchedIdx[j] = true;
-      }
-    }
-  }
-
-  result.sort(function(a,b) {
-    /* manual > phone+kw > name > phone の順、同一グループ内は日時順 */
-    var order = { 'manual': 4, 'phone+kw': 3, 'name': 2, 'phone': 1 };
-    var ao = order[a._matchType] || 0, bo = order[b._matchType] || 0;
-    if (ao !== bo) return bo - ao;
-    return (new Date(b.dt).getTime()||0) - (new Date(a.dt).getTime()||0);
-  });
-  return result;
-}
-
-function renderCommTimeline(comms) {
-  if (!comms || !comms.length) return '<div class="comm-empty">📭 通信なし</div>';
-  var html = "", lim = Math.min(comms.length, 50);
-  for (var i = 0; i < lim; i++) {
-    var r = comms[i], sm = r.src === "imessage", dir = r.dir === "sent" ? "↑送信" : "↓受信";
-
-    /* マッチタイプ別ラベル */
-    var ind = '', bd = '';
-    if (r._matchType === 'manual') {
-      ind = ' <span style="color:#64b5f6;font-size:9px;">✔ 手動</span>';
-      bd = 'border-left:3px solid #64b5f6;';
-    } else if (r._matchType === 'name') {
-      ind = ' <span style="color:#ab47bc;font-size:9px;">📎 名前</span>';
-      bd = 'border-left:3px solid #ab47bc;';
-    } else if (r._matchType === 'phone+kw') {
-      ind = ' <span style="color:#ffab40;font-size:9px;">★ KW</span>';
-      bd = 'border-left:3px solid #ffab40;';
-    } else if (r._matchType === 'phone') {
-      bd = '';
-      ind = '';
-    }
-
-    html += '<div class="comm-item" style="'+bd+'"><div class="comm-meta"><div><span class="comm-badge '+(sm?"sms":"gmail")+'">'+(sm?"💬":"📧")+'</span> <span class="comm-dir">'+dir+'</span>'+ind+'</div>';
-    html += '<span class="comm-time">'+formatCommDate(r.dt)+'</span></div>';
-    if (r.subject) html += '<div class="comm-subject">'+r.subject+'</div>';
-    if (r.body) { var b = r.body.replace(/</g,"&lt;").replace(/>/g,"&gt;"); if (b.length > 200) b = b.substring(0,200)+"..."; html += '<div class="comm-body">'+b+'</div>'; }
-    html += '</div>';
-  }
-  if (comms.length > 50) html += '<div class="comm-empty">他 '+(comms.length-50)+'件</div>';
-  return html;
-}
-
-// ★ onSaveCallback: 保存後に呼ばれるコールバック（ダッシュボード再描画等）
-function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
-  var cols = obj.csvData; if (!cols) return;
-  var sekouStr = getSafeValModal(cols,2).replace(/\s+/g,"")||"未定";
-  var shitamiStr = formatToYMDModal(getSafeValModal(cols,12))||"未定";
-  var yoteiStr = obj.date||"未定";
-  var ankenText = getSafeValModal(cols,4).trim()||"名称未設定";
-  var timeOpts = generateTimeOptions();
-
-  var html = '<div class="modal-header-info">';
-  html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
-  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>';
-
-  html += '<div class="modal-section"><h4>📄 CSVデータ</h4><table class="modal-table">';
-  for (var idx = 0; idx < globalHeaders.length; idx++) {
-    var val = getSafeValModal(cols,idx), dh = val.replace(/\n|\r/g,'<br>'), ct = val.replace(/\s+/g,'');
-    if (idx===11&&ct!=="") dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ '+val+'</a>';
-    else if (idx===6&&ct!=="") dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;">📞 '+val+'</a>';
-    html += '<tr><th>'+(globalHeaders[idx]||'列'+(idx+1))+'</th><td>'+dh+'</td></tr>';
-  }
-  html += '</table></div>';
-
-  // 進捗管理
-  html += '<div class="modal-section"><h4 class="green">📝 進捗管理</h4>';
-  html += '<div style="margin:10px 0;"><label style="font-weight:bold;font-size:13px;">🚦 ステータス:</label>';
-  html += '<div id="kanban-bar" style="margin-top:6px;"></div><div id="kanban-sf-note" style="margin-top:4px;font-size:11px;color:#888;"></div></div>';
-  html += '<div class="modal-check-row">';
-  html += '<label><input type="checkbox" id="modal-emailSent"'+(obj.emailSent?' checked':'')+'> ✉️ 施工日確認メール済</label>';
-  html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div></div>';
-
-  // スケジュール
-  html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
-  html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
-  html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
-  html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div></div>';
-
-  // メモ
-  html += '<div class="modal-section"><h4 class="blue">💬 メモ</h4>';
-  html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">'+(obj.memo||'')+'</textarea></div>';
-
-  // 通信履歴
-  html += '<div class="modal-section"><h4 class="orange">📨 通信履歴 <span id="comm-count" class="comm-count">読込中...</span></h4>';
-  html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div></div>';
-
-  // 保存
-  html += '<div style="margin-top:18px;text-align:center;"><button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
-  html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span></div>';
-
-  document.getElementById('modal-body').innerHTML = html;
-  document.getElementById('modal-overlay').style.display = 'block';
-  document.getElementById('modal-time').value = obj.time || '';
-
-  // カンバン
-  var kanbanStatuses=['依頼','連絡済','下見日確定','下見実施済','報告書提出済'];
-  var kanbanColors=['#90a4ae','#42a5f5','#ffb300','#66bb6a','#26a69a'];
-  var sfStatus=getSafeValModal(cols,1).replace(/\s+/g,"");
-  var sfMap={'下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済'};
-  var sfLocal=sfMap[sfStatus]||sfStatus||'依頼';
-  var localSt=obj.localStatus||'';
-  var sfRank=kanbanStatuses.indexOf(sfLocal);if(sfRank===-1)sfRank=0;
-  var localRank=kanbanStatuses.indexOf(localSt);if(localRank===-1)localRank=-1;
-  var currentStatus=localRank>=sfRank?localSt:sfLocal;
-  if(kanbanStatuses.indexOf(currentStatus)===-1) currentStatus='依頼';
-
-  var kanbanBar=document.getElementById('kanban-bar');var selectedStatus=currentStatus;
-  kanbanStatuses.forEach(function(st,i){
-    var btn=document.createElement('div');btn.className='kanban-step';
-    var isActive=kanbanStatuses.indexOf(selectedStatus)>=i;
-    btn.style.background=isActive?kanbanColors[i]:'#f5f5f5';btn.style.color=isActive?'#fff':'#999';btn.textContent=st;
-    btn.addEventListener('click',function(){selectedStatus=st;var bs=kanbanBar.children;for(var j=0;j<bs.length;j++){var a=kanbanStatuses.indexOf(st)>=j;bs[j].style.background=a?kanbanColors[j]:'#f5f5f5';bs[j].style.color=a?'#fff':'#999';}});
-    kanbanBar.appendChild(btn);
-  });
-  document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+currentStatus;
-
-  // コピー
-  document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
-
-  // ★ 保存（コールバック付き）
-  document.getElementById('modal-save-btn').addEventListener('click',function(){
-    var nd=document.getElementById('modal-date').value;
-    var nt=document.getElementById('modal-time').value;
-    var no=document.getElementById('modal-order').value;
-    var es=document.getElementById('modal-emailSent').checked;
-    var fr=document.getElementById('modal-finalReport').checked;
-    var memo=document.getElementById('modal-memo').value;
-
-    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,emailSent:es,finalReport:fr,memo:memo};
-    firebaseDB.ref('app_tasks/'+key).update(updates);
-
-    globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
-    globalTasks[key].localStatus=selectedStatus;globalTasks[key].emailSent=es;
-    globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
-    if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
-
-    document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
-    document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+selectedStatus;
-
-    var msg=document.getElementById('modal-save-msg');
-    msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
-
-    if(typeof onSaveCallback==='function') onSaveCallback();
-  });
-
-  // 通信履歴
-  loadCommData(function(allComms){loadContactData(function(contacts){
-    var cc=findCaseComms(cols,allComms,contacts,key);
-    var manC=0,kwC=0,nameC=0,phoneC=0;
-    for(var k=0;k<cc.length;k++){
-      if(cc[k]._matchType==='manual')manC++;
-      else if(cc[k]._matchType==='name')nameC++;
-      else if(cc[k]._matchType==='phone+kw')kwC++;
-      else phoneC++;
-    }
-    document.getElementById('modal-comm-area').innerHTML=renderCommTimeline(cc);
-    var cntParts=[];
-    if(manC)cntParts.push('手動:'+manC);
-    if(kwC)cntParts.push('KW:'+kwC);
-    if(nameC)cntParts.push('名前:'+nameC);
-    if(phoneC)cntParts.push('TEL:'+phoneC);
-    document.getElementById('comm-count').textContent=cc.length+'件'+(cntParts.length?' （'+cntParts.join(' / ')+'）':'');
-  });});
-
-  // 閉じる
-  document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
-  document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
-}
+/* shared-modal.css */
+#modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
+#modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;color:#333;padding:0;border-radius:10px;width:94%;max-width:880px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,0.35);}
+#modal-close{position:sticky;top:0;float:right;font-size:13px;padding:6px 14px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:0 10px 0 8px;font-weight:bold;z-index:10;}
+#modal-body{padding:16px 18px 20px;}
+.modal-header-info{margin-bottom:12px;}
+.modal-date-row{font-size:12px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
+.modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
+.modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
+.modal-copy-btn.copied{background:#28a745;}
+.modal-section{margin-top:18px;}
+.modal-section h4{color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;margin-bottom:10px;}
+.modal-section h4.green{color:#155724;border-color:#28a745;}
+.modal-section h4.blue{color:#0d47a1;border-color:#2196f3;}
+.modal-section h4.orange{color:#e65100;border-color:#ff9800;}
+.modal-table{width:100%;border-collapse:collapse;}
+.modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;color:#333;}
+.modal-table th{background:#f8f9fa;width:28%;color:#495057;}
+.modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+.modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;color:#333;}
+.modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;color:#333;background:#fff;}
+/* カンバンバー */
+#kanban-bar{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #ccc;}
+.kanban-step{flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:bold;cursor:pointer;transition:0.2s;}
+/* チェックボックス行 */
+.modal-check-row{display:flex;gap:20px;flex-wrap:wrap;margin:10px 0;}
+.modal-check-row label{font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;color:#333;}
+.modal-check-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer;}
+/* 保存ボタン */
+.modal-save-btn{padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;}
+.modal-save-btn:hover{background:#218838;}
+.modal-save-msg{margin-left:8px;color:#28a745;font-weight:bold;display:none;}
+/* メモ欄 */
+.modal-memo{width:100%;min-height:80px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5;color:#333;background:#fff;}
+.modal-memo:focus{outline:none;border-color:#2196f3;}
+/* 通信履歴 */
+.comm-timeline{max-height:300px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;}
+.comm-item{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;}
+.comm-item:last-child{border-bottom:none;}
+.comm-item:hover{background:#f0f7ff;}
+.comm-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+.comm-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;}
+.comm-badge.sms{background:#e8f5e9;color:#2e7d32;}
+.comm-badge.gmail{background:#ffebee;color:#c62828;}
+.comm-dir{font-size:10px;color:#888;}
+.comm-time{font-size:10px;color:#999;}
+.comm-body{color:#555;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
+.comm-subject{color:#e65100;font-weight:600;margin-bottom:2px;}
+.comm-empty{padding:20px;text-align:center;color:#aaa;font-size:13px;}
+.comm-count{font-size:11px;color:#888;font-weight:normal;margin-left:8px;}
