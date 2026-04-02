@@ -1,125 +1,177 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>案件管理（開発版）</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>開発メニュー（index3）</title>
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; margin: 0; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+<style>
+  body {
+    font-family: sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+  }
 
-    .status { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding: 15px; border-radius: 4px; }
-    .loading { background-color: #fff3cd; color: #856404; }
-    .success { background-color: #d4edda; color: #155724; }
-    .error { background-color: #f8d7da; color: #721c24; }
+  .container {
+    max-width: 600px;
+    margin: auto;
+    background: #fff;
+    padding: 25px;
+    border-radius: 8px;
+  }
 
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+  h1 {
+    margin-top: 0;
+  }
 
-    .menu-btn {
-      display: block;
-      text-decoration: none;
-      padding: 20px;
-      background-color: #007bff;
-      color: white;
-      border-radius: 6px;
-      font-size: 18px;
-      font-weight: bold;
-    }
+  .input-area {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
 
-    .menu-btn.disabled {
-      background-color: #ccc;
-      color: #888;
-      pointer-events: none;
-    }
+  input {
+    flex: 1;
+    padding: 10px;
+    font-size: 14px;
+  }
 
-    @media (max-width: 480px) {
-      .menu-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+  button {
+    padding: 10px 15px;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
+  .add-btn {
+    background: #1976d2;
+    color: white;
+  }
+
+  .menu-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .row {
+    display: flex;
+    gap: 5px;
+  }
+
+  .menu-btn {
+    flex: 1;
+    display: block;
+    padding: 15px;
+    background: #007bff;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 5px;
+  }
+
+  .del-btn {
+    width: 40px;
+    background: #d32f2f;
+    color: #fff;
+  }
+</style>
 </head>
 
 <body>
-  <div class="container">
-    <h1>🧪 開発メニュー（index3）</h1>
 
-    <div id="statusMsg" class="status loading">
-      ⏳ データ取得中...
-    </div>
+<div class="container">
+  <h1>🧪 開発メニュー（index3）</h1>
 
-    <div class="menu-grid" id="menuGrid"></div>
+  <!-- 追加エリア -->
+  <div class="input-area">
+    <input type="text" id="newFileName" placeholder="例: mailer_test.html">
+    <button class="add-btn" onclick="addFile()">追加</button>
   </div>
 
-  <script>
-    // ===== Firebase =====
-    const firebaseConfig = {
-      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-      authDomain: "project-6745138395263517914.firebaseapp.com",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-      projectId: "project-6745138395263517914",
-      storageBucket: "project-6745138395263517914.appspot.com",
-      messagingSenderId: "1054295910908",
-      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-    };
+  <!-- メニュー -->
+  <div id="menuGrid" class="menu-grid"></div>
+</div>
 
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+<script>
+  // ===== Firebase設定 =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+    databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+    projectId: "project-6745138395263517914"
+  };
 
-    // ===== メニュー定義（ここだけ触ればOK）=====
-    const MENU_LIST = [
-      { name: "🔔 今日のアクション", url: "action.html" },
-      { name: "📋 案件リスト", url: "today.html" },
-      { name: "📅 カレンダー", url: "calendar.html" },
-      { name: "🗺️ マップ", url: "map.html" },
-      { name: "📨 通信タイムライン", url: "comm.html" },
-      { name: "👑 CSV取込", url: "admin.html" },
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
 
-      // ▼ ここから試験用いくらでも追加できる
-      { name: "🧪 テストページA", url: "testA.html" },
-      { name: "🧪 テストページB", url: "testB.html" }
-    ];
+  let FILES = [];
 
-    // ===== 初期処理 =====
-    const statusMsg = document.getElementById('statusMsg');
-    const menuGrid = document.getElementById('menuGrid');
+  // ===== リアルタイム取得 =====
+  database.ref("dev_files").on("value", snap => {
+    FILES = snap.val() || [];
+    renderMenu();
+  });
 
-    database.ref().once('value').then(snapshot => {
-      const dbData = snapshot.val();
+  // ===== 追加 =====
+  function addFile(){
+    const input = document.getElementById("newFileName");
+    const name = input.value.trim();
 
-      if (!dbData || !dbData.app_tasks) {
-        statusMsg.className = 'status error';
-        statusMsg.innerHTML = "⚠️ データなし";
-        return;
-      }
+    if(!name){
+      alert("ファイル名を入力して");
+      return;
+    }
 
-      localStorage.setItem('appData', JSON.stringify(dbData));
+    if(FILES.includes(name)){
+      alert("すでにある");
+      return;
+    }
 
-      statusMsg.className = 'status success';
-      statusMsg.innerHTML = "✅ 準備完了";
+    FILES.push(name);
+    database.ref("dev_files").set(FILES);
 
-      // ===== メニュー生成 =====
-      MENU_LIST.forEach(menu => {
-        const a = document.createElement("a");
-        a.href = menu.url;
-        a.className = "menu-btn disabled";
-        a.textContent = menu.name;
-        menuGrid.appendChild(a);
-      });
+    input.value = "";
+  }
 
-      // 有効化
-      document.querySelectorAll('.menu-btn').forEach(btn => {
-        btn.classList.remove('disabled');
-      });
+  // ===== 描画 =====
+  function renderMenu(){
+    const grid = document.getElementById("menuGrid");
+    grid.innerHTML = "";
 
-    }).catch(err => {
-      statusMsg.className = 'status error';
-      statusMsg.innerHTML = "❌ 通信エラー";
-      console.error(err);
+    FILES.forEach(f => {
+
+      const row = document.createElement("div");
+      row.className = "row";
+
+      // 開くボタン
+      const a = document.createElement("a");
+      a.href = f;
+      a.className = "menu-btn";
+      a.textContent = "🧪 " + f.replace(".html","");
+
+      // 削除ボタン
+      const del = document.createElement("button");
+      del.className = "del-btn";
+      del.textContent = "×";
+
+      del.onclick = (e) => {
+        e.preventDefault();
+        if(confirm(f + " を削除する？")){
+          FILES = FILES.filter(x => x !== f);
+          database.ref("dev_files").set(FILES);
+        }
+      };
+
+      row.appendChild(a);
+      row.appendChild(del);
+      grid.appendChild(row);
     });
-  </script>
+  }
+</script>
+
 </body>
 </html>
