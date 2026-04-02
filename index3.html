@@ -14,7 +14,23 @@
 
 <button onclick="openTestModal()">モーダルテスト</button>
 
-<div id="test-modal-overlay"></div>
+<!-- オーバーレイ -->
+<div id="test-modal-overlay" onclick="closeTestModal()"></div>
+
+<!-- モーダル本体 -->
+<div id="test-modal">
+  <h3>テストモーダル</h3>
+
+  <label>
+    <input type="checkbox" id="confirmCheck">
+    施工日決定
+  </label>
+
+  <br><br>
+
+  <button onclick="saveTest()">保存</button>
+  <button onclick="closeTestModal()">閉じる</button>
+</div>
 
 <script src="test-modal.js"></script>
 
