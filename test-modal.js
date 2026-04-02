@@ -4,7 +4,7 @@ function openTestModal(){
     <div id="test-modal">
       <button onclick="closeTestModal()">閉じる</button>
 
-      <h3>テストモーダル</h3>
+      <h3>施工管理テスト</h3>
 
       <div class="test-tab">
         <button onclick="switchTestTab('info')" id="tab-info-btn" class="active">基本</button>
@@ -13,23 +13,24 @@ function openTestModal(){
 
       <div id="tab-info" class="test-content active">
         <label>
-          <input type="checkbox" id="testFlag">施工日決定
+          <input type="checkbox" id="testFlag"> 施工日決定
         </label>
       </div>
 
       <div id="tab-mail" class="test-content">
         <textarea id="testMail"></textarea>
-        <br>
+        <br><br>
         <button onclick="saveTestMail()">仮保存</button>
         <button onclick="sendTestMail()">送信</button>
       </div>
     </div>
   `;
 
-  document.getElementById("test-modal-overlay").innerHTML = html;
-  document.getElementById("test-modal-overlay").style.display = "block";
+  const overlay = document.getElementById("test-modal-overlay");
+  overlay.innerHTML = html;
+  overlay.style.display = "block";
 
-  document.getElementById("testMail").value = createTestTemplate();
+  document.getElementById("testMail").value = createTemplate();
 }
 
 function closeTestModal(){
@@ -49,14 +50,14 @@ function switchTestTab(tab){
   document.getElementById("tab-"+tab+"-btn").classList.add("active");
 }
 
-function createTestTemplate(){
-  return `施工日確定のお知らせです。
+function createTemplate(){
+  return `施工日が確定しました。
 
-よろしくお願いします。`;
+よろしくお願いいたします。`;
 }
 
 function saveTestMail(){
-  alert("仮保存（テスト）");
+  alert("仮保存OK（テスト）");
 }
 
 function sendTestMail(){
