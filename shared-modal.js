@@ -171,3 +171,6 @@ function getNextMorning(){
 
   return d.getTime();
 }
+function openCaseModal(taskId, task){
+  openSharedModal(taskId, task);
+}
