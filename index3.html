@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>案件管理（開発版）</title>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; margin: 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+
+    .status { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding: 15px; border-radius: 4px; }
+    .loading { background-color: #fff3cd; color: #856404; }
+    .success { background-color: #d4edda; color: #155724; }
+    .error { background-color: #f8d7da; color: #721c24; }
+
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+
+    .menu-btn {
+      display: block;
+      text-decoration: none;
+      padding: 20px;
+      background-color: #007bff;
+      color: white;
+      border-radius: 6px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .menu-btn.disabled {
+      background-color: #ccc;
+      color: #888;
+      pointer-events: none;
+    }
+
+    @media (max-width: 480px) {
+      .menu-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🧪 開発メニュー（index3）</h1>
+
+    <div id="statusMsg" class="status loading">
+      ⏳ データ取得中...
+    </div>
+
+    <div class="menu-grid" id="menuGrid"></div>
+  </div>
+
+  <script>
+    // ===== Firebase =====
+    const firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.appspot.com",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // ===== メニュー定義（ここだけ触ればOK）=====
+    const MENU_LIST = [
+      { name: "🔔 今日のアクション", url: "action.html" },
+      { name: "📋 案件リスト", url: "today.html" },
+      { name: "📅 カレンダー", url: "calendar.html" },
+      { name: "🗺️ マップ", url: "map.html" },
+      { name: "📨 通信タイムライン", url: "comm.html" },
+      { name: "👑 CSV取込", url: "admin.html" },
+
+      // ▼ ここから試験用いくらでも追加できる
+      { name: "🧪 テストページA", url: "testA.html" },
+      { name: "🧪 テストページB", url: "testB.html" }
+    ];
+
+    // ===== 初期処理 =====
+    const statusMsg = document.getElementById('statusMsg');
+    const menuGrid = document.getElementById('menuGrid');
+
+    database.ref().once('value').then(snapshot => {
+      const dbData = snapshot.val();
+
+      if (!dbData || !dbData.app_tasks) {
+        statusMsg.className = 'status error';
+        statusMsg.innerHTML = "⚠️ データなし";
+        return;
+      }
+
+      localStorage.setItem('appData', JSON.stringify(dbData));
+
+      statusMsg.className = 'status success';
+      statusMsg.innerHTML = "✅ 準備完了";
+
+      // ===== メニュー生成 =====
+      MENU_LIST.forEach(menu => {
+        const a = document.createElement("a");
+        a.href = menu.url;
+        a.className = "menu-btn disabled";
+        a.textContent = menu.name;
+        menuGrid.appendChild(a);
+      });
+
+      // 有効化
+      document.querySelectorAll('.menu-btn').forEach(btn => {
+        btn.classList.remove('disabled');
+      });
+
+    }).catch(err => {
+      statusMsg.className = 'status error';
+      statusMsg.innerHTML = "❌ 通信エラー";
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
