@@ -220,4 +220,35 @@
   // フィルター初期化
   function initFilters(){ /* 同じ構造でフィルター生成 */ 
     var stMap={},kbMap={},cpMap={},arMap={};
-    Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;
+    Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,4));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,8));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
+    generateFilter('statusFilters',stMap); generateFilter('kubunFilters',kbMap); generateFilter('companyFilters',cpMap,true); generateFilter('areaFilters',arMap,true);
+  }
+
+  function generateFilter(id,map,collapse=false){var div=document.getElementById(id); div.innerHTML=''; var keys=Object.keys(map).sort(); keys.forEach(function(k){var lbl=document.createElement('label'); var inp=document.createElement('input'); inp.type='checkbox'; inp.checked=true; inp.dataset.value=k; inp.addEventListener('change',renderTable); lbl.appendChild(inp); lbl.appendChild(document.createTextNode(k)); div.appendChild(lbl);});}
+
+  function applyTextSearch(){renderTable();}
+
+  function renderTable(){
+    if(!globalTasks){return;}
+    var tbody=document.getElementById('table-body'); tbody.innerHTML=''; var count=0;
+    Object.values(globalTasks).forEach(function(t,i){var c=t.csvData;if(!c)return;
+      // テキスト検索
+      var txt=searchInput.value.toLowerCase(); if(txt){var s=JSON.stringify(c).toLowerCase(); if(!s.includes(txt))return;}
+      // 日付フィルター
+      var show=false;
+      if(chkSekou.checked&&inRange(formatToYMD(getSafeVal(c,9)),dateFrom.value,dateTo.value)) show=true;
+      if(chkShitami.checked&&inRange(formatToYMD(getSafeVal(c,10)),dateFrom.value,dateTo.value)) show=true;
+      if(chkYotei.checked&&inRange(formatToYMD(getSafeVal(c,11)),dateFrom.value,dateTo.value)) show=true;
+      if(!show) return;
+      // 完了除外
+      var st=getSafeVal(c,1); if(!showKanryo && st==="完了") return;
+      // 行作成
+      var tr=document.createElement('tr'); displayCols.forEach(function(idx,j){var td=document.createElement('td'); td.className=colClasses[j]; td.innerHTML='<div class="cell-inner">'+(idx===-1?'':getSafeVal(c,idx))+'</div>'; tr.appendChild(td);});
+      tr.addEventListener('click',openTestModal);
+      tbody.appendChild(tr); count++;
+    });
+    document.getElementById('countDisplay').textContent='案件数：'+count;
+  }
+</script>
+</body>
+</html>
