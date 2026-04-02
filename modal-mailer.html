@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タブ付きメーラー統合モーダル</title>
+<style>
+.modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+.modal-content { background:#fff; width:95%; max-width:700px; max-height:90vh; overflow-y:auto; padding:20px; border-radius:8px; position:relative; }
+.close-btn { position:absolute; top:15px; right:20px; font-size:28px; cursor:pointer; color:#666; background:#fff; border-radius:50%; width:40px; height:40px; text-align:center; line-height:36px; box-shadow:0 2px 4px rgba(0,0,0,0.2); }
+.tab-buttons { display:flex; border-bottom:1px solid #ccc; margin-bottom:15px; }
+.tab-buttons button { flex:1; padding:10px; border:none; background:#eee; cursor:pointer; font-weight:bold; }
+.tab-buttons button.active { background:#fff; border-bottom:3px solid #1976d2; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.template-block { background:#f9f9f9; padding:15px; border-radius:6px; margin-bottom:20px; }
+.template-block h3 { margin-top:0; font-size:16px; }
+input, textarea { width:100%; margin-top:5px; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:14px; }
+.launch-btn { background:#1976d2; color:#fff; border:none; padding:10px; margin-top:10px; cursor:pointer; border-radius:4px; font-weight:bold; }
+.save-btn { background:#2e7d32; color:#fff; border:none; padding:10px; margin-top:10px; cursor:pointer; border-radius:4px; font-weight:bold; }
+#statusMsg { margin-top:10px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="tabModal" class="modal-overlay">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal()">×</span>
+    <h2>✉️ 案件連絡パネル</h2>
+
+    <div class="tab-buttons">
+      <button class="active" onclick="switchTab('info')">基本情報</button>
+      <button onclick="switchTab('reform')">リフォーム問合</button>
+      <button onclick="switchTab('takara')">タカラ向け</button>
+      <button onclick="switchTab('sms')">先方・建築業者</button>
+    </div>
+
+    <div id="tab-info" class="tab-content active">
+      <div class="template-block">
+        <div><strong>案件名:</strong> <span id="info-caseName"></span></div>
+        <div><strong>施工日:</strong> <span id="info-consDate"></span></div>
+        <div><strong>先方ご芳名:</strong> <span id="info-clientName"></span></div>
+        <div><strong>タカラ担当:</strong> <span id="info-takara"></span></div>
+      </div>
+    </div>
+
+    <div id="tab-reform" class="tab-content">
+      <div class="template-block">
+        <label>電話番号</label><input type="text" id="phone-reform">
+        <label>メールアドレス</label><input type="text" id="email-reform">
+        <label>件名</label><input type="text" id="subject-reform">
+        <label>本文</label><textarea id="body-reform" rows="4"></textarea>
+        <button class="launch-btn" onclick="launchApp('reform', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn" onclick="launchApp('reform', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('reform')">💾 履歴保存</button>
+      </div>
+    </div>
+
+    <div id="tab-takara" class="tab-content">
+      <div class="template-block">
+        <label>電話番号</label><input type="text" id="phone-takara">
+        <label>メールアドレス</label><input type="text" id="email-takara">
+        <label>件名</label><input type="text" id="subject-takara">
+        <label>本文</label><textarea id="body-takara" rows="4"></textarea>
+        <button class="launch-btn" onclick="launchApp('takara', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn" onclick="launchApp('takara', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('takara')">💾 履歴保存</button>
+      </div>
+    </div>
+
+    <div id="tab-sms" class="tab-content">
+      <div class="template-block">
+        <label>電話番号</label><input type="text" id="phone-sms">
+        <label>メールアドレス</label><input type="text" id="email-sms">
+        <label>件名</label><input type="text" id="subject-sms">
+        <label>本文</label><textarea id="body-sms" rows="4"></textarea>
+        <button class="launch-btn" onclick="launchApp('sms', 'sms')">📱 SMS起動</button>
+        <button class="launch-btn" onclick="launchApp('sms', 'email')">📧 メール起動</button>
+        <button class="save-btn" onclick="saveToParkedMails('sms')">💾 履歴保存</button>
+      </div>
+    </div>
+
+    <div id="statusMsg"></div>
+  </div>
+</div>
+
+<script>
+function switchTab(tabId){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tabId).classList.add('active');
+  document.querySelectorAll('.tab-buttons button').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.tab-buttons button[onclick*="'+tabId+'"]').classList.add('active');
+}
+
+function openModal(){
+  // 仮データで例
+  document.getElementById('info-caseName').textContent = '案件A';
+  document.getElementById('info-consDate').textContent = '2026-04-10';
+  document.getElementById('info-clientName').textContent = '山田太郎';
+  document.getElementById('info-takara').textContent = '佐藤花子';
+
+  document.getElementById('phone-reform').value = '090-1234-5678';
+  document.getElementById('email-reform').value = 'reform@example.com';
+  document.getElementById('subject-reform').value = 'リフォーム件';
+  document.getElementById('body-reform').value = '本文テスト';
+
+  document.getElementById('phone-takara').value = '090-1111-2222';
+  document.getElementById('email-takara').value = 'takara@example.com';
+  document.getElementById('subject-takara').value = '施工日確定';
+  document.getElementById('body-takara').value = '本文テスト';
+
+  document.getElementById('phone-sms').value = '090-9999-8888';
+  document.getElementById('email-sms').value = 'client@example.com';
+  document.getElementById('subject-sms').value = '施工日確定（先方）';
+  document.getElementById('body-sms').value = '本文テスト';
+
+  document.getElementById('tabModal').style.display='flex';
+}
+
+function closeModal(){ document.getElementById('tabModal').style.display='none'; }
+
+function launchApp(type, method){
+  alert(type + ' を ' + method + ' で起動');
+}
+function saveToParkedMails(type){
+  alert(type + ' を履歴保存');
+}
+</script>
+
+<button onclick="openModal()">モーダル開く</button>
+</body>
+</html>
