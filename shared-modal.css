@@ -1,50 +1,23 @@
-/* shared-modal.css */
-#modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
-#modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;color:#333;padding:0;border-radius:10px;width:94%;max-width:880px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,0.35);}
-#modal-close{position:sticky;top:0;float:right;font-size:13px;padding:6px 14px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:0 10px 0 8px;font-weight:bold;z-index:10;}
-#modal-body{padding:16px 18px 20px;}
-.modal-header-info{margin-bottom:12px;}
-.modal-date-row{font-size:12px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
-.modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
-.modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
-.modal-copy-btn.copied{background:#28a745;}
-.modal-section{margin-top:18px;}
-.modal-section h4{color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;margin-bottom:10px;}
-.modal-section h4.green{color:#155724;border-color:#28a745;}
-.modal-section h4.blue{color:#0d47a1;border-color:#2196f3;}
-.modal-section h4.orange{color:#e65100;border-color:#ff9800;}
-.modal-table{width:100%;border-collapse:collapse;}
-.modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;color:#333;}
-.modal-table th{background:#f8f9fa;width:28%;color:#495057;}
-.modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
-.modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;color:#333;}
-.modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;color:#333;background:#fff;}
-/* カンバンバー */
-#kanban-bar{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #ccc;}
-.kanban-step{flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:bold;cursor:pointer;transition:0.2s;}
-/* チェックボックス行 */
-.modal-check-row{display:flex;gap:20px;flex-wrap:wrap;margin:10px 0;}
-.modal-check-row label{font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;color:#333;}
-.modal-check-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer;}
-/* 保存ボタン */
-.modal-save-btn{padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;}
-.modal-save-btn:hover{background:#218838;}
-.modal-save-msg{margin-left:8px;color:#28a745;font-weight:bold;display:none;}
-/* メモ欄 */
-.modal-memo{width:100%;min-height:80px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5;color:#333;background:#fff;}
-.modal-memo:focus{outline:none;border-color:#2196f3;}
-/* 通信履歴 */
-.comm-timeline{max-height:300px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;}
-.comm-item{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;}
-.comm-item:last-child{border-bottom:none;}
-.comm-item:hover{background:#f0f7ff;}
-.comm-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
-.comm-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;}
-.comm-badge.sms{background:#e8f5e9;color:#2e7d32;}
-.comm-badge.gmail{background:#ffebee;color:#c62828;}
-.comm-dir{font-size:10px;color:#888;}
-.comm-time{font-size:10px;color:#999;}
-.comm-body{color:#555;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
-.comm-subject{color:#e65100;font-weight:600;margin-bottom:2px;}
-.comm-empty{padding:20px;text-align:center;color:#aaa;font-size:13px;}
-.comm-count{font-size:11px;color:#888;font-weight:normal;margin-left:8px;}
+#test-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  z-index: 999;
+}
+
+#test-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  display: none;
+  z-index: 1000;
+  min-width: 250px;
+}
