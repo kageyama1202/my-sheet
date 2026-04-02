@@ -3,174 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>開発メニュー（index3）</title>
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<title>テストモーダル環境</title>
 
 <style>
-  body {
-    font-family: sans-serif;
-    background: #f0f2f5;
-    margin: 0;
-    padding: 20px;
-    text-align: center;
-  }
+body{
+  font-family:sans-serif;
+  padding:20px;
+}
 
-  .container {
-    max-width: 600px;
-    margin: auto;
-    background: #fff;
-    padding: 25px;
-    border-radius: 8px;
-  }
+/* ===== モーダル ===== */
+#test-modal-overlay{
+  display:none;
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,0.6);
+  z-index:99999;
+}
 
-  h1 {
-    margin-top: 0;
-  }
+#test-modal{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:90%;
+  max-width:500px;
+  background:#fff;
+  border-radius:10px;
+  padding:16px;
+}
 
-  .input-area {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
+/* タブ */
+.test-tab{
+  display:flex;
+  border-bottom:1px solid #ccc;
+  margin-bottom:10px;
+}
 
-  input {
-    flex: 1;
-    padding: 10px;
-    font-size: 14px;
-  }
+.test-tab button{
+  flex:1;
+  padding:8px;
+  border:none;
+  background:#eee;
+  cursor:pointer;
+}
 
-  button {
-    padding: 10px 15px;
-    border: none;
-    cursor: pointer;
-    border-radius: 4px;
-  }
+.test-tab button.active{
+  background:#fff;
+  font-weight:bold;
+}
 
-  .add-btn {
-    background: #1976d2;
-    color: white;
-  }
+/* 中身 */
+.test-content{display:none;}
+.test-content.active{display:block;}
 
-  .menu-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .row {
-    display: flex;
-    gap: 5px;
-  }
-
-  .menu-btn {
-    flex: 1;
-    display: block;
-    padding: 15px;
-    background: #007bff;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 5px;
-  }
-
-  .del-btn {
-    width: 40px;
-    background: #d32f2f;
-    color: #fff;
-  }
+textarea{
+  width:100%;
+  min-height:120px;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
 
-<div class="container">
-  <h1>🧪 開発メニュー（index3）</h1>
+<h2>テスト環境（index3）</h2>
 
-  <!-- 追加エリア -->
-  <div class="input-area">
-    <input type="text" id="newFileName" placeholder="例: mailer_test.html">
-    <button class="add-btn" onclick="addFile()">追加</button>
-  </div>
+<button onclick="openTestModal()">モーダルテスト</button>
 
-  <!-- メニュー -->
-  <div id="menuGrid" class="menu-grid"></div>
-</div>
+<!-- モーダル -->
+<div id="test-modal-overlay"></div>
 
 <script>
-  // ===== Firebase設定 =====
-  const firebaseConfig = {
-    apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-    databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-    projectId: "project-6745138395263517914"
-  };
+// ===== モーダル開く =====
+function openTestModal(){
 
-  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-  const database = firebase.database();
+  const html = `
+    <div id="test-modal">
+      <button onclick="closeTestModal()">閉じる</button>
 
-  let FILES = [];
+      <h3>施工管理テスト</h3>
 
-  // ===== リアルタイム取得 =====
-  database.ref("dev_files").on("value", snap => {
-    FILES = snap.val() || [];
-    renderMenu();
-  });
+      <div class="test-tab">
+        <button onclick="switchTestTab('info')" id="tab-info-btn" class="active">基本</button>
+        <button onclick="switchTestTab('mail')" id="tab-mail-btn">メーラー</button>
+      </div>
 
-  // ===== 追加 =====
-  function addFile(){
-    const input = document.getElementById("newFileName");
-    const name = input.value.trim();
+      <div id="tab-info" class="test-content active">
+        <label>
+          <input type="checkbox" id="testFlag"> 施工日決定
+        </label>
+      </div>
 
-    if(!name){
-      alert("ファイル名を入力して");
-      return;
-    }
+      <div id="tab-mail" class="test-content">
+        <textarea id="testMail"></textarea>
+        <br><br>
+        <button onclick="saveTestMail()">仮保存</button>
+        <button onclick="sendTestMail()">送信</button>
+      </div>
+    </div>
+  `;
 
-    if(FILES.includes(name)){
-      alert("すでにある");
-      return;
-    }
+  const overlay = document.getElementById("test-modal-overlay");
+  overlay.innerHTML = html;
+  overlay.style.display = "block";
 
-    FILES.push(name);
-    database.ref("dev_files").set(FILES);
+  document.getElementById("testMail").value = createTemplate();
+}
 
-    input.value = "";
-  }
+// ===== 閉じる =====
+function closeTestModal(){
+  document.getElementById("test-modal-overlay").style.display = "none";
+}
 
-  // ===== 描画 =====
-  function renderMenu(){
-    const grid = document.getElementById("menuGrid");
-    grid.innerHTML = "";
+// ===== タブ切替 =====
+function switchTestTab(tab){
 
-    FILES.forEach(f => {
+  document.querySelectorAll(".test-content")
+    .forEach(el=>el.classList.remove("active"));
 
-      const row = document.createElement("div");
-      row.className = "row";
+  document.getElementById("tab-"+tab).classList.add("active");
 
-      // 開くボタン
-      const a = document.createElement("a");
-      a.href = f;
-      a.className = "menu-btn";
-      a.textContent = "🧪 " + f.replace(".html","");
+  document.querySelectorAll(".test-tab button")
+    .forEach(el=>el.classList.remove("active"));
 
-      // 削除ボタン
-      const del = document.createElement("button");
-      del.className = "del-btn";
-      del.textContent = "×";
+  document.getElementById("tab-"+tab+"-btn").classList.add("active");
+}
 
-      del.onclick = (e) => {
-        e.preventDefault();
-        if(confirm(f + " を削除する？")){
-          FILES = FILES.filter(x => x !== f);
-          database.ref("dev_files").set(FILES);
-        }
-      };
+// ===== テンプレ =====
+function createTemplate(){
+  return `施工日が確定しました。
 
-      row.appendChild(a);
-      row.appendChild(del);
-      grid.appendChild(row);
-    });
-  }
+よろしくお願いいたします。`;
+}
+
+// ===== 仮保存（今はダミー） =====
+function saveTestMail(){
+  alert("仮保存（テスト成功）");
+}
+
+// ===== 送信 =====
+function sendTestMail(){
+  const body = document.getElementById("testMail").value;
+  location.href = `sms:?body=${encodeURIComponent(body)}`;
+}
 </script>
 
 </body>
