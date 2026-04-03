@@ -1,50 +1,256 @@
-/* shared-modal.css */
-#modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
-#modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;color:#333;padding:0;border-radius:10px;width:94%;max-width:880px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,0.35);}
-#modal-close{position:sticky;top:0;float:right;font-size:13px;padding:6px 14px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:0 10px 0 8px;font-weight:bold;z-index:10;}
-#modal-body{padding:16px 18px 20px;}
-.modal-header-info{margin-bottom:12px;}
-.modal-date-row{font-size:12px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
-.modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
-.modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
-.modal-copy-btn.copied{background:#28a745;}
-.modal-section{margin-top:18px;}
-.modal-section h4{color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;margin-bottom:10px;}
-.modal-section h4.green{color:#155724;border-color:#28a745;}
-.modal-section h4.blue{color:#0d47a1;border-color:#2196f3;}
-.modal-section h4.orange{color:#e65100;border-color:#ff9800;}
-.modal-table{width:100%;border-collapse:collapse;}
-.modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;color:#333;}
-.modal-table th{background:#f8f9fa;width:28%;color:#495057;}
-.modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
-.modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;color:#333;}
-.modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;color:#333;background:#fff;}
-/* カンバンバー */
-#kanban-bar{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #ccc;}
-.kanban-step{flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:bold;cursor:pointer;transition:0.2s;}
-/* チェックボックス行 */
-.modal-check-row{display:flex;gap:20px;flex-wrap:wrap;margin:10px 0;}
-.modal-check-row label{font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;color:#333;}
-.modal-check-row input[type="checkbox"]{width:16px;height:16px;cursor:pointer;}
-/* 保存ボタン */
-.modal-save-btn{padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;}
-.modal-save-btn:hover{background:#218838;}
-.modal-save-msg{margin-left:8px;color:#28a745;font-weight:bold;display:none;}
-/* メモ欄 */
-.modal-memo{width:100%;min-height:80px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5;color:#333;background:#fff;}
-.modal-memo:focus{outline:none;border-color:#2196f3;}
-/* 通信履歴 */
-.comm-timeline{max-height:300px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;}
-.comm-item{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;}
-.comm-item:last-child{border-bottom:none;}
-.comm-item:hover{background:#f0f7ff;}
-.comm-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
-.comm-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;}
-.comm-badge.sms{background:#e8f5e9;color:#2e7d32;}
-.comm-badge.gmail{background:#ffebee;color:#c62828;}
-.comm-dir{font-size:10px;color:#888;}
-.comm-time{font-size:10px;color:#999;}
-.comm-body{color:#555;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
-.comm-subject{color:#e65100;font-weight:600;margin-bottom:2px;}
-.comm-empty{padding:20px;text-align:center;color:#aaa;font-size:13px;}
-.comm-count{font-size:11px;color:#888;font-weight:normal;margin-left:8px;}
+/* shared-modal.css — 共通モーダルスタイル【全張り替え版】 */
+
+/* ===== オーバーレイ ===== */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  z-index: 99999;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== モーダル本体 ===== */
+#modal-content {
+  position: relative;
+  margin: 20px auto;
+  width: 94%;
+  max-width: 640px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  color: #333;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* ===== 閉じるボタン ===== */
+#modal-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  background: #e53935;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10;
+}
+#modal-close:hover { background: #c62828; }
+
+/* ===== ヘッダー情報 ===== */
+.modal-header-info {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e0e0e0;
+}
+.modal-date-row {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 4px;
+}
+.modal-title-row {
+  font-size: 16px;
+  font-weight: bold;
+  color: #1a237e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.modal-copy-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #333;
+}
+.modal-copy-btn:hover { background: #e3f2fd; }
+.modal-copy-btn.copied { background: #c8e6c9; border-color: #4caf50; }
+
+/* ===== セクション ===== */
+.modal-section {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+.modal-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px;
+}
+.modal-section h4.green { color: #2e7d32; }
+.modal-section h4.blue { color: #1565c0; }
+.modal-section h4.orange { color: #e65100; }
+
+/* ===== CSVデータテーブル ===== */
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: #fff;
+}
+.modal-table th {
+  text-align: left;
+  padding: 4px 8px;
+  background: #e8eaf6;
+  color: #333;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+  width: 110px;
+  min-width: 110px;
+  font-weight: bold;
+}
+.modal-table td {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  word-break: break-all;
+  color: #333;
+  background: #fff;
+}
+
+/* ===== カンバンバー ===== */
+#kanban-bar {
+  display: flex;
+  gap: 3px;
+}
+.kanban-step {
+  flex: 1;
+  text-align: center;
+  padding: 5px 2px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.kanban-step:hover { opacity: 0.85; }
+
+/* ===== チェック行 ===== */
+.modal-check-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.modal-check-row label {
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #333;
+}
+.modal-check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ===== 入力行 ===== */
+.modal-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.modal-input-row label {
+  font-size: 13px;
+  font-weight: bold;
+  min-width: 70px;
+  color: #333;
+}
+.modal-input-row input[type="date"],
+.modal-input-row input[type="number"],
+.modal-input-row select {
+  padding: 4px 8px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+}
+.modal-input-row input[type="number"] { width: 70px; }
+
+/* ===== メモ ===== */
+.modal-memo {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  font-size: 13px;
+  resize: vertical;
+  color: #333;
+  background: #fff;
+}
+
+/* ===== 通信履歴 ===== */
+.comm-timeline {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+}
+.comm-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+  color: #333;
+}
+.comm-item:last-child { border-bottom: none; }
+.comm-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+.comm-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+}
+.comm-badge.sms { background: #e8f5e9; color: #2e7d32; }
+.comm-badge.gmail { background: #fce4ec; color: #c62828; }
+.comm-dir { font-size: 11px; color: #666; margin-left: 4px; }
+.comm-time { font-size: 11px; color: #999; }
+.comm-subject { font-size: 11px; color: #1565c0; font-weight: bold; margin-bottom: 2px; }
+.comm-body { font-size: 11px; color: #555; line-height: 1.4; word-break: break-all; }
+.comm-empty { padding: 12px; text-align: center; color: #999; font-size: 12px; }
+.comm-count { font-size: 11px; font-weight: normal; color: #888; margin-left: 6px; }
+
+/* ===== 保存ボタン ===== */
+.modal-save-btn {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 28px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.modal-save-btn:hover { background: #1565c0; }
+.modal-save-msg {
+  display: none;
+  margin-left: 12px;
+  color: #2e7d32;
+  font-weight: bold;
+  font-size: 13px;
+}
