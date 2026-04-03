@@ -3,34 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>試験用メーラー・表示切り替え仕様</title>
+<title>✉️ メーラー</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   body { font-family: sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+  .header-bar { max-width: 600px; margin: 0 auto 10px auto; display: flex; align-items: center; gap: 10px; }
+  .top-link { text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
   .task-list { max-width: 600px; margin: 0 auto; }
   .task-card { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; border-left: 5px solid #1976d2; }
   .task-card:hover { background: #e3f2fd; }
-  
-  /* 送信待ちアラート */
+
   .pending-alert { max-width: 600px; margin: 0 auto 20px auto; background: #ffebee; border: 2px solid #d32f2f; border-radius: 6px; padding: 15px; display: none; }
   .pending-alert h3 { color: #d32f2f; margin-top: 0; }
   .pending-item { background: #fff; padding: 10px; margin-bottom: 5px; border-radius: 4px; border-left: 4px solid #d32f2f; font-size: 14px; }
-  
-  /* モーダル */
+
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
   .modal-content { background: #fff; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 20px; border-radius: 8px; position: relative; }
   .close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #666; background: #fff; border-radius: 50%; width: 40px; height: 40px; text-align: center; line-height: 36px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-  
+
   .case-info { background: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #1976d2; line-height: 1.6; }
   .case-info span.lbl { font-weight: bold; display: inline-block; width: 100px; color: #555; }
-  
+
   label { display: block; margin-top: 10px; font-weight: bold; font-size: 13px; color: #444; }
   input, textarea { width: 100%; margin-top: 3px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  
+
   .template-block { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .template-block h3 { margin-top: 0; font-size: 16px; color: #1976d2; display: flex; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-  
+
   .dest-container { display: flex; gap: 10px; margin-top: 5px; }
   .dest-box { flex: 1; }
   .dest-box label { margin-top: 0; font-size: 12px; color: #555; }
@@ -41,17 +41,22 @@
 
   .action-buttons { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
   .launch-btn, .save-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
-  .btn-sms { background: #00796b; } 
+  .btn-sms { background: #00796b; }
   .btn-sms:hover { background: #004d40; }
-  .btn-email { background: #1976d2; } 
+  .btn-email { background: #1976d2; }
   .btn-email:hover { background: #1565c0; }
   .save-btn { background: #2e7d32; }
   .save-btn:hover { background: #1b5e20; }
-  
+
   #statusMsg { display: block; margin-bottom: 15px; font-weight: bold; color: #1976d2; text-align: center; font-size: 15px; }
 </style>
 </head>
 <body>
+
+<div class="header-bar">
+  <a href="index.html" class="top-link">◀ トップ</a>
+  <span style="font-size:15px;font-weight:bold;">✉️ メーラー</span>
+</div>
 
 <div id="pendingAlert" class="pending-alert">
   <h3>⚠️ 送信待ち（仮置き）のメッセージがあります</h3>
@@ -68,7 +73,7 @@
   <div class="modal-content">
     <span class="close-btn" onclick="closeModal()">×</span>
     <h2 style="margin-top:0;">✉️ 連絡作成・送信一括パネル</h2>
-    
+
     <div class="case-info" id="caseInfoArea"></div>
     <span id="statusMsg"></span>
 
@@ -76,19 +81,11 @@
     <div class="template-block" id="block-reform">
       <h3><span id="badge-reform" class="badge badge-red">未</span> リフォーム問合</h3>
       <div class="dest-container">
-        <div class="dest-box">
-          <label>📱 電話番号</label>
-          <input type="text" id="phone-reform" placeholder="090-XXXX-XXXX">
-        </div>
-        <div class="dest-box">
-          <label>📧 メールアドレス</label>
-          <input type="text" id="email-reform" placeholder="メールアドレス">
-        </div>
+        <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-reform" placeholder="090-XXXX-XXXX"></div>
+        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-reform" placeholder="メールアドレス"></div>
       </div>
-      <label>件名:</label>
-      <input type="text" id="subject-reform" placeholder="件名">
-      <label>本文:</label>
-      <textarea id="body-reform" rows="3"></textarea>
+      <label>件名:</label><input type="text" id="subject-reform" placeholder="件名">
+      <label>本文:</label><textarea id="body-reform" rows="3"></textarea>
       <div class="action-buttons">
         <button class="launch-btn btn-sms" onclick="launchApp('reform', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('reform', 'email')">📧 メール起動</button>
@@ -100,19 +97,11 @@
     <div class="template-block">
       <h3><span id="badge-takara" class="badge badge-red">未</span> 施工日確定 (タカラ向け)</h3>
       <div class="dest-container">
-        <div class="dest-box">
-          <label>📱 電話番号</label>
-          <input type="text" id="phone-takara" placeholder="090-XXXX-XXXX">
-        </div>
-        <div class="dest-box">
-          <label>📧 メールアドレス</label>
-          <input type="text" id="email-takara" placeholder="メールアドレス">
-        </div>
+        <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-takara" placeholder="090-XXXX-XXXX"></div>
+        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-takara" placeholder="メールアドレス"></div>
       </div>
-      <label>件名:</label>
-      <input type="text" id="subject-takara" placeholder="件名">
-      <label>本文:</label>
-      <textarea id="body-takara" rows="3"></textarea>
+      <label>件名:</label><input type="text" id="subject-takara" placeholder="件名">
+      <label>本文:</label><textarea id="body-takara" rows="3"></textarea>
       <div class="action-buttons">
         <button class="launch-btn btn-sms" onclick="launchApp('takara', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('takara', 'email')">📧 メール起動</button>
@@ -124,19 +113,11 @@
     <div class="template-block">
       <h3><span id="badge-sms" class="badge badge-red">未</span> 施工日確定 (先方・建築業者向け)</h3>
       <div class="dest-container">
-        <div class="dest-box">
-          <label>📱 電話番号</label>
-          <input type="text" id="phone-sms" placeholder="090-XXXX-XXXX">
-        </div>
-        <div class="dest-box">
-          <label>📧 メールアドレス</label>
-          <input type="text" id="email-sms" placeholder="メールアドレス">
-        </div>
+        <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-sms" placeholder="090-XXXX-XXXX"></div>
+        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-sms" placeholder="メールアドレス"></div>
       </div>
-      <label>件名:</label>
-      <input type="text" id="subject-sms" placeholder="件名">
-      <label>本文:</label>
-      <textarea id="body-sms" rows="3"></textarea>
+      <label>件名:</label><input type="text" id="subject-sms" placeholder="件名">
+      <label>本文:</label><textarea id="body-sms" rows="3"></textarea>
       <div class="action-buttons">
         <button class="launch-btn btn-sms" onclick="launchApp('sms', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('sms', 'email')">📧 メール起動</button>
@@ -153,15 +134,22 @@
     databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
     projectId: "project-6745138395263517914"
   };
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   var database = firebase.database();
-  
-  var currentCaseKey = ""; 
+
+  var currentCaseKey = "";
   var currentTaskData = null;
-  var contactsList = []; 
-  var lastUsedMethod = {}; 
+  var contactsList = [];
+  var lastUsedMethod = {};
+  var allTasksCache = {};
+  var pendingAutoOpen = null;
+
+  /* URLパラメータ読み取り */
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var keyParam = params.get('key');
+    if (keyParam) pendingAutoOpen = keyParam;
+  })();
 
   database.ref('app_contacts').on('value', function(snap) {
     contactsList = snap.val() || [];
@@ -173,7 +161,6 @@
     var alertBox = document.getElementById('pendingAlert');
     pendingList.innerHTML = "";
     var count = 0;
-
     for (var key in parked) {
       var mail = parked[key];
       if (mail.status === "parked") {
@@ -186,134 +173,117 @@
         pendingList.appendChild(div);
       }
     }
-    
-    if (count > 0) {
-      alertBox.style.display = "block";
-    } else {
-      alertBox.style.display = "none";
-    }
+    alertBox.style.display = count > 0 ? "block" : "none";
   });
 
   database.ref('app_tasks').on('value', function(snapshot) {
     var tasks = snapshot.val() || {};
+    allTasksCache = tasks;
     var container = document.getElementById('tasksContainer');
     container.innerHTML = "";
-    
+
     for (var key in tasks) {
       var task = tasks[key];
       if (task.csvData) {
         var status = task.csvData[ 1 ] || "";
-        if (status === "完了") continue; 
+        if (status === "完了") continue;
 
-        var consDate = task.csvData[ 2 ] || "未定";     
-        var kubun    = task.csvData[ 3 ] || "";         
-        var caseName = task.csvData[ 4 ] || "名称不明"; 
-        var inCharge = task.csvData[ 8 ] || "未定";     
-        
+        var consDate = task.csvData[ 2 ] || "未定";
+        var kubun    = task.csvData[ 3 ] || "";
+        var caseName = task.csvData[ 4 ] || "名称不明";
+        var inCharge = task.csvData[ 8 ] || "未定";
+
         var card = document.createElement('div');
         card.className = "task-card";
         card.innerHTML = "<strong>" + caseName + "</strong> <span style='font-size:11px;color:#666;'>[" + kubun + " / " + status + "]</span><br><small>施工日: " + consDate + " / 工務担当: " + inCharge + "</small>";
-        
+
         (function(k, t) {
           card.onclick = function() { openModal(k, t); };
         })(key, task);
-        
+
         container.appendChild(card);
       }
     }
+
+    /* ?key=XXX 自動オープン */
+    if (pendingAutoOpen && allTasksCache[pendingAutoOpen]) {
+      var autoKey = pendingAutoOpen;
+      pendingAutoOpen = null;
+      openModal(autoKey, allTasksCache[autoKey]);
+    }
   });
 
-  // ★修正箇所：会社名、担当者名の両方から徹底的に連絡先を検索するロジック
   function findContactInfo(fullName) {
     if (!fullName || fullName === "未登録") return { email: "", phone: "" };
-    
     var parts = fullName.split(/[\s　]+/);
     var searchTerms = [];
-    
-    // ①まずはフルネームで完全一致・部分一致を狙う
-    searchTerms.push(fullName); 
+    searchTerms.push(fullName);
     if (parts.length > 1) {
-      // ②会社名（土屋ホームなど）で検索をかける
-      searchTerms.push(parts[ 0 ]); 
-      // ③担当者名（石橋など）で検索をかける
-      searchTerms.push(parts[ 1 ]); 
+      searchTerms.push(parts[ 0 ]);
+      searchTerms.push(parts[ 1 ]);
     }
-
     var resultEmail = "";
     var resultPhone = "";
-
-    // 優先順位(フルネーム > 会社名 > 担当者名)で名簿を走査
     for (var j = 0; j < searchTerms.length; j++) {
       var term = searchTerms[j];
       if (!term) continue;
-
       for (var i in contactsList) {
         var c = contactsList[i];
         if (c && c.name && c.name.indexOf(term) !== -1) {
-          // 見つかった場合、まだ空欄なら取得する（会社名でメアドが見つかればそれをセット）
           if (!resultEmail && c.email) resultEmail = c.email;
           if (!resultPhone && c.phone) resultPhone = c.phone;
         }
       }
-      // メアドも電話も両方埋まったら検索終了
       if (resultEmail && resultPhone) break;
     }
-
     return { email: resultEmail, phone: resultPhone };
   }
 
   function openModal(key, taskObj) {
     currentCaseKey = key;
     currentTaskData = taskObj;
-    lastUsedMethod = {}; 
+    lastUsedMethod = {};
     document.getElementById('statusMsg').textContent = "";
-    
+
     var csv = taskObj.csvData || [];
-    var consDate   = csv[ 2 ] || "未定";     
-    var kubun      = csv[ 3 ] || "";         
-    var caseName   = csv[ 4 ] || "名称不明"; 
-    var clientName = csv[ 5 ] || "未登録";   
-    var phoneCsv   = csv[ 6 ] || "";   
-    var takaraRep  = csv[ 8 ] || "未登録";   
+    var consDate   = csv[ 2 ] || "未定";
+    var kubun      = csv[ 3 ] || "";
+    var caseName   = csv[ 4 ] || "名称不明";
+    var clientName = csv[ 5 ] || "未登録";
+    var phoneCsv   = csv[ 6 ] || "";
+    var takaraRep  = csv[ 8 ] || "未登録";
 
     var infoArea = document.getElementById('caseInfoArea');
-    infoArea.innerHTML = 
+    infoArea.innerHTML =
       "<div><span class='lbl'>案件名:</span> " + caseName + " <span style='color:#1976d2;font-size:12px;'>[" + kubun + "]</span></div>" +
       "<div><span class='lbl'>施工日:</span> " + consDate + "</div>" +
       "<div><span class='lbl'>先方ご芳名:</span> " + clientName + "</div>" +
       "<div><span class='lbl'>電話番号:</span> " + (phoneCsv || "未登録") + "</div>" +
       "<div><span class='lbl'>タカラ担当:</span> " + takaraRep + "</div>";
 
-    // アドレスと電話番号の強力な検索を実行
     var clientContact = findContactInfo(clientName);
     var takaraContact = findContactInfo(takaraRep);
 
-    // 工事区分による表示切り替え
     var blockReform = document.getElementById('block-reform');
     if (kubun.indexOf("ﾘ") !== -1 || kubun.indexOf("リ") !== -1) {
-      blockReform.style.display = "block"; 
+      blockReform.style.display = "block";
     } else {
-      blockReform.style.display = "none";  
+      blockReform.style.display = "none";
     }
 
-    // --- ブロック1：リフォーム ---
     document.getElementById('phone-reform').value = phoneCsv || clientContact.phone;
     document.getElementById('email-reform').value = clientContact.email;
     document.getElementById('subject-reform').value = "【お問い合わせ】リフォームの件";
     document.getElementById('body-reform').value = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
 
-    // --- ブロック2：タカラ向け ---
     document.getElementById('phone-takara').value = takaraContact.phone;
     document.getElementById('email-takara').value = takaraContact.email;
     document.getElementById('subject-takara').value = "【ご報告】施工日確定のお知らせ";
-    // ★「ご確認のほど」に修正
     document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
 
-    // --- ブロック3：先方・建築業者向け ---
     document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
     document.getElementById('email-sms').value = clientContact.email;
     document.getElementById('subject-sms').value = "施工日確定のお知らせ";
-    // ★「ご確認のほど」に修正
     document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
 
     var mailStatus = taskObj.mailStatus || {};
@@ -349,21 +319,15 @@
     var body = document.getElementById('body-' + type).value;
 
     if (method === 'email') {
-      if (!toEmail) {
-        alert("メールアドレスが入力されていません。");
-        return;
-      }
+      if (!toEmail) { alert("メールアドレスが入力されていません。"); return; }
       window.location.href = "mailto:" + encodeURIComponent(toEmail) + "?subject=" + encodeURIComponent(subj) + "&body=" + encodeURIComponent(body);
     } else {
-      if (!toPhone) {
-        alert("電話番号が入力されていません。");
-        return;
-      }
+      if (!toPhone) { alert("電話番号が入力されていません。"); return; }
       var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       var separator = isIOS ? "&" : "?";
       window.location.href = "sms:" + encodeURIComponent(toPhone) + separator + "body=" + encodeURIComponent(body);
     }
-    
+
     var msg = document.getElementById('statusMsg');
     msg.style.color = "#1976d2";
     msg.textContent = "🚀 アプリを起動しました。送信を終えたらそのブロックの「💾 履歴保存」を押してください。";
@@ -371,12 +335,11 @@
 
   function saveToParkedMails(type) {
     if (!currentCaseKey) return;
-    
     var toPhoneVal = document.getElementById('phone-' + type).value;
     var toEmailVal = document.getElementById('email-' + type).value;
     var subjVal = document.getElementById('subject-' + type).value;
     var bodyVal = document.getElementById('body-' + type).value;
-    var method = lastUsedMethod[type] || 'sms'; 
+    var method = lastUsedMethod[type] || 'sms';
 
     var mailData = {
       assignedCase: currentCaseKey,
@@ -386,27 +349,24 @@
       toEmail: toEmailVal,
       subject: subjVal,
       body: bodyVal,
-      status: "parked", 
+      status: "parked",
       createdAt: new Date().toISOString()
     };
 
     database.ref('app_parked_mails').push(mailData)
       .then(function() {
-        var statusRef = database.ref('app_tasks/' + currentCaseKey + '/mailStatus/' + type);
-        return statusRef.set(true);
+        return database.ref('app_tasks/' + currentCaseKey + '/mailStatus/' + type).set(true);
       })
       .then(function() {
         var msg = document.getElementById('statusMsg');
         msg.style.color = "#2e7d32";
         msg.textContent = "✅ 履歴を保存し、対象を送信済(🟢)にしました。続けて他の送信も可能です。";
-        
-        if(!currentTaskData.mailStatus) currentTaskData.mailStatus = {};
+
+        if (!currentTaskData.mailStatus) currentTaskData.mailStatus = {};
         currentTaskData.mailStatus[type] = true;
         updateBadge(type, true);
-        
-        setTimeout(function(){ 
-          msg.textContent = ""; 
-        }, 4000);
+
+        setTimeout(function() { msg.textContent = ""; }, 4000);
       });
   }
 </script>
