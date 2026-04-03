@@ -254,3 +254,20 @@
   font-weight: bold;
   font-size: 13px;
 }
+
+/* ===== メーラーリンクボタン ===== */
+.modal-mailer-btn {
+  display: inline-block;
+  margin-left: 12px;
+  background: #00796b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.modal-mailer-btn:hover { background: #004d40; }
