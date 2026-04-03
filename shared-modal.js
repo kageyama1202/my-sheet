@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル（保存コールバック対応） */
+/* shared-modal.js — 共通モーダル（保存コールバック対応 + メーラーリンク）【全張り替え版】 */
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var modalCommData = null;
@@ -139,9 +139,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-section"><h4 class="orange">📨 通信履歴 <span id="comm-count" class="comm-count">読込中...</span></h4>';
   html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div></div>';
 
-  // 保存
-  html += '<div style="margin-top:18px;text-align:center;"><button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
-  html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span></div>';
+  // 保存 + メーラーボタン
+  html += '<div style="margin-top:18px;text-align:center;">';
+  html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
+  html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
+  html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
+  html += '</div>';
 
   document.getElementById('modal-body').innerHTML = html;
   document.getElementById('modal-overlay').style.display = 'block';
@@ -154,7 +157,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var sfMap={'下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済'};
   var sfLocal=sfMap[sfStatus]||sfStatus||'依頼';
   var localSt=obj.localStatus||'';
-  // ランク制：進んでる方を採用
   var sfRank=kanbanStatuses.indexOf(sfLocal);if(sfRank===-1)sfRank=0;
   var localRank=kanbanStatuses.indexOf(localSt);if(localRank===-1)localRank=-1;
   var currentStatus=localRank>=sfRank?localSt:sfLocal;
@@ -185,22 +187,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
 
-    // ローカルデータ即時更新
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
     globalTasks[key].localStatus=selectedStatus;globalTasks[key].emailSent=es;
     globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
     if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
 
-    // ヘッダー更新
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
-    // SFノート更新
     document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+selectedStatus;
 
-    // 保存メッセージ
     var msg=document.getElementById('modal-save-msg');
     msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
 
-    // ★ コールバック（ダッシュボード再描画など）
     if(typeof onSaveCallback==='function') onSaveCallback();
   });
 
