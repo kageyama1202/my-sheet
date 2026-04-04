@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル（保存コールバック対応 + メーラーリンク）【全張り替え版】 */
+/* shared-modal.js — 共通モーダル（保存コールバック対応 + メーラーリンク + 施工日確定チェック）【全張り替え版】 */
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var modalCommData = null;
@@ -122,6 +122,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div style="margin:10px 0;"><label style="font-weight:bold;font-size:13px;">🚦 ステータス:</label>';
   html += '<div id="kanban-bar" style="margin-top:6px;"></div><div id="kanban-sf-note" style="margin-top:4px;font-size:11px;color:#888;"></div></div>';
   html += '<div class="modal-check-row">';
+  html += '<label><input type="checkbox" id="modal-constructionDateConfirmed"'+(obj.constructionDateConfirmed?' checked':'')+'> 🔨 施工日確定</label></div>';
+  
+  html += '<div class="modal-check-row" style="margin-top:8px; padding-left:20px;">';
+  html += '<label><input type="checkbox" id="modal-heardFromCarpenter"'+(obj.heardFromCarpenter?' checked':'')+'> 👨‍🔧 大工さん</label>';
+  html += '<label><input type="checkbox" id="modal-heardFromAccountant"'+(obj.heardFromAccountant?' checked':'')+'> 📊 帳場さん</label></div>';
+  
+  html += '<div class="modal-check-row">';
   html += '<label><input type="checkbox" id="modal-emailSent"'+(obj.emailSent?' checked':'')+'> ✉️ 施工日確認メール済</label>';
   html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div></div>';
 
@@ -150,9 +157,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('modal-overlay').style.display = 'block';
   document.getElementById('modal-time').value = obj.time || '';
 
-  // カンバン
-  var kanbanStatuses=['依頼','連絡済','下見日確定','下見実施済','報告書提出済'];
-  var kanbanColors=['#90a4ae','#42a5f5','#ffb300','#66bb6a','#26a69a'];
+  // カンバン（6段階）
+  var kanbanStatuses=['依頼','連絡済','下見日確定','下見実施済','報告書提出済','施工日連絡済'];
+  var kanbanColors=['#90a4ae','#42a5f5','#ffb300','#66bb6a','#26a69a','#00695c'];
   var sfStatus=getSafeValModal(cols,1).replace(/\s+/g,"");
   var sfMap={'下見実施中':'連絡済','下見日程確定':'下見日確定','下見完了':'報告書提出済'};
   var sfLocal=sfMap[sfStatus]||sfStatus||'依頼';
@@ -180,16 +187,20 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var nd=document.getElementById('modal-date').value;
     var nt=document.getElementById('modal-time').value;
     var no=document.getElementById('modal-order').value;
+    var cdc=document.getElementById('modal-constructionDateConfirmed').checked;
+    var hfc=document.getElementById('modal-heardFromCarpenter').checked;
+    var hfa=document.getElementById('modal-heardFromAccountant').checked;
     var es=document.getElementById('modal-emailSent').checked;
     var fr=document.getElementById('modal-finalReport').checked;
     var memo=document.getElementById('modal-memo').value;
 
-    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,emailSent:es,finalReport:fr,memo:memo};
+    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
 
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
-    globalTasks[key].localStatus=selectedStatus;globalTasks[key].emailSent=es;
-    globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
+    globalTasks[key].localStatus=selectedStatus;globalTasks[key].constructionDateConfirmed=cdc;
+    globalTasks[key].heardFromCarpenter=hfc;globalTasks[key].heardFromAccountant=hfa;
+    globalTasks[key].emailSent=es;globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
     if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
 
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
