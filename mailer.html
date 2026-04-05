@@ -3,20 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>メール送信</title>
+<title>試験用メーラー</title>
 <!-- Firebase v8 (既存の他ページと互換性を持たせるため) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   body { font-family: sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-  .back-link { color: #007bff; text-decoration: none; font-weight: bold; font-size: 14px; cursor: pointer; }
-  .back-link:hover { text-decoration: underline; }
   .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
   .warning { color: #d32f2f; font-size: 14px; font-weight: bold; margin-bottom: 20px; padding: 10px; background: #ffebee; border-left: 4px solid #d32f2f; }
   label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
   select, input, textarea { width: 100%; margin-top: 5px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  .btn-group { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-group { margin-top: 10px; display: flex; gap: 10px; }
   button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
   .tmpl-btn { background: #e0e0e0; color: #333; }
   .tmpl-btn:hover { background: #d5d5d5; }
@@ -27,15 +24,11 @@
 </head>
 <body>
 
-<div class="header">
-  <a class="back-link" href="javascript:history.back();">◀ 戻る</a>
-  <h2 style="margin:0;">✉️ メール送信</h2>
-</div>
-
 <div class="container">
-  <div class="warning">※ メール送信機能は現在、app_parked_mails に保存するテスト版です。</div>
+  <h2>✉️ 試験用メーラー (独立環境)</h2>
+  <div class="warning">※ comm.html等、既存のシステムには一切干渉しません。app_parked_mails への保存テスト専用ページです。</div>
 
-  <label>案件選択:</label>
+  <label>案件選択 (app_tasksから取得):</label>
   <select id="taskSelect">
     <option value="">-- 読込中 --</option>
   </select>
@@ -47,7 +40,7 @@
   <div class="btn-group">
     <button class="tmpl-btn" onclick="applyTemplate('reform')">リフォーム問合</button>
     <button class="tmpl-btn" onclick="applyTemplate('takara')">施工日確定(タカラ)</button>
-    <button class="tmpl-btn" onclick="applyTemplate('sms')">施工日確定(SMS)</button>
+    <button class="tmpl-btn" onclick="applyTemplate('sms')">施工日確定(先方SMS)</button>
   </div>
 
   <label>件名:</label>
@@ -56,7 +49,7 @@
   <label>本文:</label>
   <textarea id="bodyInput" rows="10" placeholder="本文を入力..."></textarea>
 
-  <button class="submit-btn" onclick="saveToParkedMails()">送信（app_parked_mails保存）</button>
+  <button class="submit-btn" onclick="saveToParkedMails()">仮置き保存 (app_parked_mailsへ書き込み)</button>
   <span id="statusMsg"></span>
 </div>
 
@@ -74,13 +67,6 @@
   var database = firebase.database();
   var tasksData = {};
 
-  // URL パラメータから案件キーを取得
-  function getUrlParam(name) {
-    var url = new URL(window.location);
-    return url.searchParams.get(name);
-  }
-  var initialKey = getUrlParam('key');
-
   // app_tasksから案件リストを取得してプルダウンを生成
   database.ref('app_tasks').once('value', function(snapshot) {
     tasksData = snapshot.val() || {};
@@ -90,35 +76,30 @@
     for (var key in tasksData) {
       var task = tasksData[key];
       if (task.csvData) {
-        // index 4: 管理名, index 6: 担当者携帯
-        var caseName = task.csvData[4] || "名称不明"; 
-        var phone = task.csvData[6] ? " (" + task.csvData[6] + ")" : "";
+        // index 4: 管理名, index 8: 工務担当者
+        var caseName = task.csvData[5] || "名称不明"; 
+        var inCharge = task.csvData[6] ? " (" + task.csvData[6] + ")" : "";
         var option = document.createElement('option');
         option.value = key;
-        option.textContent = caseName + phone;
+        option.textContent = caseName + inCharge;
         select.appendChild(option);
-        
-        // URLパラメータで指定されたキーを自動選択
-        if (key === initialKey) {
-          option.selected = true;
-        }
       }
     }
   });
 
-  // 定型文テンプレート（修正版）
+  // 3種の定型文テンプレート
   var templates = {
     reform: {
       subject: "【お問い合わせ】リフォームの件",
-      body: "お疲れ様です。\nリフォームの件につきまして、以下の通りお問い合わせ申し上げます。\n\n詳細："
+      body: "お世話になっております。\nリフォームの件につきまして、以下の通りお問い合わせ申し上げます。\n\n詳細："
     },
     takara: {
-      subject: "",
-      body: "お疲れ様です。案件「【SU手配】亀田 武志 様邸」の施工日は【2026-04-24】にて予定しております。"
+      subject: "【ご報告】施工日確定のお知らせ",
+      body: "タカラ担当者様\n\nお世話になっております。\n担当案件の施工日が確定いたしましたので、ご報告申し上げます。\n\nよろしくお願いいたします。"
     },
     sms: {
       subject: "",
-      body: "お疲れ様です。案件「【SU手配】亀田 武志 様邸」の施工日は【2026-04-24】にて予定しております。"
+      body: "お世話になっております。施工日が確定いたしました。当日はよろしくお願いいたします。"
     }
   };
 
@@ -144,7 +125,7 @@
     }
 
     var mailData = {
-      assignedCase: taskKey,
+      assignedCase: taskKey, // 手動紐付け用キー
       to: toVal,
       subject: subjVal,
       body: bodyVal,
@@ -156,14 +137,11 @@
     database.ref('app_parked_mails').push(mailData)
       .then(function() {
         var msg = document.getElementById('statusMsg');
-        msg.textContent = "✅ 送信完了！";
+        msg.textContent = "✅ app_parked_mails に仮置き保存しました！";
         // フォームリセット
         document.getElementById('subjectInput').value = "";
         document.getElementById('bodyInput').value = "";
-        setTimeout(function(){ 
-          msg.textContent = ""; 
-          history.back();
-        }, 2000);
+        setTimeout(function(){ msg.textContent = ""; }, 4000);
       })
       .catch(function(error) {
         alert("保存エラー: " + error.message);
