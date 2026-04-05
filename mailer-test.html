@@ -33,6 +33,7 @@
 
   .dest-container { display: flex; gap: 10px; margin-top: 5px; }
   .dest-box { flex: 1; }
+  .dest-box.hidden { display: none; }
   .dest-box label { margin-top: 0; font-size: 12px; color: #555; }
 
   .badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; margin-right: 10px; min-width: 30px; text-align: center; }
@@ -43,7 +44,7 @@
   .launch-btn, .save-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
   .btn-sms { background: #00796b; }
   .btn-sms:hover { background: #004d40; }
-  .btn-email { background: #1976d2; }
+  .btn-email { background: #1976d2; display: none; }
   .btn-email:hover { background: #1565c0; }
   .save-btn { background: #2e7d32; }
   .save-btn:hover { background: #1b5e20; }
@@ -82,7 +83,7 @@
       <h3><span id="badge-reform" class="badge badge-red">未</span> リフォーム問合</h3>
       <div class="dest-container">
         <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-reform" placeholder="090-XXXX-XXXX"></div>
-        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-reform" placeholder="メールアドレス"></div>
+        <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-reform" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-reform" placeholder="件名">
       <label>本文:</label><textarea id="body-reform" rows="3"></textarea>
@@ -98,7 +99,7 @@
       <h3><span id="badge-takara" class="badge badge-red">未</span> 施工日確定 (タカラ向け)</h3>
       <div class="dest-container">
         <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-takara" placeholder="090-XXXX-XXXX"></div>
-        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-takara" placeholder="メールアドレス"></div>
+        <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-takara" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-takara" placeholder="件名">
       <label>本文:</label><textarea id="body-takara" rows="3"></textarea>
@@ -114,7 +115,7 @@
       <h3><span id="badge-sms" class="badge badge-red">未</span> 施工日確定 (先方・建築業者向け)</h3>
       <div class="dest-container">
         <div class="dest-box"><label>📱 電話番号</label><input type="text" id="phone-sms" placeholder="090-XXXX-XXXX"></div>
-        <div class="dest-box"><label>📧 メールアドレス</label><input type="text" id="email-sms" placeholder="メールアドレス"></div>
+        <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-sms" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-sms" placeholder="件名">
       <label>本文:</label><textarea id="body-sms" rows="3"></textarea>
@@ -271,20 +272,23 @@
       blockReform.style.display = "none";
     }
 
+    /* リフォーム問合 */
     document.getElementById('phone-reform').value = phoneCsv || clientContact.phone;
     document.getElementById('email-reform').value = clientContact.email;
     document.getElementById('subject-reform').value = "【お問い合わせ】リフォームの件";
     document.getElementById('body-reform').value = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
 
-    document.getElementById('phone-takara').value = takaraContact.phone;
+    /* タカラ版（SMS専用、電話番号逆引き） */
+    document.getElementById('phone-takara').value = takaraContact.phone || "";
     document.getElementById('email-takara').value = takaraContact.email;
-    document.getElementById('subject-takara').value = "【ご報告】施工日確定のお知らせ";
-    document.getElementById('body-takara').value = takaraRep + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
+    document.getElementById('subject-takara').value = "";
+    document.getElementById('body-takara').value = "お疲れ様です、案件「" + caseName + "」の施工日は【" + consDate + "】にて了承いただきました";
 
+    /* 先方版（SMS専用、csvData[6]を直接使用） */
     document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
     document.getElementById('email-sms').value = clientContact.email;
-    document.getElementById('subject-sms').value = "施工日確定のお知らせ";
-    document.getElementById('body-sms').value = clientName + " 様\nお世話になっております。案件「" + caseName + "」の施工日が【" + consDate + "】にて確定しました、ご確認のほどよろしくお願いいたします。";
+    document.getElementById('subject-sms').value = "";
+    document.getElementById('body-sms').value = clientName + "様お世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】にて予定しております、ご確認ください";
 
     var mailStatus = taskObj.mailStatus || {};
     updateBadge('reform', mailStatus.reform);
