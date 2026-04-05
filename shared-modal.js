@@ -150,7 +150,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
-  html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
+  html += '<a id="modal-mailer-link" href="mailer.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
   html += '</div>';
 
   document.getElementById('modal-body').innerHTML = html;
