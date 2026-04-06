@@ -36,33 +36,14 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
   }
   
-  /* 未送信案件：赤背景 + 点滅 */
-  .task-card.pending {
+  /* 送信待ち案件：赤背景 + 点滅 */
+  .task-card.pending-mail {
     background: #ffebee;
     border-left-color: #d32f2f;
     animation: blinking 1s infinite;
   }
-  .task-card.pending:hover {
+  .task-card.pending-mail:hover {
     background: #ffcdd2;
-  }
-  
-  /* 送信完了案件：グレー */
-  .task-card.completed {
-    background: #f0f0f0;
-    color: #999;
-    border-left-color: #bbb;
-  }
-  .task-card.completed:hover {
-    background: #e8e8e8;
-  }
-  .task-card.completed .task-name {
-    color: #777;
-  }
-  .task-card.completed .task-status {
-    color: #aaa;
-  }
-  .task-card.completed .task-date {
-    color: #bbb;
   }
   
   @keyframes blinking {
@@ -97,15 +78,21 @@
   .badge-green { background: #2e7d32; }
 
   .action-buttons { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
-  .launch-btn, .save-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
+  .launch-btn, .save-btn, .gen-btn, .del-btn { flex: 1; min-width: 100px; color: white; font-weight: bold; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; text-align: center; }
   .btn-sms { background: #00796b; }
   .btn-sms:hover { background: #004d40; }
   .btn-email { background: #1976d2; display: none; }
   .btn-email:hover { background: #1565c0; }
   .save-btn { background: #2e7d32; }
   .save-btn:hover { background: #1b5e20; }
+  .gen-btn { background: #ff6f00; }
+  .gen-btn:hover { background: #e65100; }
+  .del-btn { background: #b71c1c; }
+  .del-btn:hover { background: #8b0000; }
 
   #statusMsg { display: block; margin-bottom: 15px; font-weight: bold; color: #1976d2; text-align: center; font-size: 15px; }
+  
+  .saved-mail-alert { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 12px; margin-bottom: 15px; color: #856404; font-size: 13px; }
   
   @media (max-width: 1200px) {
     .tasks-grid { grid-template-columns: repeat(3, 1fr); }
@@ -136,6 +123,7 @@
     <h2 style="margin-top:0;">✉️ 連絡作成・送信一括パネル</h2>
 
     <div class="case-info" id="caseInfoArea"></div>
+    <div id="savedMailAlert" class="saved-mail-alert" style="display:none;"></div>
     <span id="statusMsg"></span>
 
     <!-- ブロック1：リフォーム問合 -->
@@ -146,11 +134,13 @@
         <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-reform" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-reform" placeholder="件名">
-      <label>本文:</label><textarea id="body-reform" rows="3"></textarea>
+      <label>本文:</label><textarea id="body-reform" rows="3" placeholder="（「生成」ボタンで自動入力）"></textarea>
       <div class="action-buttons">
+        <button class="gen-btn" onclick="generateTemplate('reform')">✏️ 生成</button>
         <button class="launch-btn btn-sms" onclick="launchApp('reform', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('reform', 'email')">📧 メール起動</button>
-        <button class="save-btn" onclick="saveToParkedMails('reform')">💾 履歴保存 (🟢済)</button>
+        <button class="save-btn" onclick="saveToParkedMails('reform')">💾 保存</button>
+        <button class="del-btn" onclick="deleteParkedMail('reform')" style="display:none;" id="del-reform">🗑️ 削除</button>
       </div>
     </div>
 
@@ -162,11 +152,13 @@
         <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-takara" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-takara" placeholder="件名">
-      <label>本文:</label><textarea id="body-takara" rows="3"></textarea>
+      <label>本文:</label><textarea id="body-takara" rows="3" placeholder="（「生成」ボタンで自動入力）"></textarea>
       <div class="action-buttons">
+        <button class="gen-btn" onclick="generateTemplate('takara')">✏️ 生成</button>
         <button class="launch-btn btn-sms" onclick="launchApp('takara', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('takara', 'email')">📧 メール起動</button>
-        <button class="save-btn" onclick="saveToParkedMails('takara')">💾 履歴保存 (🟢済)</button>
+        <button class="save-btn" onclick="saveToParkedMails('takara')">💾 保存</button>
+        <button class="del-btn" onclick="deleteParkedMail('takara')" style="display:none;" id="del-takara">🗑️ 削除</button>
       </div>
     </div>
 
@@ -178,11 +170,13 @@
         <div class="dest-box hidden"><label>📧 メールアドレス</label><input type="text" id="email-sms" placeholder="メールアドレス"></div>
       </div>
       <label>件名:</label><input type="text" id="subject-sms" placeholder="件名">
-      <label>本文:</label><textarea id="body-sms" rows="3"></textarea>
+      <label>本文:</label><textarea id="body-sms" rows="3" placeholder="（「生成」ボタンで自動入力）"></textarea>
       <div class="action-buttons">
+        <button class="gen-btn" onclick="generateTemplate('sms')">✏️ 生成</button>
         <button class="launch-btn btn-sms" onclick="launchApp('sms', 'sms')">📱 SMS起動</button>
         <button class="launch-btn btn-email" onclick="launchApp('sms', 'email')">📧 メール起動</button>
-        <button class="save-btn" onclick="saveToParkedMails('sms')">💾 履歴保存 (🟢済)</button>
+        <button class="save-btn" onclick="saveToParkedMails('sms')">💾 保存</button>
+        <button class="del-btn" onclick="deleteParkedMail('sms')" style="display:none;" id="del-sms">🗑️ 削除</button>
       </div>
     </div>
 
@@ -203,7 +197,9 @@
   var contactsList = [];
   var lastUsedMethod = {};
   var allTasksCache = {};
+  var parkedMailsCache = {};
   var pendingAutoOpen = null;
+  var currentParkedMailIds = { reform: null, takara: null, sms: null };
 
   /* URLパラメータ読み取り */
   (function() {
@@ -214,6 +210,10 @@
 
   database.ref('app_contacts').on('value', function(snap) {
     contactsList = snap.val() || [];
+  });
+
+  database.ref('app_parked_mails').on('value', function(snap) {
+    parkedMailsCache = snap.val() || {};
   });
 
   database.ref('app_tasks').on('value', function(snapshot) {
@@ -257,22 +257,23 @@
       var card = document.createElement('div');
       card.className = "task-card";
       
-      /* 送信状況判定 */
-      var mailStatus = task.mailStatus || {};
-      var sentCount = (mailStatus.reform ? 1 : 0) + (mailStatus.takara ? 1 : 0) + (mailStatus.sms ? 1 : 0);
-      
-      if (sentCount === 0) {
-        /* 未送信：赤背景 + 点滅 */
-        card.classList.add('pending');
-      } else if (sentCount === 3) {
-        /* 送信完了：グレー */
-        card.classList.add('completed');
+      /* app_parked_mails に該当案件があるか判定 */
+      var hasPendingMail = false;
+      for (var pkey in parkedMailsCache) {
+        var pm = parkedMailsCache[pkey];
+        if (pm && pm.assignedCase === key && pm.status === "parked") {
+          hasPendingMail = true;
+          break;
+        }
       }
-      /* sentCount が 1-2 なら white (デフォルト) */
+      
+      if (hasPendingMail) {
+        card.classList.add('pending-mail');
+      }
       
       card.innerHTML = 
         "<div class='task-name'>" + caseName + "</div>" +
-        "<div class='task-status'>[" + kubun + " / " + (sentCount === 3 ? "送信済" : "途中") + "]</div>" +
+        "<div class='task-status'>[" + kubun + "]</div>" +
         "<div class='task-date'>施工日: " + consDate + "</div>" +
         "<div class='task-date'>担当: " + inCharge + "</div>";
 
@@ -321,7 +322,9 @@
     currentCaseKey = key;
     currentTaskData = taskObj;
     lastUsedMethod = {};
+    currentParkedMailIds = { reform: null, takara: null, sms: null };
     document.getElementById('statusMsg').textContent = "";
+    document.getElementById('savedMailAlert').style.display = "none";
 
     var csv = taskObj.csvData || [];
     var consDate   = csv[ 2 ] || "未定";
@@ -349,23 +352,43 @@
       blockReform.style.display = "none";
     }
 
-    /* リフォーム問合 */
+    /* テキストフィールドを初期化（生成前は空） */
     document.getElementById('phone-reform').value = phoneCsv || clientContact.phone;
     document.getElementById('email-reform').value = clientContact.email;
-    document.getElementById('subject-reform').value = "【お問い合わせ】リフォームの件";
-    document.getElementById('body-reform').value = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
+    document.getElementById('subject-reform').value = "";
+    document.getElementById('body-reform').value = "";
 
-    /* タカラ版（SMS専用、電話番号逆引き） */
     document.getElementById('phone-takara').value = takaraContact.phone || "";
     document.getElementById('email-takara').value = takaraContact.email;
     document.getElementById('subject-takara').value = "";
-    document.getElementById('body-takara').value = "お疲れ様です、案件「" + caseName + "」の施工日は【" + consDate + "】にて了承いただきました";
+    document.getElementById('body-takara').value = "";
 
-    /* 先方版（SMS専用、csvData[6]を直接使用） */
     document.getElementById('phone-sms').value = phoneCsv || clientContact.phone;
     document.getElementById('email-sms').value = clientContact.email;
     document.getElementById('subject-sms').value = "";
-    document.getElementById('body-sms').value = clientName + "様お世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】にて予定しております、ご確認ください";
+    document.getElementById('body-sms').value = "";
+
+    /* 保存済みメールを検出して読み込み */
+    var hasSavedMails = false;
+    for (var pkey in parkedMailsCache) {
+      var pm = parkedMailsCache[pkey];
+      if (pm && pm.assignedCase === key && pm.status === "parked") {
+        hasSavedMails = true;
+        var mtype = pm.mailType;
+        document.getElementById('phone-' + mtype).value = pm.toPhone;
+        document.getElementById('email-' + mtype).value = pm.toEmail;
+        document.getElementById('subject-' + mtype).value = pm.subject;
+        document.getElementById('body-' + mtype).value = pm.body;
+        currentParkedMailIds[mtype] = pkey;
+        document.getElementById('del-' + mtype).style.display = "inline-block";
+      }
+    }
+
+    if (hasSavedMails) {
+      var alertDiv = document.getElementById('savedMailAlert');
+      alertDiv.innerHTML = "⚠️ 以前に保存したメール草稿があります。修正してから送信してください。「削除」で破棄できます。";
+      alertDiv.style.display = "block";
+    }
 
     var mailStatus = taskObj.mailStatus || {};
     updateBadge('reform', mailStatus.reform);
@@ -392,6 +415,33 @@
     }
   }
 
+  function generateTemplate(type) {
+    if (!currentTaskData) return;
+    var csv = currentTaskData.csvData || [];
+    var caseName = csv[ 4 ] || "名称不明";
+    var clientName = csv[ 5 ] || "未登録";
+    var consDate = csv[ 2 ] || "未定";
+    var takaraRep = csv[ 8 ] || "未登録";
+
+    var subjField = document.getElementById('subject-' + type);
+    var bodyField = document.getElementById('body-' + type);
+
+    if (type === 'reform') {
+      subjField.value = "【お問い合わせ】リフォームの件";
+      bodyField.value = clientName + " 様\nお世話になっております。「" + caseName + "」のリフォームの件につきまして、現地下見の日時はいつがよろしいでしょうか？";
+    } else if (type === 'takara') {
+      subjField.value = "";
+      bodyField.value = "お疲れ様です、案件「" + caseName + "」の施工日は【" + consDate + "】にて了承いただきました";
+    } else if (type === 'sms') {
+      subjField.value = "";
+      bodyField.value = clientName + "様お世話になっております。案件「" + caseName + "」の施工日は【" + consDate + "】にて予定しております、ご確認ください";
+    }
+
+    var msg = document.getElementById('statusMsg');
+    msg.style.color = "#1976d2";
+    msg.textContent = "✏️ テンプレートを生成しました。必要に応じて修正後、「保存」を押してください。";
+  }
+
   function launchApp(type, method) {
     lastUsedMethod[type] = method;
     var toPhone = document.getElementById('phone-' + type).value;
@@ -411,7 +461,7 @@
 
     var msg = document.getElementById('statusMsg');
     msg.style.color = "#1976d2";
-    msg.textContent = "🚀 アプリを起動しました。送信を終えたらそのブロックの「💾 履歴保存」を押してください。";
+    msg.textContent = "🚀 アプリを起動しました。送信後は「💾 保存」を押して完了してください。";
   }
 
   function saveToParkedMails(type) {
@@ -434,20 +484,42 @@
       createdAt: new Date().toISOString()
     };
 
-    database.ref('app_parked_mails').push(mailData)
+    var updatePromise;
+    if (currentParkedMailIds[type]) {
+      /* 既存の草稿を更新 */
+      updatePromise = database.ref('app_parked_mails/' + currentParkedMailIds[type]).update(mailData);
+    } else {
+      /* 新規作成 */
+      updatePromise = database.ref('app_parked_mails').push(mailData)
+        .then(function(ref) {
+          currentParkedMailIds[type] = ref.key;
+        });
+    }
+
+    updatePromise.then(function() {
+      var msg = document.getElementById('statusMsg');
+      msg.style.color = "#2e7d32";
+      msg.textContent = "✅ メール草稿を保存しました。翌朝に送信してください。";
+      document.getElementById('del-' + type).style.display = "inline-block";
+      setTimeout(function() { msg.textContent = ""; }, 3000);
+    });
+  }
+
+  function deleteParkedMail(type) {
+    if (!currentParkedMailIds[type]) return;
+    if (!confirm("このメール草稿を削除しますか？")) return;
+
+    database.ref('app_parked_mails/' + currentParkedMailIds[type]).remove()
       .then(function() {
-        return database.ref('app_tasks/' + currentCaseKey + '/mailStatus/' + type).set(true);
-      })
-      .then(function() {
+        document.getElementById('subject-' + type).value = "";
+        document.getElementById('body-' + type).value = "";
+        currentParkedMailIds[type] = null;
+        document.getElementById('del-' + type).style.display = "none";
+
         var msg = document.getElementById('statusMsg');
-        msg.style.color = "#2e7d32";
-        msg.textContent = "✅ 履歴を保存し、対象を送信済(🟢)にしました。続けて他の送信も可能です。";
-
-        if (!currentTaskData.mailStatus) currentTaskData.mailStatus = {};
-        currentTaskData.mailStatus[type] = true;
-        updateBadge(type, true);
-
-        setTimeout(function() { msg.textContent = ""; }, 4000);
+        msg.style.color = "#d32f2f";
+        msg.textContent = "🗑️ メール草稿を削除しました。";
+        setTimeout(function() { msg.textContent = ""; }, 3000);
       });
   }
 </script>
