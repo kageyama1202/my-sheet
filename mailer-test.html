@@ -8,11 +8,71 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <style>
   body { font-family: sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-  .header-bar { max-width: 900px; margin: 0 auto 10px auto; display: flex; align-items: center; gap: 10px; }
+  .header-bar { max-width: 1400px; margin: 0 auto 10px auto; display: flex; align-items: center; gap: 10px; }
   .top-link { text-decoration: none; font-weight: bold; color: #007bff; font-size: 14px; }
-  .task-list { max-width: 900px; margin: 0 auto; }
-  .task-card { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; border-left: 5px solid #1976d2; }
-  .task-card:hover { background: #e3f2fd; }
+  
+  .task-list { max-width: 1400px; margin: 0 auto; }
+  .task-list h2 { margin: 0 0 15px 0; }
+  
+  .tasks-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  
+  .task-card { 
+    background: #fff; 
+    padding: 12px; 
+    border-radius: 6px; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+    cursor: pointer; 
+    border-left: 5px solid #1976d2;
+    transition: all 0.2s;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .task-card:hover { 
+    background: #e3f2fd; 
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  
+  /* 未送信案件：赤背景 + 点滅 */
+  .task-card.pending {
+    background: #ffebee;
+    border-left-color: #d32f2f;
+    animation: blinking 1s infinite;
+  }
+  .task-card.pending:hover {
+    background: #ffcdd2;
+  }
+  
+  /* 送信完了案件：グレー */
+  .task-card.completed {
+    background: #f0f0f0;
+    color: #999;
+    border-left-color: #bbb;
+  }
+  .task-card.completed:hover {
+    background: #e8e8e8;
+  }
+  .task-card.completed .task-name {
+    color: #777;
+  }
+  .task-card.completed .task-status {
+    color: #aaa;
+  }
+  .task-card.completed .task-date {
+    color: #bbb;
+  }
+  
+  @keyframes blinking {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  
+  .task-name { font-weight: bold; color: #1a237e; margin-bottom: 4px; }
+  .task-status { font-size: 11px; color: #666; }
+  .task-date { font-size: 11px; color: #999; margin-top: 2px; }
 
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
   .modal-content { background: #fff; width: 95%; max-width: 900px; max-height: 90vh; overflow-y: auto; padding: 20px; border-radius: 8px; position: relative; }
@@ -46,6 +106,16 @@
   .save-btn:hover { background: #1b5e20; }
 
   #statusMsg { display: block; margin-bottom: 15px; font-weight: bold; color: #1976d2; text-align: center; font-size: 15px; }
+  
+  @media (max-width: 1200px) {
+    .tasks-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .tasks-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .tasks-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -56,8 +126,8 @@
 </div>
 
 <div class="task-list">
-  <h2>📋 案件リスト</h2>
-  <div id="tasksContainer">読み込み中...</div>
+  <h2>📋 案件リスト（施工日が近い順）</h2>
+  <div class="tasks-grid" id="tasksContainer">読み込み中...</div>
 </div>
 
 <div id="testModal" class="modal-overlay">
@@ -149,30 +219,68 @@
   database.ref('app_tasks').on('value', function(snapshot) {
     var tasks = snapshot.val() || {};
     allTasksCache = tasks;
-    var container = document.getElementById('tasksContainer');
-    container.innerHTML = "";
-
+    
+    /* 配列に変換してソート */
+    var taskList = [];
     for (var key in tasks) {
       var task = tasks[key];
       if (task.csvData) {
         var status = task.csvData[ 1 ] || "";
         if (status === "完了") continue;
-
-        var consDate = task.csvData[ 2 ] || "未定";
-        var kubun    = task.csvData[ 3 ] || "";
-        var caseName = task.csvData[ 4 ] || "名称不明";
-        var inCharge = task.csvData[ 8 ] || "未定";
-
-        var card = document.createElement('div');
-        card.className = "task-card";
-        card.innerHTML = "<strong>" + caseName + "</strong> <span style='font-size:11px;color:#666;'>[" + kubun + " / " + status + "]</span><br><small>施工日: " + consDate + " / 工務担当: " + inCharge + "</small>";
-
-        (function(k, t) {
-          card.onclick = function() { openModal(k, t); };
-        })(key, task);
-
-        container.appendChild(card);
+        
+        taskList.push({
+          key: key,
+          task: task,
+          consDate: task.csvData[ 2 ] || "9999-12-31"
+        });
       }
+    }
+    
+    /* 施工日が近い順でソート */
+    taskList.sort(function(a, b) {
+      return a.consDate.localeCompare(b.consDate);
+    });
+    
+    var container = document.getElementById('tasksContainer');
+    container.innerHTML = "";
+
+    for (var i = 0; i < taskList.length; i++) {
+      var key = taskList[i].key;
+      var task = taskList[i].task;
+      var csv = task.csvData || [];
+      
+      var consDate = csv[ 2 ] || "未定";
+      var kubun    = csv[ 3 ] || "";
+      var caseName = csv[ 4 ] || "名称不明";
+      var inCharge = csv[ 8 ] || "未定";
+
+      var card = document.createElement('div');
+      card.className = "task-card";
+      
+      /* 送信状況判定 */
+      var mailStatus = task.mailStatus || {};
+      var sentCount = (mailStatus.reform ? 1 : 0) + (mailStatus.takara ? 1 : 0) + (mailStatus.sms ? 1 : 0);
+      
+      if (sentCount === 0) {
+        /* 未送信：赤背景 + 点滅 */
+        card.classList.add('pending');
+      } else if (sentCount === 3) {
+        /* 送信完了：グレー */
+        card.classList.add('completed');
+      }
+      /* sentCount が 1-2 なら white (デフォルト) */
+      
+      card.innerHTML = 
+        "<div class='task-name'>" + caseName + "</div>" +
+        "<div class='task-status'>[" + kubun + " / " + (sentCount === 3 ? "送信済" : "途中") + "]</div>" +
+        "<div class='task-date'>施工日: " + consDate + "</div>" +
+        "<div class='task-date'>担当: " + inCharge + "</div>";
+
+      (function(k, t) {
+        card.onclick = function() { openModal(k, t); };
+      })(key, task);
+
+      container.appendChild(card);
     }
 
     /* ?key=XXX 自動オープン */
