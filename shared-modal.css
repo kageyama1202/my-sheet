@@ -1,4 +1,4 @@
-/* shared-modal.css — 共通モーダルスタイル【全張り替え版】 */
+/* shared-modal.css — 共通モーダルスタイル【全張り替え版】*/
 
 /* ===== オーバーレイ ===== */
 #modal-overlay {
@@ -17,7 +17,7 @@
   position: relative;
   margin: 20px auto;
   width: 94%;
-  max-width: 640px;
+  max-width: 900px;
   background: #fff;
   border-radius: 10px;
   padding: 16px;
