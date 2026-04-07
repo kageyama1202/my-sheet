@@ -150,14 +150,7 @@
 
         // DEBUG: 金丸様邸を検出したら出力
         if (c5 && c5.includes('富田')) {
-          console.log('【DEBUG】金丸様邸検出:');
-          console.log('  key:', key);
-          console.log('  c3 (区分):', c3);
-          console.log('  c4 (タイトル):', c4);
-          console.log('  c5 (担当者):', c5);
-          console.log('  task.date:', task.date);
-          console.log('  sekoDate:', sekoDate);
-          console.log('  getDaysUntil(sekoDate):', getDaysUntil(sekoDate));
+          alert('金丸様邸検出\nkey:' + key + '\nc3:' + c3 + '\nc4:' + c4 + '\nsekoDate:' + sekoDate + '\ngetDaysUntil:' + getDaysUntil(sekoDate));
         }
         if (c3 === 'ﾘ' && sekoDate !== '') {
           var reformDays = getDaysUntil(sekoDate);
@@ -268,14 +261,14 @@
       content.innerHTML = '';
 
       // DEBUG: 金丸様邸の visit_date を確認
-      visits.forEach(function(v) {
-        if (v.client && v.client.includes('富田')) {
-          console.log('【DEBUG】renderUI 金丸様邸:');
-          console.log('  visit_date:', v.visit_date);
-          console.log('  visit_date_display:', v.visit_date_display);
-          console.log('  type:', v.type);
-        }
-      });
+      var kanaMaru = visits.filter(function(v) { return v.client && v.client.includes('富田'); });
+      if (kanaMaru.length > 0) {
+        var msg = '金丸様邸の visit_date:\n';
+        kanaMaru.forEach(function(v) {
+          msg += 'visit_date:' + v.visit_date + '\nvisit_date_display:' + v.visit_date_display + '\ntype:' + v.type + '\n\n';
+        });
+        alert(msg);
+      }
 
       // 日付ごとにグループ化
       var dateMap = {};
@@ -284,9 +277,8 @@
         dateMap[v.visit_date].push(v);
       });
 
-      console.log('【DEBUG】dateMap のキー:', Object.keys(dateMap).sort());
-
-      var sortedDates = Object.keys(dateMap).sort();
+      var keys = Object.keys(dateMap).sort();
+      alert('dateMap のキー: ' + keys.join(', '));
 
       sortedDates.forEach(function(dateStr) {
         var dateVisits = dateMap[dateStr];
