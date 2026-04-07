@@ -124,85 +124,114 @@
     function extractVisits(tasks) {
       var visits = [];
       var keys = Object.keys(tasks || {});
+      var today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       keys.forEach(function(key) {
         var task = tasks[key];
         var cols = task.csvData || [];
         var c2 = cols[2] ? String(cols[2]).replace(/\s+/g, '') : ''; // 施工日
         var c3 = cols[3] ? String(cols[3]).replace(/\s+/g, '') : ''; // 区分
-        var c4 = cols[4] ? String(cols[4]).trim() : ''; // タイトル
+        var c4 = cols[4] ? String(cols[4]).trim() : ''; // タイトル（SK/SB/SU等）
         var c5 = cols[5] ? String(cols[5]).trim() : ''; // 担当者
         var c6 = cols[6] ? String(cols[6]).trim() : ''; // TEL
         var c11 = cols[11] ? String(cols[11]).trim() : ''; // 住所
         var sekoDate = task.date || ''; // 下見日（リフォーム）
-        var daysUntil = getDaysUntil(c2);
 
         // ① リフォーム + 下見日決定済み
         if (c3 === 'ﾘ' && sekoDate !== '') {
-          visits.push({
-            key: key,
-            type: 'reform',
-            title: c5 || '名称未設定',
-            address: c11,
-            region: simplifyRegion(c11),
-            date: sekoDate,
-            date_display: formatDate(sekoDate),
-            days: getDaysUntil(sekoDate),
-            tel: c6,
-            raw_cols: cols,
-            reason: 'リフォーム下見予定済み'
-          });
+          var reformDays = getDaysUntil(sekoDate);
+          if (reformDays !== null && reformDays >= 0 && reformDays <= 3) {
+            visits.push({
+              key: key,
+              type: 'reform',
+              title: c4 || '名称未設定',
+              client: c5 || '',
+              address: c11,
+              region: simplifyRegion(c11),
+              visit_date: sekoDate,
+              visit_date_display: formatDate(sekoDate),
+              visit_days: reformDays,
+              tel: c6,
+              raw_cols: cols,
+              reason: 'リフォーム下見'
+            });
+          }
         }
 
-        // ② SK新築 21日前後（1回目）
-        if (c3 === '新' && c4 === 'SK' && daysUntil !== null && daysUntil >= 18 && daysUntil <= 24) {
-          visits.push({
-            key: key,
-            type: 'sk_first',
-            title: c5 || '名称未設定',
-            address: c11,
-            region: simplifyRegion(c11),
-            date: c2,
-            date_display: formatDate(c2),
-            days: daysUntil,
-            tel: c6,
-            raw_cols: cols,
-            reason: 'SK新築1回目下見（施工' + daysUntil + '日後）'
-          });
+        // 新築案件の施工日
+        var daysUntilSekou = getDaysUntil(c2);
+
+        // ② SK新築 1回目（施工-21日）
+        if (c3 === '新' && c4 === 'SK' && daysUntilSekou !== null) {
+          var visitDay1 = daysUntilSekou - 21;
+          if (visitDay1 >= 0 && visitDay1 <= 3) {
+            var d1 = new Date(today);
+            d1.setDate(d1.getDate() + visitDay1);
+            var d1str = ('0' + (d1.getMonth() + 1)).slice(-2) + '月' + ('0' + d1.getDate()).slice(-2) + '日';
+            visits.push({
+              key: key,
+              type: 'sk_first',
+              title: c4 || '名称未設定',
+              client: c5 || '',
+              address: c11,
+              region: simplifyRegion(c11),
+              visit_date: d1.toISOString().split('T')[0],
+              visit_date_display: d1str,
+              visit_days: visitDay1,
+              tel: c6,
+              raw_cols: cols,
+              reason: 'SK新築1回目下見（施工' + daysUntilSekou + '日後）'
+            });
+          }
         }
 
-        // ③ SK新築 10日前後（2回目）
-        if (c3 === '新' && c4 === 'SK' && daysUntil !== null && daysUntil >= 7 && daysUntil <= 13) {
-          visits.push({
-            key: key,
-            type: 'sk_second',
-            title: c5 || '名称未設定',
-            address: c11,
-            region: simplifyRegion(c11),
-            date: c2,
-            date_display: formatDate(c2),
-            days: daysUntil,
-            tel: c6,
-            raw_cols: cols,
-            reason: 'SK新築2回目下見（施工' + daysUntil + '日後）'
-          });
+        // ③ SK新築 2回目（施工-10日）
+        if (c3 === '新' && c4 === 'SK' && daysUntilSekou !== null) {
+          var visitDay2 = daysUntilSekou - 10;
+          if (visitDay2 >= 0 && visitDay2 <= 3) {
+            var d2 = new Date(today);
+            d2.setDate(d2.getDate() + visitDay2);
+            var d2str = ('0' + (d2.getMonth() + 1)).slice(-2) + '月' + ('0' + d2.getDate()).slice(-2) + '日';
+            visits.push({
+              key: key,
+              type: 'sk_second',
+              title: c4 || '名称未設定',
+              client: c5 || '',
+              address: c11,
+              region: simplifyRegion(c11),
+              visit_date: d2.toISOString().split('T')[0],
+              visit_date_display: d2str,
+              visit_days: visitDay2,
+              tel: c6,
+              raw_cols: cols,
+              reason: 'SK新築2回目下見（施工' + daysUntilSekou + '日後）'
+            });
+          }
         }
 
-        // ④ その他新築 21日前後
-        if (c3 === '新' && c4 !== 'SK' && daysUntil !== null && daysUntil >= 18 && daysUntil <= 24) {
-          visits.push({
-            key: key,
-            type: 'other',
-            title: c5 || '名称未設定',
-            address: c11,
-            region: simplifyRegion(c11),
-            date: c2,
-            date_display: formatDate(c2),
-            days: daysUntil,
-            tel: c6,
-            raw_cols: cols,
-            reason: c4 + '新築下見（施工' + daysUntil + '日後）'
-          });
+        // ④ その他新築（施工-21日）
+        if (c3 === '新' && c4 !== 'SK' && daysUntilSekou !== null) {
+          var visitDay3 = daysUntilSekou - 21;
+          if (visitDay3 >= 0 && visitDay3 <= 3) {
+            var d3 = new Date(today);
+            d3.setDate(d3.getDate() + visitDay3);
+            var d3str = ('0' + (d3.getMonth() + 1)).slice(-2) + '月' + ('0' + d3.getDate()).slice(-2) + '日';
+            visits.push({
+              key: key,
+              type: 'other',
+              title: c4 || '名称未設定',
+              client: c5 || '',
+              address: c11,
+              region: simplifyRegion(c11),
+              visit_date: d3.toISOString().split('T')[0],
+              visit_date_display: d3str,
+              visit_days: visitDay3,
+              tel: c6,
+              raw_cols: cols,
+              reason: c4 + '新築下見（施工' + daysUntilSekou + '日後）'
+            });
+          }
         }
       });
 
@@ -213,30 +242,27 @@
       var content = document.getElementById('content');
       content.innerHTML = '';
 
-      var categories = {
-        reform: { label: 'リフォーム下見予定', visits: [], color: '#d4edda' },
-        sk_first: { label: 'SK新築1回目下見推奨', visits: [], color: '#cfe2ff' },
-        sk_second: { label: 'SK新築2回目下見推奨', visits: [], color: '#fff3cd' },
-        other: { label: 'その他新築下見推奨', visits: [], color: '#f8d7da' }
-      };
-
+      // 日付ごとにグループ化
+      var dateMap = {};
       visits.forEach(function(v) {
-        var skipKey = v.key + '_' + v.type;
-        v.skipped = skipData && skipData[skipKey];
-        categories[v.type].visits.push(v);
+        if (!dateMap[v.visit_date]) dateMap[v.visit_date] = [];
+        dateMap[v.visit_date].push(v);
       });
 
-      Object.keys(categories).forEach(function(catKey) {
-        var cat = categories[catKey];
-        if (cat.visits.length === 0) return;
+      var sortedDates = Object.keys(dateMap).sort();
+
+      sortedDates.forEach(function(dateStr) {
+        var dateVisits = dateMap[dateStr];
+        if (dateVisits.length === 0) return;
 
         var catDiv = document.createElement('div');
         catDiv.className = 'category';
 
         var header = document.createElement('div');
         header.className = 'category-header';
-        header.style.backgroundColor = cat.color;
-        header.innerHTML = '<div class="category-toggle expanded"></div><div class="category-title">' + cat.label + '</div><div class="category-count">' + cat.visits.length + '</div>';
+        header.style.backgroundColor = '#e7f3ff';
+        var displayDate = dateVisits[0].visit_date_display || dateStr;
+        header.innerHTML = '<div class="category-toggle expanded"></div><div class="category-title">📅 ' + displayDate + '</div><div class="category-count">' + dateVisits.length + '</div>';
         catDiv.appendChild(header);
 
         var contentDiv = document.createElement('div');
@@ -244,7 +270,7 @@
 
         // 地域ごとに分類
         var regionMap = {};
-        cat.visits.forEach(function(v) {
+        dateVisits.forEach(function(v) {
           if (!regionMap[v.region]) regionMap[v.region] = [];
           regionMap[v.region].push(v);
         });
@@ -269,7 +295,13 @@
 
             var info = document.createElement('div');
             info.className = 'visit-info';
-            info.innerHTML = '<label class="visit-label">' + v.title + '</label><div class="visit-date">' + v.date_display + ' (' + v.days + '日後) / ' + v.reason + '</div>';
+            var typeLabel = '';
+            if (v.type === 'reform') typeLabel = '<span class="visit-type reform">リフォーム</span>';
+            else if (v.type === 'sk_first') typeLabel = '<span class="visit-type sk1">SK1回目</span>';
+            else if (v.type === 'sk_second') typeLabel = '<span class="visit-type sk2">SK2回目</span>';
+            else if (v.type === 'other') typeLabel = '<span class="visit-type other">' + v.reason.split('新築')[0] + '</span>';
+            
+            info.innerHTML = '<label class="visit-label">' + v.title + '　' + v.client + '</label><div class="visit-date">' + typeLabel + '</div>';
 
             itemDiv.appendChild(checkbox);
             itemDiv.appendChild(info);
@@ -307,7 +339,7 @@
       });
 
       if (visits.length === 0) {
-        content.innerHTML = '<div class="empty-msg">ピックアップの該当案件はありません</div>';
+        content.innerHTML = '<div class="empty-msg">今後2-3日の下見予定はありません</div>';
       }
     }
 
