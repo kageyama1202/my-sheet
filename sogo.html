@@ -105,9 +105,12 @@
 
     function formatDate(dateStr) {
       if (!dateStr) return '--';
-      var d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      var parts = String(dateStr).split('-');
+      if (parts.length !== 3) return dateStr;
+      var year = parseInt(parts[0]);
+      var month = parseInt(parts[1]);
+      var day = parseInt(parts[2]);
+      return month + '月' + day + '日';
     }
 
     function getDaysUntil(dateStr) {
