@@ -112,12 +112,19 @@
 
     function getDaysUntil(dateStr) {
       if (!dateStr) return null;
-      var d = new Date(dateStr);
-      if (isNaN(d.getTime())) return null;
+      var parts = String(dateStr).split('-');
+      if (parts.length !== 3) return null;
+      var year = parseInt(parts[0]);
+      var month = parseInt(parts[1]) - 1;
+      var day = parseInt(parts[2]);
+      
+      var d = new Date(year, month, day);
       var today = new Date();
-      today.setHours(0, 0, 0, 0);
-      d.setHours(0, 0, 0, 0);
-      var diff = Math.floor((d.getTime() - today.getTime()) / (1000 * 3600 * 24));
+      
+      var dMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      var todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      var diff = Math.floor((dMidnight.getTime() - todayMidnight.getTime()) / (1000 * 3600 * 24));
       return diff;
     }
 
@@ -154,7 +161,8 @@
               visit_days: reformDays,
               tel: c6,
               raw_cols: cols,
-              reason: 'リフォーム下見'
+              reason: 'リフォーム下見',
+              detail: 'リフォーム / 下見予定日: ' + sekoDate
             });
           }
         }
@@ -181,7 +189,8 @@
               visit_days: visitDay1,
               tel: c6,
               raw_cols: cols,
-              reason: 'SK新築1回目下見（施工' + daysUntilSekou + '日後）'
+              reason: 'SK新築1回目下見',
+              detail: 'SK新築 / 施工日: ' + c2 + ' (あと' + daysUntilSekou + '日) - 21日 = ' + d1str
             });
           }
         }
@@ -205,7 +214,8 @@
               visit_days: visitDay2,
               tel: c6,
               raw_cols: cols,
-              reason: 'SK新築2回目下見（施工' + daysUntilSekou + '日後）'
+              reason: 'SK新築2回目下見',
+              detail: 'SK新築 / 施工日: ' + c2 + ' (あと' + daysUntilSekou + '日) - 10日 = ' + d2str
             });
           }
         }
@@ -229,7 +239,8 @@
               visit_days: visitDay3,
               tel: c6,
               raw_cols: cols,
-              reason: c4 + '新築下見（施工' + daysUntilSekou + '日後）'
+              reason: c4 + '新築下見',
+              detail: c4 + '新築 / 施工日: ' + c2 + ' (あと' + daysUntilSekou + '日) - 21日 = ' + d3str
             });
           }
         }
@@ -301,7 +312,7 @@
             else if (v.type === 'sk_second') typeLabel = '<span class="visit-type sk2">SK2回目</span>';
             else if (v.type === 'other') typeLabel = '<span class="visit-type other">' + v.reason.split('新築')[0] + '</span>';
             
-            info.innerHTML = '<label class="visit-label">' + v.title + '　' + v.client + '</label><div class="visit-date">' + typeLabel + '</div>';
+            info.innerHTML = '<label class="visit-label">' + v.title + '　' + v.client + '</label><div class="visit-date">' + typeLabel + ' / ' + v.detail + '</div>';
 
             itemDiv.appendChild(checkbox);
             itemDiv.appendChild(info);
