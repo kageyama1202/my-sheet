@@ -148,6 +148,18 @@
         var c11 = cols[11] ? String(cols[11]).trim() : ''; // 住所
         var sekoDate = task.date || ''; // 下見日（リフォーム）
 
+        // DEBUG: 金丸様邸を検出したら出力
+        if (c5 && c5.includes('富田')) {
+          console.log('【DEBUG】金丸様邸検出:');
+          console.log('  key:', key);
+          console.log('  c3 (区分):', c3);
+          console.log('  c4 (タイトル):', c4);
+          console.log('  c5 (担当者):', c5);
+          console.log('  task.date:', task.date);
+          console.log('  sekoDate:', sekoDate);
+          console.log('  getDaysUntil(sekoDate):', getDaysUntil(sekoDate));
+        }
+
         // ① リフォーム + 下見日決定済み
         if (c3 === 'ﾘ' && sekoDate !== '') {
           var reformDays = getDaysUntil(sekoDate);
@@ -256,12 +268,24 @@
       var content = document.getElementById('content');
       content.innerHTML = '';
 
+      // DEBUG: 金丸様邸の visit_date を確認
+      visits.forEach(function(v) {
+        if (v.client && v.client.includes('富田')) {
+          console.log('【DEBUG】renderUI 金丸様邸:');
+          console.log('  visit_date:', v.visit_date);
+          console.log('  visit_date_display:', v.visit_date_display);
+          console.log('  type:', v.type);
+        }
+      });
+
       // 日付ごとにグループ化
       var dateMap = {};
       visits.forEach(function(v) {
         if (!dateMap[v.visit_date]) dateMap[v.visit_date] = [];
         dateMap[v.visit_date].push(v);
       });
+
+      console.log('【DEBUG】dateMap のキー:', Object.keys(dateMap).sort());
 
       var sortedDates = Object.keys(dateMap).sort();
 
