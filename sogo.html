@@ -280,6 +280,8 @@
       var keys = Object.keys(dateMap).sort();
       alert('dateMap のキー: ' + keys.join(', '));
 
+      var sortedDates = keys;
+
       sortedDates.forEach(function(dateStr) {
         var dateVisits = dateMap[dateStr];
         if (dateVisits.length === 0) return;
