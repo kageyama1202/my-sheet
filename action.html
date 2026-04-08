@@ -87,6 +87,14 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .shitami-tomorrow{background:#fff9c4;border-left:3px solid #ff9800;}
 .shitami-later{background:#e8f5e9;border-left:3px solid #4caf50;}
 
+/* AIスケジュールタブ専用 */
+.ai-schedule-today{background:#ffebee;border-left:3px solid #d32f2f;}
+.ai-schedule-tomorrow{background:#fff9c4;border-left:3px solid #ff9800;}
+.ai-schedule-later{background:#e8f5e9;border-left:3px solid #4caf50;}
+.promote-btn{font-size:10px;padding:3px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;margin-left:8px;}
+.promote-btn:hover{background:#388e3c;}
+.promote-btn:disabled{background:#ccc;cursor:default;}
+
 /* アラート表示 */
 .alert-bar{background:#d32f2f;color:#fff;padding:8px 12px;font-weight:bold;font-size:12px;display:none;cursor:pointer;}
 .alert-bar.show{display:block;}
@@ -128,6 +136,7 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 <div class="tab" data-tab="reform">リフォーム</div>
 <div class="tab" data-tab="today">本日</div>
 <div class="tab" data-tab="shitami">下見予定</div>
+<div class="tab" data-tab="ai">AIスケジュール</div>
 <div class="tab" data-tab="report">報告書</div>
 <div class="tab" data-tab="memo">備忘録</div>
 </div>
@@ -306,6 +315,9 @@ function switchTab(tab){
   }else if(tab==='shitami'){
     document.getElementById('tableArea').style.display='block';
     renderShitamiTab();
+  }else if(tab==='ai'){
+    document.getElementById('tableArea').style.display='block';
+    renderAIScheduleTab();
   }else if(tab==='report'){
     document.getElementById('tableArea').style.display='block';
     renderReportTab();
@@ -778,6 +790,121 @@ function renderShitamiTab(){
   });
   
   document.getElementById('countDisplay').textContent='下見予定（7日以内）: '+shitamiCases.length+'件';
+}
+
+// AIスケジュールタブ（AIが提案した下見予定）
+function renderAIScheduleTab(){
+  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
+  thead.innerHTML="";tbody.innerHTML="";
+  
+  var trH=document.createElement('tr');
+  ['No.','AI予定日','残日数','区分','名前','電話','住所','施工日','操作'].forEach(function(h,i){
+    var th=document.createElement('th');
+    th.textContent=h;
+    if(i===0)th.className='col-no';
+    else if(i===1||i===7)th.className='col-date';
+    else if(i===2)th.className='col-days';
+    else if(i===3)th.className='col-kubun';
+    else if(i===4)th.className='col-name';
+    else if(i===5)th.className='col-tel';
+    else if(i===6)th.className='col-address';
+    else if(i===8)th.className='col-status';
+    trH.appendChild(th);
+  });
+  thead.appendChild(trH);
+  
+  var aiCases=[];
+  var endDate=addDays(todayStr,6);
+  
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
+    var aiDate=obj.ai_shitami_date||'';
+    if(!aiDate||aiDate<todayStr||aiDate>endDate)return;
+    
+    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+    var sekouDate=formatToYMD(getSafeVal(cols,2));
+    aiCases.push({key:key,aiDate:aiDate,kubun:kubun,name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+  });
+  
+  aiCases.sort(function(a,b){return a.aiDate.localeCompare(b.aiDate);});
+  
+  aiCases.forEach(function(c,idx){
+    var days=daysDiff(c.aiDate,todayStr);
+    var tr=document.createElement('tr');
+    if(days===0)tr.className='ai-schedule-today';
+    else if(days===1)tr.className='ai-schedule-tomorrow';
+    else tr.className='ai-schedule-later';
+    
+    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
+    
+    var tdDate=document.createElement('td');tdDate.className='col-date';
+    var dateInner=document.createElement('div');dateInner.className='cell-inner';dateInner.textContent=c.aiDate;
+    tdDate.appendChild(dateInner);tr.appendChild(tdDate);
+    
+    var tdDays=document.createElement('td');tdDays.className='col-days';
+    var daysText=days===0?'🔴 今日':days===1?'🟡 明日':'🟢 '+days+'日後';
+    tdDays.textContent=daysText;
+    if(days===0)tdDays.style.fontWeight='bold';
+    tr.appendChild(tdDays);
+    
+    [c.kubun,c.name,c.tel,c.addr,c.sekouDate].forEach(function(val,i){
+      var td=document.createElement('td');
+      if(i===0)td.className='col-kubun';
+      else if(i===1)td.className='col-name';
+      else if(i===2)td.className='col-tel';
+      else if(i===3)td.className='col-address';
+      else if(i===4)td.className='col-date';
+      
+      var inner=document.createElement('div');
+      inner.className='cell-inner';
+      inner.textContent=val;
+      td.appendChild(inner);
+      tr.appendChild(td);
+    });
+    
+    var tdAction=document.createElement('td');
+    tdAction.className='col-status';
+    var btn=document.createElement('button');
+    btn.className='promote-btn';
+    btn.textContent='📅 正式予定に昇格';
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      promoteToOfficial(c.key,c.aiDate);
+    });
+    tdAction.appendChild(btn);
+    tr.appendChild(tdAction);
+    
+    tr.addEventListener('click',function(){openCaseModal(c.key,globalTasks[c.key],globalHeaders,globalTasks,fullData,database,renderAIScheduleTab);});
+    tbody.appendChild(tr);
+  });
+  
+  document.getElementById('countDisplay').textContent='AIスケジュール（7日以内）: '+aiCases.length+'件';
+}
+
+function promoteToOfficial(key,aiDate){
+  if(!confirm('この案件のAI予定日を正式な下見予定日に昇格させますか？\n\n案件: '+globalTasks[key].csvData[4]+'\nAI予定日: '+aiDate+' → 下見予定日')){
+    return;
+  }
+  
+  var updates={};
+  updates['app_tasks/'+key+'/date']=aiDate;
+  
+  database.ref().update(updates).then(function(){
+    try{
+      var appData=JSON.parse(localStorage.getItem('appData')||'{}');
+      if(appData.app_tasks&&appData.app_tasks[key]){
+        appData.app_tasks[key].date=aiDate;
+        localStorage.setItem('appData',JSON.stringify(appData));
+      }
+    }catch(e){console.error(e);}
+    
+    globalTasks[key].date=aiDate;
+    
+    alert('✅ 正式な下見予定日に昇格しました。\n「下見予定」タブで確認できます。');
+    renderAIScheduleTab();
+  }).catch(function(err){
+    alert('❌ Firebase更新エラー: '+err.message);
+  });
 }
 
 // 備忘録タブ - 案件検索
