@@ -144,7 +144,7 @@
       btn.disabled = true;
       btn.textContent = 'テスト中...';
 
-      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key), {
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -289,7 +289,7 @@
         '【出力形式】以下のJSON形式のみ出力。説明文やマークダウンは不要。\n' +
         '{"days":[{"date":"' + targetDates[0] + '","items":[{"title":"...","client":"...","region":"...","reason":"なぜこの日か"}]},...],"summary":"全体の要約"}';
 
-      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
