@@ -186,36 +186,39 @@ function extractAllVisits(){
     var c4=cols[4]?String(cols[4]).trim():'';
     var c5=cols[5]?String(cols[5]).trim():'';
     var c11=cols[11]?String(cols[11]).trim():'';
+    var c16=cols[16]?String(cols[16]).trim():'';  // 時間
     var reformDate=task.date||'';
 
-    // リフォーム
+    // リフォーム → 確定済み（日時固定）
     if(c3==='ﾘ'&&reformDate!==''){
       if(targetDates.indexOf(reformDate)!==-1){
-        allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,detail:'リフォーム（予定日='+reformDate+'）',type:'reform'});
+        allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,visit_time:c16,detail:'リフォーム（確定: '+reformDate+(c16?' '+c16:'')+' ）',type:'reform',fixed:true});
       }
     }
-    // 新築
+    // 新築 → AIが配分する対象
     if(c3==='新'&&c2!==''){
       var sekouLabel=c2.replace(/-/g,'/');
       if(c4==='SK'){
         var sekou=new Date(c2);
         var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
         var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v1s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1'});
+        if(targetDates.indexOf(v1s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1',fixed:false});
 
         var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
         var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v2s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2'});
+        if(targetDates.indexOf(v2s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2',fixed:false});
       }else{
         var sekou2=new Date(c2);
         var v3=new Date(sekou2);v3.setDate(v3.getDate()-21);
         var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v3s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other'});
+        if(targetDates.indexOf(v3s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other',fixed:false});
       }
     }
   });
-  document.getElementById('periodCount').textContent='対象: '+allVisits.length+'件（チェックで除外可）';
-  document.getElementById('btnAI').disabled=allVisits.length===0;
+  var fixedCount=allVisits.filter(function(v){return v.fixed;}).length;
+  var newCount=allVisits.filter(function(v){return!v.fixed;}).length;
+  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒リフォーム確定: '+fixedCount+'件 / 🔧新築AI対象: '+newCount+'件）';
+  document.getElementById('btnAI').disabled=newCount===0;
 }
 
 // --- 案件リスト表示 ---
@@ -227,57 +230,110 @@ function renderCaseList(){
     return;
   }
 
-  // 地域でグループ化
-  var regionMap={};
-  allVisits.forEach(function(v){
-    if(!regionMap[v.region])regionMap[v.region]=[];
-    regionMap[v.region].push(v);
-  });
+  // 確定(リフォーム)と新築を分けて表示
+  var fixedVisits=allVisits.filter(function(v){return v.fixed;});
+  var newVisits=allVisits.filter(function(v){return!v.fixed;});
 
   var container=document.createElement('div');
   container.className='case-list';
 
-  Object.keys(regionMap).sort().forEach(function(region){
-    var title=document.createElement('div');
-    title.className='case-group-title';
-    title.textContent='📍 '+region+'（'+regionMap[region].length+'件）';
-    container.appendChild(title);
+  // --- リフォーム確定セクション ---
+  if(fixedVisits.length>0){
+    var fixedHeader=document.createElement('div');
+    fixedHeader.className='case-group-title';
+    fixedHeader.style.background='#fff3e0';
+    fixedHeader.style.color='#e65100';
+    fixedHeader.textContent='🔒 リフォーム確定（'+fixedVisits.length+'件）— 日時固定、AIのアンカーとして使用';
+    container.appendChild(fixedHeader);
 
-    regionMap[region].forEach(function(v){
+    fixedVisits.forEach(function(v){
       var item=document.createElement('div');
-      item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-      item.id='case-'+v.key;
+      item.className='case-item';
+      item.style.background='#fff8e1';
+      item.style.borderLeftColor='#ff6b00';
 
-      var cb=document.createElement('input');
-      cb.type='checkbox';
-      cb.checked=!!excludedKeys[v.key];
-      cb.addEventListener('change',function(){
-        if(this.checked){excludedKeys[v.key]=true;}else{delete excludedKeys[v.key];}
-        item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-        updateCount();
-      });
+      var lockIcon=document.createElement('span');
+      lockIcon.textContent='🔒';
+      lockIcon.style.fontSize='16px';
+      lockIcon.style.flexShrink='0';
 
       var info=document.createElement('div');
       info.className='case-info';
-      info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div><div class="case-detail">'+escHtml(v.detail)+' | 算出日: '+v.visit_date+'</div>';
+      info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div>'+
+        '<div class="case-detail">'+escHtml(v.detail)+'</div>';
 
       var badge=document.createElement('span');
       badge.className='case-region';
-      badge.textContent=v.region;
+      badge.style.background='#fff3e0';
+      badge.style.color='#e65100';
+      badge.textContent=v.visit_date+(v.visit_time?' '+v.visit_time:'');
 
-      item.appendChild(cb);
+      item.appendChild(lockIcon);
       item.appendChild(info);
       item.appendChild(badge);
       container.appendChild(item);
     });
-  });
+  }
+
+  // --- 新築セクション（地域グループ化） ---
+  if(newVisits.length>0){
+    var newHeader=document.createElement('div');
+    newHeader.className='case-group-title';
+    newHeader.style.background='#e8f5e9';
+    newHeader.style.color='#2e7d32';
+    newHeader.textContent='🔧 新築（'+newVisits.length+'件）— チェックで除外可、AIが最適日に配分';
+    container.appendChild(newHeader);
+
+    var regionMap={};
+    newVisits.forEach(function(v){
+      if(!regionMap[v.region])regionMap[v.region]=[];
+      regionMap[v.region].push(v);
+    });
+
+    Object.keys(regionMap).sort().forEach(function(region){
+      var title=document.createElement('div');
+      title.className='case-group-title';
+      title.textContent='📍 '+region+'（'+regionMap[region].length+'件）';
+      container.appendChild(title);
+
+      regionMap[region].forEach(function(v){
+        var item=document.createElement('div');
+        item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
+        item.id='case-'+v.key;
+
+        var cb=document.createElement('input');
+        cb.type='checkbox';
+        cb.checked=!!excludedKeys[v.key];
+        cb.addEventListener('change',function(){
+          if(this.checked){excludedKeys[v.key]=true;}else{delete excludedKeys[v.key];}
+          item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
+          updateCount();
+        });
+
+        var info=document.createElement('div');
+        info.className='case-info';
+        info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div><div class="case-detail">'+escHtml(v.detail)+' | 算出日: '+v.visit_date+'</div>';
+
+        var badge=document.createElement('span');
+        badge.className='case-region';
+        badge.textContent=v.region;
+
+        item.appendChild(cb);
+        item.appendChild(info);
+        item.appendChild(badge);
+        container.appendChild(item);
+      });
+    });
+  }
 
   area.appendChild(container);
 }
 
 function updateCount(){
-  var active=allVisits.filter(function(v){return!excludedKeys[v.key];});
-  document.getElementById('periodCount').textContent='対象: '+allVisits.length+'件（除外: '+Object.keys(excludedKeys).length+'件 → AI対象: '+active.length+'件）';
+  var newVisits=allVisits.filter(function(v){return!v.fixed;});
+  var active=newVisits.filter(function(v){return!excludedKeys[v.key];});
+  var fixedCount=allVisits.filter(function(v){return v.fixed;}).length;
+  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒確定: '+fixedCount+' / 🔧AI対象: '+active.length+' / 除外: '+Object.keys(excludedKeys).length+'）';
   document.getElementById('btnAI').disabled=active.length===0;
 }
 
@@ -286,8 +342,9 @@ function runAI(){
   var apiKey=localStorage.getItem('geminiApiKey');
   if(!apiKey){openSettings();return;}
 
-  var active=allVisits.filter(function(v){return!excludedKeys[v.key];});
-  if(active.length===0){alert('対象案件がありません');return;}
+  var active=allVisits.filter(function(v){return!v.fixed&&!excludedKeys[v.key];});
+  var fixed=allVisits.filter(function(v){return v.fixed;});
+  if(active.length===0){alert('AI対象の新築案件がありません');return;}
   if(active.length>80){
     if(!confirm('⚠️ '+active.length+'件は多いです。ルート順の精度が落ちる可能性があります。\n続行しますか？'))return;
   }
@@ -298,33 +355,42 @@ function runAI(){
   document.getElementById('btnAI').disabled=true;
   document.getElementById('btnAI').innerHTML='<span class="spinner"></span>AI分析中...';
 
-  // 地域グループ化してプロンプト作成
+  // 確定リフォーム一覧（制約条件）
+  var fixedList='';
+  if(fixed.length>0){
+    fixedList='\n【🔒 確定済みリフォーム（日時固定・動かせない）】\n';
+    fixed.forEach(function(v,i){
+      fixedList+='  '+(i+1)+'. '+v.visit_date+(v.visit_time?' '+v.visit_time:'')+' | '+v.region+' | '+v.title+' / '+v.client+' | 住所:'+v.address+'\n';
+    });
+  }
+
+  // 新築一覧（AIが配分する対象）
+  var newList='\n【🔧 新築案件（AIが日付を決める対象）】\n';
   var groupByRegion={};
   active.forEach(function(v){
     if(!groupByRegion[v.region])groupByRegion[v.region]=[];
     groupByRegion[v.region].push(v);
   });
-
-  var visitList='';
   Object.keys(groupByRegion).sort().forEach(function(region){
-    visitList+='\n【'+region+'】\n';
+    newList+=' ['+region+']\n';
     groupByRegion[region].forEach(function(v,i){
-      visitList+='  '+( i+1)+'. key="'+v.key+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 算出日:'+v.visit_date+' | 住所:'+v.address+'\n';
+      newList+='  '+(i+1)+'. key="'+v.key+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 住所:'+v.address+'\n';
     });
   });
 
   var dateLabels=targetDates.map(function(d){return d+'('+formatDateLabel(d)+')';}).join(', ');
 
   var prompt='あなたは北海道のキッチン設備下見スケジュール最適化AIです。\n\n'+
-    '以下の案件を4日間に最適配分してください。\n'+
     '対象日: '+dateLabels+'\n'+
-    visitList+'\n'+
+    fixedList+newList+'\n'+
     '【最適化ルール（優先度順）】\n'+
-    '1. 同じ地域の案件は同じ日にまとめる（最重要）\n'+
-    '2. 各日の件数をできるだけ均等にする\n'+
-    '3. 同じ日の中では移動距離が最小になる順番（ルート順）を決める\n'+
-    '4. 算出日は目安。地域をまとめるために前後にずらしてよい\n\n'+
-    '【出力】以下のJSON形式のみ。マークダウンや説明文は絶対に不要。reasonは5文字以内。\n'+
+    '1. リフォームは日時確定済み。絶対に動かさない。\n'+
+    '2. 新築案件をリフォームと同じ地域の日に合わせる（最重要）。例:中央区のリフォームが4/9確定→中央区の新築も4/9に入れる。\n'+
+    '3. リフォームがない地域の新築は、同じ地域同士で同じ日にまとめる。\n'+
+    '4. 各日の合計件数（リフォーム+新築）をできるだけ均等にする。\n'+
+    '5. 同じ日の中では移動距離が最小になるルート順を決める。リフォームの時間を考慮して前後に新築を配置する。\n'+
+    '6. 新築の算出日は目安。地域をまとめるためにずらしてよい。\n\n'+
+    '【出力】新築案件のみJSON出力。リフォームは含めない。reasonは5文字以内。\n'+
     '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"FBキー","order":1,"reason":"5文字"}]}],"summary":"一行"}';
 
   fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(apiKey),{
@@ -382,14 +448,29 @@ function showAIResult(){
       var dayDiv=document.createElement('div');
       dayDiv.className='ai-day';
 
+      // この日の確定リフォームを取得
+      var dayFixed=allVisits.filter(function(v){return v.fixed&&v.visit_date===day.date;});
+      var totalCount=(day.items?day.items.length:0)+dayFixed.length;
+
       var header=document.createElement('div');
       header.className='ai-day-header';
-      var cnt=day.items?day.items.length:0;
-      header.innerHTML='<span>📅 '+escHtml(day.date)+' ('+formatDateLabel(day.date)+')</span><span class="ai-day-count">'+cnt+'件</span>';
+      header.innerHTML='<span>📅 '+escHtml(day.date)+' ('+formatDateLabel(day.date)+')</span><span class="ai-day-count">'+totalCount+'件（🔒'+dayFixed.length+' + 🔧'+(day.items?day.items.length:0)+'）</span>';
       dayDiv.appendChild(header);
 
+      // 確定リフォームを先に表示
+      dayFixed.forEach(function(fv){
+        var row=document.createElement('div');
+        row.className='ai-route-item';
+        row.style.background='#fff8e1';
+        row.style.borderLeftColor='#ff6b00';
+        row.innerHTML='<span class="route-num">🔒</span>'+
+          '<div class="route-title">'+escHtml(fv.title)+' / '+escHtml(fv.client)+'</div>'+
+          '<div class="route-detail">📍'+escHtml(fv.region)+' | ⏰'+(fv.visit_time||'時間未定')+'</div>'+
+          '<div class="route-reason">→ 確定済み</div>';
+        dayDiv.appendChild(row);
+      });
+
       if(day.items&&day.items.length>0){
-        // orderでソート
         day.items.sort(function(a,b){return(a.order||99)-(b.order||99);});
         day.items.forEach(function(item){
           // allVisitsからキーで情報を補完
