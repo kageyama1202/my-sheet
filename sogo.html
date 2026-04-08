@@ -149,6 +149,7 @@ var allVisits=[];
 var excludedKeys={};
 var aiResult=null;
 var targetDates=[];
+var finalSelection={};
 
 // --- 日付ユーティリティ ---
 function getDateStr(offset){var d=new Date();d.setDate(d.getDate()+offset);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -461,6 +462,8 @@ function showAIResult(){
 
   var body=document.getElementById('aiResultBody');
   body.innerHTML='';
+  
+  finalSelection={};
 
   if(aiResult.days){
     aiResult.days.forEach(function(day){
@@ -468,7 +471,7 @@ function showAIResult(){
       dayDiv.className='ai-day';
 
       // この日の確定リフォームを取得
-      var dayFixed=allVisits.filter(function(v){return v.fixed&&v.visit_date===day.date;});
+      var dayFixed=allVisits.filter(function(v){return v.fixed&&v.visit_date===day.date&&!excludedKeys[v.key];});
       var totalCount=(day.items?day.items.length:0)+dayFixed.length;
 
       var header=document.createElement('div');
@@ -476,16 +479,31 @@ function showAIResult(){
       header.innerHTML='<span>📅 '+escHtml(day.date)+' ('+formatDateLabel(day.date)+')</span><span class="ai-day-count">'+totalCount+'件（🔒'+dayFixed.length+' + 🔧'+(day.items?day.items.length:0)+'）</span>';
       dayDiv.appendChild(header);
 
-      // 確定リフォームを先に表示
+      // 確定リフォームを先に表示（チェックボックス付き）
       dayFixed.forEach(function(fv){
+        var rowId='final-'+day.date+'-'+fv.key;
+        if(!finalSelection[rowId])finalSelection[rowId]=true;
+        
         var row=document.createElement('div');
         row.className='ai-route-item';
         row.style.background='#fff8e1';
         row.style.borderLeftColor='#ff6b00';
-        row.innerHTML='<span class="route-num">🔒</span>'+
-          '<div class="route-title">'+escHtml(fv.title)+' / '+escHtml(fv.client)+'</div>'+
+        row.style.paddingLeft='10px';
+        
+        var cb=document.createElement('input');
+        cb.type='checkbox';
+        cb.checked=finalSelection[rowId];
+        cb.style.marginRight='8px';
+        cb.addEventListener('change',function(){finalSelection[rowId]=this.checked;});
+        
+        var content=document.createElement('span');
+        content.innerHTML='<span class="route-num" style="position:relative;left:0;">🔒</span>'+
+          '<div class="route-title" style="display:inline;">'+escHtml(fv.title)+' / '+escHtml(fv.client)+'</div>'+
           '<div class="route-detail">📍'+escHtml(fv.region)+' | ⏰'+(fv.visit_time||'時間未定')+'</div>'+
           '<div class="route-reason">→ 確定済み</div>';
+        
+        row.appendChild(cb);
+        row.appendChild(content);
         dayDiv.appendChild(row);
       });
 
@@ -500,12 +518,28 @@ function showAIResult(){
           var title=item.title||( visit?visit.title:'');
           var client=item.client||(visit?visit.client:'');
           var region=item.region||(visit?visit.region:'');
+          
+          var rowId='final-'+day.date+'-'+item.key;
+          if(!finalSelection[rowId])finalSelection[rowId]=true;
+          
           var row=document.createElement('div');
           row.className='ai-route-item';
-          row.innerHTML='<span class="route-num">'+(item.order||'-')+'</span>'+
-            '<div class="route-title">'+escHtml(title)+' / '+escHtml(client)+'</div>'+
+          row.style.paddingLeft='10px';
+          
+          var cb=document.createElement('input');
+          cb.type='checkbox';
+          cb.checked=finalSelection[rowId];
+          cb.style.marginRight='8px';
+          cb.addEventListener('change',function(){finalSelection[rowId]=this.checked;});
+          
+          var content=document.createElement('span');
+          content.innerHTML='<span class="route-num" style="position:relative;left:0;">'+(item.order||'-')+'</span>'+
+            '<div class="route-title" style="display:inline;">'+escHtml(title)+' / '+escHtml(client)+'</div>'+
             '<div class="route-detail">📍'+escHtml(region)+'</div>'+
             (item.reason?'<div class="route-reason">→ '+escHtml(item.reason)+'</div>':'');
+          
+          row.appendChild(cb);
+          row.appendChild(content);
           dayDiv.appendChild(row);
         });
       }
@@ -522,10 +556,16 @@ function applyToFirebase(){
 
   var updates={};
   var count=0;
+  var skipped=0;
 
   aiResult.days.forEach(function(day){
     if(!day.items)return;
     day.items.forEach(function(item){
+      var rowId='final-'+day.date+'-'+item.key;
+      if(finalSelection[rowId]===false){
+        skipped++;
+        return;
+      }
       if(item.key&&globalTasks[item.key]){
         updates['app_tasks/'+item.key+'/ai_shitami_date']=day.date;
         count++;
@@ -533,7 +573,18 @@ function applyToFirebase(){
     });
   });
 
-  if(count===0){alert('適用する案件がありません');return;}
+  if(count===0){
+    if(skipped>0){
+      alert('⚠️ すべての案件のチェックが外れています。\n保存する案件がありません。');
+    }else{
+      alert('適用する案件がありません');
+    }
+    return;
+  }
+
+  var msg='✅ '+count+'件をFirebaseに保存します。';
+  if(skipped>0)msg+='\n⚠️ '+skipped+'件はチェックが外れているため保存しません。';
+  if(!confirm(msg+'\n\n続行しますか？'))return;
 
   database.ref().update(updates).then(function(){
     // localStorageも更新
@@ -543,6 +594,8 @@ function applyToFirebase(){
         aiResult.days.forEach(function(day){
           if(!day.items)return;
           day.items.forEach(function(item){
+            var rowId='final-'+day.date+'-'+item.key;
+            if(finalSelection[rowId]===false)return;
             if(item.key&&appData.app_tasks[item.key]){
               appData.app_tasks[item.key].ai_shitami_date=day.date;
             }
@@ -553,7 +606,7 @@ function applyToFirebase(){
     }catch(e){console.error(e);}
 
     document.getElementById('step3').className='step done';
-    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。\naction.htmlの「AI下見予定」列に反映されます。');
+    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。'+(skipped>0?'\n⚠️ '+skipped+'件は除外されました。':'')+'\naction.htmlの「AI下見予定」列に反映されます。');
   }).catch(function(err){
     alert('❌ Firebase保存エラー: '+err.message);
   });
@@ -562,6 +615,7 @@ function applyToFirebase(){
 function resetAll(){
   aiResult=null;
   excludedKeys={};
+  finalSelection={};
   document.getElementById('aiResultPanel').className='ai-result-panel';
   document.getElementById('actionBar2').style.display='none';
   document.getElementById('btnAI').disabled=false;
