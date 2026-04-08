@@ -321,15 +321,15 @@ function runAI(){
     '2. 各日の件数をできるだけ均等にする\n'+
     '3. 同じ日の中では移動距離が最小になる順番（ルート順）を決める\n'+
     '4. 算出日は目安。地域をまとめるために前後にずらしてよい\n\n'+
-    '【出力】以下のJSON形式のみ。マークダウンや説明文は不要。\n'+
-    '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"Firebaseキー","title":"案件名","client":"担当","region":"地域","order":1,"reason":"短い理由"}]}],"summary":"一行要約"}';
+    '【出力】以下のJSON形式のみ。マークダウンや説明文は絶対に不要。reasonは5文字以内。\n'+
+    '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"FBキー","order":1,"reason":"5文字"}]}],"summary":"一行"}';
 
   fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(apiKey),{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.15,maxOutputTokens:8192}
+      generationConfig:{temperature:0.1,maxOutputTokens:16384,thinkingConfig:{thinkingBudget:0}}
     })
   })
   .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
@@ -389,11 +389,17 @@ function showAIResult(){
         // orderでソート
         day.items.sort(function(a,b){return(a.order||99)-(b.order||99);});
         day.items.forEach(function(item){
+          // allVisitsからキーで情報を補完
+          var visit=null;
+          for(var vi=0;vi<allVisits.length;vi++){if(allVisits[vi].key===item.key){visit=allVisits[vi];break;}}
+          var title=item.title||( visit?visit.title:'');
+          var client=item.client||(visit?visit.client:'');
+          var region=item.region||(visit?visit.region:'');
           var row=document.createElement('div');
           row.className='ai-route-item';
           row.innerHTML='<span class="route-num">'+(item.order||'-')+'</span>'+
-            '<div class="route-title">'+escHtml(item.title||'')+' / '+escHtml(item.client||'')+'</div>'+
-            '<div class="route-detail">📍'+escHtml(item.region||'')+'</div>'+
+            '<div class="route-title">'+escHtml(title)+' / '+escHtml(client)+'</div>'+
+            '<div class="route-detail">📍'+escHtml(region)+'</div>'+
             (item.reason?'<div class="route-reason">→ '+escHtml(item.reason)+'</div>':'');
           dayDiv.appendChild(row);
         });
