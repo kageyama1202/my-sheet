@@ -6,6 +6,7 @@
   <title>下見スケジューラー 4列</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <link rel="stylesheet" href="https://kageyama1202.github.io/my-sheet/shared-modal.css">
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background-color: #f5f5f5; margin: 0; padding: 10px; }
@@ -25,15 +26,6 @@
     .visit-label { font-weight: bold; color: #333; word-break: break-word; }
     .visit-detail { font-size: 10px; color: #666; margin-top: 2px; }
     .empty-msg { padding: 20px; text-align: center; color: #999; font-size: 12px; }
-    
-    /* モーダル */
-    #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; }
-    #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-    #modal-close { float: right; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
-    #modal-close:hover { background: #c82333; }
-    .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 13px; text-align: left; }
-    .modal-table th { background-color: #f8f9fa; width: 30%; }
     .visit-item { cursor: pointer; }
     .visit-item:hover { background-color: #f0f8ff !important; }
   </style>
@@ -45,14 +37,6 @@
       <p id="loadMsg">クラウドからデータを取得中...</p>
     </div>
     <div class="grid-container" id="content"></div>
-  </div>
-
-  <!-- モーダル -->
-  <div id="modal-overlay">
-    <div id="modal-content">
-      <button id="modal-close">✖ 閉じる</button>
-      <div id="modal-body"></div>
-    </div>
   </div>
 
   <script>
@@ -67,11 +51,6 @@
     };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     var database = firebase.database();
-
-    var modalOverlay = document.getElementById('modal-overlay');
-    var modalCloseBtn = document.getElementById('modal-close');
-    modalCloseBtn.addEventListener('click', function() { modalOverlay.style.display = 'none'; });
-    modalOverlay.addEventListener('click', function(e) { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
     function getDateString(offsetDays) {
       var d = new Date();
@@ -99,31 +78,7 @@
       return s.substring(0, 10);
     }
 
-    function showModal(visit) {
-      var c2 = visit.raw_cols[2] || '';
-      var c4 = visit.raw_cols[4] || '';
-      var c5 = visit.raw_cols[5] || '';
-      
-      var html = '<div style="margin-bottom: 15px;">';
-      html += '<div style="font-size: 14px; color: #555; font-weight: bold; background: #e9ecef; padding: 8px 12px; border-radius: 6px; display: inline-block;">🔨 施工日: ' + c2 + '　|　📅 下見日: ' + visit.visit_date + '</div>';
-      html += '<div style="font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; display: flex; align-items: center; gap: 10px;">';
-      html += '🏷️ 案件名: ' + c4;
-      html += '</div>';
-      html += '</div>';
-      html += '<h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 案件の全データ</h4>';
-      html += '<table class="modal-table">';
-      
-      var headers = ['ID', '区分', 'タイトル', '担当者', 'TEL', '下見ルート', '日程備考', '住所', '下見依頼日', '工務担当者', '担当携帯', '住所(改行なし)'];
-      for (var i = 0; i < visit.raw_cols.length; i++) {
-        var val = visit.raw_cols[i] || '';
-        var displayHtml = String(val).replace(/\n|\r/g, '<br>');
-        html += '<tr><th>' + (headers[i] || '列' + (i+1)) + '</th><td>' + displayHtml + '</td></tr>';
-      }
-      html += '</table>';
-      
-      document.getElementById('modal-body').innerHTML = html;
-      modalOverlay.style.display = 'block';
-    }
+
 
     function extractVisits(tasks) {
       var visits = [];
@@ -335,5 +290,6 @@
       renderUI(visits, skipData);
     });
   </script>
+  <script src="https://kageyama1202.github.io/my-sheet/shared-modal.js"></script>
 </body>
 </html>
