@@ -3,41 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>下見スケジューラー</title>
+  <title>下見スケジューラー 4列</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background-color: #f5f5f5; margin: 0; padding: 10px; }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .header { background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .header h1 { margin: 0; font-size: 24px; color: #333; }
-    .header p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
-    .category { background: #fff; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
-    .category-header { padding: 12px 15px; background-color: #e7f3ff; border-bottom: 1px solid #dee2e6; display: flex; align-items: center; gap: 10px; }
-    .category-title { flex: 1; font-weight: bold; font-size: 16px; color: #333; }
-    .category-count { background: #0056b3; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-    .region-group { border-top: 1px solid #e9ecef; padding: 15px; }
-    .region-group:first-child { border-top: none; }
-    .region-name { font-weight: bold; color: #495057; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #dee2e6; }
-    .visit-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; background: #fafafa; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid #0056b3; }
-    .visit-item input[type="checkbox"] { margin-top: 4px; cursor: pointer; }
-    .visit-info { flex: 1; }
-    .visit-label { display: block; font-weight: bold; color: #333; margin-bottom: 4px; cursor: pointer; }
-    .visit-label:hover { text-decoration: underline; }
-    .visit-detail { font-size: 12px; color: #666; }
-    .empty-msg { padding: 20px; text-align: center; color: #999; }
+    .container { max-width: 100%; margin: 0; }
+    .header { background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .header h1 { margin: 0; font-size: 20px; color: #333; }
+    .header p { margin: 5px 0 0 0; color: #666; font-size: 13px; }
+    .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0; }
+    .column { background: #fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
+    .column-header { padding: 10px; background-color: #e7f3ff; border-bottom: 1px solid #dee2e6; font-weight: bold; font-size: 14px; color: #333; }
+    .column-content { flex: 1; overflow-y: auto; padding: 10px; max-height: 70vh; }
+    .visit-group { margin-bottom: 12px; }
+    .visit-group-title { font-size: 11px; font-weight: bold; color: #0056b3; padding-bottom: 6px; border-bottom: 1px dashed #ccc; margin-bottom: 6px; }
+    .visit-item { font-size: 12px; padding: 6px; background: #fafafa; margin-bottom: 5px; border-radius: 3px; border-left: 3px solid #0056b3; display: flex; gap: 6px; }
+    .visit-item input[type="checkbox"] { margin: 0; flex-shrink: 0; cursor: pointer; width: 16px; }
+    .visit-content { flex: 1; }
+    .visit-label { font-weight: bold; color: #333; word-break: break-word; }
+    .visit-detail { font-size: 10px; color: #666; margin-top: 2px; }
+    .empty-msg { padding: 20px; text-align: center; color: #999; font-size: 12px; }
+    @media (max-width: 1400px) {
+      .grid-container { grid-template-columns: repeat(2, 1fr); }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>📅 下見スケジューラー</h1>
+      <h1>📅 下見スケジューラー（4日間 4列表示）</h1>
       <p id="loadMsg">クラウドからデータを取得中...</p>
     </div>
-    <div id="content">
-      <div class="empty-msg" id="loadingDiv">読み込み中...</div>
-    </div>
+    <div class="grid-container" id="content"></div>
   </div>
 
   <script>
@@ -53,50 +52,122 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     var database = firebase.database();
 
+    function getDateString(offsetDays) {
+      var d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    function formatDateHeader(dateStr) {
+      var parts = dateStr.split('-');
+      var m = parseInt(parts[1]);
+      var day = parseInt(parts[2]);
+      var d = new Date(dateStr);
+      var dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      return m + '月' + day + '日（' + dayNames[d.getDay()] + '）';
+    }
+
     function simplifyRegion(addr) {
-      if (!addr) return '不明';
+      if (!addr) return '??';
       var s = String(addr).replace(/北海道|東京都|大阪府|京都府|[一-龠]{2,3}県/g, '').trim();
       if (s.startsWith('札幌市')) s = s.replace(/^札幌市/, '');
       s = s.replace(/^.+?郡(?=.*?[町村])/, '');
-      return s.substring(0, 15);
+      return s.substring(0, 10);
     }
 
-    function formatDate(dateStr) {
-      if (!dateStr) return '--';
-      var parts = String(dateStr).split('-');
-      if (parts.length !== 3) return dateStr;
-      var month = parseInt(parts[1]);
-      var day = parseInt(parts[2]);
-      return month + '月' + day + '日';
-    }
-
-    function extractReformVisits(tasks) {
+    function extractVisits(tasks) {
       var visits = [];
-      var keys = Object.keys(tasks || {});
+      var today = getDateString(0);
+      var targetDates = [today, getDateString(1), getDateString(2), getDateString(3)];
 
+      var keys = Object.keys(tasks || {});
       keys.forEach(function(key) {
         var task = tasks[key];
         var cols = task.csvData || [];
-        var c3 = cols[3] ? String(cols[3]).replace(/\s+/g, '') : ''; // 区分
-        var c4 = cols[4] ? String(cols[4]).trim() : ''; // タイトル
-        var c5 = cols[5] ? String(cols[5]).trim() : ''; // 担当者
-        var c6 = cols[6] ? String(cols[6]).trim() : ''; // TEL
-        var c11 = cols[11] ? String(cols[11]).trim() : ''; // 住所
-        var visitDate = task.date || ''; // 下見予定日
+        var c2 = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
+        var c3 = cols[3] ? String(cols[3]).replace(/\s+/g, '') : '';
+        var c4 = cols[4] ? String(cols[4]).trim() : '';
+        var c5 = cols[5] ? String(cols[5]).trim() : '';
+        var c11 = cols[11] ? String(cols[11]).trim() : '';
+        var reformDate = task.date || '';
 
-        // リフォーム＆下見日が決まってるもののみ
-        if (c3 === 'ﾘ' && visitDate !== '') {
-          visits.push({
-            key: key,
-            title: c4,
-            client: c5,
-            tel: c6,
-            address: c11,
-            region: simplifyRegion(c11),
-            visit_date: visitDate,
-            visit_date_display: formatDate(visitDate),
-            raw_cols: cols
-          });
+        // ① リフォーム
+        if (c3 === 'ﾘ' && reformDate !== '') {
+          if (targetDates.indexOf(reformDate) !== -1) {
+            visits.push({
+              key: key,
+              type: 'reform',
+              title: c4,
+              client: c5,
+              region: simplifyRegion(c11),
+              visit_date: reformDate,
+              sekou_date: c2,
+              detail: 'リフォーム'
+            });
+          }
+        }
+
+        // 新築：施工日で計算
+        if (c3 === '新' && c2 !== '') {
+          // ② SK 1回目（施工-21日）
+          if (c4 === 'SK') {
+            var visitDate1 = getDateString(-21 - (new Date(today).getTime() - new Date(c2).getTime()) / (1000 * 3600 * 24));
+            // より正確な計算
+            var sekou = new Date(c2);
+            var visit1 = new Date(sekou);
+            visit1.setDate(visit1.getDate() - 21);
+            var v1str = visit1.getFullYear() + '-' + String(visit1.getMonth() + 1).padStart(2, '0') + '-' + String(visit1.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v1str) !== -1) {
+              visits.push({
+                key: key,
+                type: 'sk_first',
+                title: c4,
+                client: c5,
+                region: simplifyRegion(c11),
+                visit_date: v1str,
+                sekou_date: c2,
+                detail: 'SK新築1回目'
+              });
+            }
+
+            // ③ SK 2回目（施工-10日）
+            var visit2 = new Date(sekou);
+            visit2.setDate(visit2.getDate() - 10);
+            var v2str = visit2.getFullYear() + '-' + String(visit2.getMonth() + 1).padStart(2, '0') + '-' + String(visit2.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v2str) !== -1) {
+              visits.push({
+                key: key,
+                type: 'sk_second',
+                title: c4,
+                client: c5,
+                region: simplifyRegion(c11),
+                visit_date: v2str,
+                sekou_date: c2,
+                detail: 'SK新築2回目'
+              });
+            }
+          } else {
+            // ④ その他新築（施工-21日）
+            var sekou2 = new Date(c2);
+            var visit3 = new Date(sekou2);
+            visit3.setDate(visit3.getDate() - 21);
+            var v3str = visit3.getFullYear() + '-' + String(visit3.getMonth() + 1).padStart(2, '0') + '-' + String(visit3.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v3str) !== -1) {
+              visits.push({
+                key: key,
+                type: 'other',
+                title: c4,
+                client: c5,
+                region: simplifyRegion(c11),
+                visit_date: v3str,
+                sekou_date: c2,
+                detail: c4 + '新築'
+              });
+            }
+          }
         }
       });
 
@@ -107,89 +178,89 @@
       var content = document.getElementById('content');
       content.innerHTML = '';
 
-      if (visits.length === 0) {
-        content.innerHTML = '<div class="empty-msg">下見予定なし</div>';
-        return;
-      }
+      var targetDates = [getDateString(0), getDateString(1), getDateString(2), getDateString(3)];
 
-      // 日付ごとにグループ化
-      var dateMap = {};
-      visits.forEach(function(v) {
-        if (!dateMap[v.visit_date]) dateMap[v.visit_date] = [];
-        dateMap[v.visit_date].push(v);
-      });
-
-      // 日付でソート
-      var sortedDates = Object.keys(dateMap).sort();
-
-      sortedDates.forEach(function(dateStr) {
-        var dateVisits = dateMap[dateStr];
-        var catDiv = document.createElement('div');
-        catDiv.className = 'category';
+      targetDates.forEach(function(dateStr) {
+        var col = document.createElement('div');
+        col.className = 'column';
 
         var header = document.createElement('div');
-        header.className = 'category-header';
-        header.innerHTML = '<div class="category-title">📅 ' + dateVisits[0].visit_date_display + '</div><div class="category-count">' + dateVisits.length + '</div>';
-        catDiv.appendChild(header);
+        header.className = 'column-header';
+        header.textContent = formatDateHeader(dateStr);
+        col.appendChild(header);
 
-        // 地域ごとに分類
-        var regionMap = {};
-        dateVisits.forEach(function(v) {
-          if (!regionMap[v.region]) regionMap[v.region] = [];
-          regionMap[v.region].push(v);
-        });
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'column-content';
 
-        // 地域ごとの表示
-        Object.keys(regionMap).sort().forEach(function(region) {
-          var regionDiv = document.createElement('div');
-          regionDiv.className = 'region-group';
+        var dayVisits = visits.filter(function(v) { return v.visit_date === dateStr; });
 
-          var regionName = document.createElement('div');
-          regionName.className = 'region-name';
-          regionName.textContent = '📍 ' + region + ' (' + regionMap[region].length + ')';
-          regionDiv.appendChild(regionName);
-
-          regionMap[region].forEach(function(v) {
-            var itemDiv = document.createElement('div');
-            itemDiv.className = 'visit-item';
-
-            var checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = skipData && skipData[v.key];
-
-            var info = document.createElement('div');
-            info.className = 'visit-info';
-            var label = document.createElement('label');
-            label.className = 'visit-label';
-            label.textContent = v.title + ' / ' + v.client;
-            var detail = document.createElement('div');
-            detail.className = 'visit-detail';
-            detail.textContent = '住所: ' + v.address + ' | 電話: ' + v.tel;
-
-            info.appendChild(label);
-            info.appendChild(detail);
-            itemDiv.appendChild(checkbox);
-            itemDiv.appendChild(info);
-
-            checkbox.addEventListener('change', function() {
-              var newSkipData = skipData || {};
-              if (this.checked) {
-                newSkipData[v.key] = true;
-              } else {
-                delete newSkipData[v.key];
-              }
-              database.ref('app_skip_visits').set(newSkipData);
-            });
-
-            regionDiv.appendChild(itemDiv);
+        if (dayVisits.length === 0) {
+          contentDiv.innerHTML = '<div class="empty-msg">予定なし</div>';
+        } else {
+          // 地域ごとにグループ化
+          var regionMap = {};
+          dayVisits.forEach(function(v) {
+            if (!regionMap[v.region]) regionMap[v.region] = [];
+            regionMap[v.region].push(v);
           });
 
-          var contentDiv = document.createElement('div');
-          contentDiv.appendChild(regionDiv);
-          catDiv.appendChild(contentDiv);
-        });
+          Object.keys(regionMap).sort().forEach(function(region) {
+            var group = document.createElement('div');
+            group.className = 'visit-group';
 
-        content.appendChild(catDiv);
+            var groupTitle = document.createElement('div');
+            groupTitle.className = 'visit-group-title';
+            groupTitle.textContent = '📍 ' + region;
+            group.appendChild(groupTitle);
+
+            regionMap[region].forEach(function(v) {
+              var item = document.createElement('div');
+              item.className = 'visit-item';
+              if (skipData && skipData[v.key]) {
+                item.style.opacity = '0.5';
+              }
+
+              var checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.checked = skipData && skipData[v.key];
+
+              var itemContent = document.createElement('div');
+              itemContent.className = 'visit-content';
+
+              var label = document.createElement('div');
+              label.className = 'visit-label';
+              label.textContent = v.title + ' / ' + v.client;
+
+              var detail = document.createElement('div');
+              detail.className = 'visit-detail';
+              detail.textContent = v.detail;
+
+              itemContent.appendChild(label);
+              itemContent.appendChild(detail);
+
+              item.appendChild(checkbox);
+              item.appendChild(itemContent);
+
+              checkbox.addEventListener('change', function() {
+                var newSkipData = skipData || {};
+                if (this.checked) {
+                  newSkipData[v.key] = true;
+                } else {
+                  delete newSkipData[v.key];
+                }
+                database.ref('app_skip_visits').set(newSkipData);
+                item.style.opacity = this.checked ? '0.5' : '1';
+              });
+
+              group.appendChild(item);
+            });
+
+            contentDiv.appendChild(group);
+          });
+        }
+
+        col.appendChild(contentDiv);
+        content.appendChild(col);
       });
     }
 
@@ -197,15 +268,11 @@
     database.ref().once('value').then(function(snap) {
       var dbData = snap.val();
       if (!dbData || !dbData.app_tasks) {
-        document.getElementById('loadingDiv').innerHTML = '<div class="empty-msg">データ取得失敗</div>';
+        document.getElementById('loadMsg').textContent = 'データ取得失敗';
         return;
       }
 
-      var visits = extractReformVisits(dbData.app_tasks);
-      visits.sort(function(a, b) {
-        return a.visit_date.localeCompare(b.visit_date);
-      });
-
+      var visits = extractVisits(dbData.app_tasks);
       var skipData = dbData.app_skip_visits || {};
 
       document.getElementById('loadMsg').textContent = '検出: ' + visits.length + ' 件';
