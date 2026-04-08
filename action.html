@@ -696,21 +696,21 @@ function renderShitamiTab(){
   thead.appendChild(trH);
   
   var shitamiCases=[];
-  var endDate=addDays(todayStr,7);
+  var endDate=addDays(todayStr,6);
   
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
     var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
     var sekouDate=formatToYMD(getSafeVal(cols,2));
     
-    // リフォーム: obj.date が今日〜7日以内
+    // リフォーム: obj.date が今日〜6日後
     if((kubun==='ﾘ'||kubun==='ﾊﾘ')&&obj.date){
       if(obj.date>=todayStr&&obj.date<=endDate){
         shitamiCases.push({key:key,shitamiDate:obj.date,kubun:kubun,name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
       }
     }
     
-    // 新築: 算出された下見日が今日〜7日以内
+    // 新築: 算出された下見日が今日〜6日後
     if(kubun==='新'&&sekouDate){
       var sekou=new Date(sekouDate);
       if(getSafeVal(cols,4).indexOf('SK')!==-1){
