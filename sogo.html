@@ -100,15 +100,27 @@
     }
 
     function showModal(visit) {
-      var html = '<h3>' + visit.title + ' (' + visit.client + ')</h3>';
-      html += '<p><strong>' + visit.detail + '</strong> | 下見日: ' + visit.visit_date + '</p>';
+      var c2 = visit.raw_cols[2] || '';
+      var c4 = visit.raw_cols[4] || '';
+      var c5 = visit.raw_cols[5] || '';
+      
+      var html = '<div style="margin-bottom: 15px;">';
+      html += '<div style="font-size: 14px; color: #555; font-weight: bold; background: #e9ecef; padding: 8px 12px; border-radius: 6px; display: inline-block;">🔨 施工日: ' + c2 + '　|　📅 下見日: ' + visit.visit_date + '</div>';
+      html += '<div style="font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; display: flex; align-items: center; gap: 10px;">';
+      html += '🏷️ 案件名: ' + c4;
+      html += '</div>';
+      html += '</div>';
+      html += '<h4 style="margin-top:20px; color:#495057; border-bottom: 2px solid #ccc; padding-bottom:5px;">📄 案件の全データ</h4>';
       html += '<table class="modal-table">';
-      var headers = ['ID', '区分', 'タイトル', '担当者', 'TEL', '下見ルート', '日程備考', '住所'];
-      for (var i = 0; i < Math.min(headers.length, visit.raw_cols.length); i++) {
+      
+      var headers = ['ID', '区分', 'タイトル', '担当者', 'TEL', '下見ルート', '日程備考', '住所', '下見依頼日', '工務担当者', '担当携帯', '住所(改行なし)'];
+      for (var i = 0; i < visit.raw_cols.length; i++) {
         var val = visit.raw_cols[i] || '';
-        html += '<tr><th>' + headers[i] + '</th><td>' + String(val).replace(/\n/g, '<br>') + '</td></tr>';
+        var displayHtml = String(val).replace(/\n|\r/g, '<br>');
+        html += '<tr><th>' + (headers[i] || '列' + (i+1)) + '</th><td>' + displayHtml + '</td></tr>';
       }
       html += '</table>';
+      
       document.getElementById('modal-body').innerHTML = html;
       modalOverlay.style.display = 'block';
     }
