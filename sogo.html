@@ -287,14 +287,14 @@
         '3. 算出日（visit_date）はあくまで目安。地域をまとめるために前後にずらしてよい\n' +
         '4. ただし算出日から大きくずらす場合は理由を明記\n\n' +
         '【出力形式】以下のJSON形式のみ出力。説明文やマークダウンは不要。\n' +
-        '{"days":[{"date":"' + targetDates[0] + '","items":[{"title":"...","client":"...","region":"...","reason":"なぜこの日か"}]},...],"summary":"全体の要約"}';
+        '{"days":[{"date":"' + targetDates[0] + '","items":[{"title":"...","client":"...","region":"...","reason":"短い理由"}]},...],"summary":"一行要約"}';
 
       fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+          generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
         })
       })
       .then(function(r) {
@@ -312,8 +312,21 @@
           return;
         }
 
-        // JSON抽出（```json ... ``` 対応）
-        var jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        // JSON抽出（```json...```、生JSON、どちらも対応）
+        var jsonStr = '';
+        var fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (fenceMatch) {
+          jsonStr = fenceMatch[1].trim();
+        } else {
+          // 生の{...}を探す
+          var braceStart = text.indexOf('{');
+          var braceEnd = text.lastIndexOf('}');
+          if (braceStart !== -1 && braceEnd > braceStart) {
+            jsonStr = text.substring(braceStart, braceEnd + 1);
+          } else {
+            jsonStr = text.trim();
+          }
+        }
         try {
           var result = JSON.parse(jsonStr);
           callback(result);
