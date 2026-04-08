@@ -115,7 +115,7 @@
 
 <!-- 適用ボタン -->
 <div class="action-bar" id="actionBar2" style="display:none;">
-  <button class="btn-apply" onclick="applyToFirebase()">✅ today.htmlに適用</button>
+  <button class="btn-apply" onclick="applyToFirebase()">✅ action.htmlに適用</button>
   <button class="btn-reset" onclick="resetAll()">🔄 やり直し</button>
 </div>
 
@@ -190,31 +190,41 @@ function extractAllVisits(){
     var reformDate=task.date||'';
 
     // リフォーム → 確定済み（日時固定）
-    if(c3==='ﾘ'&&reformDate!==''){
+    if((c3==='ﾘ'||c3==='ﾊﾘ')&&reformDate!==''){
       if(targetDates.indexOf(reformDate)!==-1){
         allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,visit_time:c16,detail:'リフォーム（確定: '+reformDate+(c16?' '+c16:'')+' ）',type:'reform',fixed:true});
       }
     }
-    // 新築 → AIが配分する対象
+    
+    // 新築 → AIが配分する対象（action.htmlと同じロジック）
     if(c3==='新'&&c2!==''){
       var sekouLabel=c2.replace(/-/g,'/');
-      if(c4==='SK'){
-        var sekou=new Date(c2);
+      var sekou=new Date(c2);
+      
+      if(c4.indexOf('SK')!==-1){
+        // SK → 1回目（21日前）と2回目（10日前）を別々に追加
         var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
         var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v1s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1',fixed:false});
+        if(targetDates.indexOf(v1s)!==-1){
+          allVisits.push({key:key+'_sk1',title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1',fixed:false,originalKey:key});
+        }
 
         var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
         var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v2s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2',fixed:false});
+        if(targetDates.indexOf(v2s)!==-1){
+          allVisits.push({key:key+'_sk2',title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2',fixed:false,originalKey:key});
+        }
       }else{
-        var sekou2=new Date(c2);
-        var v3=new Date(sekou2);v3.setDate(v3.getDate()-21);
+        // その他新築 → 21日前のみ
+        var v3=new Date(sekou);v3.setDate(v3.getDate()-21);
         var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v3s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other',fixed:false});
+        if(targetDates.indexOf(v3s)!==-1){
+          allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other',fixed:false,originalKey:key});
+        }
       }
     }
   });
+  
   var fixedCount=allVisits.filter(function(v){return v.fixed;}).length;
   var newCount=allVisits.filter(function(v){return!v.fixed;}).length;
   document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒リフォーム確定: '+fixedCount+'件 / 🔧新築AI対象: '+newCount+'件）';
@@ -374,7 +384,8 @@ function runAI(){
   Object.keys(groupByRegion).sort().forEach(function(region){
     newList+=' ['+region+']\n';
     groupByRegion[region].forEach(function(v,i){
-      newList+='  '+(i+1)+'. key="'+v.key+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 住所:'+v.address+'\n';
+      var useKey=v.originalKey||v.key;
+      newList+='  '+(i+1)+'. key="'+useKey+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 住所:'+v.address+'\n';
     });
   });
 
@@ -390,7 +401,7 @@ function runAI(){
     '4. 各日の合計件数（リフォーム+新築）をできるだけ均等にする。\n'+
     '5. 同じ日の中では移動距離が最小になるルート順を決める。リフォームの時間を考慮して前後に新築を配置する。\n'+
     '6. 新築の算出日は目安。地域をまとめるためにずらしてよい。\n\n'+
-    '【出力】新築案件のみJSON出力。リフォームは含めない。reasonは5文字以内。\n'+
+    '【出力】新築案件のみJSON出力。リフォームは含めない。reasonは5文字以内。keyはoriginalKeyがあればそれを使う。\n'+
     '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"FBキー","order":1,"reason":"5文字"}]}],"summary":"一行"}';
 
   fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(apiKey),{
@@ -475,7 +486,9 @@ function showAIResult(){
         day.items.forEach(function(item){
           // allVisitsからキーで情報を補完
           var visit=null;
-          for(var vi=0;vi<allVisits.length;vi++){if(allVisits[vi].key===item.key){visit=allVisits[vi];break;}}
+          for(var vi=0;vi<allVisits.length;vi++){
+            if(allVisits[vi].key===item.key||allVisits[vi].originalKey===item.key){visit=allVisits[vi];break;}
+          }
           var title=item.title||( visit?visit.title:'');
           var client=item.client||(visit?visit.client:'');
           var region=item.region||(visit?visit.region:'');
@@ -532,7 +545,7 @@ function applyToFirebase(){
     }catch(e){console.error(e);}
 
     document.getElementById('step3').className='step done';
-    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。\ntoday.htmlの「AI下見予定」列に反映されます。');
+    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。\naction.htmlの「AI下見予定」列に反映されます。');
   }).catch(function(err){
     alert('❌ Firebase保存エラー: '+err.message);
   });
