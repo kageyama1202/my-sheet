@@ -25,9 +25,17 @@
     .visit-label { font-weight: bold; color: #333; word-break: break-word; }
     .visit-detail { font-size: 10px; color: #666; margin-top: 2px; }
     .empty-msg { padding: 20px; text-align: center; color: #999; font-size: 12px; }
-    @media (max-width: 1400px) {
-      .grid-container { grid-template-columns: repeat(2, 1fr); }
-    }
+    
+    /* モーダル */
+    #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; }
+    #modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 85%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    #modal-close { float: right; padding: 6px 12px; cursor: pointer; background: #dc3545; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+    #modal-close:hover { background: #c82333; }
+    .modal-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .modal-table th, .modal-table td { border: 1px solid #ddd; padding: 10px; font-size: 13px; text-align: left; }
+    .modal-table th { background-color: #f8f9fa; width: 30%; }
+    .visit-item { cursor: pointer; }
+    .visit-item:hover { background-color: #f0f8ff !important; }
   </style>
 </head>
 <body>
@@ -37,6 +45,14 @@
       <p id="loadMsg">クラウドからデータを取得中...</p>
     </div>
     <div class="grid-container" id="content"></div>
+  </div>
+
+  <!-- モーダル -->
+  <div id="modal-overlay">
+    <div id="modal-content">
+      <button id="modal-close">✖ 閉じる</button>
+      <div id="modal-body"></div>
+    </div>
   </div>
 
   <script>
@@ -51,6 +67,11 @@
     };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     var database = firebase.database();
+
+    var modalOverlay = document.getElementById('modal-overlay');
+    var modalCloseBtn = document.getElementById('modal-close');
+    modalCloseBtn.addEventListener('click', function() { modalOverlay.style.display = 'none'; });
+    modalOverlay.addEventListener('click', function(e) { if(e.target === modalOverlay) modalOverlay.style.display = 'none'; });
 
     function getDateString(offsetDays) {
       var d = new Date();
@@ -76,6 +97,20 @@
       if (s.startsWith('札幌市')) s = s.replace(/^札幌市/, '');
       s = s.replace(/^.+?郡(?=.*?[町村])/, '');
       return s.substring(0, 10);
+    }
+
+    function showModal(visit) {
+      var html = '<h3>' + visit.title + ' (' + visit.client + ')</h3>';
+      html += '<p><strong>' + visit.detail + '</strong> | 下見日: ' + visit.visit_date + '</p>';
+      html += '<table class="modal-table">';
+      var headers = ['ID', '区分', 'タイトル', '担当者', 'TEL', '下見ルート', '日程備考', '住所'];
+      for (var i = 0; i < Math.min(headers.length, visit.raw_cols.length); i++) {
+        var val = visit.raw_cols[i] || '';
+        html += '<tr><th>' + headers[i] + '</th><td>' + String(val).replace(/\n/g, '<br>') + '</td></tr>';
+      }
+      html += '</table>';
+      document.getElementById('modal-body').innerHTML = html;
+      modalOverlay.style.display = 'block';
     }
 
     function extractVisits(tasks) {
@@ -105,7 +140,8 @@
               region: simplifyRegion(c11),
               visit_date: reformDate,
               sekou_date: c2,
-              detail: 'リフォーム'
+              detail: 'リフォーム',
+              raw_cols: cols
             });
           }
         }
@@ -129,7 +165,8 @@
                 region: simplifyRegion(c11),
                 visit_date: v1str,
                 sekou_date: c2,
-                detail: 'SK新築1回目'
+                detail: 'SK新築1回目',
+                raw_cols: cols
               });
             }
 
@@ -146,7 +183,8 @@
                 region: simplifyRegion(c11),
                 visit_date: v2str,
                 sekou_date: c2,
-                detail: 'SK新築2回目'
+                detail: 'SK新築2回目',
+                raw_cols: cols
               });
             }
           } else {
@@ -164,7 +202,8 @@
                 region: simplifyRegion(c11),
                 visit_date: v3str,
                 sekou_date: c2,
-                detail: c4 + '新築'
+                detail: c4 + '新築',
+                raw_cols: cols
               });
             }
           }
@@ -250,6 +289,11 @@
                 }
                 database.ref('app_skip_visits').set(newSkipData);
                 item.style.opacity = this.checked ? '0.5' : '1';
+              });
+
+              // クリックでモーダル表示
+              itemContent.addEventListener('click', function() {
+                showModal(v);
               });
 
               group.appendChild(item);
