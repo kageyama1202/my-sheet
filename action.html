@@ -207,7 +207,10 @@ document.getElementById('dateFuture').addEventListener('click',function(){dateFr
 document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
 dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
 chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);
-chkTodaySekou.addEventListener('change',renderTable);chkTodayShitami.addEventListener('change',renderTable);chkTodayYotei.addEventListener('change',renderTable);chkTodayAI.addEventListener('change',renderTable);
+chkTodaySekou.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
+chkTodayShitami.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
+chkTodayYotei.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
+chkTodayAI.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
 searchInput.addEventListener('input',applyTextSearch);
 
 var showKanryo=false;
