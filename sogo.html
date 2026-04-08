@@ -69,13 +69,14 @@
     <div id="settings-modal">
       <div class="settings-title">⚙️ API設定</div>
       <div class="settings-field">
-        <label>🔑 Gemini API キー:</label>
-        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+        <label>🔑 Anthropic API キー:</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
       </div>
       <div class="settings-field">
         <label style="font-size: 12px; color: #666;">キーは localStorage に保存されます（ブラウザに保存、サーバーには送信されません）</label>
       </div>
       <div class="settings-buttons">
+        <button class="save-btn" id="testKeyBtn">🧪 テスト</button>
         <button class="save-btn" id="saveSettingsBtn">💾 保存</button>
         <button class="close-btn" id="closeSettingsBtn">閉じる</button>
       </div>
@@ -113,6 +114,45 @@
 
     closeSettingsBtn.addEventListener('click', function() {
       settingsOverlay.style.display = 'none';
+    });
+
+    document.getElementById('testKeyBtn').addEventListener('click', function() {
+      var key = apiKeyInput.value.trim();
+      if (!key) {
+        alert('キーを入力してください');
+        return;
+      }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'テスト中...';
+
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' + encodeURIComponent(key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: 'テスト' }]
+          }]
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = '🧪 テスト';
+        if (data.candidates && data.candidates[0]) {
+          alert('✅ キーは有効です！');
+        } else if (data.error) {
+          alert('❌ エラー：' + data.error.message);
+        } else {
+          alert('⚠️ 不明なエラー：' + JSON.stringify(data));
+        }
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = '🧪 テスト';
+        alert('❌ APIエラー：' + err.message);
+      });
     });
 
     saveSettingsBtn.addEventListener('click', function() {
@@ -176,7 +216,7 @@
       aiBtn.disabled = true;
       aiBtn.textContent = '🤖 思考中...';
 
-      callGeminiScheduling(allVisits, today, function(suggestion) {
+      callAnthropicScheduling(allVisits, today, function(suggestion) {
         aiBtn.disabled = false;
         aiBtn.textContent = '🤖 AI提案';
 
@@ -215,7 +255,7 @@
       return s.substring(0, 10);
     }
 
-    function callGeminiScheduling(visits, reformDate, callback) {
+    function callAnthropicScheduling(visits, reformDate, callback) {
       var apiKey = localStorage.getItem('geminiApiKey');
       if (!apiKey) {
         alert('APIキーを設定してください（⚙️ 設定ボタン）');
@@ -239,22 +279,28 @@
 
       prompt += '\n【指示】\n同じ地域の案件はできるだけ同じ日に回りたいです。\n基準日 ' + reformDate + ' 前後3日（4日間）で、地域ごとに分かれないようスケジューリングしてください。\n\n回答形式：\n「4月8日（地域A）: 案件1, 案件2\n4月9日（地域B）: 案件3\n...」\n\nベストなスケジュール案を提案してください。';
 
-      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' + encodeURIComponent(apiKey), {
+      fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
+          model: 'claude-opus-4-1',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: prompt
           }]
         })
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-          var text = data.candidates[0].content.parts[0].text;
-          callback(text);
+        if (data.content && data.content[0] && data.content[0].text) {
+          callback(data.content[0].text);
         } else {
-          console.error('Gemini error:', data);
+          console.error('Anthropic error:', data);
           callback(null);
         }
       })
