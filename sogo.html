@@ -253,19 +253,26 @@ function renderCaseList(){
     fixedHeader.className='case-group-title';
     fixedHeader.style.background='#fff3e0';
     fixedHeader.style.color='#e65100';
-    fixedHeader.textContent='🔒 リフォーム確定（'+fixedVisits.length+'件）— 日時固定、AIのアンカーとして使用';
+    fixedHeader.textContent='🔒 リフォーム確定（'+fixedVisits.length+'件）— チェックで除外可、AIのアンカーとして使用';
     container.appendChild(fixedHeader);
 
     fixedVisits.forEach(function(v){
       var item=document.createElement('div');
-      item.className='case-item';
+      item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
       item.style.background='#fff8e1';
       item.style.borderLeftColor='#ff6b00';
+      item.id='case-'+v.key;
 
-      var lockIcon=document.createElement('span');
-      lockIcon.textContent='🔒';
-      lockIcon.style.fontSize='16px';
-      lockIcon.style.flexShrink='0';
+      var cb=document.createElement('input');
+      cb.type='checkbox';
+      cb.checked=!!excludedKeys[v.key];
+      cb.addEventListener('change',function(){
+        if(this.checked){excludedKeys[v.key]=true;}else{delete excludedKeys[v.key];}
+        item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
+        item.style.background='#fff8e1';
+        item.style.borderLeftColor='#ff6b00';
+        updateCount();
+      });
 
       var info=document.createElement('div');
       info.className='case-info';
@@ -278,7 +285,7 @@ function renderCaseList(){
       badge.style.color='#e65100';
       badge.textContent=v.visit_date+(v.visit_time?' '+v.visit_time:'');
 
-      item.appendChild(lockIcon);
+      item.appendChild(cb);
       item.appendChild(info);
       item.appendChild(badge);
       container.appendChild(item);
@@ -340,11 +347,12 @@ function renderCaseList(){
 }
 
 function updateCount(){
+  var fixedVisits=allVisits.filter(function(v){return v.fixed;});
   var newVisits=allVisits.filter(function(v){return!v.fixed;});
-  var active=newVisits.filter(function(v){return!excludedKeys[v.key];});
-  var fixedCount=allVisits.filter(function(v){return v.fixed;}).length;
-  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒確定: '+fixedCount+' / 🔧AI対象: '+active.length+' / 除外: '+Object.keys(excludedKeys).length+'）';
-  document.getElementById('btnAI').disabled=active.length===0;
+  var activeFixed=fixedVisits.filter(function(v){return!excludedKeys[v.key];});
+  var activeNew=newVisits.filter(function(v){return!excludedKeys[v.key];});
+  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒確定: '+activeFixed.length+' / 🔧新築: '+activeNew.length+' / 除外: '+Object.keys(excludedKeys).length+'）';
+  document.getElementById('btnAI').disabled=(activeFixed.length+activeNew.length)===0;
 }
 
 // --- AI提案 ---
@@ -353,7 +361,7 @@ function runAI(){
   if(!apiKey){openSettings();return;}
 
   var active=allVisits.filter(function(v){return!v.fixed&&!excludedKeys[v.key];});
-  var fixed=allVisits.filter(function(v){return v.fixed;});
+  var fixed=allVisits.filter(function(v){return v.fixed&&!excludedKeys[v.key];});
   if(active.length===0){alert('AI対象の新築案件がありません');return;}
   if(active.length>80){
     if(!confirm('⚠️ '+active.length+'件は多いです。ルート順の精度が落ちる可能性があります。\n続行しますか？'))return;
