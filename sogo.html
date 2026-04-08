@@ -167,8 +167,8 @@ function loadData(){
     globalTasks=dbData.app_tasks||{};
     fullData=dbData;
 
-    targetDates=[getDateStr(0),getDateStr(1),getDateStr(2),getDateStr(3)];
-    document.getElementById('periodDates').textContent='📅 '+formatDateLabel(targetDates[0])+' 〜 '+formatDateLabel(targetDates[3]);
+    targetDates=[getDateStr(0),getDateStr(1),getDateStr(2),getDateStr(3),getDateStr(4),getDateStr(5),getDateStr(6)];
+    document.getElementById('periodDates').textContent='📅 '+formatDateLabel(targetDates[0])+' 〜 '+formatDateLabel(targetDates[6]);
 
     extractAllVisits();
     renderCaseList();
@@ -288,6 +288,9 @@ function runAI(){
 
   var active=allVisits.filter(function(v){return!excludedKeys[v.key];});
   if(active.length===0){alert('対象案件がありません');return;}
+  if(active.length>80){
+    if(!confirm('⚠️ '+active.length+'件は多いです。ルート順の精度が落ちる可能性があります。\n続行しますか？'))return;
+  }
 
   // ステップ更新
   document.getElementById('step1').className='step done';
