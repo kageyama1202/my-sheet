@@ -11,9 +11,11 @@
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background-color: #f5f5f5; margin: 0; padding: 10px; }
     .container { max-width: 100%; margin: 0; }
-    .header { background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .header { background: #fff; padding: 15px; border-radius: 4px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: relative; }
     .header h1 { margin: 0; font-size: 20px; color: #333; }
     .header p { margin: 5px 0 0 0; color: #666; font-size: 13px; }
+    #settingsBtn { position: absolute; top: 15px; right: 15px; padding: 8px 12px; background: #0056b3; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+    #settingsBtn:hover { background: #003d82; }
     .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0; }
     .column { background: #fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
     .column-header { padding: 10px; background-color: #e7f3ff; border-bottom: 1px solid #dee2e6; font-weight: bold; font-size: 14px; color: #333; }
@@ -27,6 +29,20 @@
     .visit-label { font-weight: bold; color: #333; word-break: break-word; }
     .visit-detail { font-size: 10px; color: #666; margin-top: 2px; }
     .empty-msg { padding: 20px; text-align: center; color: #999; font-size: 12px; }
+    
+    /* 設定モーダル */
+    #settings-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99998; }
+    #settings-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 30px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 99999; }
+    .settings-title { font-size: 18px; font-weight: bold; margin-bottom: 20px; color: #333; }
+    .settings-field { margin-bottom: 15px; }
+    .settings-field label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; font-size: 13px; }
+    .settings-field input { width: 100%; padding: 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 13px; }
+    .settings-buttons { display: flex; gap: 10px; margin-top: 20px; }
+    .settings-buttons button { flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .save-btn { background: #28a745; color: #fff; }
+    .save-btn:hover { background: #218838; }
+    .close-btn { background: #6c757d; color: #fff; }
+    .close-btn:hover { background: #5a6268; }
   </style>
 </head>
 <body>
@@ -34,6 +50,7 @@
     <div class="header">
       <h1>📅 下見スケジューラー（4日間 4列表示）</h1>
       <p id="loadMsg">クラウドからデータを取得中...</p>
+      <button id="settingsBtn">⚙️ 設定</button>
     </div>
     <div class="grid-container" id="content"></div>
   </div>
@@ -43,6 +60,24 @@
     <div id="modal-content">
       <button id="modal-close">✖ 閉じる</button>
       <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 設定モーダル -->
+  <div id="settings-overlay">
+    <div id="settings-modal">
+      <div class="settings-title">⚙️ API設定</div>
+      <div class="settings-field">
+        <label>🔑 Gemini API キー:</label>
+        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+      </div>
+      <div class="settings-field">
+        <label style="font-size: 12px; color: #666;">キーは localStorage に保存されます（ブラウザに保存、サーバーには送信されません）</label>
+      </div>
+      <div class="settings-buttons">
+        <button class="save-btn" id="saveSettingsBtn">💾 保存</button>
+        <button class="close-btn" id="closeSettingsBtn">閉じる</button>
+      </div>
     </div>
   </div>
 
@@ -62,6 +97,37 @@
     var globalHeaders = [];
     var globalTasks = {};
     var fullData = null;
+
+    // 設定モーダル制御
+    var settingsOverlay = document.getElementById('settings-overlay');
+    var apiKeyInput = document.getElementById('apiKeyInput');
+    var settingsBtn = document.getElementById('settingsBtn');
+    var saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    var closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+    settingsBtn.addEventListener('click', function() {
+      apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+      settingsOverlay.style.display = 'block';
+    });
+
+    closeSettingsBtn.addEventListener('click', function() {
+      settingsOverlay.style.display = 'none';
+    });
+
+    saveSettingsBtn.addEventListener('click', function() {
+      var key = apiKeyInput.value.trim();
+      if (!key) {
+        alert('APIキーを入力してください');
+        return;
+      }
+      localStorage.setItem('geminiApiKey', key);
+      alert('APIキーを保存しました');
+      settingsOverlay.style.display = 'none';
+    });
+
+    settingsOverlay.addEventListener('click', function(e) {
+      if (e.target === settingsOverlay) settingsOverlay.style.display = 'none';
+    });
 
     function getDateString(offsetDays) {
       var d = new Date();
@@ -123,7 +189,6 @@
 
         // 新築：施工日で計算
         if (c3 === '新' && c2 !== '') {
-          // ② SK 1回目（施工-21日）
           if (c4 === 'SK') {
             var sekou = new Date(c2);
             var visit1 = new Date(sekou);
@@ -142,7 +207,6 @@
               });
             }
 
-            // ③ SK 2回目（施工-10日）
             var visit2 = new Date(sekou);
             visit2.setDate(visit2.getDate() - 10);
             var v2str = visit2.getFullYear() + '-' + String(visit2.getMonth() + 1).padStart(2, '0') + '-' + String(visit2.getDate()).padStart(2, '0');
@@ -159,7 +223,6 @@
               });
             }
           } else {
-            // ④ その他新築（施工-21日）
             var sekou2 = new Date(c2);
             var visit3 = new Date(sekou2);
             visit3.setDate(visit3.getDate() - 21);
@@ -206,7 +269,6 @@
         if (dayVisits.length === 0) {
           contentDiv.innerHTML = '<div class="empty-msg">予定なし</div>';
         } else {
-          // 地域ごとにグループ化
           var regionMap = {};
           dayVisits.forEach(function(v) {
             if (!regionMap[v.region]) regionMap[v.region] = [];
@@ -250,12 +312,10 @@
               item.appendChild(checkbox);
               item.appendChild(itemContent);
 
-              // クリックでモーダル表示（shared-modal.js の openCaseModal を使用）
               itemContent.addEventListener('click', function() {
                 var task = globalTasks[v.key];
                 if (task) {
                   openCaseModal(v.key, task, globalHeaders, globalTasks, fullData, database, function() {
-                    // 保存後のコールバック
                   });
                 }
               });
@@ -283,7 +343,6 @@
       });
     }
 
-    // メイン処理
     database.ref().once('value').then(function(snap) {
       var dbData = snap.val();
       if (!dbData || !dbData.app_tasks || !dbData.app_meta) {
