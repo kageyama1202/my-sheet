@@ -82,6 +82,16 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .report-warning{background:#fff9c4;border-left:3px solid #ff9800;}
 .report-safe{background:#e8f5e9;border-left:3px solid #4caf50;}
 
+/* 下見予定タブ専用 */
+.shitami-today{background:#ffebee;border-left:3px solid #d32f2f;}
+.shitami-tomorrow{background:#fff9c4;border-left:3px solid #ff9800;}
+.shitami-later{background:#e8f5e9;border-left:3px solid #4caf50;}
+
+/* アラート表示 */
+.alert-bar{background:#d32f2f;color:#fff;padding:8px 12px;font-weight:bold;font-size:12px;display:none;cursor:pointer;}
+.alert-bar.show{display:block;}
+.alert-bar:hover{background:#a71d2a;}
+
 /* 備忘録タブ */
 .memo-container{padding:10px;max-width:800px;margin:0 auto;}
 .memo-section{background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:10px;padding:12px;}
@@ -117,6 +127,7 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 <div class="tab active" data-tab="all">全体</div>
 <div class="tab" data-tab="reform">リフォーム</div>
 <div class="tab" data-tab="today">本日</div>
+<div class="tab" data-tab="shitami">下見予定</div>
 <div class="tab" data-tab="report">報告書</div>
 <div class="tab" data-tab="memo">備忘録</div>
 </div>
@@ -142,6 +153,8 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 </div>
 </div>
 </div>
+
+<div class="alert-bar" id="alertBar">⚠️ 緊急: 下見未設定で施工日が迫っている案件 <span id="alertCount">0</span> 件</div>
 
 <div class="count-display" id="countDisplay">-</div>
 
@@ -220,7 +233,38 @@ var globalHeaders=[],globalTasks={},fullData=null,globalMemos=[];
 
 // データ読み込み
 try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
-if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
+if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();checkAlert();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
+
+// アラートチェック（下見未設定で施工日が7日以内）
+function checkAlert(){
+  var endDate=addDays(todayStr,7);
+  var alertCases=[];
+  
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
+    var sekouDate=formatToYMD(getSafeVal(cols,2));
+    if(!sekouDate||sekouDate<todayStr||sekouDate>endDate)return;
+    
+    var shitamiDate=formatToYMD(getSafeVal(cols,15));
+    var yoteiDate=obj.date||'';
+    var sfShitamiDate=formatToYMD(getSafeVal(cols,20));
+    
+    if(!shitamiDate&&!yoteiDate&&!sfShitamiDate){
+      alertCases.push(key);
+    }
+  });
+  
+  if(alertCases.length>0){
+    document.getElementById('alertCount').textContent=alertCases.length;
+    document.getElementById('alertBar').classList.add('show');
+    document.getElementById('alertBar').addEventListener('click',function(){
+      document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+      document.querySelectorAll('.tab[data-tab="shitami"]').forEach(function(t){t.classList.add('active');});
+      currentTab='shitami';
+      switchTab('shitami');
+    });
+  }
+}
 
 // メモ読み込み
 database.ref('app_memos').once('value').then(function(snap){
@@ -259,6 +303,9 @@ function switchTab(tab){
     document.getElementById('todayFilterPanel').classList.add('show');
     document.getElementById('tableArea').style.display='block';
     renderTodayTab();
+  }else if(tab==='shitami'){
+    document.getElementById('tableArea').style.display='block';
+    renderShitamiTab();
   }else if(tab==='report'){
     document.getElementById('tableArea').style.display='block';
     renderReportTab();
@@ -618,6 +665,111 @@ function renderReportTab(){
   });
   
   document.getElementById('countDisplay').textContent='報告書対象: 🚨緊急 '+urgentCount+'件 / ⚠️注意 '+warningCount+'件 / ℹ️余裕 '+safeCount+'件 / 合計 '+reportKeys.length+'件';
+}
+
+// 下見予定タブ（7日以内に下見予定がある案件）
+function renderShitamiTab(){
+  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
+  thead.innerHTML="";tbody.innerHTML="";
+  
+  var trH=document.createElement('tr');
+  ['No.','下見日','残日数','区分','名前','電話','住所','施工日'].forEach(function(h,i){
+    var th=document.createElement('th');
+    th.textContent=h;
+    if(i===0)th.className='col-no';
+    else if(i===1||i===7)th.className='col-date';
+    else if(i===2)th.className='col-days';
+    else if(i===3)th.className='col-kubun';
+    else if(i===4)th.className='col-name';
+    else if(i===5)th.className='col-tel';
+    else if(i===6)th.className='col-address';
+    trH.appendChild(th);
+  });
+  thead.appendChild(trH);
+  
+  var shitamiCases=[];
+  var endDate=addDays(todayStr,7);
+  
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
+    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
+    var sekouDate=formatToYMD(getSafeVal(cols,2));
+    
+    // リフォーム: obj.date が今日〜7日以内
+    if((kubun==='ﾘ'||kubun==='ﾊﾘ')&&obj.date){
+      if(obj.date>=todayStr&&obj.date<=endDate){
+        shitamiCases.push({key:key,shitamiDate:obj.date,kubun:kubun,name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+      }
+    }
+    
+    // 新築: 算出された下見日が今日〜7日以内
+    if(kubun==='新'&&sekouDate){
+      var sekou=new Date(sekouDate);
+      if(getSafeVal(cols,4).indexOf('SK')!==-1){
+        // SK: 21日前と10日前
+        var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
+        var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
+        if(v1s>=todayStr&&v1s<=endDate){
+          shitamiCases.push({key:key,shitamiDate:v1s,kubun:'SK1',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+        }
+        
+        var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
+        var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
+        if(v2s>=todayStr&&v2s<=endDate){
+          shitamiCases.push({key:key,shitamiDate:v2s,kubun:'SK2',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+        }
+      }else{
+        // その他: 21日前
+        var v3=new Date(sekou);v3.setDate(v3.getDate()-21);
+        var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
+        if(v3s>=todayStr&&v3s<=endDate){
+          shitamiCases.push({key:key,shitamiDate:v3s,kubun:getSafeVal(cols,4),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+        }
+      }
+    }
+  });
+  
+  shitamiCases.sort(function(a,b){return a.shitamiDate.localeCompare(b.shitamiDate);});
+  
+  shitamiCases.forEach(function(c,idx){
+    var days=daysDiff(c.shitamiDate,todayStr);
+    var tr=document.createElement('tr');
+    if(days===0)tr.className='shitami-today';
+    else if(days===1)tr.className='shitami-tomorrow';
+    else tr.className='shitami-later';
+    
+    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
+    
+    var tdDate=document.createElement('td');tdDate.className='col-date';
+    var dateInner=document.createElement('div');dateInner.className='cell-inner';dateInner.textContent=c.shitamiDate;
+    tdDate.appendChild(dateInner);tr.appendChild(tdDate);
+    
+    var tdDays=document.createElement('td');tdDays.className='col-days';
+    var daysText=days===0?'🔴 今日':days===1?'🟡 明日':'🟢 '+days+'日後';
+    tdDays.textContent=daysText;
+    if(days===0)tdDays.style.fontWeight='bold';
+    tr.appendChild(tdDays);
+    
+    [c.kubun,c.name,c.tel,c.addr,c.sekouDate].forEach(function(val,i){
+      var td=document.createElement('td');
+      if(i===0)td.className='col-kubun';
+      else if(i===1)td.className='col-name';
+      else if(i===2)td.className='col-tel';
+      else if(i===3)td.className='col-address';
+      else if(i===4)td.className='col-date';
+      
+      var inner=document.createElement('div');
+      inner.className='cell-inner';
+      inner.textContent=val;
+      td.appendChild(inner);
+      tr.appendChild(td);
+    });
+    
+    tr.addEventListener('click',function(){openCaseModal(c.key,globalTasks[c.key],globalHeaders,globalTasks,fullData,database,renderShitamiTab);});
+    tbody.appendChild(tr);
+  });
+  
+  document.getElementById('countDisplay').textContent='下見予定（7日以内）: '+shitamiCases.length+'件';
 }
 
 // 備忘録タブ - 案件検索
