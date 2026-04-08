@@ -329,8 +329,7 @@ function runAI(){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.1,maxOutputTokens:16384},
-      thinkingConfig:{thinkingBudget:0}
+      generationConfig:{temperature:0.1,maxOutputTokens:16384,responseMimeType:"application/json"}
     })
   })
   .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
