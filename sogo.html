@@ -191,25 +191,26 @@ function extractAllVisits(){
     // リフォーム
     if(c3==='ﾘ'&&reformDate!==''){
       if(targetDates.indexOf(reformDate)!==-1){
-        allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,detail:'リフォーム',type:'reform'});
+        allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,detail:'リフォーム（予定日='+reformDate+'）',type:'reform'});
       }
     }
     // 新築
     if(c3==='新'&&c2!==''){
+      var sekouLabel=c2.replace(/-/g,'/');
       if(c4==='SK'){
         var sekou=new Date(c2);
         var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
         var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v1s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目',type:'sk1'});
+        if(targetDates.indexOf(v1s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1'});
 
         var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
         var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v2s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目',type:'sk2'});
+        if(targetDates.indexOf(v2s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2'});
       }else{
         var sekou2=new Date(c2);
         var v3=new Date(sekou2);v3.setDate(v3.getDate()-21);
         var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v3s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築',type:'other'});
+        if(targetDates.indexOf(v3s)!==-1)allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other'});
       }
     }
   });
@@ -345,7 +346,7 @@ function runAI(){
     if(fenceMatch){jsonStr=fenceMatch[1].trim();}
     else{var bs=text.indexOf('{');var be=text.lastIndexOf('}');if(bs!==-1&&be>bs)jsonStr=text.substring(bs,be+1);else jsonStr=text.trim();}
 
-    aiResult=JSON.parse(jsonStr);
+    aiResult=JSON.parse(repairJson(jsonStr));
     showAIResult();
   })
   .catch(function(err){
@@ -487,6 +488,29 @@ function testKey(){
 }
 
 function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+// 不完全なJSONを修復（Geminiがトークン制限で途中で切れた場合）
+function repairJson(str){
+  try{JSON.parse(str);return str;}catch(e){}
+  // 末尾の不完全な文字列値を閉じる
+  var s=str.replace(/,\s*$/, '');
+  // 開いたままの"を閉じる
+  var quotes=(s.match(/"/g)||[]).length;
+  if(quotes%2!==0)s+='"';
+  // 開いた括弧を数えて閉じる
+  var opens=0,closes=0;
+  for(var i=0;i<s.length;i++){if(s[i]==='[')opens++;if(s[i]===']')closes++;}
+  var braces=0,braceC=0;
+  for(var j=0;j<s.length;j++){if(s[j]==='{')braces++;if(s[j]==='}')braceC++;}
+  // 末尾のゴミを除去
+  s=s.replace(/,\s*$/,'');
+  for(var k=0;k<(opens-closes);k++)s+=']';
+  for(var m=0;m<(braces-braceC);m++)s+='}';
+  try{JSON.parse(s);return s;}catch(e2){
+    console.error('JSON repair failed:',e2,s.substring(s.length-100));
+    throw new Error('JSONの解析に失敗しました（レスポンスが不完全）');
+  }
+}
 
 // --- 初期化 ---
 loadData();
