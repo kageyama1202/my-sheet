@@ -51,6 +51,7 @@
       <h1>📅 下見スケジューラー（4日間 4列表示）</h1>
       <p id="loadMsg">クラウドからデータを取得中...</p>
       <button id="settingsBtn">⚙️ 設定</button>
+      <button id="aiBtn" style="position: absolute; top: 15px; right: 120px; padding: 8px 12px; background: #ff6b00; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;">🤖 AI提案</button>
     </div>
     <div class="grid-container" id="content"></div>
   </div>
@@ -129,6 +130,65 @@
       if (e.target === settingsOverlay) settingsOverlay.style.display = 'none';
     });
 
+    var aiBtn = document.getElementById('aiBtn');
+    aiBtn.addEventListener('click', function() {
+      var today = getDateString(0);
+      var targetDates = [today, getDateString(1), getDateString(2), getDateString(3)];
+      
+      var allVisits = [];
+      var keys = Object.keys(globalTasks || {});
+      keys.forEach(function(key) {
+        var task = globalTasks[key];
+        var cols = task.csvData || [];
+        var c2 = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
+        var c3 = cols[3] ? String(cols[3]).replace(/\s+/g, '') : '';
+        var c4 = cols[4] ? String(cols[4]).trim() : '';
+        var c5 = cols[5] ? String(cols[5]).trim() : '';
+        var c11 = cols[11] ? String(cols[11]).trim() : '';
+        var reformDate = task.date || '';
+
+        if (c3 === 'ﾘ' && reformDate !== '' && targetDates.indexOf(reformDate) !== -1) {
+          allVisits.push({ key: key, title: c4, client: c5, region: simplifyRegion(c11), visit_date: reformDate, type: 'reform' });
+        } else if (c3 === '新' && c2 !== '') {
+          if (c4 === 'SK') {
+            var sekou = new Date(c2);
+            var v1 = new Date(sekou); v1.setDate(v1.getDate() - 21);
+            var v1str = v1.getFullYear() + '-' + String(v1.getMonth() + 1).padStart(2, '0') + '-' + String(v1.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v1str) !== -1) allVisits.push({ key: key, title: c4, client: c5, region: simplifyRegion(c11), visit_date: v1str, type: 'sk1' });
+            
+            var v2 = new Date(sekou); v2.setDate(v2.getDate() - 10);
+            var v2str = v2.getFullYear() + '-' + String(v2.getMonth() + 1).padStart(2, '0') + '-' + String(v2.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v2str) !== -1) allVisits.push({ key: key, title: c4, client: c5, region: simplifyRegion(c11), visit_date: v2str, type: 'sk2' });
+          } else {
+            var sekou2 = new Date(c2);
+            var v3 = new Date(sekou2); v3.setDate(v3.getDate() - 21);
+            var v3str = v3.getFullYear() + '-' + String(v3.getMonth() + 1).padStart(2, '0') + '-' + String(v3.getDate()).padStart(2, '0');
+            if (targetDates.indexOf(v3str) !== -1) allVisits.push({ key: key, title: c4, client: c5, region: simplifyRegion(c11), visit_date: v3str, type: 'other' });
+          }
+        }
+      });
+
+      if (allVisits.length === 0) {
+        alert('対象期間に下見予定がありません');
+        return;
+      }
+
+      aiBtn.disabled = true;
+      aiBtn.textContent = '🤖 思考中...';
+
+      callGeminiScheduling(allVisits, today, function(suggestion) {
+        aiBtn.disabled = false;
+        aiBtn.textContent = '🤖 AI提案';
+
+        if (!suggestion) {
+          alert('AI提案の取得に失敗しました。APIキーを確認してください。');
+          return;
+        }
+
+        alert('【AI スケジューリング提案】\n\n' + suggestion);
+      });
+    });
+
     function getDateString(offsetDays) {
       var d = new Date();
       d.setDate(d.getDate() + offsetDays);
@@ -153,6 +213,55 @@
       if (s.startsWith('札幌市')) s = s.replace(/^札幌市/, '');
       s = s.replace(/^.+?郡(?=.*?[町村])/, '');
       return s.substring(0, 10);
+    }
+
+    function callGeminiScheduling(visits, reformDate, callback) {
+      var apiKey = localStorage.getItem('geminiApiKey');
+      if (!apiKey) {
+        alert('APIキーを設定してください（⚙️ 設定ボタン）');
+        callback(null);
+        return;
+      }
+
+      var groupByRegion = {};
+      visits.forEach(function(v) {
+        if (!groupByRegion[v.region]) groupByRegion[v.region] = [];
+        groupByRegion[v.region].push(v.title + ' / ' + v.client);
+      });
+
+      var prompt = '下見スケジューリング問題：\n\n基準日: ' + reformDate + '\n\n各地域の案件数：\n';
+      Object.keys(groupByRegion).forEach(function(region) {
+        prompt += '- ' + region + ': ' + groupByRegion[region].length + '件\n';
+        groupByRegion[region].forEach(function(item) {
+          prompt += '  • ' + item + '\n';
+        });
+      });
+
+      prompt += '\n【指示】\n同じ地域の案件はできるだけ同じ日に回りたいです。\n基準日 ' + reformDate + ' 前後3日（4日間）で、地域ごとに分かれないようスケジューリングしてください。\n\n回答形式：\n「4月8日（地域A）: 案件1, 案件2\n4月9日（地域B）: 案件3\n...」\n\nベストなスケジュール案を提案してください。';
+
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }]
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+          var text = data.candidates[0].content.parts[0].text;
+          callback(text);
+        } else {
+          console.error('Gemini error:', data);
+          callback(null);
+        }
+      })
+      .catch(function(err) {
+        console.error('API error:', err);
+        callback(null);
+      });
     }
 
     function extractVisits(tasks) {
