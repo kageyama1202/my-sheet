@@ -11,29 +11,29 @@
 *{box-sizing:border-box;}
 body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
 .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.header-bar h3{margin:0;font-size:15px;color:#d32f2f;}
-.top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
+.header-bar h3{margin:0;font-size:15px;color:#ff6b00;}
+.top-link{text-decoration:none;font-weight:bold;color:#ff6b00;font-size:14px;}
 .search-box{margin-left:auto;display:flex;align-items:center;gap:5px;}
 .search-box input{padding:3px 8px;border:1px solid #ccc;border-radius:4px;width:160px;font-size:13px;}
 
 /* タブ */
-.tab-bar{background:#fff;border-bottom:2px solid #007bff;display:flex;gap:0;overflow-x:auto;}
+.tab-bar{background:#fff;border-bottom:2px solid #ff6b00;display:flex;gap:0;overflow-x:auto;}
 .tab{padding:8px 16px;cursor:pointer;border-bottom:3px solid transparent;font-weight:bold;font-size:13px;color:#666;white-space:nowrap;}
 .tab:hover{background:#f5f5f5;}
-.tab.active{color:#007bff;border-bottom-color:#007bff;background:#e8f4ff;}
+.tab.active{color:#ff6b00;border-bottom-color:#ff6b00;background:#fff3e0;}
 
-.filter-panel{background:#fff;border-bottom:2px solid #007bff;padding:4px 10px;display:none;}
+.filter-panel{background:#fff;border-bottom:2px solid #ff6b00;padding:4px 10px;display:none;}
 .filter-panel.show{display:block;}
 .filter-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;}
 .filter-row:last-child{border-bottom:none;}
-.filter-label{font-weight:bold;color:#fff;background:#007bff;padding:1px 7px;border-radius:3px;font-size:11px;min-width:45px;text-align:center;white-space:nowrap;}
+.filter-label{font-weight:bold;color:#fff;background:#ff6b00;padding:1px 7px;border-radius:3px;font-size:11px;min-width:45px;text-align:center;white-space:nowrap;}
 .filter-checks{display:flex;flex-wrap:wrap;gap:1px 6px;align-items:center;}
 .filter-checks label{cursor:pointer;display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap;padding:0 3px;border-radius:3px;}
-.filter-checks label:hover{background:#e8f4ff;}
+.filter-checks label:hover{background:#fff3e0;}
 .filter-checks input[type="checkbox"]{cursor:pointer;margin:0;width:13px;height:13px;}
-.filter-toggle{font-size:10px;color:#007bff;cursor:pointer;font-weight:bold;padding:1px 5px;border:1px solid #007bff;border-radius:3px;background:#fff;}
-.filter-toggle:hover{background:#e8f4ff;}
-.sel-btn{font-size:10px;color:#007bff;cursor:pointer;text-decoration:underline;}.sel-btn.red{color:#dc3545;}
+.filter-toggle{font-size:10px;color:#ff6b00;cursor:pointer;font-weight:bold;padding:1px 5px;border:1px solid #ff6b00;border-radius:3px;background:#fff;}
+.filter-toggle:hover{background:#fff3e0;}
+.sel-btn{font-size:10px;color:#ff6b00;cursor:pointer;text-decoration:underline;}.sel-btn.red{color:#dc3545;}
 .date-area{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .date-area input[type="date"]{padding:2px 4px;border:1px solid #999;border-radius:3px;font-size:12px;width:125px;}
 .date-area span{font-size:12px;font-weight:bold;}
@@ -395,7 +395,10 @@ function renderReformTab(){
   var reformKeys=Object.keys(globalTasks).filter(function(key){
     var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
     var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
-    return kubun==='ﾘ'||kubun==='ﾊﾘ';
+    if(kubun!=='ﾘ'&&kubun!=='ﾊﾘ')return false;
+    var sekouDate=formatToYMD(getSafeVal(cols,2));
+    if(sekouDate&&sekouDate<todayStr)return false;
+    return true;
   });
   
   var untreated=[],treated=[];
@@ -477,14 +480,19 @@ function renderTodayTab(){
   thead.appendChild(trH);
   
   var todayCases=[];
+  var showSekou=chkTodaySekou.checked;
+  var showShitami=chkTodayShitami.checked;
+  var showYotei=chkTodayYotei.checked;
+  var showAI=chkTodayAI.checked;
+  
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
     var sekouDate=formatToYMD(getSafeVal(cols,2)),shitamiDate=formatToYMD(getSafeVal(cols,15)),yoteiDate=obj.date||'',aiDate=obj.ai_shitami_date||'';
     
-    if(sekouDate===todayStr&&chkTodaySekou.checked)todayCases.push({key:key,type:'sekou',icon:'🔧',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(shitamiDate===todayStr&&chkTodayShitami.checked)todayCases.push({key:key,type:'shitami',icon:'👁',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(yoteiDate===todayStr&&chkTodayYotei.checked)todayCases.push({key:key,type:'yotei',icon:'📅',time:obj.time||'',order:obj.order||'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(aiDate===todayStr&&chkTodayAI.checked)todayCases.push({key:key,type:'ai',icon:'🤖',time:'',order:'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
+    if(sekouDate===todayStr&&showSekou)todayCases.push({key:key,type:'sekou',icon:'🔧',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
+    if(shitamiDate===todayStr&&showShitami)todayCases.push({key:key,type:'shitami',icon:'👁',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
+    if(yoteiDate===todayStr&&showYotei)todayCases.push({key:key,type:'yotei',icon:'📅',time:obj.time||'',order:obj.order||'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
+    if(aiDate===todayStr&&showAI)todayCases.push({key:key,type:'ai',icon:'🤖',time:'',order:'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
   });
   
   todayCases.sort(function(a,b){
