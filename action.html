@@ -610,6 +610,14 @@ function renderReportTab(){
   
   var reportKeys=Object.keys(globalTasks).filter(function(key){
     var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
+    
+    // 手配ステータスが「完了」または「下見完了」→ 除外
+    var status=getSafeVal(cols,1).replace(/\s+/g,"");
+    if(status==='完了'||status==='下見完了')return false;
+    
+    // 下見実施済みフラグ → 除外
+    if(obj.shitami_completed===true||obj.shitamiCompleted===true)return false;
+    
     var sekouDate=formatToYMD(getSafeVal(cols,2));
     if(!sekouDate)return false;
     var days=daysDiff(sekouDate,todayStr);
