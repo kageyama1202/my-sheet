@@ -239,7 +239,7 @@
 
       prompt += '\n【指示】\n同じ地域の案件はできるだけ同じ日に回りたいです。\n基準日 ' + reformDate + ' 前後3日（4日間）で、地域ごとに分かれないようスケジューリングしてください。\n\n回答形式：\n「4月8日（地域A）: 案件1, 案件2\n4月9日（地域B）: 案件3\n...」\n\nベストなスケジュール案を提案してください。';
 
-      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
