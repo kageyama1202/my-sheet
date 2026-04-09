@@ -143,7 +143,7 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 
 <!-- 全体タブのフィルター -->
 <div class="filter-panel show" id="filterPanel">
-<div class="filter-row"><span class="filter-label">📅 期間</span><div class="date-area"><input type="date" id="dateFrom" /><span>〜</span><input type="date" id="dateTo" /><button class="sm-btn" id="dateToday">今日</button><button class="sm-btn" id="dateWeek">1週間</button><button class="sm-btn" id="dateMonth">1ヶ月</button><button class="sm-btn" id="dateFuture">今日以降</button><button class="sm-btn" id="dateClear">全期間</button></div><div class="filter-checks"><label><input type="checkbox" id="chkSekou" checked> 施工日</label><label><input type="checkbox" id="chkShitami"> 下見日</label><label><input type="checkbox" id="chkYotei"> 下見予定日</label></div></div>
+<div class="filter-row"><span class="filter-label">📅 期間</span><div class="date-area"><input type="date" id="dateFrom" /><span>〜</span><input type="date" id="dateTo" /><button class="sm-btn" id="dateToday">今日</button><button class="sm-btn" id="dateWeek">1週間</button><button class="sm-btn" id="dateMonth">1ヶ月</button><button class="sm-btn" id="dateFuture">今日以降</button><button class="sm-btn" id="dateClear">全期間</button></div><div class="filter-checks"><label><input type="checkbox" id="chkSekou" checked> 施工日</label><label><input type="checkbox" id="chkShitami"> 下見日</label><label><input type="checkbox" id="chkYotei"> 下見予定日</label><label><input type="checkbox" id="chkAI"> AI予定日</label></div></div>
 <div class="filter-row"><span class="filter-label">📌 状態</span><div class="filter-checks" id="statusFilters"></div><button class="kanryo-toggle" id="kanryoToggle">完了も表示</button></div>
 <div class="filter-row"><span class="filter-label">🏷 区分</span><div class="filter-checks" id="kubunFilters"></div></div>
 <div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
@@ -202,7 +202,7 @@ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
 
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
-var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),searchInput=document.getElementById('searchInput');
+var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAI=document.getElementById('chkAI'),searchInput=document.getElementById('searchInput');
 var chkTodaySekou=document.getElementById('chkTodaySekou'),chkTodayShitami=document.getElementById('chkTodayShitami'),chkTodayYotei=document.getElementById('chkTodayYotei'),chkTodayAI=document.getElementById('chkTodayAI');
 
 var currentTab='all';
@@ -228,7 +228,7 @@ document.getElementById('dateMonth').addEventListener('click',function(){dateFro
 document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
 document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
 dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
-chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);
+chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);chkAI.addEventListener('change',renderTable);
 chkTodaySekou.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
 chkTodayShitami.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
 chkTodayYotei.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
@@ -361,7 +361,7 @@ function renderTable(){
   thead.innerHTML="";tbody.innerHTML="";
   
   var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
-  var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked;
+  var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cA=chkAI.checked;
   var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
   
   var trH=document.createElement('tr');
@@ -382,7 +382,7 @@ function renderTable(){
     var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;
     var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;
     var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;
-    if(from||to){var dm=false;if(!cS&&!cD&&!cY)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(!dm)return false;}
+    if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cA)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cA&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(!dm)return false;}
     return true;
   });
   
