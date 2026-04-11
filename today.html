@@ -129,7 +129,7 @@ else{document.getElementById('noDataMsg').style.display='block';}
 var draftData={};
 database.ref('draft_visits').orderByChild('date').on('value',function(snap){
   draftData=snap.val()||{};
-  appendDraftRows();
+  renderTable();
 });
 function delDraft(k){if(!confirm('削除しますか？'))return;database.ref('draft_visits/'+k).remove();}
 function initFilters(){
@@ -194,64 +194,82 @@ function renderTable(){
     var r=da>db?1:-1;
     return sortDir==='asc'?r:-r;
   });
-  /* 案件行描画 */
-  valid.forEach(function(key,idx){
-    var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
-    for(var ci=0;ci<displayCols.length;ci++){
-      var colIdx=displayCols[ci];var td=document.createElement('td');td.className=colClasses[ci+1]||'';var inner=document.createElement('div');inner.className='cell-inner';
-      if(colIdx===-1){var yotei=obj.date||'';inner.textContent=yotei;if(yotei)inner.classList.add('yotei-cell');}
-      else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){inner.classList.add('ai-yotei-cell');}}
-      else{var c=getSafeVal(cols,colIdx);var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
-        if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
-        else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
-        else{inner.textContent=disp;}
-        if(clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}
-      td.appendChild(inner);tr.appendChild(td);
-    }
-    tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
-    tbody.appendChild(tr);
-  });
-  document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';
-  /* draft行を末尾に追加（日付フィルタ連動） */
-  appendDraftRows();
-  if(searchInput.value)applyTextSearch();
-}
-/* draft行を tbody に追加（renderTableから呼ぶ） */
-function appendDraftRows(){
-  var tbody=document.getElementById('table-body');
-  /* 既存draft行を削除 */
-  var old=tbody.querySelectorAll('tr.draft-row');
-  for(var i=0;i<old.length;i++)old[i].parentNode.removeChild(old[i]);
-  var from=dateFrom.value,to=dateTo.value;
-  var keys=Object.keys(draftData||{}).filter(function(k){
+  /* draft フィルタ・ソート */
+  var draftKeys=Object.keys(draftData||{}).filter(function(k){
     var d=draftData[k].date||'';if(!d)return false;
     if(from||to)return inRange(d,from,to);
     return true;
   });
-  keys.sort(function(a,b){var da=draftData[a].date||'',db=draftData[b].date||'';return da>db?1:-1;});
-  for(var j=0;j<keys.length;j++){
-    var k=keys[j],v=draftData[k];
-    var tr=document.createElement('tr');tr.className='draft-row';
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.style.textAlign='center';tdNo.textContent='📌';tr.appendChild(tdNo);
-    var tdInfo=document.createElement('td');tdInfo.colSpan=displayCols.length;
-    var inner=document.createElement('div');inner.className='cell-inner';
-    var srcL=v.source==='manual'?'手動':v.source==='gmail'?'Gmail':'iMessage';
-    var memo=v.memo||'';if(memo.length>60)memo=memo.slice(0,60)+'...';
-    inner.innerHTML='<span style="font-weight:700;color:#1b5e20;margin-right:8px">'+v.date+(v.time?' '+v.time:'')+'</span>'+
-      '<span style="font-size:11px;background:#c8e6c9;color:#1b5e20;padding:1px 5px;border-radius:3px;margin-right:6px">'+(v.keyword||'現調')+'</span>'+
-      '<span style="font-size:11px;color:#777;margin-right:8px">'+srcL+'</span>'+
-      '<span style="font-size:11px;color:#555;margin-right:10px">'+memo+'</span>'+
-      '<button class="draft-del" onclick="delDraft(\''+k+'\')">✕</button>'+
-      ' <a href="gencho.html" style="font-size:10px;color:#007bff;text-decoration:underline;margin-left:4px">管理→</a>';
-    tdInfo.appendChild(inner);tr.appendChild(tdInfo);
-    tbody.appendChild(tr);
+  draftKeys.sort(function(a,b){
+    var da=draftData[a].date||'',db=draftData[b].date||'';
+    if(da===db)return 0;
+    var r=da>db?1:-1;
+    return sortDir==='asc'?r:-r;
+  });
+
+  /* 案件+draftを日付でマージして描画 */
+  var vi=0,di=0,caseNo=0;
+  while(vi<valid.length||di<draftKeys.length){
+    var pickCase;
+    if(vi>=valid.length){pickCase=false;}
+    else if(di>=draftKeys.length){pickCase=true;}
+    else{
+      var caseDate=getRowSortDate(globalTasks[valid[vi]],sortHiIdx)||'9999';
+      var draftDate=draftData[draftKeys[di]].date||'9999';
+      pickCase=(sortDir==='asc')?(caseDate<=draftDate):(caseDate>=draftDate);
+    }
+
+    if(pickCase){
+      /* 通常案件行 */
+      caseNo++;
+      var ckey=valid[vi];vi++;
+      var obj=globalTasks[ckey],cols=obj.csvData;
+      var tr=document.createElement('tr');
+      var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||caseNo;tdNo.style.color='#888';tr.appendChild(tdNo);
+      for(var ci=0;ci<displayCols.length;ci++){
+        var colIdx=displayCols[ci];var td=document.createElement('td');td.className=colClasses[ci+1]||'';var inner=document.createElement('div');inner.className='cell-inner';
+        if(colIdx===-1){var yotei=obj.date||'';inner.textContent=yotei;if(yotei)inner.classList.add('yotei-cell');}
+        else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){inner.classList.add('ai-yotei-cell');}}
+        else{var c=getSafeVal(cols,colIdx);var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
+          if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
+          else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
+          else{inner.textContent=disp;}
+          if(clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}
+        td.appendChild(inner);tr.appendChild(td);
+      }
+      (function(k,o){tr.addEventListener('click',function(e){if(e.target.tagName==='A'||e.target.tagName==='BUTTON')return;openCaseModal(k,o,globalHeaders,globalTasks,fullData,database,renderTable);});})(ckey,obj);
+      tbody.appendChild(tr);
+
+    }else{
+      /* draft行：下見予定日列に日付を表示 */
+      var dk=draftKeys[di];di++;
+      var dv=draftData[dk];
+      var tr=document.createElement('tr');tr.className='draft-row';
+      var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.style.textAlign='center';tdNo.textContent='📌';tr.appendChild(tdNo);
+      for(var ci=0;ci<displayCols.length;ci++){
+        var td=document.createElement('td');td.className=colClasses[ci+1]||'';
+        var inner=document.createElement('div');inner.className='cell-inner';
+        if(ci===2){
+          /* 管理名列: キーワード+メモ */
+          var memo=dv.memo||'';if(memo.length>30)memo=memo.slice(0,30)+'...';
+          inner.innerHTML='<span style="font-size:10px;background:#c8e6c9;color:#1b5e20;padding:1px 4px;border-radius:3px;margin-right:4px">'+(dv.keyword||'現調')+'</span>'+memo;
+        }else if(ci===10){
+          /* 下見予定日列: draft日付を紫で表示 */
+          inner.textContent=dv.date+(dv.time?' '+dv.time:'');
+          inner.classList.add('yotei-cell');
+        }else if(ci===displayCols.length-1){
+          /* 最終列: 削除ボタン */
+          inner.innerHTML='<button class="draft-del" onclick="delDraft(\''+dk+'\')">✕ 削除</button>';
+        }else{
+          inner.textContent='';
+        }
+        td.appendChild(inner);tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
   }
-  /* カウント更新 */
-  var cur=document.getElementById('countDisplay').textContent;
-  if(cur.indexOf('draft')===-1&&keys.length>0){
-    document.getElementById('countDisplay').textContent=cur+' + draft '+keys.length+'件';
-  }
+  document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件 + draft '+draftKeys.length+' 件';
+  if(searchInput.value)applyTextSearch();
 }
 </script>
 </body>
