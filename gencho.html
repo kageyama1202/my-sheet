@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>現調・下見 受付</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+a { color: #7ab3ef; }
+.header {
+  background: #16213e;
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a2a4a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header h1 { font-size: 16px; font-weight: 600; color: #e0e0e0; }
+.header-sub { font-size: 12px; color: #888; }
+.nav-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: #7ab3ef;
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid #2a4a7a;
+  border-radius: 4px;
+}
+.main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+
+/* 手動入力セクション */
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #aaa;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.manual-box {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 11px; color: #888; }
+.form-group input, .form-group select, .form-group textarea {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.form-group textarea { resize: vertical; min-height: 56px; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none;
+  border-color: #4a7ab5;
+}
+.btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+}
+.btn-primary { background: #2a5fa5; color: #fff; }
+.btn-primary:hover { background: #3a6fb5; }
+.btn-approve { background: #1a6a3a; color: #8de8b0; border: 1px solid #2a7a4a; font-size: 12px; padding: 4px 12px; }
+.btn-approve:hover { background: #2a7a4a; }
+.btn-delete { background: none; color: #c07070; border: 1px solid #5a2a2a; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+.btn-delete:hover { background: #3a1a1a; }
+.btn-scan { background: #2a3a6a; color: #a0b8e0; border: 1px solid #3a4a7a; }
+.btn-scan:hover { background: #3a4a7a; }
+.btn-sm { font-size: 11px; padding: 3px 8px; }
+
+/* 2カラムレイアウト */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+/* 候補カード */
+.card-list { display: flex; flex-direction: column; gap: 8px; }
+.candidate-card {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.candidate-card.selected { border-color: #2a6a4a; background: #162e24; }
+.card-top { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.card-check { margin-top: 2px; width: 16px; height: 16px; accent-color: #2a8a5a; cursor: pointer; }
+.card-date { font-size: 15px; font-weight: 600; color: #f0d080; min-width: 90px; }
+.card-time { font-size: 13px; color: #aaa; margin-left: 4px; }
+.card-source {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  margin-left: auto;
+  font-weight: 500;
+}
+.src-gmail { background: #2a3a6a; color: #8ab0e8; }
+.src-imessage { background: #3a2a6a; color: #b0a0e8; }
+.src-manual { background: #2a4a2a; color: #80c880; }
+.card-snippet {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.5;
+  padding: 4px 6px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  border-left: 2px solid #333;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+.card-snippet .kw { color: #f0c060; font-weight: 500; }
+.card-bottom { display: flex; align-items: center; gap: 8px; }
+.card-case { font-size: 11px; color: #7ab3ef; }
+.conf-bar { display: flex; gap: 2px; margin-left: auto; }
+.conf-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #333;
+}
+.conf-dot.on { background: #f0c060; }
+
+/* 承認済みドラフト */
+.draft-card {
+  background: #162e20;
+  border: 1px solid #2a5a3a;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.draft-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.draft-date { font-size: 15px; font-weight: 600; color: #6ee090; }
+.draft-time { font-size: 13px; color: #aaa; }
+.draft-memo { font-size: 11px; color: #999; margin-top: 4px; word-break: break-all; }
+.draft-meta { font-size: 10px; color: #555; margin-top: 4px; }
+
+/* スキャン状態 */
+.scan-status { font-size: 12px; color: #888; padding: 6px 0; }
+.scan-status.running { color: #f0c060; }
+.scan-status.done { color: #6ee090; }
+.empty-msg { font-size: 13px; color: #555; padding: 20px; text-align: center; }
+
+/* 一括承認バー */
+.bulk-bar {
+  display: none;
+  background: #1a3a2a;
+  border: 1px solid #2a5a3a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #8de8b0;
+}
+.bulk-bar.show { display: flex; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>現調・下見 受付</h1>
+  <span class="header-sub" id="scan-badge"></span>
+  <a href="today.html" class="nav-link">← 今日の行動</a>
+  <a href="index.html" class="nav-link">案件一覧</a>
+</div>
+
+<div class="main">
+
+  <!-- 手動入力 -->
+  <div class="section-title">手動入力（電話など）</div>
+  <div class="manual-box">
+    <div class="form-row">
+      <div class="form-group">
+        <label>日付</label>
+        <input type="date" id="m-date" style="width:150px">
+      </div>
+      <div class="form-group">
+        <label>時刻（任意）</label>
+        <input type="time" id="m-time" style="width:110px">
+      </div>
+      <div class="form-group">
+        <label>種別</label>
+        <select id="m-type" style="width:120px">
+          <option value="現調">現調</option>
+          <option value="下見">下見</option>
+          <option value="事前確認">事前確認</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:200px">
+        <label>メモ</label>
+        <input type="text" id="m-memo" placeholder="相手名・内容など" style="width:100%">
+      </div>
+      <button class="btn btn-primary" onclick="addManual()">追加</button>
+    </div>
+  </div>
+
+  <div class="two-col">
+
+    <!-- 左: 自動抽出候補 -->
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="section-title" style="margin:0">自動抽出候補</div>
+        <button class="btn btn-scan btn-sm" onclick="runScan()">再スキャン</button>
+        <span class="scan-status" id="scan-status"></span>
+      </div>
+      <div class="bulk-bar" id="bulk-bar">
+        <span id="bulk-count">0件選択中</span>
+        <button class="btn btn-approve" onclick="bulkApprove()">まとめて承認 →</button>
+      </div>
+      <div id="candidates" class="card-list">
+        <div class="empty-msg">スキャンボタンで通信データを解析します</div>
+      </div>
+    </div>
+
+    <!-- 右: 承認済みドラフト -->
+    <div>
+      <div class="section-title">承認済み（行動に追加済み）</div>
+      <div id="drafts" class="card-list">
+        <div class="empty-msg">承認済みの現調・下見はありません</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyDummy",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914"
+};
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+var db = firebase.database();
+
+// ---- 抽出ロジック ----
+var KEYWORDS = ['現調', '下見', '事前確認', '採寸', '現場確認', '訪問'];
+var EXCLUDE_KW = ['施工完了', '工事完了', '引渡', '完了報告'];
+
+function containsKeyword(text) {
+  for (var i = 0; i < KEYWORDS.length; i++) {
+    if (text.indexOf(KEYWORDS[i]) !== -1) return KEYWORDS[i];
+  }
+  return null;
+}
+
+function containsExclude(text) {
+  for (var i = 0; i < EXCLUDE_KW.length; i++) {
+    if (text.indexOf(EXCLUDE_KW[i]) !== -1) return true;
+  }
+  return false;
+}
+
+function extractDates(text) {
+  var results = [];
+  var seen = {};
+
+  // YYYY/MM/DD or YYYY-MM-DD
+  var re1 = /(20\d{2})[\/\-年](\d{1,2})[\/\-月](\d{1,2})日?/g;
+  var m;
+  while ((m = re1.exec(text)) !== null) {
+    var d = m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    if (!seen[d]) { seen[d] = 1; results.push({ date: d, conf: 0.9 }); }
+  }
+
+  // R○/○/○ or R○年○月○日 (Reiwa: R1=2019)
+  var re2 = /R(\d{1,2})[\/年](\d{1,2})[\/月](\d{1,2})日?/g;
+  while ((m = re2.exec(text)) !== null) {
+    var y = 2018 + parseInt(m[1]);
+    var d = y + '-' + pad(m[2]) + '-' + pad(m[3]);
+    if (!seen[d]) { seen[d] = 1; results.push({ date: d, conf: 0.85 }); }
+  }
+
+  // ○/○ or ○月○日（曜日付きで信頼度上げる）
+  var re3 = /(\d{1,2})[\/月](\d{1,2})日?\s*[（(]?([月火水木金土日])/g;
+  var nowYear = new Date().getFullYear();
+  while ((m = re3.exec(text)) !== null) {
+    var d = nowYear + '-' + pad(m[1]) + '-' + pad(m[2]);
+    if (!seen[d]) { seen[d] = 1; results.push({ date: d, conf: 0.8 }); }
+  }
+
+  // ○/○ without weekday
+  var re4 = /(\d{1,2})\/(\d{1,2})(?![\/\d])/g;
+  while ((m = re4.exec(text)) !== null) {
+    var mo = parseInt(m[1]);
+    var dy = parseInt(m[2]);
+    if (mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31) {
+      var d = nowYear + '-' + pad(m[1]) + '-' + pad(m[2]);
+      if (!seen[d]) { seen[d] = 1; results.push({ date: d, conf: 0.6 }); }
+    }
+  }
+
+  return results;
+}
+
+function pad(n) {
+  return ('0' + parseInt(n)).slice(-2);
+}
+
+function highlightKeywords(text) {
+  var result = text;
+  for (var i = 0; i < KEYWORDS.length; i++) {
+    result = result.split(KEYWORDS[i]).join('<span class="kw">' + KEYWORDS[i] + '</span>');
+  }
+  return result;
+}
+
+function truncate(text, len) {
+  if (!text) return '';
+  text = text.replace(/\s+/g, ' ').trim();
+  return text.length > len ? text.slice(0, len) + '…' : text;
+}
+
+// ---- スキャン ----
+var scanned = [];
+
+function runScan() {
+  var statusEl = document.getElementById('scan-status');
+  statusEl.className = 'scan-status running';
+  statusEl.textContent = 'スキャン中...';
+  scanned = [];
+
+  db.ref('comm').once('value').then(function(snap) {
+    var data = snap.val();
+    if (!data) {
+      statusEl.className = 'scan-status';
+      statusEl.textContent = '通信データなし';
+      renderCandidates([]);
+      return;
+    }
+    parseCommData(data);
+    statusEl.className = 'scan-status done';
+    statusEl.textContent = scanned.length + '件の候補を検出';
+    renderCandidates(scanned);
+  }).catch(function(e) {
+    statusEl.className = 'scan-status';
+    statusEl.textContent = 'エラー: ' + e.message;
+  });
+}
+
+function parseCommData(data) {
+  // comm/[caseKey]/[msgId]/{body,subject,text,message,...} or flat
+  var caseKeys = Object.keys(data);
+  for (var ci = 0; ci < caseKeys.length; ci++) {
+    var caseKey = caseKeys[ci];
+    var caseData = data[caseKey];
+    if (typeof caseData !== 'object') continue;
+
+    var msgKeys = Object.keys(caseData);
+    for (var mi = 0; mi < msgKeys.length; mi++) {
+      var msg = caseData[msgKeys[mi]];
+      if (!msg) continue;
+
+      // テキスト候補フィールドを結合
+      var text = [
+        msg.body || '',
+        msg.subject || '',
+        msg.text || '',
+        msg.message || '',
+        msg.content || ''
+      ].join(' ');
+
+      if (!text.trim()) continue;
+      if (containsExclude(text)) continue;
+
+      var kw = containsKeyword(text);
+      if (!kw) continue;
+
+      var dates = extractDates(text);
+      if (dates.length === 0) continue;
+
+      var source = msg.source || msg.type || 'unknown';
+      var snippet = truncate(text, 80);
+
+      for (var di = 0; di < dates.length; di++) {
+        scanned.push({
+          id: caseKey + '_' + msgKeys[mi] + '_' + di,
+          caseKey: caseKey,
+          date: dates[di].date,
+          conf: dates[di].conf,
+          keyword: kw,
+          source: source,
+          snippet: snippet,
+          checked: false
+        });
+      }
+    }
+  }
+
+  // 日付順にソート
+  scanned.sort(function(a, b) { return a.date > b.date ? 1 : -1; });
+  // 重複除去（同caseKey+同日付）
+  var seen = {};
+  scanned = scanned.filter(function(c) {
+    var k = c.caseKey + '_' + c.date;
+    if (seen[k]) return false;
+    seen[k] = true;
+    return true;
+  });
+}
+
+function renderCandidates(list) {
+  var el = document.getElementById('candidates');
+  if (!list || list.length === 0) {
+    el.innerHTML = '<div class="empty-msg">候補は見つかりませんでした</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    var srcClass = c.source.indexOf('mail') !== -1 ? 'src-gmail'
+      : c.source.indexOf('message') !== -1 || c.source.indexOf('sms') !== -1 ? 'src-imessage'
+      : 'src-gmail';
+    var srcLabel = c.source.indexOf('mail') !== -1 ? 'Gmail'
+      : c.source.indexOf('message') !== -1 || c.source.indexOf('sms') !== -1 ? 'iMessage'
+      : c.source;
+    var dots = '';
+    for (var d = 0; d < 5; d++) {
+      dots += '<div class="conf-dot' + (d < Math.round(c.conf * 5) ? ' on' : '') + '"></div>';
+    }
+    html += '<div class="candidate-card" id="cc_' + i + '">' +
+      '<div class="card-top">' +
+      '<input type="checkbox" class="card-check" onchange="onCheck(' + i + ',this.checked)">' +
+      '<span class="card-date">' + c.date + '</span>' +
+      '<span class="card-time">' + c.keyword + '</span>' +
+      '<span class="card-source ' + srcClass + '">' + srcLabel + '</span>' +
+      '</div>' +
+      '<div class="card-snippet">' + highlightKeywords(c.snippet) + '</div>' +
+      '<div class="card-bottom">' +
+      '<span class="card-case">' + c.caseKey + '</span>' +
+      '<div class="conf-bar">' + dots + '</div>' +
+      '<button class="btn btn-approve btn-sm" onclick="approveSingle(' + i + ')">承認 →</button>' +
+      '</div>' +
+      '</div>';
+  }
+  el.innerHTML = html;
+  updateBulkBar();
+}
+
+// ---- チェックボックス ----
+function onCheck(idx, checked) {
+  if (scanned[idx]) scanned[idx].checked = checked;
+  var card = document.getElementById('cc_' + idx);
+  if (card) card.className = 'candidate-card' + (checked ? ' selected' : '');
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  var cnt = 0;
+  for (var i = 0; i < scanned.length; i++) {
+    if (scanned[i] && scanned[i].checked) cnt++;
+  }
+  var bar = document.getElementById('bulk-bar');
+  if (cnt > 0) {
+    bar.className = 'bulk-bar show';
+    document.getElementById('bulk-count').textContent = cnt + '件選択中';
+  } else {
+    bar.className = 'bulk-bar';
+  }
+}
+
+function bulkApprove() {
+  for (var i = 0; i < scanned.length; i++) {
+    if (scanned[i] && scanned[i].checked) {
+      writeDraft(scanned[i]);
+      scanned.splice(i, 1);
+      i--;
+    }
+  }
+  renderCandidates(scanned);
+  document.getElementById('bulk-bar').className = 'bulk-bar';
+}
+
+function approveSingle(idx) {
+  var c = scanned[idx];
+  if (!c) return;
+  writeDraft(c);
+  scanned.splice(idx, 1);
+  renderCandidates(scanned);
+  document.getElementById('scan-status').textContent = scanned.length + '件の候補';
+}
+
+// ---- Firebase 書き込み ----
+function writeDraft(item) {
+  var entry = {
+    date: item.date,
+    time: item.time || '',
+    memo: item.snippet || '',
+    source: item.source || 'scan',
+    keyword: item.keyword || '',
+    caseKey: item.caseKey || '',
+    status: 'draft',
+    createdAt: Date.now()
+  };
+  db.ref('draft_visits').push(entry);
+}
+
+// ---- 手動入力 ----
+function addManual() {
+  var date = document.getElementById('m-date').value;
+  var time = document.getElementById('m-time').value;
+  var type = document.getElementById('m-type').value;
+  var memo = document.getElementById('m-memo').value;
+  if (!date) { alert('日付を入力してください'); return; }
+  var entry = {
+    date: date,
+    time: time,
+    memo: memo,
+    source: 'manual',
+    keyword: type,
+    caseKey: '',
+    status: 'draft',
+    createdAt: Date.now()
+  };
+  db.ref('draft_visits').push(entry).then(function() {
+    document.getElementById('m-date').value = '';
+    document.getElementById('m-time').value = '';
+    document.getElementById('m-memo').value = '';
+  });
+}
+
+// ---- ドラフト表示 ----
+function loadDrafts() {
+  db.ref('draft_visits').orderByChild('date').on('value', function(snap) {
+    var data = snap.val();
+    var el = document.getElementById('drafts');
+    if (!data) {
+      el.innerHTML = '<div class="empty-msg">承認済みの現調・下見はありません</div>';
+      return;
+    }
+    var keys = Object.keys(data);
+    // 日付昇順
+    keys.sort(function(a, b) {
+      return data[a].date > data[b].date ? 1 : -1;
+    });
+    var html = '';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = data[k];
+      var srcClass = v.source === 'manual' ? 'src-manual'
+        : v.source.indexOf('mail') !== -1 ? 'src-gmail' : 'src-imessage';
+      var srcLabel = v.source === 'manual' ? '手動'
+        : v.source.indexOf('mail') !== -1 ? 'Gmail' : 'iMessage';
+      html += '<div class="draft-card">' +
+        '<div class="draft-card-top">' +
+        '<span class="draft-date">' + v.date + '</span>' +
+        (v.time ? '<span class="draft-time">' + v.time + '</span>' : '') +
+        '<span class="card-source ' + srcClass + '" style="font-size:10px;padding:2px 7px;border-radius:3px;margin-left:4px">' + srcLabel + '</span>' +
+        '<span class="badge-kw" style="font-size:10px;color:#aaa;margin-left:4px">' + (v.keyword || '') + '</span>' +
+        '<button class="btn-delete" style="margin-left:auto" onclick="deleteDraft(\'' + k + '\')">削除</button>' +
+        '</div>' +
+        (v.memo ? '<div class="draft-memo">' + truncate(v.memo, 100) + '</div>' : '') +
+        (v.caseKey ? '<div class="draft-meta">案件: ' + v.caseKey + '</div>' : '') +
+        '</div>';
+    }
+    el.innerHTML = html;
+    document.getElementById('scan-badge').textContent = keys.length + '件の行動予定';
+  });
+}
+
+function deleteDraft(key) {
+  if (!confirm('削除しますか？')) return;
+  db.ref('draft_visits/' + key).remove();
+}
+
+// ---- 初期化 ----
+loadDrafts();
+</script>
+</body>
+</html>
