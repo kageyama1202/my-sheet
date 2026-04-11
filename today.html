@@ -251,8 +251,16 @@ function renderTable(){
         var inner=document.createElement('div');inner.className='cell-inner';
         if(ci===2){
           /* 管理名列: キーワード+メモ */
-          var memo=dv.memo||'';if(memo.length>30)memo=memo.slice(0,30)+'...';
+          var fullMemo=dv.memo||'';
+          var memo=fullMemo.length>30?fullMemo.slice(0,30)+'...':fullMemo;
           inner.innerHTML='<span style="font-size:10px;background:#c8e6c9;color:#1b5e20;padding:1px 4px;border-radius:3px;margin-right:4px">'+(dv.keyword||'現調')+'</span>'+memo;
+          if(fullMemo){
+            (function(tt){
+              td.addEventListener('mouseenter',function(){tooltip.textContent=tt;tooltip.style.display='block';});
+              td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
+              td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
+            })(fullMemo);
+          }
         }else if(ci===10){
           /* 下見予定日列: draft日付を紫で表示 */
           inner.textContent=dv.date+(dv.time?' '+dv.time:'');
