@@ -34,6 +34,10 @@ body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px
 table{border-collapse:collapse;table-layout:fixed;width:max-content;}
 th,td{border:1px solid #ccc;text-align:left;font-size:12px;vertical-align:middle;}
 th{background:#e0e0e0;padding:3px 5px;position:sticky;top:0;z-index:10;white-space:nowrap;}
+th.sortable{cursor:pointer;user-select:none;}
+th.sortable:hover{background:#d0d8e8;}
+th.sort-asc::after{content:' ▲';font-size:9px;color:#007bff;}
+th.sort-desc::after{content:' ▼';font-size:9px;color:#007bff;}
 tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .cell-inner{padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .col-no{width:30px;min-width:30px;max-width:30px;text-align:center;}
@@ -55,20 +59,14 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .kanryo-toggle.active{background:#ffc107;border-color:#ffc107;color:#333;}
 .yotei-cell{color:#7b1fa2;font-weight:600;}
 .ai-yotei-cell{color:#ff6b00;font-weight:700;background:#fff8e1;}
-/* ---- draft_visits ---- */
-.draft-section{background:#e8f5e9;border-bottom:2px solid #4caf50;padding:4px 10px;}
-.draft-section-title{font-size:11px;font-weight:bold;color:#2e7d32;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
-.draft-section-title a{font-size:10px;color:#007bff;text-decoration:underline;cursor:pointer;}
-.draft-rows{display:flex;flex-wrap:wrap;gap:6px;}
-.draft-row{background:#fff;border:1px solid #81c784;border-radius:4px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:default;}
-.draft-row .dr-date{font-weight:700;color:#2e7d32;}
-.draft-row .dr-time{color:#555;}
-.draft-row .dr-kw{font-size:10px;background:#c8e6c9;color:#1b5e20;padding:1px 5px;border-radius:3px;}
-.draft-row .dr-src{font-size:10px;color:#888;}
-.draft-row .dr-memo{color:#555;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.draft-row .dr-del{font-size:10px;color:#c62828;cursor:pointer;margin-left:4px;border:none;background:none;padding:0;}
-.draft-row .dr-del:hover{text-decoration:underline;}
-#draft-section{display:none;}
+/* draft行 */
+tr.draft-row{background:#e8f5e9;cursor:default;}
+tr.draft-row:hover{background:#c8e6c9;}
+tr.draft-row td{border-color:#a5d6a7;}
+.draft-marker{font-size:10px;font-weight:bold;color:#2e7d32;background:#c8e6c9;padding:1px 5px;border-radius:3px;}
+.draft-del{font-size:10px;color:#c62828;cursor:pointer;border:none;background:none;padding:0 4px;}
+.draft-del:hover{text-decoration:underline;}
+.draft-src{font-size:10px;color:#888;}
 </style>
 </head>
 <body>
@@ -86,14 +84,6 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 <div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
 <div class="filter-row"><span class="filter-label">📍 地域</span><div class="filter-checks" id="areaFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="areaToggle">▶ 展開</span></div>
 </div>
-<!-- draft_visits バナー -->
-<div id="draft-section" class="draft-section">
-  <div class="draft-section-title">
-    <span>🔖 現調・下見（draft）</span>
-    <a href="gencho.html">管理 →</a>
-  </div>
-  <div class="draft-rows" id="draft-rows"></div>
-</div>
 <div class="count-display" id="countDisplay">-</div>
 <div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
@@ -103,9 +93,18 @@ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
 var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
+
 var displayCols=[1,3,4,5,6,7,10,11,2,12,-1,-2];
 var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date','col-yotei','col-ai-yotei'];
 var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','下見予定日','AI下見予定'];
+
+/* ソート状態 sekou/shitami/yotei/ai_yotei */
+var sortCol='sekou';
+var sortDir='asc';
+
+/* sortColインデックス対応 */
+var SORT_COL_IDX={sekou:9, shitami:10, yotei:11, ai_yotei:12};
+
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
 function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
@@ -113,64 +112,37 @@ function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s
 function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
 function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
+
+function getSortDate(obj){
+  var cols=obj.csvData;
+  if(sortCol==='sekou') return formatToYMD(getSafeVal(cols,2));
+  if(sortCol==='shitami') return formatToYMD(getSafeVal(cols,12));
+  if(sortCol==='yotei') return obj.date||'';
+  if(sortCol==='ai_yotei') return obj.ai_shitami_date||'';
+  return '';
+}
+
 var todayStr=getTodayStr();dateFrom.value=todayStr;dateTo.value=todayStr;
-document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();renderDrafts();});
-document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();renderDrafts();});
-document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();renderDrafts();});
-document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();renderDrafts();});
-document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();renderDrafts();});
-dateFrom.addEventListener('change',function(){renderTable();renderDrafts();});
-dateTo.addEventListener('change',function(){renderTable();renderDrafts();});
+document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
+document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
+document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
+document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
+document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
+dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
 chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);chkAiYotei.addEventListener('change',renderTable);
 searchInput.addEventListener('input',applyTextSearch);
 var showKanryo=false;
 document.getElementById('kanryoToggle').addEventListener('click',function(){showKanryo=!showKanryo;this.classList.toggle('active',showKanryo);this.textContent=showKanryo?'✔ 完了表示中':'完了も表示';renderTable();});
+
 var globalHeaders=[],globalTasks={},fullData=null;
 try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
 
-/* ---- draft_visits ---- */
+/* draft_visits */
 var draftData={};
-database.ref('draft_visits').orderByChild('date').on('value',function(snap){
-  draftData=snap.val()||{};
-  renderDrafts();
-});
+database.ref('draft_visits').orderByChild('date').on('value',function(snap){draftData=snap.val()||{};renderTable();});
+function delDraft(k){if(!confirm('削除しますか？'))return;database.ref('draft_visits/'+k).remove();}
 
-function renderDrafts(){
-  var from=dateFrom.value,to=dateTo.value;
-  var keys=Object.keys(draftData).filter(function(k){
-    var d=draftData[k].date||'';
-    return inRange(d,from,to)||(from===''&&to==='');
-  });
-  keys.sort(function(a,b){return (draftData[a].date||'')>(draftData[b].date||'')?1:-1;});
-  var sec=document.getElementById('draft-section');
-  var rowsEl=document.getElementById('draft-rows');
-  if(keys.length===0){sec.style.display='none';return;}
-  sec.style.display='block';
-  var html='';
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i],v=draftData[k];
-    var srcLabel=v.source==='manual'?'手動':v.source==='gmail'?'Gmail':'iMessage';
-    var memo=v.memo||'';
-    if(memo.length>40)memo=memo.slice(0,40)+'...';
-    html+='<div class="draft-row">' +
-      '<span class="dr-date">'+v.date+'</span>' +
-      (v.time?'<span class="dr-time">'+v.time+'</span>':'') +
-      '<span class="dr-kw">'+(v.keyword||'現調')+'</span>' +
-      '<span class="dr-src">'+srcLabel+'</span>' +
-      (memo?'<span class="dr-memo">'+memo+'</span>':'') +
-      '<button class="dr-del" onclick="delDraft(\''+k+'\')">✕</button>' +
-    '</div>';
-  }
-  rowsEl.innerHTML=html;
-}
-
-function delDraft(k){
-  if(!confirm('削除しますか？'))return;
-  database.ref('draft_visits/'+k).remove();
-}
-
-/* ---- フィルター ---- */
 function initFilters(){
 var stMap={},kbMap={},cpMap={},arMap={};
 Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
@@ -186,56 +158,137 @@ function addSelBtns(el){var ba=document.createElement('span');ba.textContent='�
 function setupToggle(tid,cid){var tog=document.getElementById(tid),el=document.getElementById(cid);var open=false;tog.addEventListener('click',function(){open=!open;el.style.maxHeight=open?'none':'20px';el.style.overflow=open?'visible':'hidden';tog.textContent=open?'▼ 閉じる':'▶ 展開';});}
 function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(function(c){v.push(c.value);});return v;}
 function applyTextSearch(){var w=searchInput.value.toLowerCase();var rows=document.getElementById('table-body').getElementsByTagName('tr');var n=0;for(var i=0;i<rows.length;i++){var s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';}
+
+function onSortClick(col){
+  if(sortCol===col){sortDir=sortDir==='asc'?'desc':'asc';}
+  else{sortCol=col;sortDir='asc';}
+  renderTable();
+}
+
 function renderTable(){
 var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');thead.innerHTML="";tbody.innerHTML="";
 var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
 var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cAI=chkAiYotei.checked;
 var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
+
+/* ヘッダー行 */
 var trH=document.createElement('tr');
 var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
+var sortableColNums={9:'sekou',10:'shitami',11:'yotei',12:'ai_yotei'};
 for(var hi=0;hi<displayCols.length;hi++){
-var h=document.createElement('th');h.className=colClasses[hi+1]||'';
-if(displayCols[hi]===-1){h.textContent='下見予定日';}
-else if(displayCols[hi]===-2){h.textContent='AI下見予定';h.style.background='#fff3e0';h.style.color='#e65100';}
-else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}
-trH.appendChild(h);}
+  var h=document.createElement('th');
+  h.className=colClasses[hi+1]||'';
+  var label='';
+  if(displayCols[hi]===-1){label='下見予定日';}
+  else if(displayCols[hi]===-2){label='AI下見予定';h.style.background='#fff3e0';h.style.color='#e65100';}
+  else{label=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}
+  h.textContent=label;
+  /* ソート可能列 */
+  var skey=sortableColNums[hi+1];
+  if(skey){
+    h.className+=' sortable';
+    if(sortCol===skey){h.className+=' sort-'+sortDir;}
+    (function(k){h.addEventListener('click',function(){onSortClick(k);});})(skey);
+  }
+  trH.appendChild(h);
+}
 thead.appendChild(trH);
+
+/* 通常案件フィルタ */
 var valid=Object.keys(globalTasks).filter(function(key){
-var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
-var status=getSafeVal(cols,1).replace(/\s+/g,""),sekouDate=formatToYMD(getSafeVal(cols,2));
-if(sekouDate<today&&!showKanryo)return false;
-if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
-var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;
-var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;
-var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;
-if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(!dm)return false;}return true;
+  var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
+  var status=getSafeVal(cols,1).replace(/\s+/g,""),sekouDate=formatToYMD(getSafeVal(cols,2));
+  if(sekouDate<today&&!showKanryo)return false;
+  if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
+  var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;
+  var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;
+  var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;
+  if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(!dm)return false;}
+  return true;
 });
-valid.sort(function(a,b){return getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'').localeCompare(getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,''));});
-valid.forEach(function(key,idx){
-var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
-var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
-for(var ci2=0;ci2<displayCols.length;ci2++){
-var colIdx=displayCols[ci2];var td=document.createElement('td');td.className=colClasses[ci2+1]||'';var inner=document.createElement('div');inner.className='cell-inner';
-if(colIdx===-1){var yotei=obj.date||'';inner.textContent=yotei;if(yotei)inner.classList.add('yotei-cell');}
-else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){inner.classList.add('ai-yotei-cell');}}
-else{var c=getSafeVal(cols,colIdx);var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
-if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
-else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
-else{inner.textContent=disp;}
-if(clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}
-td.appendChild(inner);tr.appendChild(td);}
-tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
-tbody.appendChild(tr);});
-document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';if(searchInput.value)applyTextSearch();
+
+/* 通常案件ソート */
+valid.sort(function(a,b){
+  var da=getSortDate(globalTasks[a])||'9999';
+  var db2=getSortDate(globalTasks[b])||'9999';
+  if(da===db2)return 0;
+  var r=da>db2?1:-1;
+  return sortDir==='asc'?r:-r;
+});
+
+/* draft_visitsフィルタ */
+var draftKeys=Object.keys(draftData).filter(function(k){
+  var d=draftData[k].date||'';
+  if(!d)return false;
+  if(from||to){return inRange(d,from,to)||(from===''&&to==='');}
+  return true;
+});
+draftKeys.sort(function(a,b){
+  var da=draftData[a].date||'',db2=draftData[b].date||'';
+  if(da===db2)return 0;
+  var r=da>db2?1:-1;
+  return sortDir==='asc'?r:-r;
+});
+
+/* 統合リスト（案件+draft を日付でマージ） */
+var merged=[];
+var vi=0,di=0;
+while(vi<valid.length||di<draftKeys.length){
+  var caseDate=vi<valid.length?(getSortDate(globalTasks[valid[vi]])||'9999'):'9999';
+  var draftDate=di<draftKeys.length?(draftData[draftKeys[di]].date||'9999'):'9999';
+  var pickCase=sortDir==='asc'?(caseDate<=draftDate):(caseDate>=draftDate);
+  if(vi>=valid.length) pickCase=false;
+  if(di>=draftKeys.length) pickCase=true;
+  if(pickCase){merged.push({type:'case',key:valid[vi]});vi++;}
+  else{merged.push({type:'draft',key:draftKeys[di]});di++;}
 }
 
-function initFilters(){
-var stMap={},kbMap={},cpMap={},arMap={};
-Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
-buildChecks('statusFilters',sortByCount(stMap),true,true);buildChecks('kubunFilters',sortByCount(kbMap),true,false);
-buildChecks('companyFilters',sortByCount(cpMap),false,true);setupToggle('companyToggle','companyFilters');
-var aA=Object.entries(arMap),kuA=aA.filter(function(a){return a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];}),oA=aA.filter(function(a){return!a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
-buildChecksFromArr('areaFilters',kuA.concat(oA).map(function(a){return{name:a[0],count:a[1]};}),false,true);setupToggle('areaToggle','areaFilters');
+/* 行レンダリング */
+var caseNo=0;
+for(var mi=0;mi<merged.length;mi++){
+  var item=merged[mi];
+  if(item.type==='draft'){
+    var dk=item.key,dv=draftData[dk];
+    var tr=document.createElement('tr');tr.className='draft-row';
+    /* No列 */
+    var tdNo=document.createElement('td');tdNo.className='col-no';
+    var marker=document.createElement('span');marker.className='draft-marker';marker.textContent='📌';
+    tdNo.appendChild(marker);tr.appendChild(tdNo);
+    /* 残列: spanで最低限の情報を表示 */
+    var tdInfo=document.createElement('td');tdInfo.colSpan=displayCols.length;
+    var inner=document.createElement('div');inner.className='cell-inner';
+    var srcLabel=dv.source==='manual'?'手動':dv.source==='gmail'?'Gmail':'iMessage';
+    var memo=dv.memo||'';if(memo.length>60)memo=memo.slice(0,60)+'...';
+    inner.innerHTML='<span style="font-weight:700;color:#1b5e20;margin-right:8px">'+dv.date+(dv.time?' '+dv.time:'')+'</span>'+
+      '<span style="font-size:11px;background:#c8e6c9;color:#1b5e20;padding:1px 5px;border-radius:3px;margin-right:6px">'+(dv.keyword||'現調')+'</span>'+
+      '<span style="font-size:11px;color:#777;margin-right:8px">'+srcLabel+'</span>'+
+      '<span style="font-size:11px;color:#555;margin-right:10px">'+memo+'</span>'+
+      '<button class="draft-del" onclick="delDraft(\''+dk+'\')">✕ 削除</button>'+
+      '<a href="gencho.html" style="font-size:10px;color:#007bff;margin-left:8px;text-decoration:underline">管理→</a>';
+    tdInfo.appendChild(inner);tr.appendChild(tdInfo);
+    tbody.appendChild(tr);
+  } else {
+    caseNo++;
+    var key=item.key,obj=globalTasks[key],cols=obj.csvData;
+    var tr=document.createElement('tr');
+    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||caseNo;tdNo.style.color='#888';tr.appendChild(tdNo);
+    for(var ci2=0;ci2<displayCols.length;ci2++){
+      var colIdx=displayCols[ci2];var td=document.createElement('td');td.className=colClasses[ci2+1]||'';var inner=document.createElement('div');inner.className='cell-inner';
+      if(colIdx===-1){var yotei=obj.date||'';inner.textContent=yotei;if(yotei)inner.classList.add('yotei-cell');}
+      else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){inner.classList.add('ai-yotei-cell');}}
+      else{var c=getSafeVal(cols,colIdx);var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
+        if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
+        else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
+        else{inner.textContent=disp;}
+        if(clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}
+      td.appendChild(inner);tr.appendChild(td);
+    }
+    tr.addEventListener('click',function(e){if(e.target.tagName==='A'||e.target.tagName==='BUTTON')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
+    tbody.appendChild(tr);
+  }
+}
+document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件 + draft '+draftKeys.length+' 件';
+if(searchInput.value)applyTextSearch();
 }
 </script>
 </body>
