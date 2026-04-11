@@ -224,7 +224,7 @@ function appendDraftRows(){
   var old=tbody.querySelectorAll('tr.draft-row');
   for(var i=0;i<old.length;i++)old[i].parentNode.removeChild(old[i]);
   var from=dateFrom.value,to=dateTo.value;
-  var keys=Object.keys(draftData).filter(function(k){
+  var keys=Object.keys(draftData||{}).filter(function(k){
     var d=draftData[k].date||'';if(!d)return false;
     if(from||to)return inRange(d,from,to);
     return true;
