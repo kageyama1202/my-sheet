@@ -118,7 +118,7 @@ var firebaseConfig = { databaseURL: "https://project-6745138395263517914-default
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
-var KW_HIT  = ['現調', '下見', '事前確認', '採寸', '現場確認'];
+var KW_HIT  = ['現調', '事前下見'];
 var KW_SKIP = ['施工完了', '工事完了', '引渡', '完了報告', '建込', '建て込'];
 
 function findKw(t) {
