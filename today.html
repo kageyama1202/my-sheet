@@ -55,6 +55,20 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .kanryo-toggle.active{background:#ffc107;border-color:#ffc107;color:#333;}
 .yotei-cell{color:#7b1fa2;font-weight:600;}
 .ai-yotei-cell{color:#ff6b00;font-weight:700;background:#fff8e1;}
+/* ---- draft_visits ---- */
+.draft-section{background:#e8f5e9;border-bottom:2px solid #4caf50;padding:4px 10px;}
+.draft-section-title{font-size:11px;font-weight:bold;color:#2e7d32;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+.draft-section-title a{font-size:10px;color:#007bff;text-decoration:underline;cursor:pointer;}
+.draft-rows{display:flex;flex-wrap:wrap;gap:6px;}
+.draft-row{background:#fff;border:1px solid #81c784;border-radius:4px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:default;}
+.draft-row .dr-date{font-weight:700;color:#2e7d32;}
+.draft-row .dr-time{color:#555;}
+.draft-row .dr-kw{font-size:10px;background:#c8e6c9;color:#1b5e20;padding:1px 5px;border-radius:3px;}
+.draft-row .dr-src{font-size:10px;color:#888;}
+.draft-row .dr-memo{color:#555;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.draft-row .dr-del{font-size:10px;color:#c62828;cursor:pointer;margin-left:4px;border:none;background:none;padding:0;}
+.draft-row .dr-del:hover{text-decoration:underline;}
+#draft-section{display:none;}
 </style>
 </head>
 <body>
@@ -72,6 +86,14 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 <div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
 <div class="filter-row"><span class="filter-label">📍 地域</span><div class="filter-checks" id="areaFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="areaToggle">▶ 展開</span></div>
 </div>
+<!-- draft_visits バナー -->
+<div id="draft-section" class="draft-section">
+  <div class="draft-section-title">
+    <span>🔖 現調・下見（draft）</span>
+    <a href="gencho.html">管理 →</a>
+  </div>
+  <div class="draft-rows" id="draft-rows"></div>
+</div>
 <div class="count-display" id="countDisplay">-</div>
 <div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
@@ -81,7 +103,6 @@ if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
 var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
-/* displayCols: CSV列インデックス。-1は「下見予定日（obj.date）」、-2は「AI下見予定日（obj.ai_shitami_date）」 */
 var displayCols=[1,3,4,5,6,7,10,11,2,12,-1,-2];
 var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date','col-yotei','col-ai-yotei'];
 var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','下見予定日','AI下見予定'];
@@ -93,12 +114,13 @@ function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getM
 function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
 function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
 var todayStr=getTodayStr();dateFrom.value=todayStr;dateTo.value=todayStr;
-document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
-document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
-document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
-document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
-document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
-dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
+document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();renderDrafts();});
+document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();renderDrafts();});
+document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();renderDrafts();});
+document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();renderDrafts();});
+document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();renderDrafts();});
+dateFrom.addEventListener('change',function(){renderTable();renderDrafts();});
+dateTo.addEventListener('change',function(){renderTable();renderDrafts();});
 chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);chkAiYotei.addEventListener('change',renderTable);
 searchInput.addEventListener('input',applyTextSearch);
 var showKanryo=false;
@@ -106,6 +128,49 @@ document.getElementById('kanryoToggle').addEventListener('click',function(){show
 var globalHeaders=[],globalTasks={},fullData=null;
 try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
+
+/* ---- draft_visits ---- */
+var draftData={};
+database.ref('draft_visits').orderByChild('date').on('value',function(snap){
+  draftData=snap.val()||{};
+  renderDrafts();
+});
+
+function renderDrafts(){
+  var from=dateFrom.value,to=dateTo.value;
+  var keys=Object.keys(draftData).filter(function(k){
+    var d=draftData[k].date||'';
+    return inRange(d,from,to)||(from===''&&to==='');
+  });
+  keys.sort(function(a,b){return (draftData[a].date||'')>(draftData[b].date||'')?1:-1;});
+  var sec=document.getElementById('draft-section');
+  var rowsEl=document.getElementById('draft-rows');
+  if(keys.length===0){sec.style.display='none';return;}
+  sec.style.display='block';
+  var html='';
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],v=draftData[k];
+    var srcLabel=v.source==='manual'?'手動':v.source==='gmail'?'Gmail':'iMessage';
+    var memo=v.memo||'';
+    if(memo.length>40)memo=memo.slice(0,40)+'...';
+    html+='<div class="draft-row">' +
+      '<span class="dr-date">'+v.date+'</span>' +
+      (v.time?'<span class="dr-time">'+v.time+'</span>':'') +
+      '<span class="dr-kw">'+(v.keyword||'現調')+'</span>' +
+      '<span class="dr-src">'+srcLabel+'</span>' +
+      (memo?'<span class="dr-memo">'+memo+'</span>':'') +
+      '<button class="dr-del" onclick="delDraft(\''+k+'\')">✕</button>' +
+    '</div>';
+  }
+  rowsEl.innerHTML=html;
+}
+
+function delDraft(k){
+  if(!confirm('削除しますか？'))return;
+  database.ref('draft_visits/'+k).remove();
+}
+
+/* ---- フィルター ---- */
 function initFilters(){
 var stMap={},kbMap={},cpMap={},arMap={};
 Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
@@ -126,23 +191,14 @@ var thead=document.getElementById('table-head'),tbody=document.getElementById('t
 var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
 var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cAI=chkAiYotei.checked;
 var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
-/* ヘッダー行 */
 var trH=document.createElement('tr');
 var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
 for(var hi=0;hi<displayCols.length;hi++){
-var h=document.createElement('th');
-h.className=colClasses[hi+1]||'';
-if(displayCols[hi]===-1){
-h.textContent='下見予定日';
-}else if(displayCols[hi]===-2){
-h.textContent='AI下見予定';
-h.style.background='#fff3e0';
-h.style.color='#e65100';
-}else{
-h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';
-}
-trH.appendChild(h);
-}
+var h=document.createElement('th');h.className=colClasses[hi+1]||'';
+if(displayCols[hi]===-1){h.textContent='下見予定日';}
+else if(displayCols[hi]===-2){h.textContent='AI下見予定';h.style.background='#fff3e0';h.style.color='#e65100';}
+else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}
+trH.appendChild(h);}
 thead.appendChild(trH);
 var valid=Object.keys(globalTasks).filter(function(key){
 var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
@@ -159,47 +215,27 @@ valid.forEach(function(key,idx){
 var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
 var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
 for(var ci2=0;ci2<displayCols.length;ci2++){
-var colIdx=displayCols[ci2];
-var td=document.createElement('td');
-td.className=colClasses[ci2+1]||'';
-var inner=document.createElement('div');
-inner.className='cell-inner';
-if(colIdx===-1){
-/* 下見予定日（Firebaseフィールド） */
-var yotei=obj.date||'';
-inner.textContent=yotei;
-if(yotei)inner.classList.add('yotei-cell');
-}else if(colIdx===-2){
-/* AI下見予定日（Firebaseフィールド） */
-var aiYotei=obj.ai_shitami_date||'';
-inner.textContent=aiYotei;
-if(aiYotei){inner.classList.add('ai-yotei-cell');}
-}else{
-var c=getSafeVal(cols,colIdx);
-var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
-if(colIdx===11&&clean!==''){
-var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
-if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');
-else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
-inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';
-}else if(colIdx===6&&clean!==''){
-inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';
-}else{
-inner.textContent=disp;
-}
-if(clean!==''){
-td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));
-td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
-td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
-}
-}
-td.appendChild(inner);
-tr.appendChild(td);
-}
+var colIdx=displayCols[ci2];var td=document.createElement('td');td.className=colClasses[ci2+1]||'';var inner=document.createElement('div');inner.className='cell-inner';
+if(colIdx===-1){var yotei=obj.date||'';inner.textContent=yotei;if(yotei)inner.classList.add('yotei-cell');}
+else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){inner.classList.add('ai-yotei-cell');}}
+else{var c=getSafeVal(cols,colIdx);var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
+if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}
+else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}
+else{inner.textContent=disp;}
+if(clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}
+td.appendChild(inner);tr.appendChild(td);}
 tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
-tbody.appendChild(tr);
-});
+tbody.appendChild(tr);});
 document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';if(searchInput.value)applyTextSearch();
+}
+
+function initFilters(){
+var stMap={},kbMap={},cpMap={},arMap={};
+Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
+buildChecks('statusFilters',sortByCount(stMap),true,true);buildChecks('kubunFilters',sortByCount(kbMap),true,false);
+buildChecks('companyFilters',sortByCount(cpMap),false,true);setupToggle('companyToggle','companyFilters');
+var aA=Object.entries(arMap),kuA=aA.filter(function(a){return a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];}),oA=aA.filter(function(a){return!a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
+buildChecksFromArr('areaFilters',kuA.concat(oA).map(function(a){return{name:a[0],count:a[1]};}),false,true);setupToggle('areaToggle','areaFilters');
 }
 </script>
 </body>
