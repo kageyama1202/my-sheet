@@ -567,8 +567,17 @@ function generateAgenda() {
 function renderAgendaResult(rawText, today, dow, rule, caseCount) {
   var parsed = null;
   try {
-    var clean = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    parsed = JSON.parse(clean);
+    var jsonStr = '';
+    var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      var bs = rawText.indexOf('{');
+      var be = rawText.lastIndexOf('}');
+      if (bs !== -1 && be > bs) jsonStr = rawText.substring(bs, be + 1);
+      else jsonStr = rawText.trim();
+    }
+    parsed = JSON.parse(jsonStr);
   } catch (e) {
     document.getElementById('agendaContent').innerHTML =
       '<div class="agenda-card"><div class="agenda-card-header">🤖 AI 応答（raw）</div>' +
