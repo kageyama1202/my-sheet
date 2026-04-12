@@ -564,6 +564,24 @@ function generateAgenda() {
   });
 }
 
+function repairJson(str) {
+  try { JSON.parse(str); return str; } catch(e) {}
+  var s = str.replace(/,\s*$/, '');
+  var quotes = (s.match(/"/g) || []).length;
+  if (quotes % 2 !== 0) s += '"';
+  var opens = 0, closes = 0, braces = 0, braceC = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] === '[') opens++;
+    if (s[i] === ']') closes++;
+    if (s[i] === '{') braces++;
+    if (s[i] === '}') braceC++;
+  }
+  s = s.replace(/,\s*$/, '');
+  for (var k = 0; k < (opens - closes); k++) s += ']';
+  for (var m = 0; m < (braces - braceC); m++) s += '}';
+  try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
+}
+
 function renderAgendaResult(rawText, today, dow, rule, caseCount) {
   var parsed = null;
   try {
@@ -577,6 +595,7 @@ function renderAgendaResult(rawText, today, dow, rule, caseCount) {
       if (bs !== -1 && be > bs) jsonStr = rawText.substring(bs, be + 1);
       else jsonStr = rawText.trim();
     }
+    jsonStr = repairJson(jsonStr);
     parsed = JSON.parse(jsonStr);
   } catch (e) {
     document.getElementById('agendaContent').innerHTML =
