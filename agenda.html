@@ -546,7 +546,7 @@ function generateAgenda() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 2048, responseMimeType: 'application/json' }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, responseMimeType: 'application/json' }
     })
   }).then(function(res) {
     return res.json();
@@ -566,9 +566,18 @@ function generateAgenda() {
 
 function repairJson(str) {
   try { JSON.parse(str); return str; } catch(e) {}
-  var s = str.replace(/,\s*$/, '');
-  var quotes = (s.match(/"/g) || []).length;
-  if (quotes % 2 !== 0) s += '"';
+  var s = str;
+  // 末尾カンマ除去
+  s = s.replace(/,\s*$/, '');
+  // クォート数を数える（バックスラッシュエスケープを除外）
+  var quoteCount = 0;
+  for (var qi = 0; qi < s.length; qi++) {
+    if (s[qi] === '"' && (qi === 0 || s[qi-1] !== '\\')) quoteCount++;
+  }
+  if (quoteCount % 2 !== 0) s += '"';
+  // 末尾カンマ・不正な末尾を再除去
+  s = s.replace(/,\s*([\]\}])/g, '$1').replace(/,\s*$/, '');
+  // 括弧を数えて閉じる
   var opens = 0, closes = 0, braces = 0, braceC = 0;
   for (var i = 0; i < s.length; i++) {
     if (s[i] === '[') opens++;
@@ -576,7 +585,6 @@ function repairJson(str) {
     if (s[i] === '{') braces++;
     if (s[i] === '}') braceC++;
   }
-  s = s.replace(/,\s*$/, '');
   for (var k = 0; k < (opens - closes); k++) s += ']';
   for (var m = 0; m < (braces - braceC); m++) s += '}';
   try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
