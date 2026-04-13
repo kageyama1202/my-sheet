@@ -408,6 +408,7 @@ var database = firebase.database();
 
 // ==================== GLOBALS ====================
 var allCases = [];
+var allCasesAll = []; // チャット・アジェンダ用（全件）
 var filteredCases = [];
 var chatHistory = []; // Gemini用会話履歴
 
@@ -496,6 +497,7 @@ function loadCases() {
     }
     var tasks = dbData.app_tasks;
     allCases = [];
+    allCasesAll = [];
     var today = todayJST();
     var pastLimit = addDays(today, -3);
     var futureLimit = addDays(today, 21);
@@ -505,9 +507,8 @@ function loadCases() {
       var cols = task.csvData || [];
       var koujiDate = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
       if (!koujiDate) continue;
-      if (koujiDate < pastLimit || koujiDate > futureLimit) continue;
 
-      allCases.push({
+      var caseObj = {
         key: key,
         kouji: koujiDate,
         kubun: cols[3] ? String(cols[3]).replace(/\s+/g, '') : '',
@@ -516,10 +517,21 @@ function loadCases() {
         tel: cols[6] ? String(cols[6]).trim() : '',
         address: cols[11] ? String(cols[11]).trim() : '',
         shitami: task.date || '',
+        shitami_time: task.time || '',
+        shitami_order: task.order || '',
         ai_shitami: task.ai_shitami_date || ''
-      });
+      };
+
+      // 全件（チャット・アジェンダ用）
+      allCasesAll.push(caseObj);
+
+      // 期間絞り（リスト表示用）
+      if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
+        allCases.push(caseObj);
+      }
     }
 
+    allCasesAll.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
     allCases.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
     filteredCases = allCases.slice();
     renderTable();
@@ -645,8 +657,8 @@ function getCasesFor7Days() {
   var today = todayJST();
   var limit = addDays(today, 7);
   var result = [];
-  for (var i = 0; i < allCases.length; i++) {
-    if (allCases[i].kouji >= today && allCases[i].kouji <= limit) result.push(allCases[i]);
+  for (var i = 0; i < allCasesAll.length; i++) {
+    if (allCasesAll[i].kouji >= today && allCasesAll[i].kouji <= limit) result.push(allCasesAll[i]);
   }
   return result;
 }
@@ -658,7 +670,7 @@ function generateAgenda() {
       '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください（<code>geminiApiKey</code>）。</div>';
     return;
   }
-  if (allCases.length === 0) {
+  if (allCasesAll.length === 0) {
     document.getElementById('agendaContent').innerHTML =
       '<div class="agenda-status">⚠️ データ読み込み中です。しばらく待ってから再試行してください。</div>';
     return;
@@ -688,6 +700,8 @@ function generateAgenda() {
       ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
       ' | ' + c.kubun + ' | ' + c.title +
       ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
+      (c.shitami_time ? ' ' + c.shitami_time : '') +
+      (c.shitami_order ? ' 順' + c.shitami_order : '') +
       (alertStr ? ' ' + alertStr : '') +
       ' | ' + c.address.slice(0, 20) + '\n';
   }
@@ -857,26 +871,29 @@ function buildChatContext() {
   };
 
   var lines = '=== Firebaseデータ（' + today + ' ' + dow + '曜日 / ' + (ruleDesc[rule]||rule) + '） ===\n';
-  lines += '総ケース数: ' + allCases.length + '件（施工日 ±3〜21日範囲）\n\n';
+  lines += '総ケース数: ' + allCasesAll.length + '件（全件）\n\n';
 
   // 今日の下見ケース
   var todayCases = [];
-  for (var i = 0; i < allCases.length; i++) {
-    var c = allCases[i];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
     if (c.shitami === today || c.ai_shitami === today) todayCases.push(c);
   }
   lines += '【今日の下見予定】' + (todayCases.length > 0 ? todayCases.length + '件' : 'なし') + '\n';
   for (var i = 0; i < todayCases.length; i++) {
     var c = todayCases[i];
-    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title + ' | 住所: ' + c.address + '\n';
+    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
+      ' | 住所: ' + c.address +
+      (c.shitami_time ? ' | 時間: ' + c.shitami_time : '') +
+      (c.shitami_order ? ' | 順: ' + c.shitami_order : '') + '\n';
   }
   lines += '\n';
 
   // アラートケース
   var alertCases = [];
-  for (var i = 0; i < allCases.length; i++) {
-    var alerts = getAlerts(allCases[i]);
-    if (alerts.length > 0) alertCases.push({ c: allCases[i], alerts: alerts });
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var alerts = getAlerts(allCasesAll[i]);
+    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
   }
   lines += '【アラートケース】' + alertCases.length + '件\n';
   for (var i = 0; i < alertCases.length; i++) {
@@ -886,17 +903,21 @@ function buildChatContext() {
     lines += '  - ' + item.c.tanto + ' | ' + item.c.kubun + ' | ' + item.c.title +
       ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')' +
       ' | 下見: ' + (item.c.shitami || item.c.ai_shitami || '未定') +
+      (item.c.shitami_time ? ' ' + item.c.shitami_time : '') +
+      (item.c.shitami_order ? ' 順' + item.c.shitami_order : '') +
       ' | 住所: ' + item.c.address + ' ' + alertStr + '\n';
   }
   lines += '\n';
 
   // 全ケース一覧
   lines += '【全ケース一覧】\n';
-  for (var i = 0; i < allCases.length; i++) {
-    var c = allCases[i];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
     lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
       ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
       ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
+      (c.shitami_time ? ' ' + c.shitami_time : '') +
+      (c.shitami_order ? ' 順' + c.shitami_order : '') +
       ' | 住所: ' + c.address + '\n';
   }
 
