@@ -191,7 +191,6 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
 .chat-msg.user { flex-direction: row-reverse; }
 
 .chat-bubble {
-  max-width: 80%;
   padding: 9px 13px;
   border-radius: 14px;
   font-size: 13px;
@@ -200,6 +199,7 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
   word-break: break-word;
 }
 .chat-msg.ai .chat-bubble {
+  flex: 1;
   background: #fff;
   border: 1px solid #e0e0e0;
   color: #333;
@@ -207,6 +207,7 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .chat-msg.user .chat-bubble {
+  max-width: 80%;
   background: #3949ab;
   color: #fff;
   border-radius: 14px 14px 4px 14px;
