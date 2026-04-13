@@ -1,113 +1,1124 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>案件管理 トップメニュー</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; margin: 0; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
-    .status { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding: 15px; border-radius: 4px; }
-    .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-    .menu-btn { display: block; text-decoration: none; padding: 20px; background-color: #007bff; color: white; border-radius: 6px; font-size: 18px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .menu-btn:hover { background-color: #0056b3; }
-    .menu-btn.disabled { background-color: #ccc; color: #888; pointer-events: none; box-shadow: none; }
-    @media (max-width: 480px) {
-      .menu-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Today's Agenda</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; background: #f0f2f5; color: #333; }
+
+.topbar {
+  background: #1a237e; color: #fff;
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.topbar a { color: #fff; text-decoration: none; font-size: 18px; }
+.topbar-title { font-size: 15px; font-weight: bold; }
+.topbar-date { font-size: 12px; opacity: 0.8; }
+
+.tab-nav { display: flex; background: #283593; border-bottom: 3px solid #1a237e; }
+.tab-btn {
+  padding: 10px 20px; color: rgba(255,255,255,0.7);
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: bold;
+  border-bottom: 3px solid transparent; margin-bottom: -3px;
+}
+.tab-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.tab-btn.active { color: #fff; border-bottom: 3px solid #ffeb3b; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* LIST TAB */
+.list-controls {
+  padding: 10px 16px; background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.list-controls input, .list-controls select {
+  border: 1px solid #ccc; border-radius: 4px;
+  padding: 5px 8px; font-size: 12px;
+}
+.list-controls input { width: 160px; }
+.badge {
+  display: inline-block; background: #e53935; color: #fff;
+  border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 4px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: #e8eaf6; padding: 7px 8px;
+  text-align: left; font-size: 12px; font-weight: bold;
+  border-bottom: 2px solid #9fa8da; white-space: nowrap;
+}
+tbody tr { border-bottom: 1px solid #e8e8e8; cursor: pointer; }
+tbody tr:hover { background: #f5f5f5; }
+tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
+
+.cell-orange { color: #e65100; font-weight: bold; }
+.cell-blue { color: #1565c0; }
+
+.tag {
+  display: inline-block; border-radius: 3px;
+  padding: 1px 5px; font-size: 10px; font-weight: bold; margin-right: 2px;
+}
+.tag-reform { background: #fff3e0; color: #e65100; }
+.tag-new    { background: #e3f2fd; color: #1565c0; }
+.tag-sk     { background: #f3e5f5; color: #6a1b9a; }
+.tag-sb     { background: #e0f2f1; color: #00695c; }
+.tag-su     { background: #fce4ec; color: #880e4f; }
+
+.alert-tag {
+  display: inline-block; border-radius: 3px;
+  padding: 1px 5px; font-size: 10px; font-weight: bold; margin: 1px 0;
+}
+.alert-red    { background: #ffebee; color: #c62828; }
+.alert-orange { background: #fff8e1; color: #e65100; }
+.alert-blue   { background: #e3f2fd; color: #1565c0; }
+
+.tbl-wrap { overflow-x: auto; }
+.loading-msg { text-align: center; padding: 40px; color: #888; }
+
+/* AGENDA TAB */
+.agenda-container { max-width: 680px; margin: 20px auto; padding: 0 16px 40px; }
+.agenda-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.agenda-header h2 { font-size: 16px; color: #1a237e; }
+.btn-refresh {
+  background: #3949ab; color: #fff; border: none;
+  border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+}
+.btn-refresh:hover { background: #283593; }
+.btn-refresh:disabled { background: #9fa8da; cursor: not-allowed; }
+
+.agenda-status { text-align: center; padding: 40px; color: #888; font-size: 13px; }
+
+.agenda-card {
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 14px; overflow: hidden;
+}
+.agenda-card-header {
+  padding: 10px 16px; font-weight: bold; font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+}
+.agenda-card-body { padding: 12px 16px; font-size: 13px; line-height: 1.7; color: #444; }
+.card-focus .agenda-card-header { background: #e8eaf6; color: #1a237e; }
+.card-tasks .agenda-card-header { background: #e8f5e9; color: #2e7d32; }
+.card-notes .agenda-card-header { background: #fff8e1; color: #e65100; }
+
+.task-list { list-style: none; padding: 0; }
+.task-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.task-list li:last-child { border-bottom: none; }
+
+.agenda-footer { text-align: right; font-size: 11px; color: #aaa; margin-top: 8px; }
+
+.agenda-day-info {
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 12px 16px; margin-bottom: 14px;
+  display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; align-items: center;
+}
+.day-chip {
+  background: #e8eaf6; color: #1a237e;
+  border-radius: 20px; padding: 3px 12px; font-weight: bold;
+}
+.day-chip.weekend { background: #fff3e0; color: #e65100; }
+.day-chip.holiday { background: #ffebee; color: #c62828; }
+
+.error-card {
+  background: #fff; border-radius: 10px;
+  border: 1px solid #ffcdd2; padding: 16px; color: #c62828; font-size: 13px;
+}
+
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==================== CHAT TAB ==================== */
+#tab-chat {
+  display: none;
+  flex-direction: column;
+  height: calc(100vh - 90px);
+}
+#tab-chat.active {
+  display: flex;
+}
+
+.chat-quick-btns {
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.quick-btn {
+  background: #e8eaf6;
+  color: #1a237e;
+  border: 1px solid #9fa8da;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.quick-btn:hover { background: #c5cae9; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-msg {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+}
+.chat-msg.user { flex-direction: row-reverse; }
+
+.chat-bubble {
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chat-msg.ai .chat-bubble {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  color: #333;
+  border-radius: 4px 14px 14px 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.chat-msg.user .chat-bubble {
+  max-width: 80%;
+  background: #3949ab;
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.chat-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.chat-msg.ai .chat-avatar { background: #e8eaf6; }
+.chat-msg.user .chat-avatar { background: #3949ab; color: #fff; }
+
+.chat-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px 14px 14px 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  width: fit-content;
+}
+.typing-dot {
+  width: 6px; height: 6px;
+  background: #9fa8da;
+  border-radius: 50%;
+  animation: typingBounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+.chat-input-area {
+  padding: 10px 12px;
+  background: #fff;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.chat-input-area textarea {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  max-height: 100px;
+  min-height: 36px;
+  line-height: 1.5;
+}
+.chat-input-area textarea:focus { border-color: #3949ab; }
+.btn-send {
+  background: #3949ab;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  height: 36px;
+}
+.btn-send:hover { background: #283593; }
+.btn-send:disabled { background: #9fa8da; cursor: not-allowed; }
+
+.btn-chat-clear {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  align-self: center;
+}
+.btn-chat-clear:hover { color: #e53935; }
+
+.chat-data-tag {
+  font-size: 11px;
+  color: #aaa;
+  text-align: center;
+  padding: 4px 0;
+}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🏠 案件管理システム</h1>
-    
-    <div id="statusMsg" class="status loading">
-      ⏳ クラウドから最新データを取得中...<br>
-      <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="index.html">◀</a>
+    <div class="topbar-title">🎯 Today's Agenda</div>
+  </div>
+  <div class="topbar-date" id="topbarDate"></div>
+</div>
+
+<div class="tab-nav">
+  <button class="tab-btn active" id="tabBtnList" onclick="switchTab('list',this)">📋 List <span class="badge" id="listCount">0</span></button>
+  <button class="tab-btn" id="tabBtnAgenda" onclick="switchTab('agenda',this)">🎯 Agenda</button>
+  <button class="tab-btn" id="tabBtnChat" onclick="switchTab('chat',this)">💬 チャット</button>
+</div>
+
+<!-- LIST TAB -->
+<div id="tab-list" class="tab-content active">
+  <div class="list-controls">
+    <input type="text" id="filterInput" placeholder="🔍 名前・住所で検索..." oninput="applyFilter()">
+    <select id="filterType" onchange="applyFilter()">
+      <option value="">全区分</option>
+      <option value="ﾘ">ﾘ（リフォーム）</option>
+      <option value="新">新（新築）</option>
+    </select>
+    <select id="filterAlert" onchange="applyFilter()">
+      <option value="">全アラート</option>
+      <option value="alert">アラートあり</option>
+    </select>
+  </div>
+  <div class="tbl-wrap">
+    <div id="listStatus" class="loading-msg">🔄 データ読み込み中...</div>
+    <table id="caseTable" style="display:none">
+      <thead>
+        <tr>
+          <th>区分</th>
+          <th>タイトル</th>
+          <th>施工日</th>
+          <th>下見日 / <span style="color:#e65100">AI下見</span></th>
+          <th>担当</th>
+          <th>住所</th>
+          <th>アラート</th>
+        </tr>
+      </thead>
+      <tbody id="caseBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- AGENDA TAB -->
+<div id="tab-agenda" class="tab-content">
+  <div class="agenda-container">
+    <div class="agenda-header">
+      <h2>🎯 K の今日のアジェンダ</h2>
+      <button class="btn-refresh" id="refreshBtn" onclick="generateAgenda()">🔄 更新</button>
     </div>
-    
-    <div class="menu-grid">
-      <a href="action.html" class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション</a>
-      <a href="agenda.html" class="menu-btn disabled" style="grid-column:1/3;background-color:#1a237e;">🎯 Today's Agenda</a>
-      <a href="today.html" class="menu-btn disabled">📋 案件リスト</a>
-      <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
-      <a href="map.html" class="menu-btn disabled">🗺️ マップ</a>
-      <a href="sogo.html" class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
-      <a href="comm.html" class="menu-btn" style="background-color:#1a73e8;">📨 通信タイムライン</a>
-      <a href="mailer-test.html" class="menu-btn" style="background-color:#00796b;">✉️ メーラー</a>
-      <a href="gencho.html" class="menu-btn" style="background-color:#2e7d32;">🔖 現調・下見受付</a>
-      <a href="admin.html" class="menu-btn disabled" style="background-color:#6c757d;">👑 CSV取込（管理者）</a>
+    <div id="agendaContent">
+      <div class="agenda-status">「更新」ボタンを押すと、今日のアジェンダを AI が生成します。</div>
     </div>
   </div>
-
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-      authDomain: "project-6745138395263517914.firebaseapp.com",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-      projectId: "project-6745138395263517914",
-      storageBucket: "project-6745138395263517914.firebasestorage.app",
-      messagingSenderId: "1054295910908",
-      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-    };
-    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-    const database = firebase.database();
-
-    database.ref().once('value').then(function(snapshot) {
-      const dbData = snapshot.val();
-      const statusMsg = document.getElementById('statusMsg');
-
-      if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-        statusMsg.className = 'status error';
-        statusMsg.innerHTML = "⚠️ データがありません。<br><span style='font-size:12px; font-weight:normal;'>管理画面からCSVをアップロードしてください。</span>";
-        return;
-      }
-
-      var tasks = dbData.app_tasks;
-      var maxSeq = 0;
-      Object.values(tasks).forEach(function(t) {
-        if (t.seqNo && t.seqNo > maxSeq) maxSeq = t.seqNo;
-      });
-      var updates = {};
-      Object.keys(tasks).forEach(function(key) {
-        if (!tasks[key].seqNo) {
-          maxSeq++;
-          tasks[key].seqNo = maxSeq;
-          updates['app_tasks/' + key + '/seqNo'] = maxSeq;
-        }
-      });
-      if (Object.keys(updates).length > 0) {
-        database.ref().update(updates);
-        console.log("通し番号を " + Object.keys(updates).length + " 件に付与");
-      }
-
-      localStorage.setItem('appData', JSON.stringify(dbData));
-      
-      const now = new Date();
-      const timeStr = (now.getMonth()+1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + ('0'+now.getMinutes()).slice(-2);
-
-      statusMsg.className = 'status success';
-      statusMsg.innerHTML = `✅ 最新データ取得完了！<br><span style="font-size:12px; font-weight:normal;">（${timeStr}）</span>`;
-
-      document.querySelectorAll('.menu-btn').forEach(btn => {
-        btn.classList.remove('disabled');
-      });
-
-    }).catch(function(error) {
-      const statusMsg = document.getElementById('statusMsg');
-      statusMsg.className = 'status error';
-      statusMsg.innerHTML = "❌ 通信エラー<br><span style='font-size:12px; font-weight:normal;'>電波の良いところで再読み込みしてください。</span>";
-      console.error(error);
-    });
-  </script>
-  <div id="modal-overlay">
-  <div id="modal-content"></div>
 </div>
+
+<!-- CHAT TAB -->
+<div id="tab-chat" class="tab-content">
+  <div class="chat-quick-btns">
+    <button class="quick-btn" onclick="sendQuick('今日の下見順を教えて')">📍 今日の下見順</button>
+    <button class="quick-btn" onclick="sendQuick('下見未定のアラートケースを整理して')">⚠️ アラート整理</button>
+    <button class="quick-btn" onclick="sendQuick('今週の施工件数と状況をまとめて')">📊 今週サマリー</button>
+    <button class="quick-btn" onclick="sendQuick('下見日程の候補を提案して')">📅 日程提案</button>
+    <button class="btn-chat-clear" onclick="clearChat()">🗑 クリア</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg ai">
+      <div class="chat-avatar">🤖</div>
+      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。<br>情報が足りない場合は質問します。</div>
+    </div>
+  </div>
+  <div class="chat-input-area">
+    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1" oninput="autoResizeTextarea(this)" onkeydown="handleChatKeydown(event)"></textarea>
+    <button class="btn-send" id="sendBtn" onclick="sendChat()">送信</button>
+  </div>
+</div>
+
+<div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
+<script src="shared-modal.js"></script>
+
+<script>
+// ==================== FIREBASE ====================
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var database = firebase.database();
+
+// ==================== GLOBALS ====================
+var allCases = [];
+var allCasesAll = []; // チャット・アジェンダ用（全件）
+var filteredCases = [];
+var chatHistory = []; // Gemini用会話履歴
+var globalHeaders = [];
+var globalTasks = {};
+var fullData = null;
+
+// 祝日リスト 2025-2026
+var HOLIDAYS = [
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-24',
+  '2025-03-21','2025-04-29','2025-05-03','2025-05-04','2025-05-05',
+  '2025-07-21','2025-08-11','2025-09-15','2025-09-23',
+  '2025-10-13','2025-11-03','2025-11-23',
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
+  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05',
+  '2026-07-20','2026-08-11','2026-09-21','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23'
+];
+
+var LONG_BREAKS = [
+  { start: '2025-08-13', end: '2025-08-16' },
+  { start: '2025-12-29', end: '2026-01-04' },
+  { start: '2026-04-29', end: '2026-05-06' },
+  { start: '2026-08-13', end: '2026-08-16' }
+];
+
+// ==================== DATE HELPERS ====================
+function todayJST() {
+  var d = new Date();
+  var jst = new Date(d.getTime() + 9 * 3600000);
+  return jst.toISOString().slice(0, 10);
+}
+
+function addDays(dateStr, n) {
+  var d = new Date(dateStr + 'T00:00:00+09:00');
+  d.setDate(d.getDate() + n);
+  var jst = new Date(d.getTime() + 9 * 3600000);
+  return jst.toISOString().slice(0, 10);
+}
+
+function getWeekdayJA(dateStr) {
+  var days = ['日','月','火','水','木','金','土'];
+  var d = new Date(dateStr + 'T00:00:00+09:00');
+  return days[d.getDay()];
+}
+
+function getWeekdayNum(dateStr) {
+  return new Date(dateStr + 'T00:00:00+09:00').getDay();
+}
+
+function isHoliday(dateStr) {
+  return HOLIDAYS.indexOf(dateStr) >= 0;
+}
+
+function isLongBreak(dateStr) {
+  for (var i = 0; i < LONG_BREAKS.length; i++) {
+    if (dateStr >= LONG_BREAKS[i].start && dateStr <= LONG_BREAKS[i].end) return true;
+  }
+  return false;
+}
+
+function formatTopbarDate() {
+  var d = new Date(new Date().getTime() + 9 * 3600000);
+  var days = ['日','月','火','水','木','金','土'];
+  var y = d.getUTCFullYear();
+  var m = d.getUTCMonth() + 1;
+  var day = d.getUTCDate();
+  var wd = days[d.getUTCDay()];
+  return y + '/' + (m<10?'0'+m:m) + '/' + (day<10?'0'+day:day) + '（' + wd + '）';
+}
+
+// ==================== TAB SWITCH ====================
+function switchTab(name, btn) {
+  document.getElementById('tab-list').classList.remove('active');
+  document.getElementById('tab-agenda').classList.remove('active');
+  document.getElementById('tab-chat').classList.remove('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  var btns = document.querySelectorAll('.tab-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  btn.classList.add('active');
+}
+
+// ==================== FIREBASE LOAD ====================
+function loadCases() {
+  database.ref().once('value').then(function(snapshot) {
+    var dbData = snapshot.val();
+    if (!dbData || !dbData.app_tasks) {
+      document.getElementById('listStatus').textContent = '⚠️ データなし';
+      return;
+    }
+    fullData = dbData;
+    globalTasks = dbData.app_tasks;
+    globalHeaders = (dbData.app_meta && dbData.app_meta.headers) ? dbData.app_meta.headers : [];
+
+    var tasks = dbData.app_tasks;
+    allCases = [];
+    allCasesAll = [];
+    var today = todayJST();
+    var pastLimit = addDays(today, -3);
+    var futureLimit = addDays(today, 21);
+
+    for (var key in tasks) {
+      var task = tasks[key];
+      var cols = task.csvData || [];
+      var koujiDate = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
+      if (!koujiDate) continue;
+
+      var caseObj = {
+        key: key,
+        kouji: koujiDate,
+        kubun: cols[3] ? String(cols[3]).replace(/\s+/g, '') : '',
+        title: cols[4] ? String(cols[4]).trim() : '',
+        tanto: cols[5] ? String(cols[5]).trim() : '',
+        tel: cols[6] ? String(cols[6]).trim() : '',
+        address: cols[11] ? String(cols[11]).trim() : '',
+        shitami: task.date || '',
+        shitami_time: task.time || '',
+        shitami_order: task.order || '',
+        ai_shitami: task.ai_shitami_date || ''
+      };
+
+      // 全件（チャット・アジェンダ用）
+      allCasesAll.push(caseObj);
+
+      // 期間絞り（リスト表示用）
+      if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
+        allCases.push(caseObj);
+      }
+    }
+
+    allCasesAll.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
+    allCases.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
+    filteredCases = allCases.slice();
+    renderTable();
+    document.getElementById('listCount').textContent = allCases.length;
+  }).catch(function(err) {
+    document.getElementById('listStatus').textContent = '❌ ' + err.message;
+  });
+}
+
+// モーダルを開いて保存後にallCasesを更新
+function openModal(key) {
+  var task = globalTasks[key];
+  if (!task) return;
+  openCaseModal(key, task, globalHeaders, globalTasks, fullData, database, function() {
+    // 保存後: allCasesのshitami/time/orderを同期
+    for (var i = 0; i < allCases.length; i++) {
+      if (allCases[i].key === key) {
+        allCases[i].shitami = globalTasks[key].date || '';
+        allCases[i].shitami_time = globalTasks[key].time || '';
+        allCases[i].shitami_order = globalTasks[key].order || '';
+      }
+    }
+    for (var i = 0; i < allCasesAll.length; i++) {
+      if (allCasesAll[i].key === key) {
+        allCasesAll[i].shitami = globalTasks[key].date || '';
+        allCasesAll[i].shitami_time = globalTasks[key].time || '';
+        allCasesAll[i].shitami_order = globalTasks[key].order || '';
+      }
+    }
+    renderTable();
+  });
+}
+
+// ==================== ALERT LOGIC ====================
+function getAlerts(c) {
+  var alerts = [];
+  var today = todayJST();
+  var daysToKouji = Math.ceil((new Date(c.kouji) - new Date(today)) / 86400000);
+
+  if ((c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') && !c.shitami && !c.ai_shitami) {
+    alerts.push({ label: '下見日決めて', cls: 'alert-red' });
+  }
+  if (c.kubun === '新' && daysToKouji <= 21 && daysToKouji >= 0 && !c.shitami && !c.ai_shitami) {
+    alerts.push({ label: '訪問必要', cls: 'alert-orange' });
+  }
+  if (c.kubun === '新' && c.title.indexOf('SK') >= 0 && daysToKouji <= 10 && daysToKouji >= 0) {
+    alerts.push({ label: '再訪問必要', cls: 'alert-blue' });
+  }
+  return alerts;
+}
+
+// ==================== RENDER TABLE ====================
+function renderTable() {
+  var tbody = document.getElementById('caseBody');
+  tbody.innerHTML = '';
+
+  if (filteredCases.length === 0) {
+    document.getElementById('listStatus').style.display = 'block';
+    document.getElementById('listStatus').textContent = '該当ケースなし';
+    document.getElementById('caseTable').style.display = 'none';
+    return;
+  }
+  document.getElementById('listStatus').style.display = 'none';
+  document.getElementById('caseTable').style.display = 'table';
+
+  for (var i = 0; i < filteredCases.length; i++) {
+    var c = filteredCases[i];
+    var alerts = getAlerts(c);
+
+    var kubunTag = '';
+    if (c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') kubunTag = '<span class="tag tag-reform">ﾘ</span>';
+    else if (c.kubun === '新') kubunTag = '<span class="tag tag-new">新</span>';
+
+    var titleTag = '';
+    if (c.title.indexOf('SK') >= 0) titleTag = '<span class="tag tag-sk">SK</span>';
+    else if (c.title.indexOf('SB') >= 0) titleTag = '<span class="tag tag-sb">SB</span>';
+    else if (c.title.indexOf('SU') >= 0) titleTag = '<span class="tag tag-su">SU</span>';
+
+    var shitamiCell = '';
+    if (c.shitami) shitamiCell += '<div class="cell-blue">' + c.shitami + '</div>';
+    if (c.ai_shitami) shitamiCell += '<div class="cell-orange">AI: ' + c.ai_shitami + '</div>';
+
+    var alertCell = '';
+    for (var j = 0; j < alerts.length; j++) {
+      alertCell += '<div class="alert-tag ' + alerts[j].cls + '">' + alerts[j].label + '</div>';
+    }
+
+    var row = document.createElement('tr');
+    row.innerHTML =
+      '<td>' + kubunTag + '</td>' +
+      '<td>' + titleTag + ' <small>' + c.title + '</small></td>' +
+      '<td class="cell-blue">' + c.kouji + '<br><small>(' + getWeekdayJA(c.kouji) + ')</small></td>' +
+      '<td>' + (shitamiCell || '<span style="color:#ccc">未定</span>') + '</td>' +
+      '<td><small>' + c.tanto + '</small></td>' +
+      '<td><small>' + c.address + '</small></td>' +
+      '<td>' + alertCell + '</td>';
+
+    (function(k) {
+      row.addEventListener('click', function() {
+        if (typeof openModal === 'function') openModal(k);
+      });
+    })(c.key);
+
+    tbody.appendChild(row);
+  }
+}
+
+// ==================== FILTER ====================
+function applyFilter() {
+  var text = document.getElementById('filterInput').value.toLowerCase();
+  var kubun = document.getElementById('filterType').value;
+  var alertOnly = document.getElementById('filterAlert').value === 'alert';
+
+  filteredCases = [];
+  for (var i = 0; i < allCases.length; i++) {
+    var c = allCases[i];
+    if (kubun && c.kubun !== kubun) continue;
+    if (text && c.address.toLowerCase().indexOf(text) < 0 &&
+        c.tanto.toLowerCase().indexOf(text) < 0 &&
+        c.title.toLowerCase().indexOf(text) < 0) continue;
+    if (alertOnly && getAlerts(c).length === 0) continue;
+    filteredCases.push(c);
+  }
+  renderTable();
+}
+
+// ==================== AGENDA ====================
+function getWorkdayRule(today) {
+  if (isLongBreak(today)) return 'longbreak';
+  var dow = getWeekdayNum(today);
+  if (dow === 0) return 'sunday';
+  if (dow === 6 || isHoliday(today)) return 'saturday';
+  return 'weekday';
+}
+
+function countRemainingWeekdays(today) {
+  var count = 0;
+  for (var i = 0; i <= 6; i++) {
+    var d = addDays(today, i);
+    var dow = getWeekdayNum(d);
+    if (dow >= 1 && dow <= 5 && !isHoliday(d) && !isLongBreak(d)) count++;
+  }
+  return count;
+}
+
+function getCasesFor7Days() {
+  var today = todayJST();
+  var limit = addDays(today, 7);
+  var result = [];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    if (allCasesAll[i].kouji >= today && allCasesAll[i].kouji <= limit) result.push(allCasesAll[i]);
+  }
+  return result;
+}
+
+function generateAgenda() {
+  var geminiKey = localStorage.getItem('geminiApiKey');
+  if (!geminiKey) {
+    document.getElementById('agendaContent').innerHTML =
+      '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください（<code>geminiApiKey</code>）。</div>';
+    return;
+  }
+  if (allCasesAll.length === 0) {
+    document.getElementById('agendaContent').innerHTML =
+      '<div class="agenda-status">⚠️ データ読み込み中です。しばらく待ってから再試行してください。</div>';
+    return;
+  }
+
+  var btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 生成中...';
+
+  var today = todayJST();
+  var dow = getWeekdayJA(today);
+  var rule = getWorkdayRule(today);
+  var holiday = isHoliday(today);
+  var longBreak = isLongBreak(today);
+  var remainingWeekdays = countRemainingWeekdays(today);
+  var weekCases = getCasesFor7Days();
+
+  var caseLines = '';
+  var MAX = 15;
+  var shown = weekCases.length > MAX ? weekCases.slice(0, MAX) : weekCases;
+  for (var i = 0; i < shown.length; i++) {
+    var c = shown[i];
+    var alerts = getAlerts(c);
+    var alertStr = '';
+    for (var j = 0; j < alerts.length; j++) alertStr += '[' + alerts[j].label + ']';
+    caseLines += '- ' + (c.tanto || '不明') +
+      ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
+      ' | ' + c.kubun + ' | ' + c.title +
+      ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
+      (c.shitami_time ? ' ' + c.shitami_time : '') +
+      (c.shitami_order ? ' 順' + c.shitami_order : '') +
+      (alertStr ? ' ' + alertStr : '') +
+      ' | ' + c.address.slice(0, 20) + '\n';
+  }
+  if (weekCases.length > MAX) caseLines += '...他 ' + (weekCases.length - MAX) + ' 件省略\n';
+  if (!caseLines) caseLines = '（今後7日間に施工予定ケースなし）\n';
+
+  var ruleDesc = {
+    'weekday':   '通常営業日（下見・メール送信・報告書すべて可）',
+    'saturday':  '土曜日（月〜金で不足する下見がある場合のみ現場、なければ自宅でメール仮制作・報告書作成）',
+    'sunday':    '日曜日（自宅のみ・下見不可・メール送信不可。メール仮制作と報告書作成のみ）',
+    'longbreak': '長期休暇中（完全休止）'
+  };
+
+  var prompt =
+    '【今日の情報】\n' +
+    '日付：' + today + '（' + dow + '曜日）\n' +
+    '祝日フラグ：' + (holiday ? 'はい' : 'いいえ') + '\n' +
+    '長期休暇中：' + (longBreak ? 'はい' : 'いいえ') + '\n' +
+    '今週残り営業日（月〜金）：' + remainingWeekdays + '日\n\n' +
+    '【本日のK行動ルール】\n' +
+    (ruleDesc[rule] || rule) + '\n\n' +
+    '【補足ルール】\n' +
+    '・取引先は土日祝休み（メール送信しても月曜まで見られない）\n' +
+    '・現場（大工等）は月〜土稼働、日休み\n' +
+    '・土曜現場可否は「今週残り営業日 × 1件/日」と当週ケース数を比較して判断すること\n\n' +
+    '【今後7日間のケース（施工日ベース）】\n' + caseLines + '\n' +
+    '【アラート】\n' +
+    '下見日決めて＝リフォームで下見未定（最優先）\n' +
+    '訪問必要＝新築で施工21日前以内かつ下見未実施\n' +
+    '再訪問必要＝新築SK案件で施工10日前以内（2回目必要）\n\n' +
+    '【出力指示】\n' +
+    '以下JSONのみ返却。前置き・コードブロック・説明文不要。\n' +
+    '{\n' +
+    '  "today": "今日Kが集中すべき活動（一文）",\n' +
+    '  "priority_tasks": ["絵文字＋タスク説明", "...（3〜5件）"],\n' +
+    '  "notes": "曜日・祝日ルールに基づく制約や注意点"\n' +
+    '}';
+
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, responseMimeType: 'application/json' }
+    })
+  }).then(function(res) {
+    return res.json();
+  }).then(function(data) {
+    btn.disabled = false;
+    btn.innerHTML = '🔄 更新';
+    if (!data.candidates || !data.candidates[0]) throw new Error('API レスポンス異常: ' + JSON.stringify(data));
+    var rawText = data.candidates[0].content.parts[0].text;
+    renderAgendaResult(rawText, today, dow, rule, weekCases.length);
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '🔄 更新';
+    document.getElementById('agendaContent').innerHTML =
+      '<div class="error-card">❌ エラー：' + err.message + '</div>';
+  });
+}
+
+function repairJson(str) {
+  try { JSON.parse(str); return str; } catch(e) {}
+  var s = str;
+  s = s.replace(/,\s*$/, '');
+  var quoteCount = 0;
+  for (var qi = 0; qi < s.length; qi++) {
+    if (s[qi] === '"' && (qi === 0 || s[qi-1] !== '\\')) quoteCount++;
+  }
+  if (quoteCount % 2 !== 0) s += '"';
+  s = s.replace(/,\s*([\]\}])/g, '$1').replace(/,\s*$/, '');
+  var opens = 0, closes = 0, braces = 0, braceC = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] === '[') opens++;
+    if (s[i] === ']') closes++;
+    if (s[i] === '{') braces++;
+    if (s[i] === '}') braceC++;
+  }
+  for (var k = 0; k < (opens - closes); k++) s += ']';
+  for (var m = 0; m < (braces - braceC); m++) s += '}';
+  try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
+}
+
+function renderAgendaResult(rawText, today, dow, rule, caseCount) {
+  var parsed = null;
+  try {
+    var jsonStr = '';
+    var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      var bs = rawText.indexOf('{');
+      var be = rawText.lastIndexOf('}');
+      if (bs !== -1 && be > bs) jsonStr = rawText.substring(bs, be + 1);
+      else jsonStr = rawText.trim();
+    }
+    jsonStr = repairJson(jsonStr);
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    document.getElementById('agendaContent').innerHTML =
+      '<div class="agenda-card"><div class="agenda-card-header">🤖 AI 応答（raw）</div>' +
+      '<div class="agenda-card-body"><pre style="white-space:pre-wrap;font-size:12px">' + rawText + '</pre></div></div>';
+    return;
+  }
+
+  var ruleLabels = {
+    'weekday':   '通常営業日',
+    'saturday':  '土曜（条件次第で現場）',
+    'sunday':    '日曜（自宅のみ）',
+    'longbreak': '長期休暇中'
+  };
+  var chipCls = 'day-chip';
+  if (rule === 'sunday' || rule === 'saturday' || rule === 'longbreak') chipCls += ' weekend';
+  if (isHoliday(today)) chipCls += ' holiday';
+
+  var html = '<div class="agenda-day-info">' +
+    '<span class="' + chipCls + '">' + dow + '曜日</span>' +
+    '<span style="color:#666">' + (ruleLabels[rule] || rule) + '</span>' +
+    '<span style="color:#aaa">7日以内: ' + caseCount + '件</span>' +
+    '</div>';
+
+  if (parsed.today) {
+    html += '<div class="agenda-card card-focus">' +
+      '<div class="agenda-card-header">📌 今日の焦点</div>' +
+      '<div class="agenda-card-body">' + parsed.today + '</div>' +
+      '</div>';
+  }
+
+  if (parsed.priority_tasks && parsed.priority_tasks.length > 0) {
+    var items = '';
+    for (var i = 0; i < parsed.priority_tasks.length; i++) {
+      items += '<li>' + parsed.priority_tasks[i] + '</li>';
+    }
+    html += '<div class="agenda-card card-tasks">' +
+      '<div class="agenda-card-header">⭐ 優先タスク</div>' +
+      '<div class="agenda-card-body"><ul class="task-list">' + items + '</ul></div>' +
+      '</div>';
+  }
+
+  if (parsed.notes) {
+    html += '<div class="agenda-card card-notes">' +
+      '<div class="agenda-card-header">💡 メモ・アラート</div>' +
+      '<div class="agenda-card-body">' + parsed.notes + '</div>' +
+      '</div>';
+  }
+
+  var now = new Date(new Date().getTime() + 9 * 3600000);
+  var hh = now.getUTCHours();
+  var mm = now.getUTCMinutes();
+  html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + '</div>';
+
+  document.getElementById('agendaContent').innerHTML = html;
+}
+
+// ==================== CHAT ====================
+
+// Firebaseデータをチャット用テキストに変換
+function buildChatContext() {
+  var today = todayJST();
+  var dow = getWeekdayJA(today);
+  var rule = getWorkdayRule(today);
+  var ruleDesc = {
+    'weekday':   '通常営業日',
+    'saturday':  '土曜（条件次第で現場）',
+    'sunday':    '日曜（自宅のみ・下見不可）',
+    'longbreak': '長期休暇中'
+  };
+
+  var lines = '=== Firebaseデータ（' + today + ' ' + dow + '曜日 / ' + (ruleDesc[rule]||rule) + '） ===\n';
+  lines += '総ケース数: ' + allCasesAll.length + '件（全件）\n\n';
+
+  // 今日の下見ケース
+  var todayCases = [];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
+    if (c.shitami === today || c.ai_shitami === today) todayCases.push(c);
+  }
+  lines += '【今日の下見予定】' + (todayCases.length > 0 ? todayCases.length + '件' : 'なし') + '\n';
+  for (var i = 0; i < todayCases.length; i++) {
+    var c = todayCases[i];
+    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
+      ' | 住所: ' + c.address +
+      (c.shitami_time ? ' | 時間: ' + c.shitami_time : '') +
+      (c.shitami_order ? ' | 順: ' + c.shitami_order : '') + '\n';
+  }
+  lines += '\n';
+
+  // アラートケース
+  var alertCases = [];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var alerts = getAlerts(allCasesAll[i]);
+    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
+  }
+  lines += '【アラートケース】' + alertCases.length + '件\n';
+  for (var i = 0; i < alertCases.length; i++) {
+    var item = alertCases[i];
+    var alertStr = '';
+    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
+    lines += '  - ' + item.c.tanto + ' | ' + item.c.kubun + ' | ' + item.c.title +
+      ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')' +
+      ' | 下見: ' + (item.c.shitami || item.c.ai_shitami || '未定') +
+      (item.c.shitami_time ? ' ' + item.c.shitami_time : '') +
+      (item.c.shitami_order ? ' 順' + item.c.shitami_order : '') +
+      ' | 住所: ' + item.c.address + ' ' + alertStr + '\n';
+  }
+  lines += '\n';
+
+  // 全ケース一覧
+  lines += '【全ケース一覧】\n';
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
+    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
+      ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
+      ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
+      (c.shitami_time ? ' ' + c.shitami_time : '') +
+      (c.shitami_order ? ' 順' + c.shitami_order : '') +
+      ' | 住所: ' + c.address + '\n';
+  }
+
+  return lines;
+}
+
+function buildSystemPrompt() {
+  return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
+    'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
+    '【役割】\n' +
+    'Firebaseから渡されるケースデータを整理・分析して、Kに必要な情報を提供する。\n\n' +
+    '【得意なこと】\n' +
+    '1. 今日の下見順の提案（住所から地域・ルートを推測）\n' +
+    '2. アラートケースの整理と優先度付け\n' +
+    '3. 今週・来週の施工件数サマリー\n' +
+    '4. 下見日程の候補提案（施工日から逆算、週末/祝日除外）\n\n' +
+    '【行動ルール】\n' +
+    '- 情報が不足していたら質問する（例：出発地点、時間制約など）\n' +
+    '- 回答は簡潔・箇条書き優先\n' +
+    '- 住所から地域を推測してルート最適化を提案する\n' +
+    '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
+    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n\n' +
+    '【ケースデータ】\n' + buildChatContext();
+}
+
+function appendChatMessage(role, text) {
+  var container = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  var avatar = role === 'ai' ? '🤖' : 'K';
+  div.innerHTML =
+    '<div class="chat-avatar">' + avatar + '</div>' +
+    '<div class="chat-bubble">' + escapeHtml(text) + '</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendTypingIndicator() {
+  var container = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ai';
+  div.id = 'typingIndicator';
+  div.innerHTML =
+    '<div class="chat-avatar">🤖</div>' +
+    '<div class="chat-typing">' +
+    '<div class="typing-dot"></div>' +
+    '<div class="typing-dot"></div>' +
+    '<div class="typing-dot"></div>' +
+    '</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  var el = document.getElementById('typingIndicator');
+  if (el) el.parentNode.removeChild(el);
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+}
+
+function sendQuick(text) {
+  document.getElementById('chatInput').value = text;
+  sendChat();
+}
+
+function clearChat() {
+  chatHistory = [];
+  var container = document.getElementById('chatMessages');
+  container.innerHTML =
+    '<div class="chat-msg ai">' +
+    '<div class="chat-avatar">🤖</div>' +
+    '<div class="chat-bubble">会話をクリアしました。何でも聞いてください。</div>' +
+    '</div>';
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function handleChatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+function sendChat() {
+  var geminiKey = localStorage.getItem('geminiApiKey');
+  if (!geminiKey) {
+    appendChatMessage('ai', '⚠️ Gemini APIキーが未設定です。sogo.html の「API設定」から設定してください。');
+    return;
+  }
+
+  var input = document.getElementById('chatInput');
+  var text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  appendChatMessage('user', text);
+
+  // 会話履歴に追加
+  chatHistory.push({ role: 'user', parts: [{ text: text }] });
+
+  appendTypingIndicator();
+
+  // システムプロンプトはcontents[0]にuserとして注入（Geminiはsystemロール非対応のため）
+  var contents = [];
+  // 初回のみシステムプロンプトを先頭に挿入
+  if (chatHistory.length === 1) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + text }]
+    });
+  } else {
+    // 初回システムプロンプト + 以降の履歴
+    contents.push({
+      role: 'user',
+      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + chatHistory[0].parts[0].text }]
+    });
+    // モデルの最初の返答があれば追加
+    for (var i = 1; i < chatHistory.length; i++) {
+      contents.push({
+        role: chatHistory[i].role === 'user' ? 'user' : 'model',
+        parts: chatHistory[i].parts
+      });
+    }
+  }
+
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: contents,
+      generationConfig: { temperature: 0.5, maxOutputTokens: 65536 }
+    })
+  }).then(function(res) {
+    return res.json();
+  }).then(function(data) {
+    removeTypingIndicator();
+    document.getElementById('sendBtn').disabled = false;
+
+    if (!data.candidates || !data.candidates[0]) {
+      throw new Error('APIレスポンス異常: ' + JSON.stringify(data));
+    }
+    var replyText = data.candidates[0].content.parts[0].text;
+    appendChatMessage('ai', replyText);
+
+    // 会話履歴にAI返答を追加
+    chatHistory.push({ role: 'model', parts: [{ text: replyText }] });
+
+  }).catch(function(err) {
+    removeTypingIndicator();
+    document.getElementById('sendBtn').disabled = false;
+    appendChatMessage('ai', '❌ エラー：' + err.message);
+  });
+}
+
+// ==================== INIT ====================
+document.getElementById('topbarDate').textContent = formatTopbarDate();
+loadCases();
+</script>
 </body>
 </html>
