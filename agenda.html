@@ -143,6 +143,166 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
   border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==================== CHAT TAB ==================== */
+#tab-chat {
+  display: none;
+  flex-direction: column;
+  height: calc(100vh - 90px);
+}
+#tab-chat.active {
+  display: flex;
+}
+
+.chat-quick-btns {
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.quick-btn {
+  background: #e8eaf6;
+  color: #1a237e;
+  border: 1px solid #9fa8da;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.quick-btn:hover { background: #c5cae9; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-msg {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+}
+.chat-msg.user { flex-direction: row-reverse; }
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chat-msg.ai .chat-bubble {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  color: #333;
+  border-radius: 4px 14px 14px 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.chat-msg.user .chat-bubble {
+  background: #3949ab;
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.chat-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.chat-msg.ai .chat-avatar { background: #e8eaf6; }
+.chat-msg.user .chat-avatar { background: #3949ab; color: #fff; }
+
+.chat-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px 14px 14px 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  width: fit-content;
+}
+.typing-dot {
+  width: 6px; height: 6px;
+  background: #9fa8da;
+  border-radius: 50%;
+  animation: typingBounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+.chat-input-area {
+  padding: 10px 12px;
+  background: #fff;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.chat-input-area textarea {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  max-height: 100px;
+  min-height: 36px;
+  line-height: 1.5;
+}
+.chat-input-area textarea:focus { border-color: #3949ab; }
+.btn-send {
+  background: #3949ab;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  height: 36px;
+}
+.btn-send:hover { background: #283593; }
+.btn-send:disabled { background: #9fa8da; cursor: not-allowed; }
+
+.btn-chat-clear {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  align-self: center;
+}
+.btn-chat-clear:hover { color: #e53935; }
+
+.chat-data-tag {
+  font-size: 11px;
+  color: #aaa;
+  text-align: center;
+  padding: 4px 0;
+}
 </style>
 </head>
 <body>
@@ -157,7 +317,8 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
 
 <div class="tab-nav">
   <button class="tab-btn active" id="tabBtnList" onclick="switchTab('list',this)">📋 List <span class="badge" id="listCount">0</span></button>
-  <button class="tab-btn" id="tabBtnAgenda" onclick="switchTab('agenda',this)">🎯 Today's Agenda</button>
+  <button class="tab-btn" id="tabBtnAgenda" onclick="switchTab('agenda',this)">🎯 Agenda</button>
+  <button class="tab-btn" id="tabBtnChat" onclick="switchTab('chat',this)">💬 チャット</button>
 </div>
 
 <!-- LIST TAB -->
@@ -206,6 +367,27 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
   </div>
 </div>
 
+<!-- CHAT TAB -->
+<div id="tab-chat" class="tab-content">
+  <div class="chat-quick-btns">
+    <button class="quick-btn" onclick="sendQuick('今日の下見順を教えて')">📍 今日の下見順</button>
+    <button class="quick-btn" onclick="sendQuick('下見未定のアラートケースを整理して')">⚠️ アラート整理</button>
+    <button class="quick-btn" onclick="sendQuick('今週の施工件数と状況をまとめて')">📊 今週サマリー</button>
+    <button class="quick-btn" onclick="sendQuick('下見日程の候補を提案して')">📅 日程提案</button>
+    <button class="btn-chat-clear" onclick="clearChat()">🗑 クリア</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg ai">
+      <div class="chat-avatar">🤖</div>
+      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。<br>情報が足りない場合は質問します。</div>
+    </div>
+  </div>
+  <div class="chat-input-area">
+    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1" oninput="autoResizeTextarea(this)" onkeydown="handleChatKeydown(event)"></textarea>
+    <button class="btn-send" id="sendBtn" onclick="sendChat()">送信</button>
+  </div>
+</div>
+
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
 <script src="shared-modal.js"></script>
 
@@ -226,6 +408,7 @@ var database = firebase.database();
 // ==================== GLOBALS ====================
 var allCases = [];
 var filteredCases = [];
+var chatHistory = []; // Gemini用会話履歴
 
 // 祝日リスト 2025-2026
 var HOLIDAYS = [
@@ -295,6 +478,7 @@ function formatTopbarDate() {
 function switchTab(name, btn) {
   document.getElementById('tab-list').classList.remove('active');
   document.getElementById('tab-agenda').classList.remove('active');
+  document.getElementById('tab-chat').classList.remove('active');
   document.getElementById('tab-' + name).classList.add('active');
   var btns = document.querySelectorAll('.tab-btn');
   for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
@@ -567,17 +751,13 @@ function generateAgenda() {
 function repairJson(str) {
   try { JSON.parse(str); return str; } catch(e) {}
   var s = str;
-  // 末尾カンマ除去
   s = s.replace(/,\s*$/, '');
-  // クォート数を数える（バックスラッシュエスケープを除外）
   var quoteCount = 0;
   for (var qi = 0; qi < s.length; qi++) {
     if (s[qi] === '"' && (qi === 0 || s[qi-1] !== '\\')) quoteCount++;
   }
   if (quoteCount % 2 !== 0) s += '"';
-  // 末尾カンマ・不正な末尾を再除去
   s = s.replace(/,\s*([\]\}])/g, '$1').replace(/,\s*$/, '');
-  // 括弧を数えて閉じる
   var opens = 0, closes = 0, braces = 0, braceC = 0;
   for (var i = 0; i < s.length; i++) {
     if (s[i] === '[') opens++;
@@ -659,6 +839,228 @@ function renderAgendaResult(rawText, today, dow, rule, caseCount) {
   html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + '</div>';
 
   document.getElementById('agendaContent').innerHTML = html;
+}
+
+// ==================== CHAT ====================
+
+// Firebaseデータをチャット用テキストに変換
+function buildChatContext() {
+  var today = todayJST();
+  var dow = getWeekdayJA(today);
+  var rule = getWorkdayRule(today);
+  var ruleDesc = {
+    'weekday':   '通常営業日',
+    'saturday':  '土曜（条件次第で現場）',
+    'sunday':    '日曜（自宅のみ・下見不可）',
+    'longbreak': '長期休暇中'
+  };
+
+  var lines = '=== Firebaseデータ（' + today + ' ' + dow + '曜日 / ' + (ruleDesc[rule]||rule) + '） ===\n';
+  lines += '総ケース数: ' + allCases.length + '件（施工日 ±3〜21日範囲）\n\n';
+
+  // 今日の下見ケース
+  var todayCases = [];
+  for (var i = 0; i < allCases.length; i++) {
+    var c = allCases[i];
+    if (c.shitami === today || c.ai_shitami === today) todayCases.push(c);
+  }
+  lines += '【今日の下見予定】' + (todayCases.length > 0 ? todayCases.length + '件' : 'なし') + '\n';
+  for (var i = 0; i < todayCases.length; i++) {
+    var c = todayCases[i];
+    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title + ' | 住所: ' + c.address + '\n';
+  }
+  lines += '\n';
+
+  // アラートケース
+  var alertCases = [];
+  for (var i = 0; i < allCases.length; i++) {
+    var alerts = getAlerts(allCases[i]);
+    if (alerts.length > 0) alertCases.push({ c: allCases[i], alerts: alerts });
+  }
+  lines += '【アラートケース】' + alertCases.length + '件\n';
+  for (var i = 0; i < alertCases.length; i++) {
+    var item = alertCases[i];
+    var alertStr = '';
+    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
+    lines += '  - ' + item.c.tanto + ' | ' + item.c.kubun + ' | ' + item.c.title +
+      ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')' +
+      ' | 下見: ' + (item.c.shitami || item.c.ai_shitami || '未定') +
+      ' | 住所: ' + item.c.address + ' ' + alertStr + '\n';
+  }
+  lines += '\n';
+
+  // 全ケース一覧
+  lines += '【全ケース一覧】\n';
+  for (var i = 0; i < allCases.length; i++) {
+    var c = allCases[i];
+    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
+      ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
+      ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
+      ' | 住所: ' + c.address + '\n';
+  }
+
+  return lines;
+}
+
+function buildSystemPrompt() {
+  return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
+    'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
+    '【役割】\n' +
+    'Firebaseから渡されるケースデータを整理・分析して、Kに必要な情報を提供する。\n\n' +
+    '【得意なこと】\n' +
+    '1. 今日の下見順の提案（住所から地域・ルートを推測）\n' +
+    '2. アラートケースの整理と優先度付け\n' +
+    '3. 今週・来週の施工件数サマリー\n' +
+    '4. 下見日程の候補提案（施工日から逆算、週末/祝日除外）\n\n' +
+    '【行動ルール】\n' +
+    '- 情報が不足していたら質問する（例：出発地点、時間制約など）\n' +
+    '- 回答は簡潔・箇条書き優先\n' +
+    '- 住所から地域を推測してルート最適化を提案する\n' +
+    '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
+    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n\n' +
+    '【ケースデータ】\n' + buildChatContext();
+}
+
+function appendChatMessage(role, text) {
+  var container = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  var avatar = role === 'ai' ? '🤖' : 'K';
+  div.innerHTML =
+    '<div class="chat-avatar">' + avatar + '</div>' +
+    '<div class="chat-bubble">' + escapeHtml(text) + '</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendTypingIndicator() {
+  var container = document.getElementById('chatMessages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ai';
+  div.id = 'typingIndicator';
+  div.innerHTML =
+    '<div class="chat-avatar">🤖</div>' +
+    '<div class="chat-typing">' +
+    '<div class="typing-dot"></div>' +
+    '<div class="typing-dot"></div>' +
+    '<div class="typing-dot"></div>' +
+    '</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  var el = document.getElementById('typingIndicator');
+  if (el) el.parentNode.removeChild(el);
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+}
+
+function sendQuick(text) {
+  document.getElementById('chatInput').value = text;
+  sendChat();
+}
+
+function clearChat() {
+  chatHistory = [];
+  var container = document.getElementById('chatMessages');
+  container.innerHTML =
+    '<div class="chat-msg ai">' +
+    '<div class="chat-avatar">🤖</div>' +
+    '<div class="chat-bubble">会話をクリアしました。何でも聞いてください。</div>' +
+    '</div>';
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function handleChatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+function sendChat() {
+  var geminiKey = localStorage.getItem('geminiApiKey');
+  if (!geminiKey) {
+    appendChatMessage('ai', '⚠️ Gemini APIキーが未設定です。sogo.html の「API設定」から設定してください。');
+    return;
+  }
+
+  var input = document.getElementById('chatInput');
+  var text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  appendChatMessage('user', text);
+
+  // 会話履歴に追加
+  chatHistory.push({ role: 'user', parts: [{ text: text }] });
+
+  appendTypingIndicator();
+
+  // システムプロンプトはcontents[0]にuserとして注入（Geminiはsystemロール非対応のため）
+  var contents = [];
+  // 初回のみシステムプロンプトを先頭に挿入
+  if (chatHistory.length === 1) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + text }]
+    });
+  } else {
+    // 初回システムプロンプト + 以降の履歴
+    contents.push({
+      role: 'user',
+      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + chatHistory[0].parts[0].text }]
+    });
+    // モデルの最初の返答があれば追加
+    for (var i = 1; i < chatHistory.length; i++) {
+      contents.push({
+        role: chatHistory[i].role === 'user' ? 'user' : 'model',
+        parts: chatHistory[i].parts
+      });
+    }
+  }
+
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: contents,
+      generationConfig: { temperature: 0.5, maxOutputTokens: 2048 }
+    })
+  }).then(function(res) {
+    return res.json();
+  }).then(function(data) {
+    removeTypingIndicator();
+    document.getElementById('sendBtn').disabled = false;
+
+    if (!data.candidates || !data.candidates[0]) {
+      throw new Error('APIレスポンス異常: ' + JSON.stringify(data));
+    }
+    var replyText = data.candidates[0].content.parts[0].text;
+    appendChatMessage('ai', replyText);
+
+    // 会話履歴にAI返答を追加
+    chatHistory.push({ role: 'model', parts: [{ text: replyText }] });
+
+  }).catch(function(err) {
+    removeTypingIndicator();
+    document.getElementById('sendBtn').disabled = false;
+    appendChatMessage('ai', '❌ エラー：' + err.message);
+  });
 }
 
 // ==================== INIT ====================
