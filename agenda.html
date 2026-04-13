@@ -380,7 +380,7 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
   <div class="chat-messages" id="chatMessages">
     <div class="chat-msg ai">
       <div class="chat-avatar">🤖</div>
-      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。<br>情報が足りない場合は質問します。</div>
+      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。</div>
     </div>
   </div>
   <div class="chat-input-area">
@@ -408,12 +408,20 @@ var database = firebase.database();
 
 // ==================== GLOBALS ====================
 var allCases = [];
-var allCasesAll = []; // チャット・アジェンダ用（全件）
+var allCasesAll = [];
 var filteredCases = [];
-var chatHistory = []; // Gemini用会話履歴
+// チャット履歴: { role: 'user'|'model', text: '...' } の配列で管理
+// Geminiへ渡す直前に変換する（システムプロンプトは毎回先頭に注入）
+var chatHistory = [];
 var globalHeaders = [];
 var globalTasks = {};
 var fullData = null;
+
+// 自宅住所（localStorage優先、フォールバックはデフォルト値）
+var DEFAULT_HOME = '札幌市白石区栄通18丁目4-17';
+function getHomeAddress() {
+  return localStorage.getItem('homeAddress') || DEFAULT_HOME;
+}
 
 // 祝日リスト 2025-2026
 var HOLIDAYS = [
@@ -529,10 +537,8 @@ function loadCases() {
         ai_shitami: task.ai_shitami_date || ''
       };
 
-      // 全件（チャット・アジェンダ用）
       allCasesAll.push(caseObj);
 
-      // 期間絞り（リスト表示用）
       if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
         allCases.push(caseObj);
       }
@@ -548,12 +554,10 @@ function loadCases() {
   });
 }
 
-// モーダルを開いて保存後にallCasesを更新
 function openModal(key) {
   var task = globalTasks[key];
   if (!task) return;
   openCaseModal(key, task, globalHeaders, globalTasks, fullData, database, function() {
-    // 保存後: allCasesのshitami/time/orderを同期
     for (var i = 0; i < allCases.length; i++) {
       if (allCases[i].key === key) {
         allCases[i].shitami = globalTasks[key].date || '';
@@ -618,7 +622,7 @@ function renderTable() {
     else if (c.title.indexOf('SU') >= 0) titleTag = '<span class="tag tag-su">SU</span>';
 
     var shitamiCell = '';
-    if (c.shitami) shitamiCell += '<div class="cell-blue">' + c.shitami + '</div>';
+    if (c.shitami) shitamiCell += '<div class="cell-blue">' + c.shitami + (c.shitami_time ? ' ' + c.shitami_time : '') + (c.shitami_order ? ' 順' + c.shitami_order : '') + '</div>';
     if (c.ai_shitami) shitamiCell += '<div class="cell-orange">AI: ' + c.ai_shitami + '</div>';
 
     var alertCell = '';
@@ -665,6 +669,108 @@ function applyFilter() {
   renderTable();
 }
 
+// ==================== DATA CONTEXT BUILDER ====================
+// チャット・アジェンダ共通のデータ文字列生成
+// ★ 下見日時を明示的に強調して渡す
+function buildCaseDataContext() {
+  var today = todayJST();
+  var dow = getWeekdayJA(today);
+  var rule = getWorkdayRule(today);
+  var ruleDesc = {
+    'weekday':   '通常営業日',
+    'saturday':  '土曜（条件次第で現場）',
+    'sunday':    '日曜（自宅のみ・下見不可）',
+    'longbreak': '長期休暇中'
+  };
+
+  var lines = '';
+  lines += '=== 基本情報 ===\n';
+  lines += '今日: ' + today + '（' + dow + '曜日）/ ' + (ruleDesc[rule] || rule) + '\n';
+  lines += 'Kの出発地点（自宅）: ' + getHomeAddress() + '\n';
+  lines += '総ケース数: ' + allCasesAll.length + '件\n\n';
+
+  // ★ 今日の下見予定（確定・AI両方）を最優先で明示
+  var todayConfirmed = [];
+  var todayAI = [];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
+    if (c.shitami === today) todayConfirmed.push(c);
+    else if (c.ai_shitami === today && !c.shitami) todayAI.push(c);
+  }
+
+  lines += '=== 今日の下見予定（確定済み） ' + todayConfirmed.length + '件 ===\n';
+  if (todayConfirmed.length === 0) {
+    lines += '（なし）\n';
+  } else {
+    // 順番でソート
+    todayConfirmed.sort(function(a, b) {
+      var oa = parseInt(a.shitami_order) || 99;
+      var ob = parseInt(b.shitami_order) || 99;
+      return oa - ob;
+    });
+    for (var i = 0; i < todayConfirmed.length; i++) {
+      var c = todayConfirmed[i];
+      lines += '  [確定' + (i+1) + '] ';
+      lines += (c.shitami_order ? '順番' + c.shitami_order + ' ' : '');
+      lines += (c.shitami_time ? c.shitami_time + ' ' : '時間未設定 ');
+      lines += c.tanto + ' | ' + c.kubun + ' ' + c.title;
+      lines += ' | 住所: ' + c.address;
+      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
+    }
+  }
+  lines += '\n';
+
+  lines += '=== 今日のAI提案下見（確定なし） ' + todayAI.length + '件 ===\n';
+  if (todayAI.length === 0) {
+    lines += '（なし）\n';
+  } else {
+    for (var i = 0; i < todayAI.length; i++) {
+      var c = todayAI[i];
+      lines += '  [AI提案] ' + c.tanto + ' | ' + c.kubun + ' ' + c.title;
+      lines += ' | 住所: ' + c.address;
+      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
+    }
+  }
+  lines += '\n';
+
+  // アラートケース
+  var alertCases = [];
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var alerts = getAlerts(allCasesAll[i]);
+    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
+  }
+  lines += '=== アラートケース ' + alertCases.length + '件 ===\n';
+  for (var i = 0; i < alertCases.length; i++) {
+    var item = alertCases[i];
+    var alertStr = '';
+    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
+    lines += '  ' + alertStr + ' ';
+    lines += item.c.tanto + ' | ' + item.c.kubun + ' ' + item.c.title;
+    lines += ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')';
+    lines += ' | 下見確定: ' + (item.c.shitami || '未定');
+    if (item.c.shitami && item.c.shitami_time) lines += ' ' + item.c.shitami_time;
+    if (item.c.shitami && item.c.shitami_order) lines += ' 順' + item.c.shitami_order;
+    lines += ' | AI提案: ' + (item.c.ai_shitami || '未定');
+    lines += ' | 住所: ' + item.c.address + '\n';
+  }
+  lines += '\n';
+
+  // 今後7日間の全ケース
+  var limit7 = addDays(today, 7);
+  lines += '=== 今後7日間のケース（施工日ベース） ===\n';
+  for (var i = 0; i < allCasesAll.length; i++) {
+    var c = allCasesAll[i];
+    if (c.kouji < today || c.kouji > limit7) continue;
+    lines += '  ' + c.kubun + ' ' + c.title + ' 担当:' + c.tanto;
+    lines += ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')';
+    lines += ' | 下見確定: ' + (c.shitami ? c.shitami + (c.shitami_time ? ' ' + c.shitami_time : '') + (c.shitami_order ? ' 順' + c.shitami_order : '') : '未定');
+    lines += ' | AI提案: ' + (c.ai_shitami || '未定');
+    lines += ' | 住所: ' + c.address + '\n';
+  }
+
+  return lines;
+}
+
 // ==================== AGENDA ====================
 function getWorkdayRule(today) {
   if (isLongBreak(today)) return 'longbreak';
@@ -684,21 +790,11 @@ function countRemainingWeekdays(today) {
   return count;
 }
 
-function getCasesFor7Days() {
-  var today = todayJST();
-  var limit = addDays(today, 7);
-  var result = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    if (allCasesAll[i].kouji >= today && allCasesAll[i].kouji <= limit) result.push(allCasesAll[i]);
-  }
-  return result;
-}
-
 function generateAgenda() {
   var geminiKey = localStorage.getItem('geminiApiKey');
   if (!geminiKey) {
     document.getElementById('agendaContent').innerHTML =
-      '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください（<code>geminiApiKey</code>）。</div>';
+      '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください。</div>';
     return;
   }
   if (allCasesAll.length === 0) {
@@ -717,27 +813,6 @@ function generateAgenda() {
   var holiday = isHoliday(today);
   var longBreak = isLongBreak(today);
   var remainingWeekdays = countRemainingWeekdays(today);
-  var weekCases = getCasesFor7Days();
-
-  var caseLines = '';
-  var MAX = 15;
-  var shown = weekCases.length > MAX ? weekCases.slice(0, MAX) : weekCases;
-  for (var i = 0; i < shown.length; i++) {
-    var c = shown[i];
-    var alerts = getAlerts(c);
-    var alertStr = '';
-    for (var j = 0; j < alerts.length; j++) alertStr += '[' + alerts[j].label + ']';
-    caseLines += '- ' + (c.tanto || '不明') +
-      ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
-      ' | ' + c.kubun + ' | ' + c.title +
-      ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
-      (c.shitami_time ? ' ' + c.shitami_time : '') +
-      (c.shitami_order ? ' 順' + c.shitami_order : '') +
-      (alertStr ? ' ' + alertStr : '') +
-      ' | ' + c.address.slice(0, 20) + '\n';
-  }
-  if (weekCases.length > MAX) caseLines += '...他 ' + (weekCases.length - MAX) + ' 件省略\n';
-  if (!caseLines) caseLines = '（今後7日間に施工予定ケースなし）\n';
 
   var ruleDesc = {
     'weekday':   '通常営業日（下見・メール送信・報告書すべて可）',
@@ -751,15 +826,17 @@ function generateAgenda() {
     '日付：' + today + '（' + dow + '曜日）\n' +
     '祝日フラグ：' + (holiday ? 'はい' : 'いいえ') + '\n' +
     '長期休暇中：' + (longBreak ? 'はい' : 'いいえ') + '\n' +
-    '今週残り営業日（月〜金）：' + remainingWeekdays + '日\n\n' +
+    '今週残り営業日（月〜金）：' + remainingWeekdays + '日\n' +
+    '出発地点（自宅）：' + getHomeAddress() + '\n\n' +
     '【本日のK行動ルール】\n' +
     (ruleDesc[rule] || rule) + '\n\n' +
     '【補足ルール】\n' +
     '・取引先は土日祝休み（メール送信しても月曜まで見られない）\n' +
     '・現場（大工等）は月〜土稼働、日休み\n' +
     '・土曜現場可否は「今週残り営業日 × 1件/日」と当週ケース数を比較して判断すること\n\n' +
-    '【今後7日間のケース（施工日ベース）】\n' + caseLines + '\n' +
-    '【アラート】\n' +
+    '【Firebaseケースデータ】\n' +
+    buildCaseDataContext() + '\n' +
+    '【アラート定義】\n' +
     '下見日決めて＝リフォームで下見未定（最優先）\n' +
     '訪問必要＝新築で施工21日前以内かつ下見未実施\n' +
     '再訪問必要＝新築SK案件で施工10日前以内（2回目必要）\n\n' +
@@ -785,7 +862,7 @@ function generateAgenda() {
     btn.innerHTML = '🔄 更新';
     if (!data.candidates || !data.candidates[0]) throw new Error('API レスポンス異常: ' + JSON.stringify(data));
     var rawText = data.candidates[0].content.parts[0].text;
-    renderAgendaResult(rawText, today, dow, rule, weekCases.length);
+    renderAgendaResult(rawText, today, dow, rule);
   }).catch(function(err) {
     btn.disabled = false;
     btn.innerHTML = '🔄 更新';
@@ -816,7 +893,7 @@ function repairJson(str) {
   try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
 }
 
-function renderAgendaResult(rawText, today, dow, rule, caseCount) {
+function renderAgendaResult(rawText, today, dow, rule) {
   var parsed = null;
   try {
     var jsonStr = '';
@@ -848,10 +925,16 @@ function renderAgendaResult(rawText, today, dow, rule, caseCount) {
   if (rule === 'sunday' || rule === 'saturday' || rule === 'longbreak') chipCls += ' weekend';
   if (isHoliday(today)) chipCls += ' holiday';
 
+  // 今日の確定下見件数
+  var todayCount = 0;
+  for (var i = 0; i < allCasesAll.length; i++) {
+    if (allCasesAll[i].shitami === today) todayCount++;
+  }
+
   var html = '<div class="agenda-day-info">' +
     '<span class="' + chipCls + '">' + dow + '曜日</span>' +
     '<span style="color:#666">' + (ruleLabels[rule] || rule) + '</span>' +
-    '<span style="color:#aaa">7日以内: ' + caseCount + '件</span>' +
+    (todayCount > 0 ? '<span style="color:#e65100;font-weight:bold">今日の確定下見: ' + todayCount + '件</span>' : '') +
     '</div>';
 
   if (parsed.today) {
@@ -882,96 +965,29 @@ function renderAgendaResult(rawText, today, dow, rule, caseCount) {
   var now = new Date(new Date().getTime() + 9 * 3600000);
   var hh = now.getUTCHours();
   var mm = now.getUTCMinutes();
-  html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + '</div>';
+  html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + ' | 自宅: ' + getHomeAddress() + '</div>';
 
   document.getElementById('agendaContent').innerHTML = html;
 }
 
 // ==================== CHAT ====================
-
-// Firebaseデータをチャット用テキストに変換
-function buildChatContext() {
-  var today = todayJST();
-  var dow = getWeekdayJA(today);
-  var rule = getWorkdayRule(today);
-  var ruleDesc = {
-    'weekday':   '通常営業日',
-    'saturday':  '土曜（条件次第で現場）',
-    'sunday':    '日曜（自宅のみ・下見不可）',
-    'longbreak': '長期休暇中'
-  };
-
-  var lines = '=== Firebaseデータ（' + today + ' ' + dow + '曜日 / ' + (ruleDesc[rule]||rule) + '） ===\n';
-  lines += '総ケース数: ' + allCasesAll.length + '件（全件）\n\n';
-
-  // 今日の下見ケース
-  var todayCases = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var c = allCasesAll[i];
-    if (c.shitami === today || c.ai_shitami === today) todayCases.push(c);
-  }
-  lines += '【今日の下見予定】' + (todayCases.length > 0 ? todayCases.length + '件' : 'なし') + '\n';
-  for (var i = 0; i < todayCases.length; i++) {
-    var c = todayCases[i];
-    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
-      ' | 住所: ' + c.address +
-      (c.shitami_time ? ' | 時間: ' + c.shitami_time : '') +
-      (c.shitami_order ? ' | 順: ' + c.shitami_order : '') + '\n';
-  }
-  lines += '\n';
-
-  // アラートケース
-  var alertCases = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var alerts = getAlerts(allCasesAll[i]);
-    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
-  }
-  lines += '【アラートケース】' + alertCases.length + '件\n';
-  for (var i = 0; i < alertCases.length; i++) {
-    var item = alertCases[i];
-    var alertStr = '';
-    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
-    lines += '  - ' + item.c.tanto + ' | ' + item.c.kubun + ' | ' + item.c.title +
-      ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')' +
-      ' | 下見: ' + (item.c.shitami || item.c.ai_shitami || '未定') +
-      (item.c.shitami_time ? ' ' + item.c.shitami_time : '') +
-      (item.c.shitami_order ? ' 順' + item.c.shitami_order : '') +
-      ' | 住所: ' + item.c.address + ' ' + alertStr + '\n';
-  }
-  lines += '\n';
-
-  // 全ケース一覧
-  lines += '【全ケース一覧】\n';
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var c = allCasesAll[i];
-    lines += '  - ' + c.tanto + ' | ' + c.kubun + ' | ' + c.title +
-      ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')' +
-      ' | 下見: ' + (c.shitami || c.ai_shitami || '未定') +
-      (c.shitami_time ? ' ' + c.shitami_time : '') +
-      (c.shitami_order ? ' 順' + c.shitami_order : '') +
-      ' | 住所: ' + c.address + '\n';
-  }
-
-  return lines;
-}
-
+// ★ システムプロンプトは会話履歴と分離して毎回生成
 function buildSystemPrompt() {
   return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
     'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
     '【役割】\n' +
     'Firebaseから渡されるケースデータを整理・分析して、Kに必要な情報を提供する。\n\n' +
-    '【得意なこと】\n' +
-    '1. 今日の下見順の提案（住所から地域・ルートを推測）\n' +
-    '2. アラートケースの整理と優先度付け\n' +
-    '3. 今週・来週の施工件数サマリー\n' +
-    '4. 下見日程の候補提案（施工日から逆算、週末/祝日除外）\n\n' +
     '【行動ルール】\n' +
-    '- 情報が不足していたら質問する（例：出発地点、時間制約など）\n' +
+    '- 下見日・時間・順番が確定しているケースはその値を絶対に優先すること\n' +
+    '- 「確定」と「AI提案」は別物。確定があればAI提案は無視する\n' +
+    '- 今日の確定下見がある場合は必ず順番・時間・住所を正確に伝える\n' +
+    '- 住所から地域を推測してルート最適化を提案する（出発地点は自宅）\n' +
+    '- 情報が不足していたら質問する\n' +
     '- 回答は簡潔・箇条書き優先\n' +
-    '- 住所から地域を推測してルート最適化を提案する\n' +
     '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
     '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n\n' +
-    '【ケースデータ】\n' + buildChatContext();
+    '【最新Firebaseデータ】\n' +
+    buildCaseDataContext();
 }
 
 function appendChatMessage(role, text) {
@@ -1060,29 +1076,36 @@ function sendChat() {
   appendChatMessage('user', text);
 
   // 会話履歴に追加
-  chatHistory.push({ role: 'user', parts: [{ text: text }] });
+  chatHistory.push({ role: 'user', text: text });
 
   appendTypingIndicator();
 
-  // システムプロンプトはcontents[0]にuserとして注入（Geminiはsystemロール非対応のため）
+  // ★ Geminiへ渡すcontentsを毎回正しく再構築
+  // システムプロンプトは常に最新データで先頭に注入
+  // 形式: [systemPrompt+最初のユーザー発言, AIの返答, 次のユーザー発言, ...]
   var contents = [];
-  // 初回のみシステムプロンプトを先頭に挿入
-  if (chatHistory.length === 1) {
-    contents.push({
-      role: 'user',
-      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + text }]
-    });
-  } else {
-    // 初回システムプロンプト + 以降の履歴
-    contents.push({
-      role: 'user',
-      parts: [{ text: buildSystemPrompt() + '\n\n---\nここからユーザーとの会話です。\n\nユーザー: ' + chatHistory[0].parts[0].text }]
-    });
-    // モデルの最初の返答があれば追加
-    for (var i = 1; i < chatHistory.length; i++) {
+  var sysPrompt = buildSystemPrompt();
+
+  for (var i = 0; i < chatHistory.length; i++) {
+    var item = chatHistory[i];
+    if (item.role === 'user') {
+      if (i === 0) {
+        // 最初のユーザー発言にシステムプロンプトを結合
+        contents.push({
+          role: 'user',
+          parts: [{ text: sysPrompt + '\n\n---\n以下Kとの会話です。\n\nK: ' + item.text }]
+        });
+      } else {
+        contents.push({
+          role: 'user',
+          parts: [{ text: item.text }]
+        });
+      }
+    } else {
+      // role === 'model'
       contents.push({
-        role: chatHistory[i].role === 'user' ? 'user' : 'model',
-        parts: chatHistory[i].parts
+        role: 'model',
+        parts: [{ text: item.text }]
       });
     }
   }
@@ -1106,19 +1129,28 @@ function sendChat() {
     var replyText = data.candidates[0].content.parts[0].text;
     appendChatMessage('ai', replyText);
 
-    // 会話履歴にAI返答を追加
-    chatHistory.push({ role: 'model', parts: [{ text: replyText }] });
+    // ★ AI返答も履歴に追加
+    chatHistory.push({ role: 'model', text: replyText });
 
   }).catch(function(err) {
     removeTypingIndicator();
     document.getElementById('sendBtn').disabled = false;
     appendChatMessage('ai', '❌ エラー：' + err.message);
+    // エラー時はユーザー発言を履歴から除去（再送できるように）
+    if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+      chatHistory.pop();
+    }
   });
 }
 
 // ==================== INIT ====================
 document.getElementById('topbarDate').textContent = formatTopbarDate();
 loadCases();
+
+// localStorage に自宅住所が未設定なら設定
+if (!localStorage.getItem('homeAddress')) {
+  localStorage.setItem('homeAddress', DEFAULT_HOME);
+}
 </script>
 </body>
 </html>
