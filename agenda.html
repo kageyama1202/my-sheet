@@ -112,10 +112,30 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
 .card-focus .agenda-card-header { background: #e8eaf6; color: #1a237e; }
 .card-tasks .agenda-card-header { background: #e8f5e9; color: #2e7d32; }
 .card-notes .agenda-card-header { background: #fff8e1; color: #e65100; }
+.card-visits .agenda-card-header { background: #e3f2fd; color: #1565c0; }
 
 .task-list { list-style: none; padding: 0; }
 .task-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
 .task-list li:last-child { border-bottom: none; }
+
+/* 確定下見リスト */
+.visit-list { list-style: none; padding: 0; }
+.visit-item {
+  padding: 7px 0; border-bottom: 1px solid #f0f0f0;
+  display: flex; gap: 8px; align-items: flex-start; font-size: 12px;
+}
+.visit-item:last-child { border-bottom: none; }
+.visit-num {
+  background: #1565c0; color: #fff;
+  border-radius: 50%; width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: bold; flex-shrink: 0; margin-top: 1px;
+}
+.visit-num.no-order { background: #9fa8da; }
+.visit-info { flex: 1; line-height: 1.6; }
+.visit-title { font-weight: bold; color: #1a237e; }
+.visit-time { color: #e65100; font-weight: bold; }
+.visit-addr { color: #666; font-size: 11px; }
 
 .agenda-footer { text-align: right; font-size: 11px; color: #aaa; margin-top: 8px; }
 
@@ -384,7 +404,11 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
     </div>
   </div>
   <div class="chat-input-area">
-    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1" oninput="autoResizeTextarea(this)" onkeydown="handleChatKeydown(event)"></textarea>
+    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1"
+      oninput="autoResizeTextarea(this)"
+      onkeydown="handleChatKeydown(event)"
+      oncompositionstart="onIMEStart()"
+      oncompositionend="onIMEEnd()"></textarea>
     <button class="btn-send" id="sendBtn" onclick="sendChat()">送信</button>
   </div>
 </div>
@@ -410,20 +434,21 @@ var database = firebase.database();
 var allCases = [];
 var allCasesAll = [];
 var filteredCases = [];
-// チャット履歴: { role: 'user'|'model', text: '...' } の配列で管理
-// Geminiへ渡す直前に変換する（システムプロンプトは毎回先頭に注入）
 var chatHistory = [];
 var globalHeaders = [];
 var globalTasks = {};
 var fullData = null;
 
-// 自宅住所（localStorage優先、フォールバックはデフォルト値）
+// ★ IME変換中フラグ（日本語入力のEnterで送信しないため）
+var isComposing = false;
+function onIMEStart() { isComposing = true; }
+function onIMEEnd()   { isComposing = false; }
+
 var DEFAULT_HOME = '札幌市白石区栄通18丁目4-17';
 function getHomeAddress() {
   return localStorage.getItem('homeAddress') || DEFAULT_HOME;
 }
 
-// 祝日リスト 2025-2026
 var HOLIDAYS = [
   '2025-01-01','2025-01-13','2025-02-11','2025-02-24',
   '2025-03-21','2025-04-29','2025-05-03','2025-05-04','2025-05-05',
@@ -670,8 +695,6 @@ function applyFilter() {
 }
 
 // ==================== DATA CONTEXT BUILDER ====================
-// チャット・アジェンダ共通のデータ文字列生成
-// ★ 下見日時を明示的に強調して渡す
 function buildCaseDataContext() {
   var today = todayJST();
   var dow = getWeekdayJA(today);
@@ -689,7 +712,6 @@ function buildCaseDataContext() {
   lines += 'Kの出発地点（自宅）: ' + getHomeAddress() + '\n';
   lines += '総ケース数: ' + allCasesAll.length + '件\n\n';
 
-  // ★ 今日の下見予定（確定・AI両方）を最優先で明示
   var todayConfirmed = [];
   var todayAI = [];
   for (var i = 0; i < allCasesAll.length; i++) {
@@ -702,7 +724,6 @@ function buildCaseDataContext() {
   if (todayConfirmed.length === 0) {
     lines += '（なし）\n';
   } else {
-    // 順番でソート
     todayConfirmed.sort(function(a, b) {
       var oa = parseInt(a.shitami_order) || 99;
       var ob = parseInt(b.shitami_order) || 99;
@@ -755,12 +776,12 @@ function buildCaseDataContext() {
   }
   lines += '\n';
 
-  // 今後7日間の全ケース
-  var limit7 = addDays(today, 7);
-  lines += '=== 今後7日間のケース（施工日ベース） ===\n';
+  // ★ 今後60日間の全ケース（千歳など遠方案件も含める）
+  var limit60 = addDays(today, 60);
+  lines += '=== 今後60日間のケース（施工日ベース） ===\n';
   for (var i = 0; i < allCasesAll.length; i++) {
     var c = allCasesAll[i];
-    if (c.kouji < today || c.kouji > limit7) continue;
+    if (c.kouji < today || c.kouji > limit60) continue;
     lines += '  ' + c.kubun + ' ' + c.title + ' 担当:' + c.tanto;
     lines += ' | 施工: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')';
     lines += ' | 下見確定: ' + (c.shitami ? c.shitami + (c.shitami_time ? ' ' + c.shitami_time : '') + (c.shitami_order ? ' 順' + c.shitami_order : '') : '未定');
@@ -925,17 +946,46 @@ function renderAgendaResult(rawText, today, dow, rule) {
   if (rule === 'sunday' || rule === 'saturday' || rule === 'longbreak') chipCls += ' weekend';
   if (isHoliday(today)) chipCls += ' holiday';
 
-  // 今日の確定下見件数
-  var todayCount = 0;
+  // ★ 今日の確定下見を順番でソートして取得
+  var todayVisits = [];
   for (var i = 0; i < allCasesAll.length; i++) {
-    if (allCasesAll[i].shitami === today) todayCount++;
+    if (allCasesAll[i].shitami === today) todayVisits.push(allCasesAll[i]);
   }
+  todayVisits.sort(function(a, b) {
+    var oa = parseInt(a.shitami_order) || 99;
+    var ob = parseInt(b.shitami_order) || 99;
+    return oa - ob;
+  });
 
   var html = '<div class="agenda-day-info">' +
     '<span class="' + chipCls + '">' + dow + '曜日</span>' +
     '<span style="color:#666">' + (ruleLabels[rule] || rule) + '</span>' +
-    (todayCount > 0 ? '<span style="color:#e65100;font-weight:bold">今日の確定下見: ' + todayCount + '件</span>' : '') +
+    (todayVisits.length > 0 ? '<span style="color:#e65100;font-weight:bold">今日の確定下見: ' + todayVisits.length + '件</span>' : '') +
     '</div>';
+
+  // ★ 確定下見の案件リストカード
+  if (todayVisits.length > 0) {
+    var visitItems = '';
+    for (var i = 0; i < todayVisits.length; i++) {
+      var v = todayVisits[i];
+      var numCls = v.shitami_order ? 'visit-num' : 'visit-num no-order';
+      var numLabel = v.shitami_order ? v.shitami_order : (i + 1);
+      var timeStr = v.shitami_time ? '<span class="visit-time">' + v.shitami_time + '</span> ' : '';
+      var kubunTag = (v.kubun === 'ﾘ' || v.kubun === 'ﾊﾘ') ? '<span class="tag tag-reform" style="font-size:10px">ﾘ</span>' : '<span class="tag tag-new" style="font-size:10px">新</span>';
+      visitItems +=
+        '<li class="visit-item">' +
+        '<div class="' + numCls + '">' + numLabel + '</div>' +
+        '<div class="visit-info">' +
+        timeStr + kubunTag + ' <span class="visit-title">' + v.title + '</span>' +
+        '<div class="visit-addr">📍 ' + (v.address || '住所未登録') + '</div>' +
+        '</div>' +
+        '</li>';
+    }
+    html += '<div class="agenda-card card-visits">' +
+      '<div class="agenda-card-header">📍 今日の下見リスト</div>' +
+      '<div class="agenda-card-body"><ul class="visit-list">' + visitItems + '</ul></div>' +
+      '</div>';
+  }
 
   if (parsed.today) {
     html += '<div class="agenda-card card-focus">' +
@@ -971,7 +1021,6 @@ function renderAgendaResult(rawText, today, dow, rule) {
 }
 
 // ==================== CHAT ====================
-// ★ システムプロンプトは会話履歴と分離して毎回生成
 function buildSystemPrompt() {
   return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
     'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
@@ -985,7 +1034,8 @@ function buildSystemPrompt() {
     '- 情報が不足していたら質問する\n' +
     '- 回答は簡潔・箇条書き優先\n' +
     '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
-    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n\n' +
+    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n' +
+    '- 地域の目安: 千歳・恵庭・北広島は南方向（遠方）、石狩・当別は北方向、江別・北広島は東方向\n\n' +
     '【最新Firebaseデータ】\n' +
     buildCaseDataContext();
 }
@@ -1052,7 +1102,8 @@ function autoResizeTextarea(el) {
 }
 
 function handleChatKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  // ★ IME変換中（isComposing=true）はEnterを無視する
+  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
     e.preventDefault();
     sendChat();
   }
@@ -1074,15 +1125,9 @@ function sendChat() {
   document.getElementById('sendBtn').disabled = true;
 
   appendChatMessage('user', text);
-
-  // 会話履歴に追加
   chatHistory.push({ role: 'user', text: text });
-
   appendTypingIndicator();
 
-  // ★ Geminiへ渡すcontentsを毎回正しく再構築
-  // システムプロンプトは常に最新データで先頭に注入
-  // 形式: [systemPrompt+最初のユーザー発言, AIの返答, 次のユーザー発言, ...]
   var contents = [];
   var sysPrompt = buildSystemPrompt();
 
@@ -1090,7 +1135,6 @@ function sendChat() {
     var item = chatHistory[i];
     if (item.role === 'user') {
       if (i === 0) {
-        // 最初のユーザー発言にシステムプロンプトを結合
         contents.push({
           role: 'user',
           parts: [{ text: sysPrompt + '\n\n---\n以下Kとの会話です。\n\nK: ' + item.text }]
@@ -1102,7 +1146,6 @@ function sendChat() {
         });
       }
     } else {
-      // role === 'model'
       contents.push({
         role: 'model',
         parts: [{ text: item.text }]
@@ -1128,15 +1171,12 @@ function sendChat() {
     }
     var replyText = data.candidates[0].content.parts[0].text;
     appendChatMessage('ai', replyText);
-
-    // ★ AI返答も履歴に追加
     chatHistory.push({ role: 'model', text: replyText });
 
   }).catch(function(err) {
     removeTypingIndicator();
     document.getElementById('sendBtn').disabled = false;
     appendChatMessage('ai', '❌ エラー：' + err.message);
-    // エラー時はユーザー発言を履歴から除去（再送できるように）
     if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
       chatHistory.pop();
     }
@@ -1147,7 +1187,6 @@ function sendChat() {
 document.getElementById('topbarDate').textContent = formatTopbarDate();
 loadCases();
 
-// localStorage に自宅住所が未設定なら設定
 if (!localStorage.getItem('homeAddress')) {
   localStorage.setItem('homeAddress', DEFAULT_HOME);
 }
