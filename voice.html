@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="現場メモ">
+<title>現場メモ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    padding-top: env(safe-area-inset-top, 20px);
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #e0e0ff;
+  }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 30px; }
+
+  /* 設定パネル */
+  #setup {
+    width: 100%;
+    max-width: 420px;
+    background: #16213e;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  #setup h2 { font-size: 14px; color: #aaa; margin-bottom: 12px; }
+  #setup input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #fff;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  #setup input::placeholder { color: #555; }
+  #saveKeys {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    background: #e94560;
+    color: #fff;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* メインUI */
+  #main { width: 100%; max-width: 420px; }
+
+  /* 録音ボタン */
+  .mic-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+  }
+  #micBtn {
+    width: 120px;
+    height: 120px;
+    border-radius: 60px;
+    border: none;
+    background: #e94560;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    box-shadow: 0 0 0 0 rgba(233,69,96,0.4);
+    transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #micBtn.recording {
+    animation: pulse 1.2s infinite;
+    background: #c0392b;
+  }
+  #micBtn:active { transform: scale(0.95); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(233,69,96,0.6); }
+    70% { box-shadow: 0 0 0 24px rgba(233,69,96,0); }
+    100% { box-shadow: 0 0 0 0 rgba(233,69,96,0); }
+  }
+  #recStatus {
+    margin-top: 14px;
+    font-size: 14px;
+    color: #aaa;
+    height: 20px;
+  }
+  #recTimer {
+    font-size: 13px;
+    color: #e94560;
+    margin-top: 4px;
+    height: 18px;
+  }
+
+  /* 案件選択 */
+  .section {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .section-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  select {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #fff;
+    font-size: 14px;
+    appearance: none;
+  }
+  select option { background: #0f3460; }
+
+  /* テキストエリア */
+  textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+  }
+  textarea::placeholder { color: #555; }
+
+  /* ボタン群 */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-primary { background: #0f3460; color: #fff; }
+  .btn-accent { background: #e94560; color: #fff; }
+  .btn-success { background: #27ae60; color: #fff; }
+  .btn-secondary { background: #333; color: #ccc; }
+  .btn:active { opacity: 0.8; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 処理中 */
+  #processing {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    gap: 10px;
+  }
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #333;
+    border-top-color: #e94560;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #processingMsg { font-size: 14px; color: #aaa; }
+
+  /* 履歴 */
+  #historyList { display: flex; flex-direction: column; gap: 10px; }
+  .history-item {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 14px;
+    border-left: 3px solid #e94560;
+  }
+  .history-meta {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .history-case { color: #e94560; }
+  .history-text { font-size: 13px; color: #ccc; line-height: 1.5; white-space: pre-wrap; }
+  .history-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-small {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-small-pdf { background: #0f3460; color: #fff; }
+  .btn-small-del { background: #333; color: #999; }
+
+  /* トースト */
+  #toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #27ae60;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: transform 0.3s;
+    z-index: 999;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.error { background: #e74c3c; }
+
+  .hidden { display: none !important; }
+  #settingsBtn {
+    position: fixed;
+    top: env(safe-area-inset-top, 16px);
+    right: 16px;
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px;
+  }
+</style>
+</head>
+<body>
+
+<button id="settingsBtn" onclick="toggleSetup()">⚙️</button>
+
+<h1>🎙 現場メモ</h1>
+<p class="subtitle">録音 → 文字起こし → AI整理</p>
+
+<!-- 設定 -->
+<div id="setup">
+  <h2>⚙️ API設定（初回のみ）</h2>
+  <input type="password" id="speechKey" placeholder="Google Speech-to-Text APIキー">
+  <input type="password" id="geminiKey" placeholder="Gemini APIキー">
+  <button id="saveKeys" onclick="saveKeys()">保存して使う</button>
+</div>
+
+<!-- メイン -->
+<div id="main" class="hidden">
+
+  <!-- 録音 -->
+  <div class="mic-wrap">
+    <button id="micBtn" onclick="toggleRecording()">🎙</button>
+    <div id="recStatus">タップして録音開始</div>
+    <div id="recTimer"></div>
+  </div>
+
+  <!-- 処理中 -->
+  <div id="processing">
+    <div class="spinner"></div>
+    <div id="processingMsg">文字起こし中...</div>
+  </div>
+
+  <!-- 案件紐付け -->
+  <div class="section">
+    <div class="section-label">案件（任意）</div>
+    <select id="caseSelect">
+      <option value="">紐付けなし</option>
+    </select>
+  </div>
+
+  <!-- 文字起こし結果 -->
+  <div class="section">
+    <div class="section-label">文字起こし結果</div>
+    <textarea id="transcriptText" placeholder="録音後にここに表示されます"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="analyzeWithGemini()" id="analyzeBtn" disabled>🤖 AI整理</button>
+      <button class="btn btn-secondary" onclick="clearTranscript()">クリア</button>
+    </div>
+  </div>
+
+  <!-- AI整理結果 -->
+  <div class="section" id="aiSection" style="display:none">
+    <div class="section-label">AI整理結果</div>
+    <textarea id="aiText" placeholder="AI整理結果"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="saveRecord()" id="saveBtn">💾 保存</button>
+      <button class="btn btn-accent" onclick="exportPDF()" id="pdfBtn">📄 PDF</button>
+    </div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="section">
+    <div class="section-label">保存済み履歴</div>
+    <div id="historyList"><p style="color:#555;font-size:13px;">まだ保存がありません</p></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyC-e_aytfbZh5OfZZwEu-A2PFvz1Z_cn_0",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.appspot.com"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+
+var mediaRecorder = null;
+var audioChunks = [];
+var isRecording = false;
+var timerInterval = null;
+var recSeconds = 0;
+var currentAudioBlob = null;
+
+// 起動時
+window.onload = function() {
+  var speechKey = localStorage.getItem('speech_api_key');
+  var geminiKey = localStorage.getItem('gemini_api_key');
+  if (speechKey && geminiKey) {
+    document.getElementById('setup').classList.add('hidden');
+    document.getElementById('main').classList.remove('hidden');
+    loadCases();
+    loadHistory();
+  } else {
+    document.getElementById('speechKey').value = speechKey || '';
+    document.getElementById('geminiKey').value = geminiKey || '';
+  }
+};
+
+function toggleSetup() {
+  var s = document.getElementById('setup');
+  s.classList.toggle('hidden');
+  if (!s.classList.contains('hidden')) {
+    document.getElementById('speechKey').value = localStorage.getItem('speech_api_key') || '';
+    document.getElementById('geminiKey').value = localStorage.getItem('gemini_api_key') || '';
+  }
+}
+
+function saveKeys() {
+  var sk = document.getElementById('speechKey').value.trim();
+  var gk = document.getElementById('geminiKey').value.trim();
+  if (!sk || !gk) { showToast('両方のキーを入力してください', true); return; }
+  localStorage.setItem('speech_api_key', sk);
+  localStorage.setItem('gemini_api_key', gk);
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('main').classList.remove('hidden');
+  loadCases();
+  loadHistory();
+  showToast('設定を保存しました');
+}
+
+// 案件読み込み
+function loadCases() {
+  db.ref('/').once('value').then(function(snap) {
+    var data = snap.val();
+    if (!data) return;
+    var sel = document.getElementById('caseSelect');
+    sel.innerHTML = '<option value="">紐付けなし</option>';
+    Object.keys(data).forEach(function(key) {
+      if (key === 'app_meta') return;
+      var c = data[key];
+      var title = (c.C4 || c.title || key);
+      var addr = c.C11 ? ' / ' + c.C11.substring(0, 15) : '';
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = title + addr;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// 録音
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    currentAudioBlob = null;
+    var mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+    mediaRecorder.onstop = function() {
+      currentAudioBlob = new Blob(audioChunks, { type: mimeType });
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      transcribeAudio(currentAudioBlob);
+    };
+    mediaRecorder.start(1000);
+    isRecording = true;
+    document.getElementById('micBtn').classList.add('recording');
+    document.getElementById('micBtn').textContent = '⏹';
+    document.getElementById('recStatus').textContent = '録音中... もう一度タップで停止';
+    recSeconds = 0;
+    timerInterval = setInterval(function() {
+      recSeconds++;
+      var m = Math.floor(recSeconds / 60);
+      var s = recSeconds % 60;
+      document.getElementById('recTimer').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+  } catch(e) {
+    showToast('マイクへのアクセスを許可してください', true);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    clearInterval(timerInterval);
+    document.getElementById('micBtn').classList.remove('recording');
+    document.getElementById('micBtn').textContent = '🎙';
+    document.getElementById('recStatus').textContent = '処理中...';
+    document.getElementById('recTimer').textContent = '';
+  }
+}
+
+// 文字起こし
+async function transcribeAudio(blob) {
+  document.getElementById('processing').style.display = 'flex';
+  document.getElementById('processingMsg').textContent = '文字起こし中...';
+
+  try {
+    var arrayBuffer = await blob.arrayBuffer();
+    var base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    var encoding = blob.type.includes('webm') ? 'WEBM_OPUS' : 'MP4';
+
+    var apiKey = localStorage.getItem('speech_api_key');
+    var response = await fetch(
+      'https://speech.googleapis.com/v1/speech:recognize?key=' + apiKey,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: {
+            encoding: encoding,
+            sampleRateHertz: 48000,
+            languageCode: 'ja-JP',
+            enableAutomaticPunctuation: true,
+            useEnhanced: true,
+            model: 'latest_long'
+          },
+          audio: { content: base64 }
+        })
+      }
+    );
+
+    var result = await response.json();
+    document.getElementById('processing').style.display = 'none';
+
+    if (result.results && result.results.length > 0) {
+      var text = result.results.map(function(r) {
+        return r.alternatives[0].transcript;
+      }).join('\n');
+      document.getElementById('transcriptText').value = text;
+      document.getElementById('analyzeBtn').disabled = false;
+      document.getElementById('recStatus').textContent = 'タップして録音開始';
+      showToast('文字起こし完了！');
+    } else {
+      document.getElementById('recStatus').textContent = 'タップして録音開始';
+      showToast('音声を認識できませんでした', true);
+    }
+  } catch(e) {
+    document.getElementById('processing').style.display = 'none';
+    document.getElementById('recStatus').textContent = 'タップして録音開始';
+    showToast('エラー: ' + e.message, true);
+  }
+}
+
+// Gemini AI整理
+async function analyzeWithGemini() {
+  var text = document.getElementById('transcriptText').value.trim();
+  if (!text) return;
+
+  document.getElementById('processing').style.display = 'flex';
+  document.getElementById('processingMsg').textContent = 'AI整理中...';
+
+  var caseKey = document.getElementById('caseSelect').value;
+  var caseInfo = caseKey ? '案件: ' + document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text : '';
+
+  var prompt = '以下は工事現場でのメモ（音声文字起こし）です。' + (caseInfo ? caseInfo + 'に関するメモです。' : '') +
+    '\n\n【文字起こし】\n' + text +
+    '\n\n以下の形式で整理してください：\n' +
+    '■ 要点\n（重要な内容を箇条書き）\n\n' +
+    '■ 確認事項\n（フォローが必要な項目）\n\n' +
+    '■ メモ\n（その他気になる点）';
+
+  try {
+    var geminiKey = localStorage.getItem('gemini_api_key');
+    var response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    var result = await response.json();
+    document.getElementById('processing').style.display = 'none';
+
+    var aiText = result.candidates[0].content.parts[0].text;
+    document.getElementById('aiText').value = aiText;
+    document.getElementById('aiSection').style.display = 'block';
+    showToast('AI整理完了！');
+  } catch(e) {
+    document.getElementById('processing').style.display = 'none';
+    showToast('AIエラー: ' + e.message, true);
+  }
+}
+
+function clearTranscript() {
+  document.getElementById('transcriptText').value = '';
+  document.getElementById('aiText').value = '';
+  document.getElementById('aiSection').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+}
+
+// 保存
+function saveRecord() {
+  var transcript = document.getElementById('transcriptText').value.trim();
+  var aiResult = document.getElementById('aiText').value.trim();
+  var caseKey = document.getElementById('caseSelect').value;
+  var caseName = caseKey ? document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text : '未紐付け';
+
+  var record = {
+    timestamp: Date.now(),
+    date: new Date().toLocaleString('ja-JP'),
+    caseKey: caseKey || null,
+    caseName: caseName,
+    transcript: transcript,
+    aiResult: aiResult
+  };
+
+  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
+  history.unshift(record);
+  if (history.length > 50) history = history.slice(0, 50);
+  localStorage.setItem('voice_history', JSON.stringify(history));
+
+  // Firebaseにも保存（案件紐付けあり）
+  if (caseKey) {
+    db.ref('/' + caseKey + '/voice_memos/' + Date.now()).set(record);
+  }
+
+  loadHistory();
+  showToast('保存しました！');
+}
+
+// 履歴読み込み
+function loadHistory() {
+  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
+  var list = document.getElementById('historyList');
+  if (history.length === 0) {
+    list.innerHTML = '<p style="color:#555;font-size:13px;">まだ保存がありません</p>';
+    return;
+  }
+  list.innerHTML = history.map(function(r, i) {
+    return '<div class="history-item">' +
+      '<div class="history-meta">' +
+        '<span class="history-case">' + (r.caseName || '未紐付け') + '</span>' +
+        '<span>' + r.date + '</span>' +
+      '</div>' +
+      '<div class="history-text">' + (r.aiResult || r.transcript).substring(0, 200) + '...</div>' +
+      '<div class="history-actions">' +
+        '<button class="btn-small btn-small-pdf" onclick="exportPDFFromHistory(' + i + ')">📄 PDF</button>' +
+        '<button class="btn-small btn-small-del" onclick="deleteHistory(' + i + ')">削除</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function deleteHistory(i) {
+  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
+  history.splice(i, 1);
+  localStorage.setItem('voice_history', JSON.stringify(history));
+  loadHistory();
+}
+
+// PDF出力
+function exportPDF() {
+  var transcript = document.getElementById('transcriptText').value;
+  var aiResult = document.getElementById('aiText').value;
+  var caseName = document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text;
+  printPDF(caseName, transcript, aiResult, new Date().toLocaleString('ja-JP'));
+}
+
+function exportPDFFromHistory(i) {
+  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
+  var r = history[i];
+  printPDF(r.caseName, r.transcript, r.aiResult, r.date);
+}
+
+function printPDF(caseName, transcript, aiResult, date) {
+  var win = window.open('', '_blank');
+  win.document.write(
+    '<html><head><meta charset="UTF-8">' +
+    '<style>body{font-family:-apple-system,sans-serif;padding:30px;color:#222;line-height:1.7}' +
+    'h1{font-size:20px;border-bottom:2px solid #e94560;padding-bottom:10px;margin-bottom:20px}' +
+    'h2{font-size:15px;color:#e94560;margin-top:20px}' +
+    'pre{white-space:pre-wrap;font-family:inherit;font-size:13px;background:#f5f5f5;padding:14px;border-radius:8px}' +
+    '.meta{font-size:12px;color:#888;margin-bottom:20px}</style>' +
+    '</head><body>' +
+    '<h1>🎙 現場メモ</h1>' +
+    '<div class="meta">案件: ' + caseName + ' ／ ' + date + '</div>' +
+    (aiResult ? '<h2>AI整理結果</h2><pre>' + aiResult + '</pre>' : '') +
+    '<h2>文字起こし原文</h2><pre>' + transcript + '</pre>' +
+    '</body></html>'
+  );
+  win.document.close();
+  setTimeout(function() { win.print(); }, 300);
+}
+
+// トースト
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'error' : '';
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+</script>
+</body>
+</html>
