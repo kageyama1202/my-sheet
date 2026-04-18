@@ -348,7 +348,7 @@ var currentAudioBlob = null;
 // 起動時
 window.onload = function() {
   var speechKey = localStorage.getItem('speech_api_key');
-  var geminiKey = localStorage.getItem('gemini_api_key');
+  var geminiKey = localStorage.getItem('geminiApiKey');
   if (speechKey && geminiKey) {
     document.getElementById('setup').classList.add('hidden');
     document.getElementById('main').classList.remove('hidden');
@@ -365,7 +365,7 @@ function toggleSetup() {
   s.classList.toggle('hidden');
   if (!s.classList.contains('hidden')) {
     document.getElementById('speechKey').value = localStorage.getItem('speech_api_key') || '';
-    document.getElementById('geminiKey').value = localStorage.getItem('gemini_api_key') || '';
+    document.getElementById('geminiKey').value = localStorage.getItem('geminiApiKey') || '';
   }
 }
 
@@ -374,7 +374,7 @@ function saveKeys() {
   var gk = document.getElementById('geminiKey').value.trim();
   if (!sk || !gk) { showToast('両方のキーを入力してください', true); return; }
   localStorage.setItem('speech_api_key', sk);
-  localStorage.setItem('gemini_api_key', gk);
+  localStorage.setItem('geminiApiKey', gk);
   document.getElementById('setup').classList.add('hidden');
   document.getElementById('main').classList.remove('hidden');
   loadCases();
@@ -532,9 +532,9 @@ async function analyzeWithGemini() {
     '■ メモ\n（その他気になる点）';
 
   try {
-    var geminiKey = localStorage.getItem('gemini_api_key');
+    var geminiKey = localStorage.getItem('geminiApiKey');
     var response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiKey,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
