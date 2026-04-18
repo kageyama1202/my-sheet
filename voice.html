@@ -384,19 +384,20 @@ function saveKeys() {
 
 // 案件読み込み
 function loadCases() {
-  db.ref('/').once('value').then(function(snap) {
+  db.ref('/app_tasks').once('value').then(function(snap) {
     var data = snap.val();
     if (!data) return;
     var sel = document.getElementById('caseSelect');
     sel.innerHTML = '<option value="">紐付けなし</option>';
     Object.keys(data).forEach(function(key) {
-      if (key === 'app_meta') return;
-      var c = data[key];
-      var title = (c.C4 || c.title || key);
-      var addr = c.C11 ? ' / ' + c.C11.substring(0, 15) : '';
+      var task = data[key];
+      var cols = task.csvData || [];
+      var title = cols[4] ? String(cols[4]).trim() : key;
+      var addr = cols[11] ? ' / ' + String(cols[11]).trim().substring(0, 15) : '';
+      var tanto = cols[5] ? ' [' + String(cols[5]).trim() + ']' : '';
       var opt = document.createElement('option');
       opt.value = key;
-      opt.textContent = title + addr;
+      opt.textContent = title + addr + tanto;
       sel.appendChild(opt);
     });
   });
@@ -587,43 +588,58 @@ function saveRecord() {
   if (history.length > 50) history = history.slice(0, 50);
   localStorage.setItem('voice_history', JSON.stringify(history));
 
-  // Firebaseにも保存（案件紐付けあり）
+  // Firebaseにも保存（常に）
   if (caseKey) {
-    db.ref('/' + caseKey + '/voice_memos/' + Date.now()).set(record);
+    db.ref('/app_tasks/' + caseKey + '/voice_memos/' + record.timestamp).set(record);
+  } else {
+    db.ref('/voice_memos/' + record.timestamp).set(record);
   }
 
   loadHistory();
   showToast('保存しました！');
 }
 
-// 履歴読み込み
+// 履歴読み込み（FirebaseとlocalStorageをマージ）
 function loadHistory() {
-  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
   var list = document.getElementById('historyList');
-  if (history.length === 0) {
-    list.innerHTML = '<p style="color:#555;font-size:13px;">まだ保存がありません</p>';
-    return;
-  }
-  list.innerHTML = history.map(function(r, i) {
-    return '<div class="history-item">' +
-      '<div class="history-meta">' +
-        '<span class="history-case">' + (r.caseName || '未紐付け') + '</span>' +
-        '<span>' + r.date + '</span>' +
-      '</div>' +
-      '<div class="history-text">' + (r.aiResult || r.transcript).substring(0, 200) + '...</div>' +
-      '<div class="history-actions">' +
-        '<button class="btn-small btn-small-pdf" onclick="exportPDFFromHistory(' + i + ')">📄 PDF</button>' +
-        '<button class="btn-small btn-small-del" onclick="deleteHistory(' + i + ')">削除</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+  list.innerHTML = '<p style="color:#555;font-size:13px;">読み込み中...</p>';
+
+  db.ref('/voice_memos').once('value').then(function(snap) {
+    var fbData = snap.val() || {};
+    var fbRecords = Object.values(fbData);
+
+    var localRecords = JSON.parse(localStorage.getItem('voice_history') || '[]');
+    var seen = {};
+    fbRecords.forEach(function(r) { if (r.timestamp) seen[r.timestamp] = true; });
+
+    var merged = fbRecords.slice();
+    localRecords.forEach(function(r) {
+      if (!seen[r.timestamp]) merged.push(r);
+    });
+    merged.sort(function(a, b) { return b.timestamp - a.timestamp; });
+    merged = merged.slice(0, 50);
+
+    if (merged.length === 0) {
+      list.innerHTML = '<p style="color:#555;font-size:13px;">まだ保存がありません</p>';
+      return;
+    }
+    list.innerHTML = merged.map(function(r, i) {
+      return '<div class="history-item">' +
+        '<div class="history-meta">' +
+          '<span class="history-case">' + (r.caseName || '未紐付け') + '</span>' +
+          '<span>' + r.date + '</span>' +
+        '</div>' +
+        '<div class="history-text">' + (r.aiResult || r.transcript || '').substring(0, 200) + '...</div>' +
+        '<div class="history-actions">' +
+          '<button class="btn-small btn-small-pdf" onclick="exportPDFFromData(' + JSON.stringify(r).replace(/"/g, "&quot;") + ')">📄 PDF</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  });
 }
 
-function deleteHistory(i) {
-  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
-  history.splice(i, 1);
-  localStorage.setItem('voice_history', JSON.stringify(history));
-  loadHistory();
+function exportPDFFromData(r) {
+  printPDF(r.caseName, r.transcript, r.aiResult, r.date);
 }
 
 // PDF出力
