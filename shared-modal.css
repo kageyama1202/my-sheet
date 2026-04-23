@@ -101,6 +101,7 @@
   border-collapse: collapse;
   font-size: 12px;
   background: #fff;
+  table-layout: fixed;
 }
 .modal-table th {
   text-align: left;
@@ -108,10 +109,12 @@
   background: #e8eaf6;
   color: #333;
   border: 1px solid #ccc;
-  white-space: nowrap;
-  width: 110px;
-  min-width: 110px;
+  white-space: normal;
+  width: 100px;
+  min-width: 80px;
+  max-width: 120px;
   font-weight: bold;
+  word-break: keep-all;
 }
 .modal-table td {
   padding: 4px 8px;
