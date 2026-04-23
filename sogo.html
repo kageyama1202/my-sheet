@@ -417,7 +417,7 @@ function runAI(){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.1,maxOutputTokens:16384,responseMimeType:"application/json"}
+      generationConfig:{temperature:0.1,maxOutputTokens:16384}
     })
   })
   .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
@@ -427,11 +427,23 @@ function runAI(){
       if(data.error)throw new Error(data.error.message);
       throw new Error('レスポンス解析エラー');
     }
+    // JSON抽出：コードブロック→波括弧範囲の順で試みる
     var jsonStr='';
     var fenceMatch=text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if(fenceMatch){jsonStr=fenceMatch[1].trim();}
-    else{var bs=text.indexOf('{');var be=text.lastIndexOf('}');if(bs!==-1&&be>bs)jsonStr=text.substring(bs,be+1);else jsonStr=text.trim();}
-    aiResult=JSON.parse(repairJson(jsonStr));
+    if(fenceMatch){
+      jsonStr=fenceMatch[1].trim();
+    } else {
+      var bs=text.indexOf('{');
+      var be=text.lastIndexOf('}');
+      if(bs!==-1&&be>bs)jsonStr=text.substring(bs,be+1);
+      else jsonStr=text.trim();
+    }
+    try{
+      aiResult=JSON.parse(repairJson(jsonStr));
+    }catch(e){
+      console.error('Parse failed. Raw text:',text);
+      throw new Error('JSON解析失敗。AIの応答形式が不正です。再試行してください。');
+    }
     showAIResult();
   })
   .catch(function(err){
@@ -611,18 +623,29 @@ function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textCon
 
 function repairJson(str){
   try{JSON.parse(str);return str;}catch(e){}
-  var s=str.replace(/,\s*$/,'');
-  var quotes=(s.match(/"/g)||[]).length;
-  if(quotes%2!==0)s+='"';
-  var opens=0,closes=0;
-  for(var i=0;i<s.length;i++){if(s[i]==='[')opens++;if(s[i]===']')closes++;}
-  var braces=0,braceC=0;
-  for(var j=0;j<s.length;j++){if(s[j]==='{')braces++;if(s[j]==='}')braceC++;}
+  var s=str;
+  // 末尾カンマ除去
+  s=s.replace(/,\s*([\]\}])/g,'$1');
   s=s.replace(/,\s*$/,'');
+  // 開いたままの文字列を閉じる（奇数クォート）
+  var q=0;
+  for(var qi=0;qi<s.length;qi++){if(s[qi]==='"'&&(qi===0||s[qi-1]!=='\\'))q++;}
+  if(q%2!==0)s+='"';
+  // 末尾カンマ再除去（クォート追加後）
+  s=s.replace(/,\s*([\]\}])/g,'$1');
+  s=s.replace(/,\s*$/,'');
+  // 括弧を閉じる
+  var opens=0,closes=0,braces=0,braceC=0;
+  for(var i=0;i<s.length;i++){
+    if(s[i]==='[')opens++;
+    if(s[i]===']')closes++;
+    if(s[i]==='{')braces++;
+    if(s[i]==='}')braceC++;
+  }
   for(var k=0;k<(opens-closes);k++)s+=']';
   for(var m=0;m<(braces-braceC);m++)s+='}';
   try{JSON.parse(s);return s;}catch(e2){
-    console.error('JSON repair failed:',e2);
+    console.error('JSON repair failed:',e2,'\nLast 200 chars:',s.slice(-200));
     throw new Error('JSONの解析に失敗しました');
   }
 }
