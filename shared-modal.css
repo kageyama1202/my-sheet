@@ -109,17 +109,18 @@
   background: #e8eaf6;
   color: #333;
   border: 1px solid #ccc;
-  white-space: normal;
-  width: 100px;
-  min-width: 80px;
+  width: 120px;
+  min-width: 120px;
   max-width: 120px;
   font-weight: bold;
-  word-break: keep-all;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 .modal-table td {
   padding: 4px 8px;
   border: 1px solid #ccc;
   word-break: break-all;
+  overflow-wrap: break-word;
   color: #333;
   background: #fff;
 }
