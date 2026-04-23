@@ -2,687 +2,430 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="現場メモ">
-<title>現場メモ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>録音管理</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, sans-serif;
-    background: #1a1a2e;
-    color: #fff;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    padding-top: env(safe-area-inset-top, 20px);
-  }
-  h1 {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: #e0e0ff;
-  }
-  .subtitle { font-size: 13px; color: #888; margin-bottom: 30px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333; }
 
-  /* 設定パネル */
-  #setup {
-    width: 100%;
-    max-width: 420px;
-    background: #16213e;
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  #setup h2 { font-size: 14px; color: #aaa; margin-bottom: 12px; }
-  #setup input {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid #333;
-    background: #0f3460;
-    color: #fff;
-    font-size: 14px;
-    margin-bottom: 10px;
-  }
-  #setup input::placeholder { color: #555; }
-  #saveKeys {
-    width: 100%;
-    padding: 12px;
-    border-radius: 10px;
-    background: #e94560;
-    color: #fff;
-    border: none;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-  }
+.header {
+  background: #1a73e8;
+  color: white;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header h1 { font-size: 17px; font-weight: 600; }
+.back-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
 
-  /* メインUI */
-  #main { width: 100%; max-width: 420px; }
+.container { padding: 12px; max-width: 800px; margin: 0 auto; }
 
-  /* 録音ボタン */
-  .mic-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 30px;
-  }
-  #micBtn {
-    width: 120px;
-    height: 120px;
-    border-radius: 60px;
-    border: none;
-    background: #e94560;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    box-shadow: 0 0 0 0 rgba(233,69,96,0.4);
-    transition: transform 0.1s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  #micBtn.recording {
-    animation: pulse 1.2s infinite;
-    background: #c0392b;
-  }
-  #micBtn:active { transform: scale(0.95); }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(233,69,96,0.6); }
-    70% { box-shadow: 0 0 0 24px rgba(233,69,96,0); }
-    100% { box-shadow: 0 0 0 0 rgba(233,69,96,0); }
-  }
-  #recStatus {
-    margin-top: 14px;
-    font-size: 14px;
-    color: #aaa;
-    height: 20px;
-  }
-  #recTimer {
-    font-size: 13px;
-    color: #e94560;
-    margin-top: 4px;
-    height: 18px;
-  }
+.card {
+  background: white;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
 
-  /* 案件選択 */
-  .section {
-    background: #16213e;
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 14px;
-  }
-  .section-label {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  select {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid #333;
-    background: #0f3460;
-    color: #fff;
-    font-size: 14px;
-    appearance: none;
-  }
-  select option { background: #0f3460; }
+.card-header {
+  padding: 12px 14px;
+  background: #f8f8f8;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card-header .filename { font-size: 13px; font-weight: 600; color: #333; }
+.card-header .meta { font-size: 11px; color: #888; }
 
-  /* テキストエリア */
-  textarea {
-    width: 100%;
-    min-height: 100px;
-    padding: 12px;
-    border-radius: 10px;
-    border: 1px solid #333;
-    background: #0f3460;
-    color: #fff;
-    font-size: 14px;
-    line-height: 1.6;
-    resize: vertical;
-  }
-  textarea::placeholder { color: #555; }
+.card-body { padding: 12px 14px; }
 
-  /* ボタン群 */
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    margin-top: 10px;
-  }
-  .btn {
-    flex: 1;
-    padding: 12px;
-    border-radius: 10px;
-    border: none;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-primary { background: #0f3460; color: #fff; }
-  .btn-accent { background: #e94560; color: #fff; }
-  .btn-success { background: #27ae60; color: #fff; }
-  .btn-secondary { background: #333; color: #ccc; }
-  .btn:active { opacity: 0.8; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.transcription-box {
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 60px;
+  white-space: pre-wrap;
+  color: #444;
+}
+.transcription-box.empty { color: #aaa; font-style: italic; }
 
-  /* 処理中 */
-  #processing {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    gap: 10px;
-  }
-  .spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid #333;
-    border-top-color: #e94560;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #processingMsg { font-size: 14px; color: #aaa; }
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
 
-  /* 履歴 */
-  #historyList { display: flex; flex-direction: column; gap: 10px; }
-  .history-item {
-    background: #16213e;
-    border-radius: 12px;
-    padding: 14px;
-    border-left: 3px solid #e94560;
-  }
-  .history-meta {
-    font-size: 11px;
-    color: #666;
-    margin-bottom: 6px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .history-case { color: #e94560; }
-  .history-text { font-size: 13px; color: #ccc; line-height: 1.5; white-space: pre-wrap; }
-  .history-actions { display: flex; gap: 8px; margin-top: 8px; }
-  .btn-small {
-    padding: 6px 12px;
-    border-radius: 8px;
-    border: none;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .btn-small-pdf { background: #0f3460; color: #fff; }
-  .btn-small-del { background: #333; color: #999; }
+.btn {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.btn-blue { background: #1a73e8; color: white; }
+.btn-green { background: #34a853; color: white; }
+.btn-orange { background: #fa7b17; color: white; }
+.btn-red { background: #ea4335; color: white; }
+.btn-gray { background: #e0e0e0; color: #333; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* トースト */
-  #toast {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: #27ae60;
-    color: #fff;
-    padding: 12px 24px;
-    border-radius: 24px;
-    font-size: 14px;
-    font-weight: 600;
-    transition: transform 0.3s;
-    z-index: 999;
-    white-space: nowrap;
-  }
-  #toast.show { transform: translateX(-50%) translateY(0); }
-  #toast.error { background: #e74c3c; }
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.badge-done { background: #e6f4ea; color: #137333; }
+.badge-pending { background: #fce8e6; color: #c5221f; }
+.badge-linked { background: #e8f0fe; color: #1558d6; }
 
-  .hidden { display: none !important; }
-  #settingsBtn {
-    position: fixed;
-    top: env(safe-area-inset-top, 16px);
-    right: 16px;
-    background: transparent;
-    border: none;
-    color: #888;
-    font-size: 22px;
-    cursor: pointer;
-    padding: 4px;
-  }
+/* モーダル */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: flex-end;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: white;
+  border-radius: 16px 16px 0 0;
+  padding: 20px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal h3 { font-size: 16px; margin-bottom: 12px; }
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #888;
+}
+
+.case-item {
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.case-item:hover { background: #e8f0fe; border-color: #1a73e8; }
+.case-item .case-title { font-size: 14px; font-weight: 500; }
+.case-item .case-meta { font-size: 12px; color: #888; margin-top: 2px; }
+
+.search-box {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+.empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 14px; }
+
+/* PDF出力用 */
+@media print {
+  .header, .btn-row, .back-btn { display: none !important; }
+  .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+  body { background: white; }
+}
 </style>
 </head>
 <body>
 
-<button id="settingsBtn" onclick="toggleSetup()">⚙️</button>
-
-<h1>🎙 現場メモ</h1>
-<p class="subtitle">録音 → 文字起こし → AI整理</p>
-
-<!-- 設定 -->
-<div id="setup">
-  <h2>⚙️ API設定（初回のみ）</h2>
-  <input type="password" id="speechKey" placeholder="Google Speech-to-Text APIキー">
-  <input type="password" id="geminiKey" placeholder="Gemini APIキー">
-  <button id="saveKeys" onclick="saveKeys()">保存して使う</button>
+<div class="header">
+  <button class="back-btn" onclick="history.back()">← 戻る</button>
+  <h1>🎙 録音管理</h1>
 </div>
 
-<!-- メイン -->
-<div id="main" class="hidden">
-
-  <!-- 録音 -->
-  <div class="mic-wrap">
-    <button id="micBtn" onclick="toggleRecording()">🎙</button>
-    <div id="recStatus">タップして録音開始</div>
-    <div id="recTimer"></div>
-  </div>
-
-  <!-- 処理中 -->
-  <div id="processing">
-    <div class="spinner"></div>
-    <div id="processingMsg">文字起こし中...</div>
-  </div>
-
-  <!-- 案件紐付け -->
-  <div class="section">
-    <div class="section-label">案件（任意）</div>
-    <select id="caseSelect">
-      <option value="">紐付けなし</option>
-    </select>
-  </div>
-
-  <!-- 文字起こし結果 -->
-  <div class="section">
-    <div class="section-label">文字起こし結果</div>
-    <textarea id="transcriptText" placeholder="録音後にここに表示されます"></textarea>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="analyzeWithGemini()" id="analyzeBtn" disabled>🤖 AI整理</button>
-      <button class="btn btn-secondary" onclick="clearTranscript()">クリア</button>
-    </div>
-  </div>
-
-  <!-- AI整理結果 -->
-  <div class="section" id="aiSection" style="display:none">
-    <div class="section-label">AI整理結果</div>
-    <textarea id="aiText" placeholder="AI整理結果"></textarea>
-    <div class="btn-row">
-      <button class="btn btn-success" onclick="saveRecord()" id="saveBtn">💾 保存</button>
-      <button class="btn btn-accent" onclick="exportPDF()" id="pdfBtn">📄 PDF</button>
-    </div>
-  </div>
-
-  <!-- 履歴 -->
-  <div class="section">
-    <div class="section-label">保存済み履歴</div>
-    <div id="historyList"><p style="color:#555;font-size:13px;">まだ保存がありません</p></div>
-  </div>
-
+<div class="container">
+  <div id="loadingEl" class="loading">読み込み中...</div>
+  <div id="emptyEl" class="empty-state" style="display:none">録音ファイルがありません</div>
+  <div id="listEl"></div>
 </div>
 
-<div id="toast"></div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<!-- 案件紐付けモーダル -->
+<div id="linkModal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>📎 案件に紐付け</h3>
+    <input type="text" class="search-box" id="caseSearch" placeholder="案件名・住所で検索..." oninput="filterCases()">
+    <div id="caseList"></div>
+  </div>
+</div>
 
 <script>
 var firebaseConfig = {
-  apiKey: "AIzaSyC-e_aytfbZh5OfZZwEu-A2PFvz1Z_cn_0",
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   authDomain: "project-6745138395263517914.firebaseapp.com",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
   projectId: "project-6745138395263517914",
-  storageBucket: "project-6745138395263517914.appspot.com"
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
 };
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 var db = firebase.database();
+var storage = firebase.storage();
 
-var mediaRecorder = null;
-var audioChunks = [];
-var isRecording = false;
-var timerInterval = null;
-var recSeconds = 0;
-var currentAudioBlob = null;
+var recordings = [];
+var allTasks = {};
+var currentRecordingKey = null;
+var currentTranscription = null;
 
-// 起動時
-window.onload = function() {
-  var speechKey = localStorage.getItem('speech_api_key');
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (speechKey && geminiKey) {
-    document.getElementById('setup').classList.add('hidden');
-    document.getElementById('main').classList.remove('hidden');
-    loadCases();
-    loadHistory();
-  } else {
-    document.getElementById('speechKey').value = speechKey || '';
-    document.getElementById('geminiKey').value = geminiKey || '';
-  }
-};
-
-function toggleSetup() {
-  var s = document.getElementById('setup');
-  s.classList.toggle('hidden');
-  if (!s.classList.contains('hidden')) {
-    document.getElementById('speechKey').value = localStorage.getItem('speech_api_key') || '';
-    document.getElementById('geminiKey').value = localStorage.getItem('geminiApiKey') || '';
-  }
-}
-
-function saveKeys() {
-  var sk = document.getElementById('speechKey').value.trim();
-  var gk = document.getElementById('geminiKey').value.trim();
-  if (!sk || !gk) { showToast('両方のキーを入力してください', true); return; }
-  localStorage.setItem('speech_api_key', sk);
-  localStorage.setItem('geminiApiKey', gk);
-  document.getElementById('setup').classList.add('hidden');
-  document.getElementById('main').classList.remove('hidden');
-  loadCases();
-  loadHistory();
-  showToast('設定を保存しました');
-}
-
-// 案件読み込み
-function loadCases() {
-  db.ref('/app_tasks').once('value').then(function(snap) {
-    var data = snap.val();
-    if (!data) return;
-    var sel = document.getElementById('caseSelect');
-    sel.innerHTML = '<option value="">紐付けなし</option>';
-    Object.keys(data).forEach(function(key) {
-      var task = data[key];
-      var cols = task.csvData || [];
-      var title = cols[4] ? String(cols[4]).trim() : key;
-      var addr = cols[11] ? ' / ' + String(cols[11]).trim().substring(0, 15) : '';
-      var tanto = cols[5] ? ' [' + String(cols[5]).trim() + ']' : '';
-      var opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = title + addr + tanto;
-      sel.appendChild(opt);
-    });
+// 初期ロード
+db.ref('app_recordings').on('value', function(snap) {
+  var data = snap.val() || {};
+  recordings = [];
+  Object.keys(data).forEach(function(k) {
+    var r = data[k];
+    r._key = k;
+    recordings.push(r);
   });
-}
+  recordings.sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+  renderList();
+});
 
-// 録音
-async function toggleRecording() {
-  if (isRecording) {
-    stopRecording();
-  } else {
-    startRecording();
+// 案件データもロード
+db.ref('app_tasks').once('value', function(snap) {
+  var data = snap.val() || {};
+  Object.keys(data).forEach(function(k) {
+    var t = data[k];
+    if (t && t.csvData) { allTasks[k] = t; }
+  });
+});
+
+function renderList() {
+  var el = document.getElementById('listEl');
+  var loadEl = document.getElementById('loadingEl');
+  var emptyEl = document.getElementById('emptyEl');
+  loadEl.style.display = 'none';
+
+  if (recordings.length === 0) {
+    emptyEl.style.display = 'block';
+    el.innerHTML = '';
+    return;
   }
-}
+  emptyEl.style.display = 'none';
 
-async function startRecording() {
-  try {
-    var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    currentAudioBlob = null;
-    var mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
-    mediaRecorder.ondataavailable = function(e) {
-      if (e.data.size > 0) audioChunks.push(e.data);
-    };
-    mediaRecorder.onstop = function() {
-      currentAudioBlob = new Blob(audioChunks, { type: mimeType });
-      stream.getTracks().forEach(function(t) { t.stop(); });
-      transcribeAudio(currentAudioBlob);
-    };
-    mediaRecorder.start(1000);
-    isRecording = true;
-    document.getElementById('micBtn').classList.add('recording');
-    document.getElementById('micBtn').textContent = '⏹';
-    document.getElementById('recStatus').textContent = '録音中... もう一度タップで停止';
-    recSeconds = 0;
-    timerInterval = setInterval(function() {
-      recSeconds++;
-      var m = Math.floor(recSeconds / 60);
-      var s = recSeconds % 60;
-      document.getElementById('recTimer').textContent = m + ':' + (s < 10 ? '0' : '') + s;
-    }, 1000);
-  } catch(e) {
-    showToast('マイクへのアクセスを許可してください', true);
-  }
-}
-
-function stopRecording() {
-  if (mediaRecorder && isRecording) {
-    mediaRecorder.stop();
-    isRecording = false;
-    clearInterval(timerInterval);
-    document.getElementById('micBtn').classList.remove('recording');
-    document.getElementById('micBtn').textContent = '🎙';
-    document.getElementById('recStatus').textContent = '処理中...';
-    document.getElementById('recTimer').textContent = '';
-  }
-}
-
-// 文字起こし
-async function transcribeAudio(blob) {
-  document.getElementById('processing').style.display = 'flex';
-  document.getElementById('processingMsg').textContent = '文字起こし中...';
-
-  try {
-    var arrayBuffer = await blob.arrayBuffer();
-    var bytes = new Uint8Array(arrayBuffer);
-    var binary = '';
-    var chunkSize = 8192;
-    for (var i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-    }
-    var base64 = btoa(binary);
-    var encoding = blob.type.includes('webm') ? 'WEBM_OPUS' : 'MP4';
-
-    var apiKey = localStorage.getItem('speech_api_key');
-    var response = await fetch(
-      'https://speech.googleapis.com/v1/speech:recognize?key=' + apiKey,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          config: {
-            encoding: encoding,
-            sampleRateHertz: 48000,
-            languageCode: 'ja-JP',
-            enableAutomaticPunctuation: true,
-            useEnhanced: true,
-            model: 'latest_long'
-          },
-          audio: { content: base64 }
-        })
-      }
-    );
-
-    var result = await response.json();
-    document.getElementById('processing').style.display = 'none';
-
-    if (result.results && result.results.length > 0) {
-      var text = result.results.map(function(r) {
-        return r.alternatives[0].transcript;
-      }).join('\n');
-      document.getElementById('transcriptText').value = text;
-      document.getElementById('analyzeBtn').disabled = false;
-      document.getElementById('recStatus').textContent = 'タップして録音開始';
-      showToast('文字起こし完了！');
+  var html = '';
+  recordings.forEach(function(r) {
+    var hasTrans = r.transcription && r.transcription.length > 0;
+    var isLinked = r.linked_case && r.linked_case.length > 0;
+    var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
+    var badge = '';
+    if (isLinked) {
+      badge = '<span class="status-badge badge-linked">📎 紐付済</span>';
+    } else if (hasTrans) {
+      badge = '<span class="status-badge badge-done">✅ 文字起こし済</span>';
     } else {
-      document.getElementById('recStatus').textContent = 'タップして録音開始';
-      showToast('音声を認識できませんでした', true);
+      badge = '<span class="status-badge badge-pending">未処理</span>';
     }
-  } catch(e) {
-    document.getElementById('processing').style.display = 'none';
-    document.getElementById('recStatus').textContent = 'タップして録音開始';
-    showToast('エラー: ' + e.message, true);
-  }
-}
 
-// Gemini AI整理
-async function analyzeWithGemini() {
-  var text = document.getElementById('transcriptText').value.trim();
-  if (!text) return;
+    html += '<div class="card">';
+    html += '<div class="card-header">';
+    html += '<div><div class="filename">🎵 ' + escHtml(r.filename || r._key) + '</div>';
+    html += '<div class="meta">' + date + (isLinked ? ' · 案件: ' + escHtml(r.linked_case) : '') + '</div></div>';
+    html += badge;
+    html += '</div>';
+    html += '<div class="card-body">';
 
-  document.getElementById('processing').style.display = 'flex';
-  document.getElementById('processingMsg').textContent = 'AI整理中...';
-
-  var caseKey = document.getElementById('caseSelect').value;
-  var caseInfo = caseKey ? '案件: ' + document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text : '';
-
-  var prompt = '以下は工事現場でのメモ（音声文字起こし）です。' + (caseInfo ? caseInfo + 'に関するメモです。' : '') +
-    '\n\n【文字起こし】\n' + text +
-    '\n\n以下の形式で整理してください：\n' +
-    '■ 要点\n（重要な内容を箇条書き）\n\n' +
-    '■ 確認事項\n（フォローが必要な項目）\n\n' +
-    '■ メモ\n（その他気になる点）';
-
-  try {
-    var geminiKey = localStorage.getItem('geminiApiKey');
-    var response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiKey,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      }
-    );
-    var result = await response.json();
-    document.getElementById('processing').style.display = 'none';
-
-    if (!result.candidates || !result.candidates[0]) {
-      throw new Error(JSON.stringify(result));
+    if (hasTrans) {
+      html += '<div class="transcription-box">' + escHtml(r.transcription) + '</div>';
+    } else {
+      html += '<div class="transcription-box empty">まだ文字起こしされていません</div>';
     }
-    var aiText = result.candidates[0].content.parts[0].text;
-    document.getElementById('aiText').value = aiText;
-    document.getElementById('aiSection').style.display = 'block';
-    showToast('AI整理完了！');
-  } catch(e) {
-    document.getElementById('processing').style.display = 'none';
-    showToast('AIエラー: ' + e.message, true);
-  }
+
+    html += '<div class="btn-row">';
+    if (!hasTrans) {
+      html += '<button class="btn btn-blue" onclick="transcribe(\'' + r._key + '\')">🤖 文字起こし</button>';
+    }
+    if (hasTrans && !isLinked) {
+      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + r._key + '\')">📎 案件に紐付け</button>';
+    }
+    if (hasTrans) {
+      html += '<button class="btn btn-orange" onclick="printRecord(\'' + r._key + '\')">🖨 PDF出力</button>';
+    }
+    if (r.url) {
+      html += '<a href="' + r.url + '" target="_blank"><button class="btn btn-gray">▶ 再生</button></a>';
+    }
+    html += '</div>';
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
 }
 
-function clearTranscript() {
-  document.getElementById('transcriptText').value = '';
-  document.getElementById('aiText').value = '';
-  document.getElementById('aiSection').style.display = 'none';
-  document.getElementById('analyzeBtn').disabled = true;
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// 保存
-function saveRecord() {
-  var transcript = document.getElementById('transcriptText').value.trim();
-  var aiResult = document.getElementById('aiText').value.trim();
-  var caseKey = document.getElementById('caseSelect').value;
-  var caseName = caseKey ? document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text : '未紐付け';
-
-  var record = {
-    timestamp: Date.now(),
-    date: new Date().toLocaleString('ja-JP'),
-    caseKey: caseKey || null,
-    caseName: caseName,
-    transcript: transcript,
-    aiResult: aiResult
-  };
-
-  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
-  history.unshift(record);
-  if (history.length > 50) history = history.slice(0, 50);
-  localStorage.setItem('voice_history', JSON.stringify(history));
-
-  // Firebaseにも保存（常に）
-  if (caseKey) {
-    db.ref('/app_tasks/' + caseKey + '/voice_memos/' + record.timestamp).set(record);
-  } else {
-    db.ref('/voice_memos/' + record.timestamp).set(record);
+// Gemini文字起こし
+function transcribe(key) {
+  var apiKey = localStorage.getItem('geminiApiKey');
+  if (!apiKey) {
+    apiKey = prompt('Gemini APIキーを入力してください:');
+    if (!apiKey) return;
+    localStorage.setItem('geminiApiKey', apiKey);
   }
 
-  loadHistory();
-  showToast('保存しました！');
-}
+  var r = recordings.find(function(x) { return x._key === key; });
+  if (!r || !r.url) { alert('URLが見つかりません'); return; }
 
-// 履歴読み込み（FirebaseとlocalStorageをマージ）
-function loadHistory() {
-  var list = document.getElementById('historyList');
-  list.innerHTML = '<p style="color:#555;font-size:13px;">読み込み中...</p>';
+  // ボタンを無効化
+  var btns = document.querySelectorAll('.btn');
+  btns.forEach(function(b) { b.disabled = true; });
 
-  db.ref('/voice_memos').once('value').then(function(snap) {
-    var fbData = snap.val() || {};
-    var fbRecords = Object.values(fbData);
+  var prompt = '以下の音声ファイルを文字起こしして、日本語で要約してください。建設・施工現場での会話や指示です。\n\n【文字起こし】\n（全文を記載）\n\n【要約】\n（3〜5行で要点）\n\n【キーワード】\n（施工日・下見・案件名など重要語句）';
 
-    var localRecords = JSON.parse(localStorage.getItem('voice_history') || '[]');
-    var seen = {};
-    fbRecords.forEach(function(r) { if (r.timestamp) seen[r.timestamp] = true; });
+  var body = JSON.stringify({
+    contents: [{
+      parts: [
+        { file_data: { file_uri: r.url, mime_type: 'audio/mp4' } },
+        { text: prompt }
+      ]
+    }]
+  });
 
-    var merged = fbRecords.slice();
-    localRecords.forEach(function(r) {
-      if (!seen[r.timestamp]) merged.push(r);
-    });
-    merged.sort(function(a, b) { return b.timestamp - a.timestamp; });
-    merged = merged.slice(0, 50);
-
-    if (merged.length === 0) {
-      list.innerHTML = '<p style="color:#555;font-size:13px;">まだ保存がありません</p>';
-      return;
-    }
-    list.innerHTML = merged.map(function(r, i) {
-      return '<div class="history-item">' +
-        '<div class="history-meta">' +
-          '<span class="history-case">' + (r.caseName || '未紐付け') + '</span>' +
-          '<span>' + r.date + '</span>' +
-        '</div>' +
-        '<div class="history-text">' + (r.aiResult || r.transcript || '').substring(0, 200) + '...</div>' +
-        '<div class="history-actions">' +
-          '<button class="btn-small btn-small-pdf" onclick="exportPDFFromData(' + JSON.stringify(r).replace(/"/g, "&quot;") + ')">📄 PDF</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    var text = data.candidates[0].content.parts[0].text;
+    db.ref('app_recordings/' + key + '/transcription').set(text);
+    btns.forEach(function(b) { b.disabled = false; });
+  })
+  .catch(function(e) {
+    alert('エラー: ' + e.message);
+    btns.forEach(function(b) { b.disabled = false; });
   });
 }
 
-function exportPDFFromData(r) {
-  printPDF(r.caseName, r.transcript, r.aiResult, r.date);
+// 案件紐付けモーダル
+function openLinkModal(key) {
+  currentRecordingKey = key;
+  var r = recordings.find(function(x) { return x._key === key; });
+  currentTranscription = r ? r.transcription : '';
+
+  document.getElementById('caseSearch').value = '';
+  renderCaseList('');
+  document.getElementById('linkModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('linkModal').classList.remove('active');
+  currentRecordingKey = null;
+  currentTranscription = null;
+}
+
+function filterCases() {
+  var q = document.getElementById('caseSearch').value;
+  renderCaseList(q);
+}
+
+function renderCaseList(query) {
+  var keys = Object.keys(allTasks);
+  var filtered = keys.filter(function(k) {
+    var t = allTasks[k];
+    var csv = t.csvData || [];
+    var title = csv[4] || '';
+    var addr = csv[11] || '';
+    var name = csv[5] || '';
+    var q = query.toLowerCase();
+    return title.toLowerCase().indexOf(q) >= 0 || addr.toLowerCase().indexOf(q) >= 0 || name.toLowerCase().indexOf(q) >= 0;
+  });
+
+  var html = '';
+  filtered.slice(0, 20).forEach(function(k) {
+    var t = allTasks[k];
+    var csv = t.csvData || [];
+    var title = csv[4] || k;
+    var date = csv[2] || '';
+    var addr = csv[11] || '';
+    html += '<div class="case-item" onclick="linkToCase(\'' + k + '\')">';
+    html += '<div class="case-title">' + escHtml(title) + '</div>';
+    html += '<div class="case-meta">' + escHtml(date) + ' · ' + escHtml(addr) + '</div>';
+    html += '</div>';
+  });
+
+  if (filtered.length === 0) {
+    html = '<div style="text-align:center;color:#aaa;padding:20px;font-size:13px">該当案件なし</div>';
+  }
+
+  document.getElementById('caseList').innerHTML = html;
+}
+
+function linkToCase(caseKey) {
+  if (!currentRecordingKey) return;
+  var t = allTasks[caseKey];
+  var csv = t ? (t.csvData || []) : [];
+  var title = csv[4] || caseKey;
+
+  // app_recordings に案件キーを保存
+  db.ref('app_recordings/' + currentRecordingKey + '/linked_case').set(caseKey);
+
+  // app_tasks のメモ欄に文字起こしを追記
+  if (currentTranscription) {
+    var memoRef = db.ref('app_tasks/' + caseKey + '/memo');
+    memoRef.once('value', function(snap) {
+      var existing = snap.val() || '';
+      var newMemo = existing + (existing ? '\n\n' : '') + '【音声メモ】\n' + currentTranscription;
+      memoRef.set(newMemo);
+    });
+  }
+
+  alert('「' + title + '」に紐付けました');
+  closeModal();
 }
 
 // PDF出力
-function exportPDF() {
-  var transcript = document.getElementById('transcriptText').value;
-  var aiResult = document.getElementById('aiText').value;
-  var caseName = document.getElementById('caseSelect').options[document.getElementById('caseSelect').selectedIndex].text;
-  printPDF(caseName, transcript, aiResult, new Date().toLocaleString('ja-JP'));
-}
+function printRecord(key) {
+  var r = recordings.find(function(x) { return x._key === key; });
+  if (!r) return;
 
-function exportPDFFromHistory(i) {
-  var history = JSON.parse(localStorage.getItem('voice_history') || '[]');
-  var r = history[i];
-  printPDF(r.caseName, r.transcript, r.aiResult, r.date);
-}
-
-function printPDF(caseName, transcript, aiResult, date) {
   var win = window.open('', '_blank');
-  win.document.write(
-    '<html><head><meta charset="UTF-8">' +
-    '<style>body{font-family:-apple-system,sans-serif;padding:30px;color:#222;line-height:1.7}' +
-    'h1{font-size:20px;border-bottom:2px solid #e94560;padding-bottom:10px;margin-bottom:20px}' +
-    'h2{font-size:15px;color:#e94560;margin-top:20px}' +
-    'pre{white-space:pre-wrap;font-family:inherit;font-size:13px;background:#f5f5f5;padding:14px;border-radius:8px}' +
-    '.meta{font-size:12px;color:#888;margin-bottom:20px}</style>' +
-    '</head><body>' +
-    '<h1>🎙 現場メモ</h1>' +
-    '<div class="meta">案件: ' + caseName + ' ／ ' + date + '</div>' +
-    (aiResult ? '<h2>AI整理結果</h2><pre>' + aiResult + '</pre>' : '') +
-    '<h2>文字起こし原文</h2><pre>' + transcript + '</pre>' +
-    '</body></html>'
-  );
+  var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
+  win.document.write('<html><head><meta charset="UTF-8"><title>録音メモ</title>');
+  win.document.write('<style>body{font-family:-apple-system,sans-serif;padding:20px;max-width:700px;margin:0 auto}h2{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px}pre{white-space:pre-wrap;font-size:14px;line-height:1.7;background:#f9f9f9;padding:16px;border-radius:8px;border:1px solid #ddd}.meta{color:#888;font-size:13px;margin-bottom:16px}</style>');
+  win.document.write('</head><body>');
+  win.document.write('<h2>🎙 録音メモ</h2>');
+  win.document.write('<div class="meta">ファイル: ' + escHtml(r.filename || r._key) + '<br>日時: ' + date + (r.linked_case ? '<br>案件: ' + escHtml(r.linked_case) : '') + '</div>');
+  win.document.write('<pre>' + escHtml(r.transcription || '（文字起こしなし）') + '</pre>');
+  win.document.write('</body></html>');
   win.document.close();
-  setTimeout(function() { win.print(); }, 300);
-}
-
-// トースト
-function showToast(msg, isError) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = isError ? 'error' : '';
-  t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 2500);
+  setTimeout(function() { win.print(); }, 500);
 }
 </script>
 </body>
