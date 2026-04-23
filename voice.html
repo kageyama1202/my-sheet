@@ -165,6 +165,7 @@ body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333;
 <div class="header">
   <button class="back-btn" onclick="history.back()">← 戻る</button>
   <h1>🎙 録音管理</h1>
+  <button id="toggleLinked" class="back-btn" onclick="toggleShowLinked()" style="margin-left:auto;font-size:12px;">紐付済を表示</button>
 </div>
 
 <div class="container">
@@ -201,6 +202,15 @@ var recordings = [];
 var allTasks = {};
 var currentRecordingKey = null;
 var currentTranscription = null;
+var showLinked = false;
+
+function toggleShowLinked() {
+  showLinked = !showLinked;
+  var btn = document.getElementById('toggleLinked');
+  btn.style.background = showLinked ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)';
+  btn.textContent = showLinked ? '紐付済を非表示' : '紐付済を表示';
+  renderList();
+}
 
 // 初期ロード
 db.ref('app_recordings').on('value', function(snap) {
@@ -230,7 +240,12 @@ function renderList() {
   var emptyEl = document.getElementById('emptyEl');
   loadEl.style.display = 'none';
 
-  if (recordings.length === 0) {
+  var filtered = recordings.filter(function(r) {
+    var isLinked = r.linked_case && r.linked_case.length > 0;
+    return showLinked || !isLinked;
+  });
+
+  if (filtered.length === 0) {
     emptyEl.style.display = 'block';
     el.innerHTML = '';
     return;
@@ -238,7 +253,7 @@ function renderList() {
   emptyEl.style.display = 'none';
 
   var html = '';
-  recordings.forEach(function(r) {
+  filtered.forEach(function(r) {
     var hasTrans = r.transcription && r.transcription.length > 0;
     var isLinked = r.linked_case && r.linked_case.length > 0;
     var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
@@ -278,6 +293,7 @@ function renderList() {
     if (r.url) {
       html += '<a href="' + r.url + '" target="_blank"><button class="btn btn-gray">▶ 再生</button></a>';
     }
+    html += '<button class="btn btn-red" onclick="deleteRecord(\'' + r._key + '\',\'' + escHtml(r.filename || r._key) + '\')">🗑 削除</button>';
     html += '</div>';
     html += '</div></div>';
   });
@@ -408,6 +424,22 @@ function linkToCase(caseKey) {
 
   alert('「' + title + '」に紐付けました');
   closeModal();
+}
+
+// 削除
+function deleteRecord(key, filename) {
+  if (!confirm('「' + filename + '」を削除しますか？\nStorage とデータベースから完全に削除されます。')) return;
+
+  var r = recordings.find(function(x) { return x._key === key; });
+
+  // Firebase Storage から削除
+  if (r && r.filename) {
+    var storageRef = storage.ref('recordings/' + r.filename);
+    storageRef.delete().catch(function(e) { console.warn('Storage削除エラー:', e); });
+  }
+
+  // Realtime DB から削除
+  db.ref('app_recordings/' + key).remove();
 }
 
 // PDF出力
