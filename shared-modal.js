@@ -1,6 +1,7 @@
 /* shared-modal.js — 共通モーダル（保存コールバック対応 + メーラーリンク + 施工日確定チェック）【全張り替え版】 */
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
+var GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
 var modalCommData = null;
 var modalContactData = null;
 
@@ -182,7 +183,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // コピー
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
-  // ★ 保存（コールバック付き）
+  // ★ 保存（Webhook付き）
   document.getElementById('modal-save-btn').addEventListener('click',function(){
     var nd=document.getElementById('modal-date').value;
     var nt=document.getElementById('modal-time').value;
@@ -196,6 +197,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
+
+    // ★ GAS Webhook: カレンダー即時同期
+    fetch(GAS_WEBHOOK_URL).catch(function(){});
 
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
     globalTasks[key].localStatus=selectedStatus;globalTasks[key].constructionDateConfirmed=cdc;
