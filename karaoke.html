@@ -18,6 +18,7 @@
     --green-dim: rgba(29,185,84,0.15);
     --amber: #f59e0b;
     --red: #ef4444;
+    --blue: #3b82f6;
     --mono: 'DM Mono', monospace;
     --sans: 'Noto Sans JP', sans-serif;
   }
@@ -25,81 +26,63 @@
   html, body { background: var(--bg); color: var(--text); font-family: var(--sans); }
   body { padding: 16px; padding-bottom: 40px; max-width: 480px; margin: 0 auto; }
 
-  .logo { text-align: center; padding: 24px 0 20px; }
-  .logo-text { font-family: var(--mono); font-size: 11px; letter-spacing: 0.35em; color: var(--muted); text-transform: uppercase; }
+  .logo { text-align: center; padding: 20px 0 16px; }
+  .logo-text { font-family: var(--mono); font-size: 10px; letter-spacing: 0.35em; color: var(--muted); text-transform: uppercase; }
   .logo-title { font-size: 22px; font-weight: 500; color: var(--text); margin-top: 4px; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 10px; }
   .card-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
 
-  .track-row { display: flex; align-items: center; gap: 12px; }
-  .track-art { width: 56px; height: 56px; border-radius: 8px; background: var(--surface2); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .track-art img { width: 100%; height: 100%; object-fit: cover; }
-  .track-info { flex: 1; min-width: 0; }
-  .track-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track-artist { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track-meta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-  .meta-pill { font-family: var(--mono); font-size: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; color: var(--muted); }
-  .meta-pill.green { color: var(--green); border-color: rgba(29,185,84,0.3); background: var(--green-dim); }
-  .meta-pill.warn { color: var(--amber); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
-
-  .player-controls { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-  .ctrl-btn { background: transparent; border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 8px 14px; font-size: 18px; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
-  .ctrl-btn:active { background: var(--surface2); transform: scale(0.95); }
-  .ctrl-btn.play { border-color: rgba(29,185,84,0.5); color: var(--green); font-size: 22px; padding: 8px 18px; }
-  .vol-row { flex: 1; display: flex; align-items: center; gap: 8px; }
-  .vol-icon { font-size: 14px; color: var(--muted); }
-  .vol-slider { flex: 1; }
-  input[type=range] { width: 100%; accent-color: var(--green); }
-
-  .progress-wrap { margin-top: 10px; }
-  .progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
-  .progress-fill { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width 0.5s linear; }
-  .progress-time { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
-
-  .pitch-big { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-  .pitch-note { font-family: var(--mono); font-size: 48px; font-weight: 500; color: var(--text); line-height: 1; min-width: 80px; }
+  .pitch-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .pitch-note { font-family: var(--mono); font-size: 52px; font-weight: 500; line-height: 1; min-width: 90px; color: var(--text); transition: color 0.1s; }
+  .pitch-note.good { color: var(--green); }
+  .pitch-note.warn { color: var(--amber); }
+  .pitch-note.bad { color: var(--red); }
   .pitch-detail { flex: 1; }
   .pitch-hz { font-family: var(--mono); font-size: 13px; color: var(--muted); }
-  .pitch-cent { font-family: var(--mono); font-size: 12px; margin-top: 2px; transition: color 0.1s; }
+  .pitch-cent { font-family: var(--mono); font-size: 12px; margin-top: 3px; }
   .cent-good { color: var(--green); }
   .cent-warn { color: var(--amber); }
   .cent-bad { color: var(--red); }
 
-  .bar-wrap { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
-  .bar-fill { height: 100%; width: 0%; border-radius: 3px; transition: width 0.08s; }
-  .bar-label { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--muted); }
-  #waveCanvas { display: block; width: 100%; height: 56px; border-radius: 8px; margin-top: 10px; }
+  .vol-wrap { margin-bottom: 6px; }
+  .bar-track { height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0%; border-radius: 2px; transition: width 0.06s; background: var(--green); }
+  .bar-lbl { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 3px; }
 
-  .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  canvas { display: block; border-radius: 8px; }
+  #waveCanvas { width: 100%; height: 52px; margin-bottom: 8px; }
+  #pitchCanvas { width: 100%; height: 100px; }
+  #radarCanvas { width: 100%; height: 200px; }
+
+  .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 0; }
   .score-item { background: var(--surface2); border-radius: 10px; padding: 12px; text-align: center; }
   .score-val { font-family: var(--mono); font-size: 26px; font-weight: 500; color: var(--text); }
   .score-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-  .result-big { text-align: center; padding: 8px 0; }
-  .result-num { font-family: var(--mono); font-size: 72px; font-weight: 500; color: var(--green); line-height: 1; }
-  .result-rank { font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em; color: var(--muted); margin-top: 6px; }
-  .result-sub { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-top: 14px; }
-  .rs-item { text-align: center; }
-  .rs-val { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--text); }
-  .rs-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .result-top { text-align: center; padding: 12px 0 8px; }
+  .result-num { font-family: var(--mono); font-size: 80px; font-weight: 500; color: var(--green); line-height: 1; }
+  .result-rank { font-family: var(--mono); font-size: 13px; letter-spacing: 0.25em; color: var(--muted); margin-top: 6px; }
+  .result-bars { margin-top: 14px; }
+  .rb-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .rb-label { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 56px; text-align: right; flex-shrink: 0; }
+  .rb-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .rb-fill { height: 100%; border-radius: 3px; width: 0%; transition: width 1s ease; }
+  .rb-val { font-family: var(--mono); font-size: 11px; color: var(--text); width: 36px; flex-shrink: 0; }
 
   .btn { display: block; width: 100%; padding: 16px; font-family: var(--sans); font-size: 15px; font-weight: 500; background: transparent; border: 1px solid var(--border2); border-radius: 12px; color: var(--text); cursor: pointer; margin-bottom: 8px; transition: background 0.15s, transform 0.1s; }
-  .btn:active { transform: scale(0.97); }
+  .btn:active { transform: scale(0.97); background: var(--surface2); }
   .btn:disabled { opacity: 0.3; }
-  .btn.spotify { border-color: rgba(29,185,84,0.5); color: var(--green); }
   .btn.go { border-color: rgba(29,185,84,0.5); color: var(--green); }
   .btn.danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
-  .btn.sm { padding: 10px; font-size: 12px; color: var(--muted); border-color: var(--border); }
 
-  .status-bar { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 8px 0 4px; min-height: 28px; line-height: 1.5; }
+  .status-bar { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0 10px; min-height: 26px; }
   .status-bar.ok { color: var(--green); }
   .status-bar.warn { color: var(--amber); }
-  .status-bar.err { color: var(--red); }
-
-  .notice { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; padding: 12px; font-size: 12px; color: var(--amber); line-height: 1.7; margin-bottom: 10px; }
 
   .hidden { display: none !important; }
+
+  .tip { font-size: 12px; color: var(--muted); text-align: center; padding: 6px 0 10px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -109,70 +92,33 @@
   <div class="logo-title">カラオケ採点</div>
 </div>
 
-<div class="status-bar" id="statusBar">Spotifyにログインしてください</div>
+<div class="status-bar" id="statusBar">マイク開始をタップしてください</div>
 
 <div class="card">
-  <div class="card-label">Now Playing</div>
-  <div class="track-row">
-    <div class="track-art" id="trackArt">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,0.2)">
-        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-      </svg>
-    </div>
-    <div class="track-info">
-      <div class="track-name" id="trackName">—</div>
-      <div class="track-artist" id="trackArtist">ログインして曲を選択してください</div>
-      <div class="track-meta">
-        <span class="meta-pill" id="bpmPill">BPM —</span>
-        <span class="meta-pill" id="keyPill">Key —</span>
-        <span class="meta-pill" id="playPill">停止中</span>
-      </div>
-    </div>
-  </div>
-  <div class="player-controls" id="playerControls" style="display:none">
-    <button class="ctrl-btn" onclick="prevTrack()">⏮</button>
-    <button class="ctrl-btn play" id="playBtn" onclick="togglePlay()">▶</button>
-    <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
-    <div class="vol-row">
-      <span class="vol-icon">🔈</span>
-      <input type="range" class="vol-slider" min="0" max="100" value="80" oninput="setVolume(this.value)">
-      <span class="vol-icon">🔊</span>
-    </div>
-  </div>
-  <button class="btn sm" id="transferBtn" style="display:none;margin-top:8px;" onclick="forceTransfer()">このブラウザで音を出す</button>
-  <div class="progress-wrap" id="progressWrap" style="display:none">
-    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="progress-time"><span id="posTime">0:00</span><span id="durTime">0:00</span></div>
-  </div>
-</div>
-
-<button class="btn spotify" id="loginBtn" onclick="loginSpotify()">Spotifyでログイン</button>
-<button class="btn sm hidden" id="logoutBtn" onclick="logout()">ログアウト</button>
-
-<div id="sdkNotice" class="notice hidden">
-  Web Playback SDKがこのブラウザで動作しませんでした。<br>
-  Spotifyアプリ側で再生中の曲情報は引き続き表示されます。<br>
-  Spotifyアプリで曲を再生しながらマイク採点をご利用ください。
-</div>
-
-<div class="card">
-  <div class="card-label">リアルタイム ピッチ</div>
-  <div class="pitch-big">
+  <div class="card-label">ピッチ</div>
+  <div class="pitch-row">
     <div class="pitch-note" id="noteDisp">—</div>
     <div class="pitch-detail">
       <div class="pitch-hz" id="hzDisp">— Hz</div>
       <div class="pitch-cent cent-good" id="centDisp">— cent</div>
     </div>
   </div>
-  <div class="bar-wrap"><div class="bar-fill" id="volBar"></div></div>
-  <div class="bar-label"><span>音量</span><span id="volPct">0%</span></div>
-  <canvas id="waveCanvas" width="448" height="56"></canvas>
+  <div class="vol-wrap">
+    <div class="bar-track"><div class="bar-fill" id="volBar"></div></div>
+    <div class="bar-lbl"><span>音量</span><span id="volPct">0%</span></div>
+  </div>
+  <canvas id="waveCanvas" width="448" height="52"></canvas>
+</div>
+
+<div class="card">
+  <div class="card-label">ピッチグラフ（歌唱中）</div>
+  <canvas id="pitchCanvas" width="448" height="100"></canvas>
 </div>
 
 <div class="card">
   <div class="card-label">採点データ</div>
   <div class="score-grid">
-    <div class="score-item"><div class="score-val" id="sPitch">—</div><div class="score-lbl">音程正確率</div></div>
+    <div class="score-item"><div class="score-val" id="sPitch">—</div><div class="score-lbl">音程</div></div>
     <div class="score-item"><div class="score-val" id="sStab">—</div><div class="score-lbl">安定性</div></div>
     <div class="score-item"><div class="score-val" id="sVib">—</div><div class="score-lbl">ビブラート</div></div>
     <div class="score-item"><div class="score-val" id="sTime">0s</div><div class="score-lbl">歌唱時間</div></div>
@@ -181,375 +127,56 @@
 
 <div class="card hidden" id="resultCard">
   <div class="card-label">結果</div>
-  <div class="result-big">
+  <div class="result-top">
     <div class="result-num" id="rTotal">—</div>
     <div class="result-rank" id="rRank">—</div>
   </div>
-  <div class="result-sub">
-    <div class="rs-item"><div class="rs-val" id="rPitch">—</div><div class="rs-lbl">音程</div></div>
-    <div class="rs-item"><div class="rs-val" id="rStab">—</div><div class="rs-lbl">安定性</div></div>
-    <div class="rs-item"><div class="rs-val" id="rVib">—</div><div class="rs-lbl">ビブラート</div></div>
-    <div class="rs-item"><div class="rs-val" id="rTime">—</div><div class="rs-lbl">歌唱時間</div></div>
+  <div class="result-bars">
+    <div class="rb-row">
+      <div class="rb-label">音程</div>
+      <div class="rb-track"><div class="rb-fill" id="rbPitch" style="background:#1DB954"></div></div>
+      <div class="rb-val" id="rvPitch">—</div>
+    </div>
+    <div class="rb-row">
+      <div class="rb-label">安定性</div>
+      <div class="rb-track"><div class="rb-fill" id="rbStab" style="background:#3b82f6"></div></div>
+      <div class="rb-val" id="rvStab">—</div>
+    </div>
+    <div class="rb-row">
+      <div class="rb-label">ビブラート</div>
+      <div class="rb-track"><div class="rb-fill" id="rbVib" style="background:#f59e0b"></div></div>
+      <div class="rb-val" id="rvVib">—</div>
+    </div>
+    <div class="rb-row">
+      <div class="rb-label">総合</div>
+      <div class="rb-track"><div class="rb-fill" id="rbTotal" style="background:#ef4444"></div></div>
+      <div class="rb-val" id="rvTotal">—</div>
+    </div>
   </div>
+  <canvas id="radarCanvas" width="448" height="200" style="margin-top:14px;"></canvas>
 </div>
 
 <button class="btn" id="micBtn" onclick="startMic()">マイク開始</button>
 <button class="btn go hidden" id="startBtn" onclick="startScore()">採点開始</button>
 <button class="btn danger hidden" id="stopBtn" onclick="stopScore()">採点終了 · 結果表示</button>
+<div class="tip" id="tipArea">Spotifyや音楽アプリで曲を流し、イヤホンで聴きながら歌ってください</div>
 
-<script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script>
-var CLIENT_ID = '0e0fd2445c7d4c70a021422bb9c2bc5e';
-var REDIRECT_URI = 'https://kageyama1202.github.io/my-sheet/karaoke.html';
-var SCOPES = 'streaming user-read-email user-read-private user-read-currently-playing user-read-playback-state user-modify-playback-state';
 var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-var KEY_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-var MODE_NAMES = ['minor','major'];
-
-var accessToken = null;
-var player = null;
-var deviceId = null;
-var sdkReady = false;
 var audioCtx = null;
 var analyser = null;
 var scoring = false;
 var startTime = 0;
 var pitchOk = 0, pitchTotal = 0;
 var freqHistory = [];
+var pitchLog = [];
 var vibCount = 0, vibDir = 0;
-var trackTimer = null;
-var posTimer = null;
-var currentDuration = 0;
+var volHistory = [];
 
 function setStatus(msg, cls) {
   var el = document.getElementById('statusBar');
   el.textContent = msg;
   el.className = 'status-bar' + (cls ? ' ' + cls : '');
-}
-
-function generateRandom(len) {
-  var arr = new Uint8Array(len);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-}
-
-function base64urlencode(buf) {
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-
-async function generateCodeChallenge(verifier) {
-  var enc = new TextEncoder().encode(verifier);
-  var hash = await crypto.subtle.digest('SHA-256', enc);
-  return base64urlencode(hash);
-}
-
-async function loginSpotify() {
-  var verifier = generateRandom(32);
-  var challenge = await generateCodeChallenge(verifier);
-  sessionStorage.setItem('pkce_verifier', verifier);
-  var url = 'https://accounts.spotify.com/authorize'
-    + '?response_type=code'
-    + '&client_id=' + CLIENT_ID
-    + '&scope=' + encodeURIComponent(SCOPES)
-    + '&redirect_uri=' + encodeURIComponent(REDIRECT_URI)
-    + '&code_challenge_method=S256'
-    + '&code_challenge=' + challenge;
-  window.location.href = url;
-}
-
-async function exchangeCode(code) {
-  var verifier = sessionStorage.getItem('pkce_verifier');
-  if (!verifier) { setStatus('認証エラー: verifierなし', 'warn'); return; }
-  setStatus('トークン取得中...');
-  var res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: code,
-      redirect_uri: REDIRECT_URI,
-      client_id: CLIENT_ID,
-      code_verifier: verifier
-    })
-  });
-  var data = await res.json();
-  if (data.access_token) {
-    accessToken = data.access_token;
-    localStorage.setItem('spotify_token', accessToken);
-    localStorage.setItem('spotify_token_exp', Date.now() + (data.expires_in - 60) * 1000);
-    if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
-    sessionStorage.removeItem('pkce_verifier');
-    history.replaceState(null, '', window.location.pathname);
-    onLoggedIn();
-  } else {
-    setStatus('トークンエラー: ' + (data.error_description || data.error), 'warn');
-  }
-}
-
-async function refreshAccessToken() {
-  var refresh = localStorage.getItem('spotify_refresh');
-  if (!refresh) return false;
-  var res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refresh,
-      client_id: CLIENT_ID
-    })
-  });
-  var data = await res.json();
-  if (data.access_token) {
-    accessToken = data.access_token;
-    localStorage.setItem('spotify_token', accessToken);
-    localStorage.setItem('spotify_token_exp', Date.now() + (data.expires_in - 60) * 1000);
-    if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
-    return true;
-  }
-  return false;
-}
-
-function checkStoredToken() {
-  var token = localStorage.getItem('spotify_token');
-  var exp = parseInt(localStorage.getItem('spotify_token_exp') || '0');
-  if (token && Date.now() < exp) {
-    accessToken = token;
-    onLoggedIn();
-    return true;
-  }
-  if (localStorage.getItem('spotify_refresh')) {
-    refreshAccessToken().then(function(ok){ if (ok) onLoggedIn(); });
-    return true;
-  }
-  return false;
-}
-
-function onLoggedIn() {
-  document.getElementById('loginBtn').classList.add('hidden');
-  document.getElementById('logoutBtn').classList.remove('hidden');
-  setStatus('Spotify接続済み · SDK初期化中...', 'ok');
-  initSDK();
-  fetchCurrentTrack();
-  if (trackTimer) clearInterval(trackTimer);
-  trackTimer = setInterval(fetchCurrentTrack, 5000);
-}
-
-function logout() {
-  localStorage.removeItem('spotify_token');
-  localStorage.removeItem('spotify_token_exp');
-  localStorage.removeItem('spotify_refresh');
-  accessToken = null;
-  if (trackTimer) clearInterval(trackTimer);
-  if (posTimer) clearInterval(posTimer);
-  if (player) { player.disconnect(); player = null; }
-  document.getElementById('loginBtn').classList.remove('hidden');
-  document.getElementById('logoutBtn').classList.add('hidden');
-  document.getElementById('playerControls').style.display = 'none';
-  document.getElementById('progressWrap').style.display = 'none';
-  setStatus('ログアウトしました');
-}
-
-window.onSpotifyWebPlaybackSDKReady = function() {
-  sdkReady = true;
-  if (accessToken) initSDK();
-};
-
-function initSDK() {
-  if (!sdkReady || !accessToken) return;
-  player = new Spotify.Player({
-    name: 'カラオケ採点',
-    getOAuthToken: function(cb) { cb(accessToken); },
-    volume: 0.8
-  });
-
-  player.addListener('ready', function(ref) {
-    deviceId = ref.device_id;
-    setStatus('Spotify準備完了', 'ok');
-    document.getElementById('playerControls').style.display = 'flex';
-    document.getElementById('progressWrap').style.display = 'block';
-    transferPlayback();
-    startProgressTimer();
-  });
-
-  player.addListener('not_ready', function() {
-    setStatus('Spotifyデバイス切断', 'warn');
-  });
-
-  player.addListener('initialization_error', function(ref) {
-    setStatus('SDK非対応ブラウザ · APIモードで動作中', 'warn');
-    document.getElementById('sdkNotice').classList.remove('hidden');
-  });
-
-  player.addListener('authentication_error', function() {
-    setStatus('認証エラー · 再ログインしてください', 'err');
-  });
-
-  player.addListener('account_error', function() {
-    setStatus('Spotify Premiumが必要です', 'err');
-  });
-
-  player.addListener('player_state_changed', function(state) {
-    if (!state) return;
-    var item = state.track_window && state.track_window.current_track;
-    if (item) {
-      document.getElementById('trackName').textContent = item.name;
-      document.getElementById('trackArtist').textContent = item.artists.map(function(a){ return a.name; }).join(', ');
-      if (item.album && item.album.images && item.album.images[0]) {
-        document.getElementById('trackArt').innerHTML = '<img src="' + item.album.images[0].url + '" alt="">';
-      }
-      currentDuration = state.duration;
-      fetchAudioFeatures(item.id);
-    }
-    var pip = document.getElementById('playPill');
-    var paused = state.paused;
-    pip.textContent = paused ? '停止中' : '再生中';
-    pip.className = 'meta-pill' + (paused ? '' : ' green');
-    document.getElementById('playBtn').textContent = paused ? '▶' : '⏸';
-    if (currentDuration > 0) {
-      document.getElementById('progressFill').style.width = Math.round(state.position / currentDuration * 100) + '%';
-      document.getElementById('posTime').textContent = msToTime(state.position);
-      document.getElementById('durTime').textContent = msToTime(currentDuration);
-    }
-  });
-
-  player.connect().then(function(ok) {
-    if (!ok) {
-      setStatus('SDK接続失敗 · APIモードで動作中', 'warn');
-      document.getElementById('sdkNotice').classList.remove('hidden');
-    }
-  });
-}
-
-function transferPlayback() {
-  if (!deviceId || !accessToken) return;
-  fetch('https://api.spotify.com/v1/me/player', {
-    method: 'PUT',
-    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_ids: [deviceId], play: false })
-  });
-  document.getElementById('transferBtn').style.display = 'block';
-}
-
-function forceTransfer() {
-  if (!deviceId || !accessToken) return;
-  setStatus('デバイス転送中...', 'ok');
-  fetch('https://api.spotify.com/v1/me/player', {
-    method: 'PUT',
-    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_ids: [deviceId], play: true })
-  }).then(function() {
-    setTimeout(function() {
-      if (player) player.setVolume(0.8);
-      setStatus('転送完了 · 音が出るはずです', 'ok');
-    }, 1000);
-  });
-}
-
-function togglePlay() {
-  if (player) {
-    player.togglePlay();
-  } else {
-    spotifyPut('https://api.spotify.com/v1/me/player/play', {});
-  }
-}
-
-function prevTrack() {
-  if (player) player.previousTrack();
-  else spotifyPost('https://api.spotify.com/v1/me/player/previous');
-}
-
-function nextTrack() {
-  if (player) player.nextTrack();
-  else spotifyPost('https://api.spotify.com/v1/me/player/next');
-}
-
-function setVolume(v) {
-  if (player) player.setVolume(v / 100);
-}
-
-function startProgressTimer() {
-  if (posTimer) clearInterval(posTimer);
-  posTimer = setInterval(function() {
-    if (!player) return;
-    player.getCurrentState().then(function(state) {
-      if (!state || state.paused) return;
-      var pos = state.position + 1000;
-      if (currentDuration > 0) {
-        document.getElementById('progressFill').style.width = Math.round(pos / currentDuration * 100) + '%';
-        document.getElementById('posTime').textContent = msToTime(pos);
-      }
-    });
-  }, 1000);
-}
-
-function msToTime(ms) {
-  var s = Math.floor(ms / 1000);
-  return Math.floor(s/60) + ':' + ('0' + (s%60)).slice(-2);
-}
-
-async function spotifyGet(url) {
-  var exp = parseInt(localStorage.getItem('spotify_token_exp') || '0');
-  if (Date.now() > exp) { var ok = await refreshAccessToken(); if (!ok) { logout(); return null; } }
-  var res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
-  if (res.status === 204) return null;
-  if (res.status === 401) { var ok2 = await refreshAccessToken(); if (!ok2) { logout(); return null; } res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } }); }
-  if (!res.ok) return null;
-  return res.json();
-}
-
-async function spotifyPut(url, body) {
-  await fetch(url, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-}
-
-async function spotifyPost(url) {
-  await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken } });
-}
-
-async function fetchCurrentTrack() {
-  var data = await spotifyGet('https://api.spotify.com/v1/me/player/currently-playing');
-  if (!data || !data.item) return;
-  var item = data.item;
-  if (!deviceId) {
-    document.getElementById('trackName').textContent = item.name;
-    document.getElementById('trackArtist').textContent = item.artists.map(function(a){ return a.name; }).join(', ');
-    var art = item.album && item.album.images && item.album.images[0];
-    if (art) document.getElementById('trackArt').innerHTML = '<img src="' + art.url + '" alt="">';
-    var pip = document.getElementById('playPill');
-    pip.textContent = data.is_playing ? '再生中' : '停止中';
-    pip.className = 'meta-pill' + (data.is_playing ? ' green' : '');
-    if (data.progress_ms && item.duration_ms) {
-      document.getElementById('progressFill').style.width = Math.round(data.progress_ms / item.duration_ms * 100) + '%';
-    }
-    fetchAudioFeatures(item.id);
-  }
-}
-
-async function fetchAudioFeatures(id) {
-  var f = await spotifyGet('https://api.spotify.com/v1/audio-features/' + id);
-  if (!f) return;
-  document.getElementById('bpmPill').textContent = 'BPM ' + Math.round(f.tempo);
-  document.getElementById('keyPill').textContent = (f.key >= 0 ? KEY_NAMES[f.key] : '?') + ' ' + (f.mode >= 0 ? MODE_NAMES[f.mode] : '');
-}
-
-async function startMic() {
-  try {
-    var stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      video: false
-    });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    var src = audioCtx.createMediaStreamSource(stream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    src.connect(analyser);
-    document.getElementById('micBtn').classList.add('hidden');
-    document.getElementById('startBtn').classList.remove('hidden');
-    setStatus('マイク接続済み', 'ok');
-    drawLoop();
-  } catch(e) {
-    setStatus('マイクエラー: ' + e.message, 'warn');
-  }
 }
 
 function acf(buf, sr) {
@@ -576,7 +203,28 @@ function freq2note(f) {
   if (!f || f < 60 || f > 2000) return null;
   var n = 12*Math.log2(f/440)+69;
   var r = Math.round(n);
-  return { name: NOTE_NAMES[((r%12)+12)%12]+(Math.floor(r/12)-1), cents: Math.round((n-r)*100) };
+  return { name: NOTE_NAMES[((r%12)+12)%12]+(Math.floor(r/12)-1), midi: r, cents: Math.round((n-r)*100) };
+}
+
+async function startMic() {
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false
+    });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    src.connect(analyser);
+    document.getElementById('micBtn').classList.add('hidden');
+    document.getElementById('startBtn').classList.remove('hidden');
+    document.getElementById('tipArea').textContent = '採点開始をタップして歌い始めてください';
+    setStatus('マイク接続済み', 'ok');
+    drawLoop();
+  } catch(e) {
+    setStatus('マイクエラー: ' + e.message, 'warn');
+  }
 }
 
 function drawLoop() {
@@ -584,57 +232,74 @@ function drawLoop() {
   if (!analyser) return;
   var buf = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(buf);
+
   var rms = 0;
   for (var i = 0; i < buf.length; i++) rms += buf[i]*buf[i];
   rms = Math.sqrt(rms/buf.length);
   var vol = Math.min(100, Math.round(rms*500));
   document.getElementById('volBar').style.width = vol+'%';
-  document.getElementById('volBar').style.background = vol>60?'#1DB954':vol>20?'#f59e0b':'#444';
+  document.getElementById('volBar').style.background = vol>60?'#1DB954':vol>20?'#f59e0b':'#555';
   document.getElementById('volPct').textContent = vol+'%';
+
   var f = acf(buf, audioCtx.sampleRate);
-  if (f > 0) {
-    var note = freq2note(f);
-    if (note) {
-      document.getElementById('noteDisp').textContent = note.name;
-      document.getElementById('hzDisp').textContent = Math.round(f)+' Hz';
-      var c = note.cents;
-      var cEl = document.getElementById('centDisp');
-      cEl.textContent = (c>=0?'+':'')+c+' cent';
-      var ac = Math.abs(c);
-      cEl.className = 'pitch-cent '+(ac<20?'cent-good':ac<40?'cent-warn':'cent-bad');
-      if (scoring) {
-        pitchTotal++;
-        if (ac<30) pitchOk++;
-        freqHistory.push(f);
-        if (freqHistory.length>2) {
-          var diff = f-freqHistory[freqHistory.length-2];
-          var dir = diff>0.8?1:diff<-0.8?-1:0;
-          if (dir!==0&&dir!==vibDir){vibCount++;vibDir=dir;}
-        }
-        var el = Math.round((Date.now()-startTime)/1000);
-        document.getElementById('sTime').textContent = el+'s';
-        if (pitchTotal>0) document.getElementById('sPitch').textContent = Math.round(pitchOk/pitchTotal*100)+'%';
-        if (freqHistory.length>5) {
-          var diffs=[];
-          for (var i=1;i<freqHistory.length;i++) diffs.push(Math.abs(freqHistory[i]-freqHistory[i-1]));
-          var avg=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
-          document.getElementById('sStab').textContent = Math.max(0,Math.min(100,Math.round(100-avg*0.6)))+'%';
-        }
-        document.getElementById('sVib').textContent = Math.min(100,Math.round(vibCount/Math.max(1,(Date.now()-startTime)/1000)*5))+'%';
+  var note = f > 0 ? freq2note(f) : null;
+
+  if (note) {
+    var ac = Math.abs(note.cents);
+    var noteEl = document.getElementById('noteDisp');
+    noteEl.textContent = note.name;
+    noteEl.className = 'pitch-note ' + (ac<20?'good':ac<40?'warn':'bad');
+    document.getElementById('hzDisp').textContent = Math.round(f)+' Hz';
+    var cEl = document.getElementById('centDisp');
+    cEl.textContent = (note.cents>=0?'+':'')+note.cents+' cent';
+    cEl.className = 'pitch-cent '+(ac<20?'cent-good':ac<40?'cent-warn':'cent-bad');
+
+    if (scoring) {
+      pitchTotal++;
+      if (ac<30) pitchOk++;
+      freqHistory.push(f);
+      pitchLog.push({ t: Date.now()-startTime, midi: note.midi, cents: note.cents, vol: vol });
+      volHistory.push(vol);
+
+      if (freqHistory.length>2) {
+        var diff = f-freqHistory[freqHistory.length-2];
+        var dir = diff>1?1:diff<-1?-1:0;
+        if (dir!==0&&dir!==vibDir){vibCount++;vibDir=dir;}
       }
+      var elapsed = Math.round((Date.now()-startTime)/1000);
+      document.getElementById('sTime').textContent = elapsed+'s';
+      if (pitchTotal>0) document.getElementById('sPitch').textContent = Math.round(pitchOk/pitchTotal*100)+'%';
+      if (freqHistory.length>5) {
+        var diffs=[];
+        for (var i=1;i<freqHistory.length;i++) diffs.push(Math.abs(freqHistory[i]-freqHistory[i-1]));
+        var avg=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+        document.getElementById('sStab').textContent = Math.max(0,Math.min(100,Math.round(100-avg*0.6)))+'%';
+      }
+      document.getElementById('sVib').textContent = Math.min(100,Math.round(vibCount/Math.max(1,(Date.now()-startTime)/1000)*5))+'%';
     }
-  } else if (!scoring) {
-    document.getElementById('noteDisp').textContent='—';
-    document.getElementById('hzDisp').textContent='— Hz';
-    document.getElementById('centDisp').textContent='— cent';
-    document.getElementById('centDisp').className='pitch-cent cent-good';
+  } else {
+    if (!scoring) {
+      var noteEl = document.getElementById('noteDisp');
+      noteEl.textContent = '—';
+      noteEl.className = 'pitch-note';
+      document.getElementById('hzDisp').textContent = '— Hz';
+      document.getElementById('centDisp').textContent = '— cent';
+      document.getElementById('centDisp').className = 'pitch-cent cent-good';
+    }
+    if (scoring) pitchLog.push(null);
   }
-  var canvas=document.getElementById('waveCanvas');
-  var ctx=canvas.getContext('2d');
-  var W=canvas.width,H=canvas.height;
+
+  drawWave(buf);
+  if (scoring) drawPitchGraph();
+}
+
+function drawWave(buf) {
+  var canvas = document.getElementById('waveCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
   ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle=scoring?'#1DB954':'#333';
-  ctx.lineWidth=1.5;
+  ctx.strokeStyle = scoring ? '#1DB954' : '#2a2a2a';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   for (var i=0;i<buf.length;i++){
     var x=(i/buf.length)*W;
@@ -644,12 +309,137 @@ function drawLoop() {
   ctx.stroke();
 }
 
+function drawPitchGraph() {
+  var canvas = document.getElementById('pitchCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  var logs = pitchLog.filter(function(p){ return p !== null; });
+  if (logs.length < 2) return;
+
+  var midiMin = 999, midiMax = 0;
+  logs.forEach(function(p){ if(p.midi<midiMin) midiMin=p.midi; if(p.midi>midiMax) midiMax=p.midi; });
+  if (midiMax === midiMin) { midiMin -= 2; midiMax += 2; }
+  var midiRange = midiMax - midiMin + 4;
+  midiMin -= 2;
+
+  var totalT = pitchLog[pitchLog.length-1] ? pitchLog[pitchLog.length-1].t : 1;
+
+  ctx.strokeStyle = 'rgba(29,185,84,0.3)';
+  ctx.lineWidth = 1;
+  for (var midi = Math.floor(midiMin); midi <= midiMax+2; midi++) {
+    var y = H - ((midi - midiMin) / midiRange) * H;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    var noteName = NOTE_NAMES[((midi%12)+12)%12];
+    if (noteName.length === 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.font = '9px ' + "'DM Mono', monospace";
+      ctx.fillText(noteName, 2, y-2);
+    }
+  }
+
+  ctx.beginPath();
+  var first = true;
+  pitchLog.forEach(function(p, i) {
+    if (!p) { first = true; return; }
+    var x = (p.t / Math.max(totalT,1)) * W;
+    var y = H - ((p.midi - midiMin) / midiRange) * H;
+    var ac = Math.abs(p.cents);
+    if (first) { ctx.beginPath(); ctx.moveTo(x,y); first=false; }
+    else ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle = '#1DB954';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  pitchLog.forEach(function(p) {
+    if (!p) return;
+    var x = (p.t / Math.max(totalT,1)) * W;
+    var y = H - ((p.midi - midiMin) / midiRange) * H;
+    var ac = Math.abs(p.cents);
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI*2);
+    ctx.fillStyle = ac<20?'#1DB954':ac<40?'#f59e0b':'#ef4444';
+    ctx.fill();
+  });
+}
+
+function drawRadar(scores) {
+  var canvas = document.getElementById('radarCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  var cx = W/2, cy = H/2, r = Math.min(W,H)*0.38;
+  var labels = ['音程', '安定性', 'ビブラート', '音量', '持続力'];
+  var vals = [scores.pitch/100, scores.stab/100, scores.vib/100, scores.vol/100, scores.dur/100];
+  var n = labels.length;
+
+  function angle(i) { return (i/n)*Math.PI*2 - Math.PI/2; }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  [0.25,0.5,0.75,1].forEach(function(scale) {
+    ctx.beginPath();
+    for (var i=0;i<n;i++){
+      var a=angle(i);
+      var x=cx+Math.cos(a)*r*scale;
+      var y=cy+Math.sin(a)*r*scale;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath(); ctx.stroke();
+  });
+
+  for (var i=0;i<n;i++){
+    var a=angle(i);
+    ctx.strokeStyle='rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r);
+    ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    ctx.font='11px '+"'Noto Sans JP', sans-serif";
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    var lx=cx+Math.cos(a)*(r+18);
+    var ly=cy+Math.sin(a)*(r+18);
+    ctx.fillText(labels[i], lx, ly);
+  }
+
+  ctx.beginPath();
+  for (var i=0;i<n;i++){
+    var a=angle(i);
+    var x=cx+Math.cos(a)*r*vals[i];
+    var y=cy+Math.sin(a)*r*vals[i];
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.fillStyle='rgba(29,185,84,0.2)';
+  ctx.fill();
+  ctx.strokeStyle='#1DB954';
+  ctx.lineWidth=2;
+  ctx.stroke();
+
+  for (var i=0;i<n;i++){
+    var a=angle(i);
+    var x=cx+Math.cos(a)*r*vals[i];
+    var y=cy+Math.sin(a)*r*vals[i];
+    ctx.beginPath();
+    ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle='#1DB954';
+    ctx.fill();
+  }
+}
+
 function startScore() {
   scoring=true; startTime=Date.now();
-  pitchOk=0; pitchTotal=0; freqHistory=[]; vibCount=0; vibDir=0;
+  pitchOk=0; pitchTotal=0; freqHistory=[]; pitchLog=[];
+  vibCount=0; vibDir=0; volHistory=[];
   document.getElementById('startBtn').classList.add('hidden');
   document.getElementById('stopBtn').classList.remove('hidden');
   document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('tipArea').textContent = '歌っています...';
   setStatus('採点中...', 'ok');
 }
 
@@ -657,41 +447,52 @@ function stopScore() {
   scoring=false;
   document.getElementById('startBtn').classList.remove('hidden');
   document.getElementById('stopBtn').classList.add('hidden');
-  if (pitchTotal<10){setStatus('データ不足。もう少し長く歌ってください。','warn');return;}
+
+  if (pitchTotal<10){
+    setStatus('データ不足。もう少し長く歌ってください。','warn');
+    return;
+  }
+
   var pScore=Math.round(pitchOk/pitchTotal*100);
+
   var diffs=[];
   for (var i=1;i<freqHistory.length;i++) diffs.push(Math.abs(freqHistory[i]-freqHistory[i-1]));
   var avgDiff=diffs.length?diffs.reduce(function(a,b){return a+b;},0)/diffs.length:0;
   var sScore=Math.max(0,Math.min(100,Math.round(100-avgDiff*0.6)));
+
   var elapsed=Math.round((Date.now()-startTime)/1000);
   var vScore=Math.min(100,Math.round(vibCount/Math.max(1,elapsed)*5));
-  var total=Math.round(pScore*0.55+sScore*0.3+vScore*0.15);
+
+  var avgVol = volHistory.length ? Math.round(volHistory.reduce(function(a,b){return a+b;},0)/volHistory.length) : 0;
+
+  var durScore = Math.min(100, Math.round(elapsed/60*100));
+
+  var total=Math.round(pScore*0.45+sScore*0.25+vScore*0.1+avgVol*0.1+durScore*0.1);
+
   var ranks=[[95,'PERFECT'],[85,'EXCELLENT'],[75,'GREAT'],[60,'GOOD'],[0,'KEEP GOING']];
   var rank=ranks.find(function(r){return total>=r[0];})[1];
+
   document.getElementById('rTotal').textContent=total;
   document.getElementById('rRank').textContent=rank;
-  document.getElementById('rPitch').textContent=pScore+'%';
-  document.getElementById('rStab').textContent=sScore+'%';
-  document.getElementById('rVib').textContent=vScore+'%';
-  document.getElementById('rTime').textContent=elapsed+'s';
+
+  document.getElementById('rbPitch').style.width=pScore+'%';
+  document.getElementById('rvPitch').textContent=pScore;
+  document.getElementById('rbStab').style.width=sScore+'%';
+  document.getElementById('rvStab').textContent=sScore;
+  document.getElementById('rbVib').style.width=vScore+'%';
+  document.getElementById('rvVib').textContent=vScore;
+  document.getElementById('rbTotal').style.width=total+'%';
+  document.getElementById('rvTotal').textContent=total;
+
   document.getElementById('resultCard').classList.remove('hidden');
+
+  setTimeout(function(){
+    drawRadar({ pitch:pScore, stab:sScore, vib:vScore, vol:avgVol, dur:durScore });
+  }, 100);
+
+  document.getElementById('tipArea').textContent = 'もう一度歌うには「採点開始」をタップ';
   setStatus('採点完了');
 }
-
-(function init(){
-  var params = new URLSearchParams(window.location.search);
-  var code = params.get('code');
-  if (code) {
-    history.replaceState(null,'',window.location.pathname);
-    exchangeCode(code);
-    return;
-  }
-  if (params.get('error')) {
-    setStatus('Spotify認証がキャンセルされました','warn');
-    return;
-  }
-  checkStoredToken();
-})();
 </script>
 </body>
 </html>
