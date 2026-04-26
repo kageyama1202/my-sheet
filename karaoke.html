@@ -27,20 +27,35 @@
 
   .logo { text-align: center; padding: 24px 0 20px; }
   .logo-text { font-family: var(--mono); font-size: 11px; letter-spacing: 0.35em; color: var(--muted); text-transform: uppercase; }
-  .logo-title { font-size: 22px; font-weight: 500; color: var(--text); margin-top: 4px; letter-spacing: 0.05em; }
+  .logo-title { font-size: 22px; font-weight: 500; color: var(--text); margin-top: 4px; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 10px; }
   .card-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
 
   .track-row { display: flex; align-items: center; gap: 12px; }
-  .track-art { width: 52px; height: 52px; border-radius: 8px; background: var(--surface2); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .track-art { width: 56px; height: 56px; border-radius: 8px; background: var(--surface2); flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .track-art img { width: 100%; height: 100%; object-fit: cover; }
   .track-info { flex: 1; min-width: 0; }
-  .track-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .track-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .track-artist { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .track-meta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
   .meta-pill { font-family: var(--mono); font-size: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; color: var(--muted); }
   .meta-pill.green { color: var(--green); border-color: rgba(29,185,84,0.3); background: var(--green-dim); }
+  .meta-pill.warn { color: var(--amber); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); }
+
+  .player-controls { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .ctrl-btn { background: transparent; border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 8px 14px; font-size: 18px; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+  .ctrl-btn:active { background: var(--surface2); transform: scale(0.95); }
+  .ctrl-btn.play { border-color: rgba(29,185,84,0.5); color: var(--green); font-size: 22px; padding: 8px 18px; }
+  .vol-row { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .vol-icon { font-size: 14px; color: var(--muted); }
+  .vol-slider { flex: 1; }
+  input[type=range] { width: 100%; accent-color: var(--green); }
+
+  .progress-wrap { margin-top: 10px; }
+  .progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width 0.5s linear; }
+  .progress-time { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
 
   .pitch-big { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
   .pitch-note { font-family: var(--mono); font-size: 48px; font-weight: 500; color: var(--text); line-height: 1; min-width: 80px; }
@@ -52,14 +67,13 @@
   .cent-bad { color: var(--red); }
 
   .bar-wrap { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
-  .bar-fill { height: 100%; width: 0%; border-radius: 3px; transition: width 0.08s, background 0.1s; }
+  .bar-fill { height: 100%; width: 0%; border-radius: 3px; transition: width 0.08s; }
   .bar-label { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--muted); }
-
-  #waveCanvas { display: block; width: 100%; height: 60px; border-radius: 8px; margin-top: 10px; }
+  #waveCanvas { display: block; width: 100%; height: 56px; border-radius: 8px; margin-top: 10px; }
 
   .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .score-item { background: var(--surface2); border-radius: 10px; padding: 12px; text-align: center; }
-  .score-val { font-family: var(--mono); font-size: 28px; font-weight: 500; color: var(--text); }
+  .score-val { font-family: var(--mono); font-size: 26px; font-weight: 500; color: var(--text); }
   .score-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
   .result-big { text-align: center; padding: 8px 0; }
@@ -70,23 +84,20 @@
   .rs-val { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--text); }
   .rs-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-  .btn { display: block; width: 100%; padding: 16px; font-family: var(--sans); font-size: 15px; font-weight: 500; background: transparent; border: 1px solid var(--border2); border-radius: 12px; color: var(--text); cursor: pointer; margin-bottom: 8px; transition: background 0.15s, transform 0.1s; letter-spacing: 0.03em; }
+  .btn { display: block; width: 100%; padding: 16px; font-family: var(--sans); font-size: 15px; font-weight: 500; background: transparent; border: 1px solid var(--border2); border-radius: 12px; color: var(--text); cursor: pointer; margin-bottom: 8px; transition: background 0.15s, transform 0.1s; }
   .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.3; }
   .btn.spotify { border-color: rgba(29,185,84,0.5); color: var(--green); }
-  .btn.spotify:active { background: var(--green-dim); }
   .btn.go { border-color: rgba(29,185,84,0.5); color: var(--green); }
-  .btn.go:active { background: var(--green-dim); }
   .btn.danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
-  .btn.danger:active { background: rgba(239,68,68,0.1); }
   .btn.sm { padding: 10px; font-size: 12px; color: var(--muted); border-color: var(--border); }
 
-  .status-bar { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 8px 0 4px; min-height: 28px; }
+  .status-bar { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 8px 0 4px; min-height: 28px; line-height: 1.5; }
   .status-bar.ok { color: var(--green); }
   .status-bar.warn { color: var(--amber); }
+  .status-bar.err { color: var(--red); }
 
-  .progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-  .progress-fill { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width 1s linear; }
+  .notice { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; padding: 12px; font-size: 12px; color: var(--amber); line-height: 1.7; margin-bottom: 10px; }
 
   .hidden { display: none !important; }
 </style>
@@ -110,7 +121,7 @@
     </div>
     <div class="track-info">
       <div class="track-name" id="trackName">—</div>
-      <div class="track-artist" id="trackArtist">Spotifyアプリで曲を再生してください</div>
+      <div class="track-artist" id="trackArtist">ログインして曲を選択してください</div>
       <div class="track-meta">
         <span class="meta-pill" id="bpmPill">BPM —</span>
         <span class="meta-pill" id="keyPill">Key —</span>
@@ -118,12 +129,30 @@
       </div>
     </div>
   </div>
-  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="player-controls" id="playerControls" style="display:none">
+    <button class="ctrl-btn" onclick="prevTrack()">⏮</button>
+    <button class="ctrl-btn play" id="playBtn" onclick="togglePlay()">▶</button>
+    <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
+    <div class="vol-row">
+      <span class="vol-icon">🔈</span>
+      <input type="range" class="vol-slider" min="0" max="100" value="80" oninput="setVolume(this.value)">
+      <span class="vol-icon">🔊</span>
+    </div>
+  </div>
+  <div class="progress-wrap" id="progressWrap" style="display:none">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-time"><span id="posTime">0:00</span><span id="durTime">0:00</span></div>
+  </div>
 </div>
 
 <button class="btn spotify" id="loginBtn" onclick="loginSpotify()">Spotifyでログイン</button>
-<button class="btn hidden" id="refreshBtn" onclick="fetchCurrentTrack()">曲情報を更新</button>
 <button class="btn sm hidden" id="logoutBtn" onclick="logout()">ログアウト</button>
+
+<div id="sdkNotice" class="notice hidden">
+  Web Playback SDKがこのブラウザで動作しませんでした。<br>
+  Spotifyアプリ側で再生中の曲情報は引き続き表示されます。<br>
+  Spotifyアプリで曲を再生しながらマイク採点をご利用ください。
+</div>
 
 <div class="card">
   <div class="card-label">リアルタイム ピッチ</div>
@@ -136,7 +165,7 @@
   </div>
   <div class="bar-wrap"><div class="bar-fill" id="volBar"></div></div>
   <div class="bar-label"><span>音量</span><span id="volPct">0%</span></div>
-  <canvas id="waveCanvas" width="448" height="60"></canvas>
+  <canvas id="waveCanvas" width="448" height="56"></canvas>
 </div>
 
 <div class="card">
@@ -167,15 +196,19 @@
 <button class="btn go hidden" id="startBtn" onclick="startScore()">採点開始</button>
 <button class="btn danger hidden" id="stopBtn" onclick="stopScore()">採点終了 · 結果表示</button>
 
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script>
 var CLIENT_ID = '0e0fd2445c7d4c70a021422bb9c2bc5e';
 var REDIRECT_URI = 'https://kageyama1202.github.io/my-sheet/karaoke.html';
-var SCOPES = 'user-read-currently-playing user-read-playback-state';
+var SCOPES = 'streaming user-read-email user-read-private user-read-currently-playing user-read-playback-state user-modify-playback-state';
 var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 var KEY_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 var MODE_NAMES = ['minor','major'];
 
 var accessToken = null;
+var player = null;
+var deviceId = null;
+var sdkReady = false;
 var audioCtx = null;
 var analyser = null;
 var scoring = false;
@@ -184,6 +217,8 @@ var pitchOk = 0, pitchTotal = 0;
 var freqHistory = [];
 var vibCount = 0, vibDir = 0;
 var trackTimer = null;
+var posTimer = null;
+var currentDuration = 0;
 
 function setStatus(msg, cls) {
   var el = document.getElementById('statusBar');
@@ -291,9 +326,9 @@ function checkStoredToken() {
 
 function onLoggedIn() {
   document.getElementById('loginBtn').classList.add('hidden');
-  document.getElementById('refreshBtn').classList.remove('hidden');
   document.getElementById('logoutBtn').classList.remove('hidden');
-  setStatus('Spotify接続済み', 'ok');
+  setStatus('Spotify接続済み · SDK初期化中...', 'ok');
+  initSDK();
   fetchCurrentTrack();
   if (trackTimer) clearInterval(trackTimer);
   trackTimer = setInterval(fetchCurrentTrack, 5000);
@@ -305,44 +340,172 @@ function logout() {
   localStorage.removeItem('spotify_refresh');
   accessToken = null;
   if (trackTimer) clearInterval(trackTimer);
+  if (posTimer) clearInterval(posTimer);
+  if (player) { player.disconnect(); player = null; }
   document.getElementById('loginBtn').classList.remove('hidden');
-  document.getElementById('refreshBtn').classList.add('hidden');
   document.getElementById('logoutBtn').classList.add('hidden');
+  document.getElementById('playerControls').style.display = 'none';
+  document.getElementById('progressWrap').style.display = 'none';
   setStatus('ログアウトしました');
+}
+
+window.onSpotifyWebPlaybackSDKReady = function() {
+  sdkReady = true;
+  if (accessToken) initSDK();
+};
+
+function initSDK() {
+  if (!sdkReady || !accessToken) return;
+  player = new Spotify.Player({
+    name: 'カラオケ採点',
+    getOAuthToken: function(cb) { cb(accessToken); },
+    volume: 0.8
+  });
+
+  player.addListener('ready', function(ref) {
+    deviceId = ref.device_id;
+    setStatus('Spotify準備完了', 'ok');
+    document.getElementById('playerControls').style.display = 'flex';
+    document.getElementById('progressWrap').style.display = 'block';
+    transferPlayback();
+    startProgressTimer();
+  });
+
+  player.addListener('not_ready', function() {
+    setStatus('Spotifyデバイス切断', 'warn');
+  });
+
+  player.addListener('initialization_error', function(ref) {
+    setStatus('SDK非対応ブラウザ · APIモードで動作中', 'warn');
+    document.getElementById('sdkNotice').classList.remove('hidden');
+  });
+
+  player.addListener('authentication_error', function() {
+    setStatus('認証エラー · 再ログインしてください', 'err');
+  });
+
+  player.addListener('account_error', function() {
+    setStatus('Spotify Premiumが必要です', 'err');
+  });
+
+  player.addListener('player_state_changed', function(state) {
+    if (!state) return;
+    var item = state.track_window && state.track_window.current_track;
+    if (item) {
+      document.getElementById('trackName').textContent = item.name;
+      document.getElementById('trackArtist').textContent = item.artists.map(function(a){ return a.name; }).join(', ');
+      if (item.album && item.album.images && item.album.images[0]) {
+        document.getElementById('trackArt').innerHTML = '<img src="' + item.album.images[0].url + '" alt="">';
+      }
+      currentDuration = state.duration;
+      fetchAudioFeatures(item.id);
+    }
+    var pip = document.getElementById('playPill');
+    var paused = state.paused;
+    pip.textContent = paused ? '停止中' : '再生中';
+    pip.className = 'meta-pill' + (paused ? '' : ' green');
+    document.getElementById('playBtn').textContent = paused ? '▶' : '⏸';
+    if (currentDuration > 0) {
+      document.getElementById('progressFill').style.width = Math.round(state.position / currentDuration * 100) + '%';
+      document.getElementById('posTime').textContent = msToTime(state.position);
+      document.getElementById('durTime').textContent = msToTime(currentDuration);
+    }
+  });
+
+  player.connect().then(function(ok) {
+    if (!ok) {
+      setStatus('SDK接続失敗 · APIモードで動作中', 'warn');
+      document.getElementById('sdkNotice').classList.remove('hidden');
+    }
+  });
+}
+
+function transferPlayback() {
+  if (!deviceId || !accessToken) return;
+  fetch('https://api.spotify.com/v1/me/player', {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_ids: [deviceId], play: false })
+  });
+}
+
+function togglePlay() {
+  if (player) {
+    player.togglePlay();
+  } else {
+    spotifyPut('https://api.spotify.com/v1/me/player/play', {});
+  }
+}
+
+function prevTrack() {
+  if (player) player.previousTrack();
+  else spotifyPost('https://api.spotify.com/v1/me/player/previous');
+}
+
+function nextTrack() {
+  if (player) player.nextTrack();
+  else spotifyPost('https://api.spotify.com/v1/me/player/next');
+}
+
+function setVolume(v) {
+  if (player) player.setVolume(v / 100);
+}
+
+function startProgressTimer() {
+  if (posTimer) clearInterval(posTimer);
+  posTimer = setInterval(function() {
+    if (!player) return;
+    player.getCurrentState().then(function(state) {
+      if (!state || state.paused) return;
+      var pos = state.position + 1000;
+      if (currentDuration > 0) {
+        document.getElementById('progressFill').style.width = Math.round(pos / currentDuration * 100) + '%';
+        document.getElementById('posTime').textContent = msToTime(pos);
+      }
+    });
+  }, 1000);
+}
+
+function msToTime(ms) {
+  var s = Math.floor(ms / 1000);
+  return Math.floor(s/60) + ':' + ('0' + (s%60)).slice(-2);
 }
 
 async function spotifyGet(url) {
   var exp = parseInt(localStorage.getItem('spotify_token_exp') || '0');
-  if (Date.now() > exp) {
-    var ok = await refreshAccessToken();
-    if (!ok) { logout(); return null; }
-  }
+  if (Date.now() > exp) { var ok = await refreshAccessToken(); if (!ok) { logout(); return null; } }
   var res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
   if (res.status === 204) return null;
-  if (res.status === 401) {
-    var ok2 = await refreshAccessToken();
-    if (!ok2) { logout(); return null; }
-    res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
-  }
+  if (res.status === 401) { var ok2 = await refreshAccessToken(); if (!ok2) { logout(); return null; } res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } }); }
   if (!res.ok) return null;
   return res.json();
 }
 
+async function spotifyPut(url, body) {
+  await fetch(url, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+
+async function spotifyPost(url) {
+  await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken } });
+}
+
 async function fetchCurrentTrack() {
   var data = await spotifyGet('https://api.spotify.com/v1/me/player/currently-playing');
-  if (!data || !data.item) { showNoTrack(); return; }
+  if (!data || !data.item) return;
   var item = data.item;
-  document.getElementById('trackName').textContent = item.name;
-  document.getElementById('trackArtist').textContent = item.artists.map(function(a){ return a.name; }).join(', ');
-  var art = item.album && item.album.images && item.album.images[0];
-  if (art) document.getElementById('trackArt').innerHTML = '<img src="' + art.url + '" alt="">';
-  var pip = document.getElementById('playPill');
-  pip.textContent = data.is_playing ? '再生中' : '停止中';
-  pip.className = 'meta-pill' + (data.is_playing ? ' green' : '');
-  if (data.progress_ms && item.duration_ms) {
-    document.getElementById('progressFill').style.width = Math.round(data.progress_ms / item.duration_ms * 100) + '%';
+  if (!deviceId) {
+    document.getElementById('trackName').textContent = item.name;
+    document.getElementById('trackArtist').textContent = item.artists.map(function(a){ return a.name; }).join(', ');
+    var art = item.album && item.album.images && item.album.images[0];
+    if (art) document.getElementById('trackArt').innerHTML = '<img src="' + art.url + '" alt="">';
+    var pip = document.getElementById('playPill');
+    pip.textContent = data.is_playing ? '再生中' : '停止中';
+    pip.className = 'meta-pill' + (data.is_playing ? ' green' : '');
+    if (data.progress_ms && item.duration_ms) {
+      document.getElementById('progressFill').style.width = Math.round(data.progress_ms / item.duration_ms * 100) + '%';
+    }
+    fetchAudioFeatures(item.id);
   }
-  fetchAudioFeatures(item.id);
 }
 
 async function fetchAudioFeatures(id) {
@@ -350,14 +513,6 @@ async function fetchAudioFeatures(id) {
   if (!f) return;
   document.getElementById('bpmPill').textContent = 'BPM ' + Math.round(f.tempo);
   document.getElementById('keyPill').textContent = (f.key >= 0 ? KEY_NAMES[f.key] : '?') + ' ' + (f.mode >= 0 ? MODE_NAMES[f.mode] : '');
-}
-
-function showNoTrack() {
-  document.getElementById('trackName').textContent = '—';
-  document.getElementById('trackArtist').textContent = 'Spotifyアプリで曲を再生してください';
-  document.getElementById('playPill').textContent = '停止中';
-  document.getElementById('playPill').className = 'meta-pill';
-  document.getElementById('progressFill').style.width = '0%';
 }
 
 async function startMic() {
