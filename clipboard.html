@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>共有クリップボード</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="クリップボード">
+  <meta name="theme-color" content="#ff6b00">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f0f2f5;min-height:100vh;min-height:-webkit-fill-available;}
+
+    .header{background:#ff6b00;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,0.2);}
+    .header h1{margin:0;font-size:17px;flex:1;}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:0.5;transition:0.3s;}
+    .sync-dot.live{opacity:1;background:#90ee90;box-shadow:0 0 6px #90ee90;}
+
+    .main{padding:12px;}
+
+    /* 入力エリア */
+    .input-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);overflow:hidden;margin-bottom:12px;}
+    textarea{width:100%;border:none;outline:none;padding:14px;font-size:15px;line-height:1.6;resize:none;min-height:100px;font-family:inherit;background:#fff;display:block;}
+    .input-actions{display:flex;gap:0;border-top:1px solid #f0f0f0;}
+    .btn-paste{flex:1;padding:13px;background:#f9f9f9;border:none;font-size:13px;color:#666;cursor:pointer;border-right:1px solid #eee;}
+    .btn-paste:active{background:#eee;}
+    .btn-save{flex:2;padding:13px;background:#ff6b00;color:#fff;border:none;font-size:15px;font-weight:bold;cursor:pointer;}
+    .btn-save:active{background:#e55a00;}
+    .btn-save:disabled{background:#ccc;cursor:default;}
+
+    /* 保存済みバナー */
+    .saved-banner{display:none;background:#e8f5e9;color:#2e7d32;text-align:center;padding:8px;font-size:13px;font-weight:bold;}
+    .saved-banner.show{display:block;}
+
+    /* 現在値 */
+    .current-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);overflow:hidden;margin-bottom:12px;}
+    .current-header{padding:10px 14px;background:#fff3e0;font-size:12px;font-weight:bold;color:#e65100;display:flex;justify-content:space-between;align-items:center;}
+    .current-text{padding:14px;font-size:16px;line-height:1.6;color:#333;word-break:break-all;min-height:50px;cursor:pointer;position:relative;user-select:none;}
+    .current-text:active{background:#fafafa;}
+    .current-text.empty{color:#bbb;font-size:13px;}
+    .copy-hint{font-size:11px;color:#aaa;padding:0 14px 10px;text-align:right;}
+
+    /* 履歴 */
+    .history-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);overflow:hidden;}
+    .history-header{padding:10px 14px;background:#f5f5f5;font-size:12px;font-weight:bold;color:#666;display:flex;justify-content:space-between;}
+    .history-item{padding:11px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer;position:relative;}
+    .history-item:last-child{border-bottom:none;}
+    .history-item:active{background:#f9f9f9;}
+    .history-text{font-size:14px;color:#333;word-break:break-all;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 70px);}
+    .history-time{font-size:11px;color:#aaa;margin-top:3px;}
+    .history-copy-badge{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:#ff6b00;font-weight:bold;opacity:0;transition:0.2s;}
+    .history-item:active .history-copy-badge{opacity:1;}
+
+    /* コピー完了トースト */
+    .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,0,0,0.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;pointer-events:none;opacity:0;transition:all 0.25s;z-index:999;white-space:nowrap;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    .empty-history{padding:20px;text-align:center;color:#bbb;font-size:13px;}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 共有クリップボード</h1>
+  <div class="sync-dot" id="syncDot"></div>
+</div>
+
+<div class="main">
+
+  <!-- 入力 -->
+  <div class="input-card">
+    <textarea id="inputText" placeholder="ここにテキストを入力またはペースト..." oninput="checkInput()"></textarea>
+    <div class="input-actions">
+      <button class="btn-paste" onclick="pasteFromClipboard()">📋 ペースト</button>
+      <button class="btn-save" id="btnSave" onclick="saveText()" disabled>保存して共有 →</button>
+    </div>
+  </div>
+  <div class="saved-banner" id="savedBanner">✅ 保存しました！他の端末でも確認できます</div>
+
+  <!-- 現在の内容 -->
+  <div class="current-card" id="currentCard" style="display:none;">
+    <div class="current-header">
+      <span>📌 最新</span>
+      <span id="currentTime" style="font-weight:normal;color:#999;font-size:11px;"></span>
+    </div>
+    <div class="current-text" id="currentText" onclick="copyText(this.dataset.value)" data-value=""></div>
+    <div class="copy-hint">タップでコピー</div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="history-card" id="historyCard" style="display:none;">
+    <div class="history-header">
+      <span>🕘 履歴</span>
+      <span id="historyCount" style="font-weight:normal;"></span>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+var HISTORY_MAX = 10;
+
+// リアルタイム監視
+db.ref('app_clipboard').on('value', function(snap) {
+  var data = snap.val() || {};
+  document.getElementById('syncDot').className = 'sync-dot live';
+  setTimeout(function(){ document.getElementById('syncDot').className = 'sync-dot'; }, 1000);
+  renderCurrent(data.current);
+  renderHistory(data.history);
+});
+
+function renderCurrent(cur) {
+  var card = document.getElementById('currentCard');
+  if (!cur || !cur.text) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  var el = document.getElementById('currentText');
+  el.textContent = cur.text;
+  el.dataset.value = cur.text;
+  el.className = 'current-text';
+  document.getElementById('currentTime').textContent = formatTime(cur.ts);
+}
+
+function renderHistory(history) {
+  var card = document.getElementById('historyCard');
+  var list = document.getElementById('historyList');
+  if (!history) { card.style.display = 'none'; return; }
+
+  var items = Object.values(history).sort(function(a, b){ return (b.ts||0) - (a.ts||0); });
+  if (items.length === 0) { card.style.display = 'none'; return; }
+
+  card.style.display = 'block';
+  document.getElementById('historyCount').textContent = items.length + '件';
+  list.innerHTML = '';
+  items.forEach(function(item) {
+    var div = document.createElement('div');
+    div.className = 'history-item';
+    div.onclick = function(){ copyText(item.text); };
+    div.innerHTML =
+      '<div class="history-text">' + escHtml(item.text) + '</div>' +
+      '<div class="history-time">' + formatTime(item.ts) + '</div>' +
+      '<div class="history-copy-badge">コピー</div>';
+    list.appendChild(div);
+  });
+}
+
+function saveText() {
+  var text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+
+  document.getElementById('btnSave').disabled = true;
+  document.getElementById('btnSave').textContent = '保存中...';
+
+  var ts = Date.now();
+  var newRef = db.ref('app_clipboard/history').push();
+  var updates = {};
+  updates['app_clipboard/current'] = { text: text, ts: ts };
+  updates['app_clipboard/history/' + newRef.key] = { text: text, ts: ts };
+
+  db.ref().update(updates).then(function() {
+    // 古い履歴を削除（MAX超え）
+    db.ref('app_clipboard/history').orderByChild('ts').once('value', function(snap) {
+      var all = [];
+      snap.forEach(function(child){ all.push({ key: child.key, ts: child.val().ts }); });
+      all.sort(function(a,b){ return a.ts - b.ts; });
+      if (all.length > HISTORY_MAX) {
+        var toDelete = all.slice(0, all.length - HISTORY_MAX);
+        var delUpdates = {};
+        toDelete.forEach(function(x){ delUpdates['app_clipboard/history/' + x.key] = null; });
+        db.ref().update(delUpdates);
+      }
+    });
+
+    document.getElementById('inputText').value = '';
+    document.getElementById('btnSave').textContent = '保存して共有 →';
+    document.getElementById('btnSave').disabled = true;
+    var banner = document.getElementById('savedBanner');
+    banner.className = 'saved-banner show';
+    setTimeout(function(){ banner.className = 'saved-banner'; }, 2500);
+  }).catch(function(err) {
+    alert('保存エラー: ' + err.message);
+    document.getElementById('btnSave').disabled = false;
+    document.getElementById('btnSave').textContent = '保存して共有 →';
+  });
+}
+
+function copyText(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){
+      showToast('コピーしました！');
+    }).catch(function(){
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); showToast('コピーしました！'); }
+  catch(e) { showToast('コピー失敗。手動でコピーしてください。'); }
+  document.body.removeChild(ta);
+}
+
+function pasteFromClipboard() {
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(function(text) {
+      document.getElementById('inputText').value = text;
+      checkInput();
+      showToast('ペーストしました');
+    }).catch(function(){
+      document.getElementById('inputText').focus();
+      showToast('長押しでペーストしてください');
+    });
+  } else {
+    document.getElementById('inputText').focus();
+  }
+}
+
+function checkInput() {
+  var v = document.getElementById('inputText').value.trim();
+  document.getElementById('btnSave').disabled = !v;
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show';
+  setTimeout(function(){ t.className = 'toast'; }, 2000);
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  var now = new Date();
+  var diff = now - d;
+  if (diff < 60000) return 'たった今';
+  if (diff < 3600000) return Math.floor(diff/60000) + '分前';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '時間前';
+  return (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>
