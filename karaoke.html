@@ -139,6 +139,7 @@
       <span class="vol-icon">🔊</span>
     </div>
   </div>
+  <button class="btn sm" id="transferBtn" style="display:none;margin-top:8px;" onclick="forceTransfer()">このブラウザで音を出す</button>
   <div class="progress-wrap" id="progressWrap" style="display:none">
     <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     <div class="progress-time"><span id="posTime">0:00</span><span id="durTime">0:00</span></div>
@@ -426,6 +427,22 @@ function transferPlayback() {
     method: 'PUT',
     headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
     body: JSON.stringify({ device_ids: [deviceId], play: false })
+  });
+  document.getElementById('transferBtn').style.display = 'block';
+}
+
+function forceTransfer() {
+  if (!deviceId || !accessToken) return;
+  setStatus('デバイス転送中...', 'ok');
+  fetch('https://api.spotify.com/v1/me/player', {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_ids: [deviceId], play: true })
+  }).then(function() {
+    setTimeout(function() {
+      if (player) player.setVolume(0.8);
+      setStatus('転送完了 · 音が出るはずです', 'ok');
+    }, 1000);
   });
 }
 
