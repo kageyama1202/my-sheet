@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル（保存コールバック対応 + メーラーリンク + 施工日確定チェック）【全張り替え版】 */
+/* shared-modal.js — 共通モーダル【全張り替え版】 */
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
@@ -96,7 +96,6 @@ function renderCommTimeline(comms) {
   return html;
 }
 
-// ★ onSaveCallback: 保存後に呼ばれるコールバック（ダッシュボード再描画等）
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
   var cols = obj.csvData; if (!cols) return;
   var sekouStr = getSafeValModal(cols,2).replace(/\s+/g,"")||"未定";
@@ -118,36 +117,43 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</table></div>';
 
-  // 進捗管理
   html += '<div class="modal-section"><h4 class="green">📝 進捗管理</h4>';
   html += '<div style="margin:10px 0;"><label style="font-weight:bold;font-size:13px;">🚦 ステータス:</label>';
   html += '<div id="kanban-bar" style="margin-top:6px;"></div><div id="kanban-sf-note" style="margin-top:4px;font-size:11px;color:#888;"></div></div>';
   html += '<div class="modal-check-row">';
   html += '<label><input type="checkbox" id="modal-constructionDateConfirmed"'+(obj.constructionDateConfirmed?' checked':'')+'> 🔨 施工日確定</label></div>';
-  
   html += '<div class="modal-check-row" style="margin-top:8px; padding-left:20px;">';
   html += '<label><input type="checkbox" id="modal-heardFromCarpenter"'+(obj.heardFromCarpenter?' checked':'')+'> 👨‍🔧 大工さん</label>';
   html += '<label><input type="checkbox" id="modal-heardFromAccountant"'+(obj.heardFromAccountant?' checked':'')+'> 📊 帳場さん</label></div>';
-  
   html += '<div class="modal-check-row">';
   html += '<label><input type="checkbox" id="modal-emailSent"'+(obj.emailSent?' checked':'')+'> ✉️ 施工日確認メール済</label>';
   html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div></div>';
 
-  // スケジュール
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
   html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div></div>';
 
-  // メモ
-  html += '<div class="modal-section"><h4 class="blue">💬 メモ</h4>';
-  html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">'+(obj.memo||'')+'</textarea></div>';
+  // メモ欄（折りたたみ対応）
+  var memoVal = obj.memo || '';
+  var memoIsLong = memoVal.length > 300;
+  html += '<div class="modal-section"><h4 class="blue">💬 メモ';
+  if (memoIsLong) html += ' <span style="font-size:11px;color:#888;font-weight:normal;">（' + memoVal.length + '文字）</span>';
+  html += '</h4>';
+  if (memoIsLong) {
+    html += '<div id="memo-preview" style="font-size:12px;color:#666;background:#f5f5f5;padding:8px;border-radius:4px;margin-bottom:6px;max-height:80px;overflow:hidden;white-space:pre-wrap;">' + escHtmlModal(memoVal.substring(0, 200)) + '...</div>';
+    html += '<button onclick="toggleMemoEdit()" style="font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;margin-bottom:6px;">✏️ 編集する</button>';
+    html += '<div id="memo-edit-area" style="display:none;">';
+    html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">' + escHtmlModal(memoVal) + '</textarea>';
+    html += '</div>';
+  } else {
+    html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">' + escHtmlModal(memoVal) + '</textarea>';
+  }
+  html += '</div>';
 
-  // 通信履歴
   html += '<div class="modal-section"><h4 class="orange">📨 通信履歴 <span id="comm-count" class="comm-count">読込中...</span></h4>';
   html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div></div>';
 
-  // 保存 + メーラーボタン
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
@@ -158,7 +164,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('modal-overlay').style.display = 'block';
   document.getElementById('modal-time').value = obj.time || '';
 
-  // カンバン（6段階）
   var kanbanStatuses=['依頼','連絡済','下見日確定','下見実施済','報告書提出済','施工日連絡済'];
   var kanbanColors=['#90a4ae','#42a5f5','#ffb300','#66bb6a','#26a69a','#00695c'];
   var sfStatus=getSafeValModal(cols,1).replace(/\s+/g,"");
@@ -180,10 +185,8 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   });
   document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+currentStatus;
 
-  // コピー
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
-  // ★ 保存（Webhook付き）
   document.getElementById('modal-save-btn').addEventListener('click',function(){
     var nd=document.getElementById('modal-date').value;
     var nt=document.getElementById('modal-time').value;
@@ -193,12 +196,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var hfa=document.getElementById('modal-heardFromAccountant').checked;
     var es=document.getElementById('modal-emailSent').checked;
     var fr=document.getElementById('modal-finalReport').checked;
-    var memo=document.getElementById('modal-memo').value;
+    var memoEl=document.getElementById('modal-memo');
+    var memo=memoEl ? memoEl.value : (obj.memo||'');
 
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
-
-    // ★ GAS Webhook: カレンダー即時同期
     fetch(GAS_WEBHOOK_URL).catch(function(){});
 
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
@@ -212,11 +214,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
     var msg=document.getElementById('modal-save-msg');
     msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
-
     if(typeof onSaveCallback==='function') onSaveCallback();
   });
 
-  // 通信履歴
   loadCommData(function(allComms){loadContactData(function(contacts){
     var cc=findCaseComms(cols,allComms,contacts,key);
     var kwC=0,manC=0;for(var k=0;k<cc.length;k++){if(cc[k]._matchScore>=100)manC++;else if(cc[k]._matchScore>0)kwC++;}
@@ -224,7 +224,26 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     document.getElementById('comm-count').textContent=cc.length+'件（手動:'+manC+' KW:'+kwC+'）';
   });});
 
-  // 閉じる
   document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
   document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
+}
+
+function toggleMemoEdit() {
+  var area = document.getElementById('memo-edit-area');
+  var preview = document.getElementById('memo-preview');
+  var btn = event.target;
+  if (area.style.display === 'none') {
+    area.style.display = 'block';
+    if (preview) preview.style.display = 'none';
+    btn.textContent = '▲ 閉じる';
+  } else {
+    area.style.display = 'none';
+    if (preview) preview.style.display = 'block';
+    btn.textContent = '✏️ 編集する';
+  }
+}
+
+function escHtmlModal(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
