@@ -10,149 +10,48 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333; }
-
-.header {
-  background: #1a73e8;
-  color: white;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+.header { background: #1a73e8; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
 .header h1 { font-size: 17px; font-weight: 600; }
-.back-btn {
-  background: rgba(255,255,255,0.2);
-  border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
+.back-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 .container { padding: 12px; max-width: 800px; margin: 0 auto; }
-
-.card {
-  background: white;
-  border-radius: 10px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  overflow: hidden;
-}
-
-.card-header {
-  padding: 12px 14px;
-  background: #f8f8f8;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+.card { background: white; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); overflow: hidden; }
+.card-header { padding: 12px 14px; background: #f8f8f8; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
 .card-header .filename { font-size: 13px; font-weight: 600; color: #333; }
 .card-header .meta { font-size: 11px; color: #888; }
-
 .card-body { padding: 12px 14px; }
-
 .transcription-box {
-  background: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 10px;
-  font-size: 13px;
-  line-height: 1.6;
-  min-height: 60px;
-  white-space: pre-wrap;
-  color: #444;
+  background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px;
+  font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #444;
+  max-height: 200px; overflow-y: auto; position: relative;
 }
-.transcription-box.empty { color: #aaa; font-style: italic; }
-
-.btn-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.btn {
-  padding: 7px 14px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-}
+.transcription-box.empty { color: #aaa; font-style: italic; min-height: 40px; }
+.transcription-toggle { font-size: 12px; color: #1a73e8; cursor: pointer; margin-top: 4px; display: inline-block; }
+.btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.btn { padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
 .btn-blue { background: #1a73e8; color: white; }
 .btn-green { background: #34a853; color: white; }
 .btn-orange { background: #fa7b17; color: white; }
 .btn-red { background: #ea4335; color: white; }
 .btn-gray { background: #e0e0e0; color: #333; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.status-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-}
+.status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
 .badge-done { background: #e6f4ea; color: #137333; }
 .badge-pending { background: #fce8e6; color: #c5221f; }
 .badge-linked { background: #e8f0fe; color: #1558d6; }
-
-/* モーダル */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 1000;
-  justify-content: center;
-  align-items: flex-end;
-}
+.progress-bar { height: 4px; background: #e0e0e0; border-radius: 2px; margin-top: 8px; overflow: hidden; display: none; }
+.progress-fill { height: 100%; background: #1a73e8; border-radius: 2px; transition: width 0.3s; }
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; }
 .modal-overlay.active { display: flex; }
-.modal {
-  background: white;
-  border-radius: 16px 16px 0 0;
-  padding: 20px;
-  width: 100%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
+.modal { background: white; border-radius: 16px 16px 0 0; padding: 20px; width: 100%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
 .modal h3 { font-size: 16px; margin-bottom: 12px; }
-.modal-close {
-  float: right;
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #888;
-}
-
-.case-item {
-  padding: 10px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
+.modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+.case-item { padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: background 0.2s; }
 .case-item:hover { background: #e8f0fe; border-color: #1a73e8; }
 .case-item .case-title { font-size: 14px; font-weight: 500; }
 .case-item .case-meta { font-size: 12px; color: #888; margin-top: 2px; }
-
-.search-box {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
+.search-box { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
 .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
 .empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 14px; }
-
-/* PDF出力用 */
 @media print {
   .header, .btn-row, .back-btn { display: none !important; }
   .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
@@ -161,20 +60,16 @@ body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333;
 </style>
 </head>
 <body>
-
 <div class="header">
   <button class="back-btn" onclick="history.back()">← 戻る</button>
   <h1>🎙 録音管理</h1>
   <button id="toggleLinked" class="back-btn" onclick="toggleShowLinked()" style="margin-left:auto;font-size:12px;">紐付済を表示</button>
 </div>
-
 <div class="container">
   <div id="loadingEl" class="loading">読み込み中...</div>
   <div id="emptyEl" class="empty-state" style="display:none">録音ファイルがありません</div>
   <div id="listEl"></div>
 </div>
-
-<!-- 案件紐付けモーダル -->
 <div id="linkModal" class="modal-overlay">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
@@ -183,7 +78,6 @@ body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333;
     <div id="caseList"></div>
   </div>
 </div>
-
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
@@ -212,25 +106,20 @@ function toggleShowLinked() {
   renderList();
 }
 
-// 初期ロード
 db.ref('app_recordings').on('value', function(snap) {
   var data = snap.val() || {};
   recordings = [];
   Object.keys(data).forEach(function(k) {
-    var r = data[k];
-    r._key = k;
-    recordings.push(r);
+    var r = data[k]; r._key = k; recordings.push(r);
   });
   recordings.sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
   renderList();
 });
 
-// 案件データもロード
 db.ref('app_tasks').once('value', function(snap) {
   var data = snap.val() || {};
   Object.keys(data).forEach(function(k) {
-    var t = data[k];
-    if (t && t.csvData) { allTasks[k] = t; }
+    var t = data[k]; if (t && t.csvData) { allTasks[k] = t; }
   });
 });
 
@@ -239,65 +128,68 @@ function renderList() {
   var loadEl = document.getElementById('loadingEl');
   var emptyEl = document.getElementById('emptyEl');
   loadEl.style.display = 'none';
-
   var filtered = recordings.filter(function(r) {
     var isLinked = r.linked_case && r.linked_case.length > 0;
     return showLinked || !isLinked;
   });
-
-  if (filtered.length === 0) {
-    emptyEl.style.display = 'block';
-    el.innerHTML = '';
-    return;
-  }
+  if (filtered.length === 0) { emptyEl.style.display = 'block'; el.innerHTML = ''; return; }
   emptyEl.style.display = 'none';
-
   var html = '';
   filtered.forEach(function(r) {
     var hasTrans = r.transcription && r.transcription.length > 0;
     var isLinked = r.linked_case && r.linked_case.length > 0;
     var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
-    var badge = '';
-    if (isLinked) {
-      badge = '<span class="status-badge badge-linked">📎 紐付済</span>';
-    } else if (hasTrans) {
-      badge = '<span class="status-badge badge-done">✅ 文字起こし済</span>';
-    } else {
-      badge = '<span class="status-badge badge-pending">未処理</span>';
-    }
-
-    html += '<div class="card">';
-    html += '<div class="card-header">';
-    html += '<div><div class="filename">🎵 ' + escHtml(r.filename || r._key) + '</div>';
+    var badge = isLinked ? '<span class="status-badge badge-linked">📎 紐付済</span>'
+      : hasTrans ? '<span class="status-badge badge-done">✅ 文字起こし済</span>'
+      : '<span class="status-badge badge-pending">未処理</span>';
+    var safeKey = r._key.replace(/'/g, "\\'");
+    var safeFile = escHtml(r.filename || r._key);
+    html += '<div class="card"><div class="card-header">';
+    html += '<div><div class="filename">🎵 ' + safeFile + '</div>';
     html += '<div class="meta">' + date + (isLinked ? ' · 案件: ' + escHtml(r.linked_case) : '') + '</div></div>';
-    html += badge;
-    html += '</div>';
-    html += '<div class="card-body">';
-
+    html += badge + '</div><div class="card-body">';
     if (hasTrans) {
-      html += '<div class="transcription-box">' + escHtml(r.transcription) + '</div>';
+      var transId = 'trans_' + safeKey;
+      html += '<div class="transcription-box" id="' + transId + '">' + escHtml(r.transcription) + '</div>';
+      html += '<span class="transcription-toggle" onclick="toggleTrans(\'' + transId + '\', this)">▼ 全文表示</span>';
     } else {
       html += '<div class="transcription-box empty">まだ文字起こしされていません</div>';
     }
-
+    html += '<div class="progress-bar" id="prog_' + safeKey + '"><div class="progress-fill" style="width:0%"></div></div>';
     html += '<div class="btn-row">';
     if (!hasTrans) {
-      html += '<button class="btn btn-blue" onclick="transcribe(\'' + r._key + '\')">🤖 文字起こし</button>';
+      html += '<button class="btn btn-blue" onclick="transcribe(\'' + safeKey + '\')">🤖 文字起こし</button>';
+    } else {
+      html += '<button class="btn btn-blue" onclick="transcribe(\'' + safeKey + '\')">🔄 再文字起こし</button>';
     }
     if (hasTrans && !isLinked) {
-      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + r._key + '\')">📎 案件に紐付け</button>';
+      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + safeKey + '\')">📎 案件に紐付け</button>';
+    }
+    if (isLinked) {
+      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + safeKey + '\')">🔁 紐付け変更</button>';
     }
     if (hasTrans) {
-      html += '<button class="btn btn-orange" onclick="printRecord(\'' + r._key + '\')">🖨 PDF出力</button>';
+      html += '<button class="btn btn-orange" onclick="printRecord(\'' + safeKey + '\')">🖨 PDF出力</button>';
     }
     if (r.url) {
       html += '<a href="' + r.url + '" target="_blank"><button class="btn btn-gray">▶ 再生</button></a>';
     }
-    html += '<button class="btn btn-red" onclick="deleteRecord(\'' + r._key + '\',\'' + escHtml(r.filename || r._key) + '\')">🗑 削除</button>';
-    html += '</div>';
-    html += '</div></div>';
+    html += '<button class="btn btn-red" onclick="deleteRecord(\'' + safeKey + '\',\'' + safeFile + '\')">🗑 削除</button>';
+    html += '</div></div></div>';
   });
   el.innerHTML = html;
+}
+
+function toggleTrans(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.style.maxHeight === 'none') {
+    el.style.maxHeight = '200px';
+    btn.textContent = '▼ 全文表示';
+  } else {
+    el.style.maxHeight = 'none';
+    btn.textContent = '▲ 折りたたむ';
+  }
 }
 
 function escHtml(s) {
@@ -305,7 +197,7 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Gemini文字起こし
+// Gemini文字起こし（base64方式）
 function transcribe(key) {
   var apiKey = localStorage.getItem('geminiApiKey');
   if (!apiKey) {
@@ -313,48 +205,59 @@ function transcribe(key) {
     if (!apiKey) return;
     localStorage.setItem('geminiApiKey', apiKey);
   }
-
   var r = recordings.find(function(x) { return x._key === key; });
   if (!r || !r.url) { alert('URLが見つかりません'); return; }
 
-  // ボタンを無効化
-  var btns = document.querySelectorAll('.btn');
-  btns.forEach(function(b) { b.disabled = true; });
+  var progBar = document.getElementById('prog_' + key);
+  if (progBar) { progBar.style.display = 'block'; progBar.querySelector('.progress-fill').style.width = '10%'; }
 
-  var prompt = '以下の音声ファイルを文字起こしして、日本語で要約してください。建設・施工現場での会話や指示です。\n\n【文字起こし】\n（全文を記載）\n\n【要約】\n（3〜5行で要点）\n\n【キーワード】\n（施工日・下見・案件名など重要語句）';
+  // Firebase StorageのURLからbase64に変換
+  var storageRef = storage.refFromURL(r.url);
+  storageRef.getDownloadURL().then(function(url) {
+    if (progBar) progBar.querySelector('.progress-fill').style.width = '30%';
+    return fetch(url);
+  }).then(function(res) {
+    if (progBar) progBar.querySelector('.progress-fill').style.width = '50%';
+    return res.arrayBuffer();
+  }).then(function(buf) {
+    if (progBar) progBar.querySelector('.progress-fill').style.width = '70%';
+    var bytes = new Uint8Array(buf);
+    var binary = '';
+    for (var i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
+    var base64 = window.btoa(binary);
 
-  var body = JSON.stringify({
-    contents: [{
-      parts: [
-        { file_data: { file_uri: r.url, mime_type: 'audio/mp4' } },
+    var prompt = '以下の音声を文字起こしし、日本語で出力してください。建設・施工現場での会話です。\n\n【文字起こし全文】\n\n【要約（3〜5行）】\n\n【重要キーワード】';
+    var body = JSON.stringify({
+      contents: [{ parts: [
+        { inline_data: { mime_type: 'audio/mp4', data: base64 } },
         { text: prompt }
-      ]
-    }]
-  });
+      ]}]
+    });
 
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(data) {
+    return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body
+    });
+  }).then(function(res) {
+    if (progBar) progBar.querySelector('.progress-fill').style.width = '90%';
+    return res.json();
+  }).then(function(data) {
+    if (progBar) { progBar.querySelector('.progress-fill').style.width = '100%'; setTimeout(function(){ progBar.style.display='none'; }, 1000); }
+    if (!data.candidates || !data.candidates[0]) { throw new Error(JSON.stringify(data)); }
     var text = data.candidates[0].content.parts[0].text;
     db.ref('app_recordings/' + key + '/transcription').set(text);
-    btns.forEach(function(b) { b.disabled = false; });
-  })
-  .catch(function(e) {
+    alert('文字起こし完了！');
+  }).catch(function(e) {
+    if (progBar) progBar.style.display = 'none';
     alert('エラー: ' + e.message);
-    btns.forEach(function(b) { b.disabled = false; });
   });
 }
 
-// 案件紐付けモーダル
 function openLinkModal(key) {
   currentRecordingKey = key;
   var r = recordings.find(function(x) { return x._key === key; });
   currentTranscription = r ? r.transcription : '';
-
   document.getElementById('caseSearch').value = '';
   renderCaseList('');
   document.getElementById('linkModal').classList.add('active');
@@ -362,44 +265,28 @@ function openLinkModal(key) {
 
 function closeModal() {
   document.getElementById('linkModal').classList.remove('active');
-  currentRecordingKey = null;
-  currentTranscription = null;
+  currentRecordingKey = null; currentTranscription = null;
 }
 
 function filterCases() {
-  var q = document.getElementById('caseSearch').value;
-  renderCaseList(q);
+  renderCaseList(document.getElementById('caseSearch').value);
 }
 
 function renderCaseList(query) {
   var keys = Object.keys(allTasks);
+  var q = (query || '').toLowerCase();
   var filtered = keys.filter(function(k) {
-    var t = allTasks[k];
-    var csv = t.csvData || [];
-    var title = csv[4] || '';
-    var addr = csv[11] || '';
-    var name = csv[5] || '';
-    var q = query.toLowerCase();
-    return title.toLowerCase().indexOf(q) >= 0 || addr.toLowerCase().indexOf(q) >= 0 || name.toLowerCase().indexOf(q) >= 0;
+    var t = allTasks[k]; var csv = t.csvData || [];
+    return (csv[4]||'').toLowerCase().indexOf(q) >= 0 || (csv[11]||'').toLowerCase().indexOf(q) >= 0 || (csv[5]||'').toLowerCase().indexOf(q) >= 0;
   });
-
   var html = '';
   filtered.slice(0, 20).forEach(function(k) {
-    var t = allTasks[k];
-    var csv = t.csvData || [];
-    var title = csv[4] || k;
-    var date = csv[2] || '';
-    var addr = csv[11] || '';
+    var t = allTasks[k]; var csv = t.csvData || [];
     html += '<div class="case-item" onclick="linkToCase(\'' + k + '\')">';
-    html += '<div class="case-title">' + escHtml(title) + '</div>';
-    html += '<div class="case-meta">' + escHtml(date) + ' · ' + escHtml(addr) + '</div>';
-    html += '</div>';
+    html += '<div class="case-title">' + escHtml(csv[4] || k) + '</div>';
+    html += '<div class="case-meta">' + escHtml(csv[2] || '') + ' · ' + escHtml(csv[11] || '') + '</div></div>';
   });
-
-  if (filtered.length === 0) {
-    html = '<div style="text-align:center;color:#aaa;padding:20px;font-size:13px">該当案件なし</div>';
-  }
-
+  if (filtered.length === 0) html = '<div style="text-align:center;color:#aaa;padding:20px;font-size:13px">該当案件なし</div>';
   document.getElementById('caseList').innerHTML = html;
 }
 
@@ -408,52 +295,38 @@ function linkToCase(caseKey) {
   var t = allTasks[caseKey];
   var csv = t ? (t.csvData || []) : [];
   var title = csv[4] || caseKey;
-
-  // app_recordings に案件キーを保存
   db.ref('app_recordings/' + currentRecordingKey + '/linked_case').set(caseKey);
-
-  // app_tasks のメモ欄に文字起こしを追記
   if (currentTranscription) {
     var memoRef = db.ref('app_tasks/' + caseKey + '/memo');
     memoRef.once('value', function(snap) {
       var existing = snap.val() || '';
-      var newMemo = existing + (existing ? '\n\n' : '') + '【音声メモ】\n' + currentTranscription;
+      var ts = new Date().toLocaleString('ja-JP');
+      var newMemo = existing + (existing ? '\n\n' : '') + '【音声メモ ' + ts + '】\n' + currentTranscription;
       memoRef.set(newMemo);
     });
   }
-
   alert('「' + title + '」に紐付けました');
   closeModal();
 }
 
-// 削除
 function deleteRecord(key, filename) {
-  if (!confirm('「' + filename + '」を削除しますか？\nStorage とデータベースから完全に削除されます。')) return;
-
+  if (!confirm('「' + filename + '」を削除しますか？')) return;
   var r = recordings.find(function(x) { return x._key === key; });
-
-  // Firebase Storage から削除
   if (r && r.filename) {
-    var storageRef = storage.ref('recordings/' + r.filename);
-    storageRef.delete().catch(function(e) { console.warn('Storage削除エラー:', e); });
+    storage.ref('recordings/' + r.filename).delete().catch(function(e) { console.warn('Storage削除エラー:', e); });
   }
-
-  // Realtime DB から削除
   db.ref('app_recordings/' + key).remove();
 }
 
-// PDF出力
 function printRecord(key) {
   var r = recordings.find(function(x) { return x._key === key; });
   if (!r) return;
-
   var win = window.open('', '_blank');
   var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
   win.document.write('<html><head><meta charset="UTF-8"><title>録音メモ</title>');
-  win.document.write('<style>body{font-family:-apple-system,sans-serif;padding:20px;max-width:700px;margin:0 auto}h2{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px}pre{white-space:pre-wrap;font-size:14px;line-height:1.7;background:#f9f9f9;padding:16px;border-radius:8px;border:1px solid #ddd}.meta{color:#888;font-size:13px;margin-bottom:16px}</style>');
-  win.document.write('</head><body>');
-  win.document.write('<h2>🎙 録音メモ</h2>');
-  win.document.write('<div class="meta">ファイル: ' + escHtml(r.filename || r._key) + '<br>日時: ' + date + (r.linked_case ? '<br>案件: ' + escHtml(r.linked_case) : '') + '</div>');
+  win.document.write('<style>body{font-family:-apple-system,sans-serif;padding:20px;max-width:700px;margin:0 auto}h2{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px}pre{white-space:pre-wrap;font-size:13px;line-height:1.7;background:#f9f9f9;padding:16px;border-radius:8px;border:1px solid #ddd}.meta{color:#888;font-size:13px;margin-bottom:16px}</style>');
+  win.document.write('</head><body><h2>🎙 録音メモ</h2>');
+  win.document.write('<div class="meta">ファイル: ' + escHtml(r.filename || r._key) + '<br>日時: ' + date + (r.linked_case ? '<br>案件キー: ' + escHtml(r.linked_case) : '') + '</div>');
   win.document.write('<pre>' + escHtml(r.transcription || '（文字起こしなし）') + '</pre>');
   win.document.write('</body></html>');
   win.document.close();
