@@ -15,17 +15,14 @@
     .header-bar h2{margin:0;font-size:16px;flex:1;}
     .header-bar button{background:rgba(255,255,255,0.2);color:#fff;border:none;padding:7px 12px;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;}
     .header-bar button:disabled{opacity:0.5;cursor:default;}
-
     .steps{display:flex;gap:0;margin:10px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);}
     .step{flex:1;padding:8px;text-align:center;font-size:11px;font-weight:bold;color:#999;background:#f5f5f5;border-right:1px solid #e0e0e0;transition:0.2s;}
     .step:last-child{border-right:none;}
     .step.active{background:#ff6b00;color:#fff;}
     .step.done{background:#4caf50;color:#fff;}
-
     .period-bar{background:#fff;margin:0 10px;padding:10px 14px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
     .period-bar .dates{font-weight:bold;color:#333;font-size:14px;}
     .period-bar .count{font-size:12px;color:#666;}
-
     .case-list{margin:10px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;}
     .case-group-title{font-size:11px;font-weight:bold;color:#0056b3;padding:8px 12px;background:#e7f3ff;border-bottom:1px solid #dee2e6;}
     .case-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;}
@@ -36,7 +33,6 @@
     .case-title{font-weight:bold;color:#333;}
     .case-detail{font-size:10px;color:#888;margin-top:1px;}
     .case-region{font-size:10px;color:#0056b3;background:#e7f3ff;padding:1px 5px;border-radius:3px;white-space:nowrap;}
-
     .ai-result-panel{margin:10px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;display:none;}
     .ai-result-panel.show{display:block;}
     .ai-result-header{background:#ff6b00;color:#fff;padding:10px 14px;font-weight:bold;font-size:14px;}
@@ -50,18 +46,15 @@
     .route-title{font-weight:bold;color:#333;}
     .route-detail{font-size:10px;color:#888;}
     .route-reason{font-size:10px;color:#999;font-style:italic;margin-top:2px;}
-
     .action-bar{margin:10px;display:flex;gap:8px;}
     .action-bar button{flex:1;padding:12px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;}
     .btn-ai{background:#ff6b00;color:#fff;}
     .btn-ai:disabled{background:#ccc;color:#888;cursor:default;}
     .btn-apply{background:#4caf50;color:#fff;}
     .btn-reset{background:#f5f5f5;color:#666;border:1px solid #ccc!important;}
-
     .loading-msg{text-align:center;padding:30px;color:#888;}
     .spinner{display:inline-block;width:20px;height:20px;border:2px solid #ddd;border-top-color:#ff6b00;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;}
     @keyframes spin{to{transform:rotate(360deg);}}
-
     .settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9998;}
     .settings-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:24px;border-radius:8px;width:90%;max-width:400px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,0.3);}
     .settings-modal h3{margin:0 0 15px 0;font-size:16px;}
@@ -136,10 +129,8 @@ var aiResult=null;
 var targetDates=[];
 var finalSelection={};
 
-// --- 日付ユーティリティ ---
 function getDateStr(offset){
   var d=new Date();
-  // JSTで計算
   var jst=new Date(d.getTime()+9*3600000);
   jst.setUTCDate(jst.getUTCDate()+offset);
   return jst.getUTCFullYear()+'-'+String(jst.getUTCMonth()+1).padStart(2,'0')+'-'+String(jst.getUTCDate()).padStart(2,'0');
@@ -147,8 +138,7 @@ function getDateStr(offset){
 function formatDateLabel(ds){var p=ds.split('-');var d=new Date(ds+'T00:00:00+09:00');var dow=['日','月','火','水','木','金','土'];return parseInt(p[1])+'/'+parseInt(p[2])+'('+dow[d.getDay()]+')';}
 function simplifyRegion(addr){if(!addr)return'??';var s=String(addr).replace(/北海道|東京都|大阪府|京都府|[一-龠]{2,3}県/g,'').trim();if(s.startsWith('札幌市'))s=s.replace(/^札幌市/,'');s=s.replace(/^.+?郡(?=.*?[町村])/,'');return s.substring(0,12);}
 
-// ★ 施工完了判定（agenda.htmlと同じロジック）
-function isKoujiCompleted(task, koujiDate){
+function isKoujiCompleted(task,koujiDate){
   var today=getDateStr(0);
   if(koujiDate>=today)return false;
   var sfStatus=task.csvData&&task.csvData[1]?String(task.csvData[1]).trim():'';
@@ -157,13 +147,11 @@ function isKoujiCompleted(task, koujiDate){
   for(var i=0;i<completedPatterns.length;i++){
     if(sfStatus===completedPatterns[i]||localStatus===completedPatterns[i])return true;
   }
-  // 60日以上過去は除外
   var diffDays=(new Date(today)-new Date(koujiDate))/86400000;
   if(diffDays>60)return true;
   return false;
 }
 
-// --- データ読み込み ---
 function loadData(){
   database.ref().once('value').then(function(snap){
     var dbData=snap.val();
@@ -174,10 +162,8 @@ function loadData(){
     globalHeaders=dbData.app_meta.headers||[];
     globalTasks=dbData.app_tasks||{};
     fullData=dbData;
-
     targetDates=[getDateStr(0),getDateStr(1),getDateStr(2),getDateStr(3),getDateStr(4),getDateStr(5),getDateStr(6)];
     document.getElementById('periodDates').textContent='📅 '+formatDateLabel(targetDates[0])+' 〜 '+formatDateLabel(targetDates[6]);
-
     extractAllVisits();
     renderCaseList();
   });
@@ -197,25 +183,19 @@ function extractAllVisits(){
     var c16=cols[16]?String(cols[16]).trim():'';
     var reformDate=task.date||'';
 
-    // ★ 施工完了済みは除外
-    if(isKoujiCompleted(task, c2))return;
+    if(isKoujiCompleted(task,c2))return;
 
-    // リフォーム → 確定済み（日時固定）
     if((c3==='ﾘ'||c3==='ﾊﾘ')&&reformDate!==''){
-      // ★ 施工日が過去なら除外
       if(c2&&c2<getDateStr(0))return;
       if(targetDates.indexOf(reformDate)!==-1){
         allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,visit_time:c16,detail:'リフォーム（確定: '+reformDate+(c16?' '+c16:'')+' ）',type:'reform',fixed:true});
       }
     }
 
-    // 新築 → ★ 施工日が過去なら除外
     if(c3==='新'&&c2!==''){
       if(c2<getDateStr(0))return;
-
       var sekouLabel=c2.replace(/-/g,'/');
       var sekou=new Date(c2+'T00:00:00+09:00');
-
       if(c4.indexOf('SK')!==-1){
         var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
         var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
@@ -243,7 +223,6 @@ function extractAllVisits(){
   document.getElementById('btnAI').disabled=newCount===0;
 }
 
-// --- 案件リスト表示 ---
 function renderCaseList(){
   var area=document.getElementById('caseListArea');
   area.innerHTML='';
@@ -251,10 +230,8 @@ function renderCaseList(){
     area.innerHTML='<div class="loading-msg">対象期間に案件がありません</div>';
     return;
   }
-
   var fixedVisits=allVisits.filter(function(v){return v.fixed;});
   var newVisits=allVisits.filter(function(v){return!v.fixed;});
-
   var container=document.createElement('div');
   container.className='case-list';
 
@@ -265,13 +242,11 @@ function renderCaseList(){
     fixedHeader.style.color='#e65100';
     fixedHeader.textContent='🔒 リフォーム確定（'+fixedVisits.length+'件）— チェックで除外可、AIのアンカーとして使用';
     container.appendChild(fixedHeader);
-
     fixedVisits.forEach(function(v){
       var item=document.createElement('div');
       item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
       item.style.background='#fff8e1';
       item.id='case-'+v.key;
-
       var cb=document.createElement('input');
       cb.type='checkbox';
       cb.checked=!!excludedKeys[v.key];
@@ -281,18 +256,15 @@ function renderCaseList(){
         item.style.background='#fff8e1';
         updateCount();
       });
-
       var info=document.createElement('div');
       info.className='case-info';
       info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div>'+
         '<div class="case-detail">'+escHtml(v.detail)+'</div>';
-
       var badge=document.createElement('span');
       badge.className='case-region';
       badge.style.background='#fff3e0';
       badge.style.color='#e65100';
       badge.textContent=v.visit_date+(v.visit_time?' '+v.visit_time:'');
-
       item.appendChild(cb);item.appendChild(info);item.appendChild(badge);
       container.appendChild(item);
     });
@@ -305,24 +277,20 @@ function renderCaseList(){
     newHeader.style.color='#2e7d32';
     newHeader.textContent='🔧 新築（'+newVisits.length+'件）— チェックで除外可、AIが最適日に配分';
     container.appendChild(newHeader);
-
     var regionMap={};
     newVisits.forEach(function(v){
       if(!regionMap[v.region])regionMap[v.region]=[];
       regionMap[v.region].push(v);
     });
-
     Object.keys(regionMap).sort().forEach(function(region){
       var title=document.createElement('div');
       title.className='case-group-title';
       title.textContent='📍 '+region+'（'+regionMap[region].length+'件）';
       container.appendChild(title);
-
       regionMap[region].forEach(function(v){
         var item=document.createElement('div');
         item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
         item.id='case-'+v.key;
-
         var cb=document.createElement('input');
         cb.type='checkbox';
         cb.checked=!!excludedKeys[v.key];
@@ -331,21 +299,17 @@ function renderCaseList(){
           item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
           updateCount();
         });
-
         var info=document.createElement('div');
         info.className='case-info';
         info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div><div class="case-detail">'+escHtml(v.detail)+' | 算出日: '+v.visit_date+'</div>';
-
         var badge=document.createElement('span');
         badge.className='case-region';
         badge.textContent=v.region;
-
         item.appendChild(cb);item.appendChild(info);item.appendChild(badge);
         container.appendChild(item);
       });
     });
   }
-
   area.appendChild(container);
 }
 
@@ -358,18 +322,15 @@ function updateCount(){
   document.getElementById('btnAI').disabled=(activeFixed.length+activeNew.length)===0;
 }
 
-// --- AI提案 ---
 function runAI(){
   var apiKey=localStorage.getItem('geminiApiKey');
   if(!apiKey){openSettings();return;}
-
   var active=allVisits.filter(function(v){return!v.fixed&&!excludedKeys[v.key];});
   var fixed=allVisits.filter(function(v){return v.fixed&&!excludedKeys[v.key];});
   if(active.length===0){alert('AI対象の新築案件がありません');return;}
   if(active.length>80){
     if(!confirm('⚠️ '+active.length+'件は多いです。ルート順の精度が落ちる可能性があります。\n続行しますか？'))return;
   }
-
   document.getElementById('step1').className='step done';
   document.getElementById('step2').className='step active';
   document.getElementById('btnAI').disabled=true;
@@ -382,7 +343,6 @@ function runAI(){
       fixedList+='  '+(i+1)+'. '+v.visit_date+(v.visit_time?' '+v.visit_time:'')+' | '+v.region+' | '+v.title+' / '+v.client+' | 住所:'+v.address+'\n';
     });
   }
-
   var newList='\n【🔧 新築案件（AIが日付を決める対象）】\n';
   var groupByRegion={};
   active.forEach(function(v){
@@ -396,9 +356,7 @@ function runAI(){
       newList+='  '+(i+1)+'. key="'+useKey+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 住所:'+v.address+'\n';
     });
   });
-
   var dateLabels=targetDates.map(function(d){return d+'('+formatDateLabel(d)+')';}).join(', ');
-
   var prompt='あなたは北海道のキッチン設備下見スケジュール最適化AIです。\n\n'+
     '対象日: '+dateLabels+'\n'+
     fixedList+newList+'\n'+
@@ -427,20 +385,16 @@ function runAI(){
       if(data.error)throw new Error(data.error.message);
       throw new Error('レスポンス解析エラー');
     }
-    // JSON抽出：コードブロック→波括弧範囲の順で試みる
     var jsonStr='';
     var fenceMatch=text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if(fenceMatch){
-      jsonStr=fenceMatch[1].trim();
-    } else {
-      var bs=text.indexOf('{');
-      var be=text.lastIndexOf('}');
+    if(fenceMatch){jsonStr=fenceMatch[1].trim();}
+    else{
+      var bs=text.indexOf('{');var be=text.lastIndexOf('}');
       if(bs!==-1&&be>bs)jsonStr=text.substring(bs,be+1);
       else jsonStr=text.trim();
     }
-    try{
-      aiResult=JSON.parse(repairJson(jsonStr));
-    }catch(e){
+    try{aiResult=JSON.parse(repairJson(jsonStr));}
+    catch(e){
       console.error('Parse failed. Raw text:',text);
       throw new Error('JSON解析失敗。AIの応答形式が不正です。再試行してください。');
     }
@@ -460,28 +414,22 @@ function showAIResult(){
   document.getElementById('btnAI').textContent='✅ 提案完了';
   document.getElementById('step2').className='step done';
   document.getElementById('step3').className='step active';
-
   var panel=document.getElementById('aiResultPanel');
   panel.className='ai-result-panel show';
   if(aiResult.summary){document.getElementById('aiSummary').textContent='💡 '+aiResult.summary;}
-
   var body=document.getElementById('aiResultBody');
   body.innerHTML='';
   finalSelection={};
-
   if(aiResult.days){
     aiResult.days.forEach(function(day){
       var dayDiv=document.createElement('div');
       dayDiv.className='ai-day';
-
       var dayFixed=allVisits.filter(function(v){return v.fixed&&v.visit_date===day.date&&!excludedKeys[v.key];});
       var totalCount=(day.items?day.items.length:0)+dayFixed.length;
-
       var header=document.createElement('div');
       header.className='ai-day-header';
       header.innerHTML='<span>📅 '+escHtml(day.date)+' ('+formatDateLabel(day.date)+')</span><span class="ai-day-count">'+totalCount+'件（🔒'+dayFixed.length+' + 🔧'+(day.items?day.items.length:0)+'）</span>';
       dayDiv.appendChild(header);
-
       dayFixed.forEach(function(fv){
         var rowId='final-'+day.date+'-'+fv.key;
         if(!finalSelection[rowId])finalSelection[rowId]=true;
@@ -500,7 +448,6 @@ function showAIResult(){
         row.appendChild(cb);row.appendChild(content);
         dayDiv.appendChild(row);
       });
-
       if(day.items&&day.items.length>0){
         day.items.sort(function(a,b){return(a.order||99)-(b.order||99);});
         day.items.forEach(function(item){
@@ -533,7 +480,7 @@ function showAIResult(){
   document.getElementById('actionBar2').style.display='flex';
 }
 
-// --- Firebase適用 ---
+/* ★ applyToFirebase: ai_shitami_date に加えて C17(ルート順番) も書き込む */
 function applyToFirebase(){
   if(!aiResult||!aiResult.days){alert('提案データがありません');return;}
   var updates={};
@@ -546,6 +493,8 @@ function applyToFirebase(){
       if(finalSelection[rowId]===false){skipped++;return;}
       if(item.key&&globalTasks[item.key]){
         updates['app_tasks/'+item.key+'/ai_shitami_date']=day.date;
+        /* ★ ルート順番をC17にも書き込む */
+        updates['app_tasks/'+item.key+'/csvData/17']=String(item.order||'');
         count++;
       }
     });
@@ -570,6 +519,9 @@ function applyToFirebase(){
             if(finalSelection[rowId]===false)return;
             if(item.key&&appData.app_tasks[item.key]){
               appData.app_tasks[item.key].ai_shitami_date=day.date;
+              /* ★ localStorageにも反映 */
+              if(!appData.app_tasks[item.key].csvData)appData.app_tasks[item.key].csvData={};
+              appData.app_tasks[item.key].csvData[17]=String(item.order||'');
             }
           });
         });
@@ -577,7 +529,7 @@ function applyToFirebase(){
       }
     }catch(e){console.error(e);}
     document.getElementById('step3').className='step done';
-    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。'+(skipped>0?'\n⚠️ '+skipped+'件は除外されました。':'')+'\naction.htmlの「AI下見予定」列に反映されます。');
+    alert('✅ '+count+'件のAI下見予定とルート順をFirebaseに保存しました。'+(skipped>0?'\n⚠️ '+skipped+'件は除外されました。':'')+'\nsogo.html/today.htmlの表示に反映されます。');
   }).catch(function(err){
     alert('❌ Firebase保存エラー: '+err.message);
   });
@@ -624,17 +576,13 @@ function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textCon
 function repairJson(str){
   try{JSON.parse(str);return str;}catch(e){}
   var s=str;
-  // 末尾カンマ除去
   s=s.replace(/,\s*([\]\}])/g,'$1');
   s=s.replace(/,\s*$/,'');
-  // 開いたままの文字列を閉じる（奇数クォート）
   var q=0;
   for(var qi=0;qi<s.length;qi++){if(s[qi]==='"'&&(qi===0||s[qi-1]!=='\\'))q++;}
   if(q%2!==0)s+='"';
-  // 末尾カンマ再除去（クォート追加後）
   s=s.replace(/,\s*([\]\}])/g,'$1');
   s=s.replace(/,\s*$/,'');
-  // 括弧を閉じる
   var opens=0,closes=0,braces=0,braceC=0;
   for(var i=0;i<s.length;i++){
     if(s[i]==='[')opens++;
