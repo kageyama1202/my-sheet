@@ -134,7 +134,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
   html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div></div>';
 
-  // メモ欄（折りたたみ対応）
   var memoVal = obj.memo || '';
   var memoIsLong = memoVal.length > 300;
   html += '<div class="modal-section"><h4 class="blue">💬 メモ';
@@ -201,7 +200,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
-    fetch(GAS_WEBHOOK_URL).catch(function(){});
+
+    // GASに案件IDを渡して即時同期（スプシ+カレンダー1件のみ）
+    fetch(GAS_WEBHOOK_URL + "?id=" + encodeURIComponent(key), {method:"GET", mode:"no-cors"}).catch(function(){});
 
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
     globalTasks[key].localStatus=selectedStatus;globalTasks[key].constructionDateConfirmed=cdc;
