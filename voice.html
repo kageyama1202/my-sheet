@@ -172,12 +172,27 @@ function renderList() {
       html += '<button class="btn btn-orange" onclick="printRecord(\'' + safeKey + '\')">🖨 PDF出力</button>';
     }
     if (r.url) {
-      html += '<a href="' + r.url + '" target="_blank"><button class="btn btn-gray">▶ 再生</button></a>';
+      html += '<button class="btn btn-gray" onclick="togglePlayer(\'' + safeKey + '\', this)">▶ 再生</button>';
+    html += '<div id="player_' + safeKey + '" style="display:none;margin-top:8px;width:100%;"><audio controls style="width:100%;" src="' + r.url + '"></audio></div>';
     }
     html += '<button class="btn btn-red" onclick="deleteRecord(\'' + safeKey + '\',\'' + safeFile + '\')">🗑 削除</button>';
     html += '</div></div></div>';
   });
   el.innerHTML = html;
+}
+
+function togglePlayer(key, btn) {
+  var el = document.getElementById('player_' + key);
+  if (!el) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = '■ 閉じる';
+  } else {
+    el.style.display = 'none';
+    var audio = el.querySelector('audio');
+    if (audio) audio.pause();
+    btn.textContent = '▶ 再生';
+  }
 }
 
 function toggleTrans(id, btn) {
