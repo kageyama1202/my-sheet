@@ -9,17 +9,14 @@
     body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;padding:30px;background-color:#1a1d27;text-align:center;color:#e0e0e0;}
     .box{background:#1e2130;padding:30px;border-radius:12px;max-width:560px;margin:0 auto;border:1px solid #2a2d3a;}
     input[type="file"]{font-size:14px;cursor:pointer;margin-bottom:20px;color:#ccc;}
-    button{font-size:16px;padding:12px 20px;cursor:pointer;border-radius:8px;border:none;background:#1565c0;color:#fff;font-weight:bold;width:100%;transition:0.2s;margin-bottom:10px;}
+    button{font-size:16px;padding:12px 20px;cursor:pointer;border-radius:8px;border:none;background:#1565c0;color:#fff;font-weight:bold;width:100%;transition:0.2s;}
     button:hover{background:#1976d2;}
     button:disabled{opacity:0.5;cursor:not-allowed;}
-    button.danger{background:#b71c1c;}
-    button.danger:hover{background:#c62828;}
     p{font-size:13px;color:#888;text-align:left;line-height:1.7;}
     .top-link{display:inline-block;margin-bottom:15px;text-decoration:none;font-weight:bold;color:#64b5f6;font-size:14px;}
     h2{color:#fff;margin-top:0;font-size:18px;}
     .log{text-align:left;background:#12141c;border-radius:8px;padding:12px;margin-top:16px;font-size:12px;color:#888;line-height:1.8;max-height:300px;overflow-y:auto;display:none;}
     .log .ok{color:#66bb6a;}.log .warn{color:#ffd54f;}.log .err{color:#ff6b6b;}.log .info{color:#64b5f6;}
-    .divider{border:none;border-top:1px solid #2a2d3a;margin:20px 0;}
   </style>
 </head>
 <body>
@@ -29,21 +26,15 @@
     <p>SalesforceからダウンロードしたCSVを選択し「クラウドへ保存」を押してください。<br>
     ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
-    ・CSVから消えた案件は自動削除されます<br>
-    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）</p>
-
+    ・CSVから消えた案件は自動削除されます</p>
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn">☁️ 最新データをクラウドへ保存</button>
-
-    <hr class="divider">
-
-    <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ Firebase上のステータス「完了」案件を一括削除します（「下見完了」は削除しません）</p>
-    <button id="cleanBtn" class="danger">🗑 Firebase上の「完了」案件を一括削除</button>
-
     <div class="log" id="logArea"></div>
   </div>
 
   <script>
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
+
     var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=firebase.database();
@@ -51,10 +42,19 @@
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
 
-    /* ステータス「完了」判定（「下見完了」は除く） */
-    function isKanryo(cols){
-      var status=String(cols[1]||'').trim();
-      return status==='完了';
+    // GASに1件ずつIDを送ってカレンダー同期（タイムアウトしない）
+    function notifyGASIds(ids) {
+      if (!ids || ids.length === 0) return;
+      log('📅 カレンダー同期開始: '+ids.length+'件...');
+      var i = 0;
+      function next() {
+        if (i >= ids.length) { log('✅ カレンダー同期完了: '+ids.length+'件','ok'); return; }
+        var id = ids[i++];
+        fetch(GAS_URL + "?id=" + encodeURIComponent(id), {method:'GET', mode:'no-cors'})
+          .then(function(){ setTimeout(next, 300); })
+          .catch(function(){ setTimeout(next, 300); });
+      }
+      next();
     }
 
     function parseCSV(text){
@@ -75,14 +75,12 @@
     function safeKey(id){return String(id).replace(/\s+/g,'').replace(invalidChars,'_');}
 
     var LOCAL_FIELDS=['localStatus','date','time','order','emailSent','finalReport','memo','seqNo','lat','lng'];
-
     function extractLocal(obj){
       var out={};
       LOCAL_FIELDS.forEach(function(f){if(obj[f]!==undefined&&obj[f]!==null)out[f]=obj[f];});
       return out;
     }
 
-    /* ========== CSVアップロード ========== */
     document.getElementById('uploadBtn').addEventListener('click',function(){
       var fileInput=document.getElementById('csvFile');
       if(fileInput.files.length===0){alert('CSVファイルを選択してください');return;}
@@ -101,21 +99,17 @@
         var headers=validLines.shift();
         log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
 
-        /* 新CSV → IDベースのマップ作成（「完了」はスキップ） */
         var newMap={};
-        var skipped=0,kanryoSkipped=0;
+        var skipped=0;
         validLines.forEach(function(cols){
           var id=String(cols[0]||'').trim();
           if(!id){skipped++;return;}
-          if(isKanryo(cols)){kanryoSkipped++;return;}
           newMap[safeKey(id)]=cols;
         });
         if(skipped>0)log('⚠ ID空白でスキップ: '+skipped+'行','warn');
-        if(kanryoSkipped>0)log('✅ 「完了」ステータスをスキップ: '+kanryoSkipped+'件','ok');
         var newKeys=Object.keys(newMap);
-        log('有効案件（保存対象）: '+newKeys.length+'件');
+        log('有効案件: '+newKeys.length+'件');
 
-        /* Firebase既存データ取得 */
         database.ref('app_tasks').once('value',function(sn){
           var existing=sn.val()||{};
           var existingKeys=Object.keys(existing);
@@ -123,13 +117,11 @@
 
           var migrated=0;
           var localDataByNewKey={};
-
           existingKeys.forEach(function(oldKey){
             var oldObj=existing[oldKey];
             if(!oldObj)return;
             var oldId='';
             if(oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
-
             if(oldId&&newMap[oldId]){
               var ld=extractLocal(oldObj);
               if(Object.keys(ld).length>0){
@@ -148,15 +140,15 @@
           updates['app_meta/headers']=headers;
 
           var addCount=0,updateCount=0;
+          var changedIds=[];  // 新規・更新されたID
           newKeys.forEach(function(nk){
-            var path='app_tasks/'+nk+'/csvData';
-            updates[path]=newMap[nk];
+            updates['app_tasks/'+nk+'/csvData']=newMap[nk];
             if(localDataByNewKey[nk]){
               LOCAL_FIELDS.forEach(function(f){
                 if(localDataByNewKey[nk][f]!==undefined)updates['app_tasks/'+nk+'/'+f]=localDataByNewKey[nk][f];
               });
             }
-            if(existing[nk])updateCount++;else addCount++;
+            if(existing[nk])updateCount++;else{addCount++;changedIds.push(nk);}
           });
 
           var delCount=0;
@@ -165,13 +157,8 @@
             var oldObj=existing[oldKey];
             var oldId='';
             if(oldObj&&oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
-            if(oldId&&newMap[oldId]){
-              updates['app_tasks/'+oldKey]=null;
-              delCount++;
-            }else{
-              updates['app_tasks/'+oldKey]=null;
-              delCount++;
-            }
+            updates['app_tasks/'+oldKey]=null;
+            delCount++;
           });
 
           log('➕ 新規: '+addCount+' / 🔄 更新: '+updateCount+' / 🗑 削除: '+delCount);
@@ -207,8 +194,16 @@
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
-                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
+
+                // 新規案件のみカレンダー同期
+                if(changedIds.length > 0) {
+                  notifyGASIds(changedIds);
+                }
+                // スプシ全件同期（削除反映のため）
+                fetch(GAS_URL, {method:'GET', mode:'no-cors'}).catch(function(){});
+
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
                 alert('エラー: '+err);
@@ -219,49 +214,6 @@
         });
       };
       reader.readAsText(file,'UTF-8');
-    });
-
-    /* ========== Firebase上の「完了」案件を一括削除 ========== */
-    document.getElementById('cleanBtn').addEventListener('click',function(){
-      if(!confirm('Firebase上のステータス「完了」案件を削除します。\n（「下見完了」は削除しません）\n\nよろしいですか？'))return;
-      var btn=this;btn.disabled=true;btn.textContent='削除中...';
-      logEl.innerHTML='';logEl.style.display='block';
-      log('🔍 Firebase全案件をスキャン中...');
-
-      database.ref('app_tasks').once('value',function(sn){
-        var existing=sn.val()||{};
-        var keys=Object.keys(existing);
-        log('取得: '+keys.length+'件');
-
-        var updates={};
-        var delCount=0;
-        keys.forEach(function(k){
-          var obj=existing[k];
-          if(!obj||!obj.csvData)return;
-          var status=String(obj.csvData[1]||'').trim();
-          if(status==='完了'){
-            updates['app_tasks/'+k]=null;
-            delCount++;
-          }
-        });
-
-        if(delCount===0){
-          log('「完了」案件は見つかりませんでした','warn');
-          btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
-          return;
-        }
-
-        log('🗑 削除対象: '+delCount+'件');
-        database.ref().update(updates).then(function(){
-          log('✅ 削除完了！ '+delCount+'件を削除しました','ok');
-          alert('✅ 削除完了！\n\n「完了」案件 '+delCount+'件を削除しました');
-          btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
-        }).catch(function(err){
-          log('❌ エラー: '+err,'err');
-          alert('エラー: '+err);
-          btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
-        });
-      });
     });
   </script>
 </body>
