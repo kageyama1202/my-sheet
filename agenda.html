@@ -432,7 +432,6 @@ tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
 <script src="shared-modal.js"></script>
 
 <script>
-// ==================== FIREBASE ====================
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
   authDomain: "project-6745138395263517914.firebaseapp.com",
@@ -445,7 +444,6 @@ var firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var database = firebase.database();
 
-// ==================== GLOBALS ====================
 var allCases = [];
 var allCasesAll = [];
 var filteredCases = [];
@@ -482,7 +480,6 @@ var LONG_BREAKS = [
   { start: '2026-08-13', end: '2026-08-16' }
 ];
 
-// ==================== DATE HELPERS ====================
 function todayJST() {
   var d = new Date();
   var jst = new Date(d.getTime() + 9 * 3600000);
@@ -525,7 +522,6 @@ function formatTopbarDate() {
   return y + '/' + (m<10?'0'+m:m) + '/' + (day<10?'0'+day:day) + '（' + wd + '）';
 }
 
-// ==================== TAB SWITCH ====================
 function switchTab(name, btn) {
   document.getElementById('tab-list').classList.remove('active');
   document.getElementById('tab-agenda').classList.remove('active');
@@ -536,7 +532,6 @@ function switchTab(name, btn) {
   btn.classList.add('active');
 }
 
-// ==================== 日付セレクタ ====================
 function buildDateSelector() {
   var today = todayJST();
   var area = document.getElementById('dateSelectorArea');
@@ -568,21 +563,15 @@ function buildDateSelector() {
   selectedAgendaDate = today;
 }
 
-// ==================== FIREBASE LOAD ====================
-// ★ 施工完了判定ヘルパー
 function isKoujiCompleted(task, koujiDate) {
   var today = todayJST();
-  // 施工日が未来なら除外しない
   if (koujiDate >= today) return false;
-  // 施工日が過去 → SFステータスまたはlocalステータスが「完了」系なら除外
   var sfStatus = task.csvData && task.csvData[1] ? String(task.csvData[1]).trim() : '';
   var localStatus = task.local_status ? String(task.local_status).trim() : '';
-  // 「施工完了」「完了」のみ除外。「下見完了」は除外しない
   var completedPatterns = ['施工完了', '報告書提出済', '施工日連絡済'];
   for (var i = 0; i < completedPatterns.length; i++) {
     if (sfStatus === completedPatterns[i] || localStatus === completedPatterns[i]) return true;
   }
-  // 施工日が60日以上過去なら問答無用で除外（取りこぼし対策）
   var diffMs = new Date(today) - new Date(koujiDate);
   var diffDays = diffMs / 86400000;
   if (diffDays > 60) return true;
@@ -612,8 +601,6 @@ function loadCases() {
       var cols = task.csvData || [];
       var koujiDate = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
       if (!koujiDate) continue;
-
-      // ★ 施工完了済みはallCasesAllにも入れない
       if (isKoujiCompleted(task, koujiDate)) continue;
 
       var caseObj = {
@@ -625,22 +612,36 @@ function loadCases() {
         tel: cols[6] ? String(cols[6]).trim() : '',
         address: cols[11] ? String(cols[11]).trim() : '',
         shitami: task.date || '',
-        shitami_time: task.time || '',
-        shitami_order: task.order || '',
+        /* ★ C16(下見時間)・C17(ルート順番)を正しく取得 */
+        shitami_time: cols[16] ? String(cols[16]).trim() : (task.time || ''),
+        shitami_order: cols[17] ? String(cols[17]).trim() : (task.order || ''),
         ai_shitami: task.ai_shitami_date || ''
       };
 
-      // ★ allCasesAllは完了除外済みの全件
       allCasesAll.push(caseObj);
-
-      // allCasesはリスト表示用ウィンドウ
       if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
         allCases.push(caseObj);
       }
     }
 
-    allCasesAll.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
-    allCases.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
+    /* ★ソート: 1.下見日 2.ルート順番(C17) 3.下見時間(C16) 4.施工日 */
+    function sortCases(arr) {
+      arr.sort(function(a, b) {
+        var dA = a.shitami || '', dB = b.shitami || '';
+        if (!dA && dB) return 1;
+        if (dA && !dB) return -1;
+        if (dA !== dB) return dA < dB ? -1 : 1;
+        var rA = parseInt(a.shitami_order, 10) || 9999;
+        var rB = parseInt(b.shitami_order, 10) || 9999;
+        if (rA !== rB) return rA - rB;
+        var tA = a.shitami_time || '', tB = b.shitami_time || '';
+        if (tA !== tB) return tA < tB ? -1 : 1;
+        return a.kouji < b.kouji ? -1 : a.kouji > b.kouji ? 1 : 0;
+      });
+    }
+    sortCases(allCasesAll);
+    sortCases(allCases);
+
     filteredCases = allCases.slice();
     renderTable();
     document.getElementById('listCount').textContent = allCases.length;
@@ -655,23 +656,24 @@ function openModal(key) {
   openCaseModal(key, task, globalHeaders, globalTasks, fullData, database, function() {
     for (var i = 0; i < allCases.length; i++) {
       if (allCases[i].key === key) {
+        var cols = globalTasks[key].csvData || [];
         allCases[i].shitami = globalTasks[key].date || '';
-        allCases[i].shitami_time = globalTasks[key].time || '';
-        allCases[i].shitami_order = globalTasks[key].order || '';
+        allCases[i].shitami_time = cols[16] ? String(cols[16]).trim() : (globalTasks[key].time || '');
+        allCases[i].shitami_order = cols[17] ? String(cols[17]).trim() : (globalTasks[key].order || '');
       }
     }
     for (var i = 0; i < allCasesAll.length; i++) {
       if (allCasesAll[i].key === key) {
+        var cols = globalTasks[key].csvData || [];
         allCasesAll[i].shitami = globalTasks[key].date || '';
-        allCasesAll[i].shitami_time = globalTasks[key].time || '';
-        allCasesAll[i].shitami_order = globalTasks[key].order || '';
+        allCasesAll[i].shitami_time = cols[16] ? String(cols[16]).trim() : (globalTasks[key].time || '');
+        allCasesAll[i].shitami_order = cols[17] ? String(cols[17]).trim() : (globalTasks[key].order || '');
       }
     }
     renderTable();
   });
 }
 
-// ==================== ALERT LOGIC ====================
 function getAlerts(c) {
   var alerts = [];
   var today = todayJST();
@@ -688,7 +690,6 @@ function getAlerts(c) {
   return alerts;
 }
 
-// ==================== RENDER TABLE ====================
 function renderTable() {
   var tbody = document.getElementById('caseBody');
   tbody.innerHTML = '';
@@ -734,7 +735,6 @@ function renderTable() {
   }
 }
 
-// ==================== FILTER ====================
 function applyFilter() {
   var text = document.getElementById('filterInput').value.toLowerCase();
   var kubun = document.getElementById('filterType').value;
@@ -752,8 +752,6 @@ function applyFilter() {
   renderTable();
 }
 
-// ==================== DATA CONTEXT BUILDER ====================
-// ★ Firebase生データ丸ごと渡す版
 function buildCaseDataContext(targetDate) {
   var today = todayJST();
   var tDate = targetDate || selectedAgendaDate || today;
@@ -773,7 +771,6 @@ function buildCaseDataContext(targetDate) {
   lines += 'Kの出発地点（自宅）: ' + getHomeAddress() + '\n';
   lines += '有効ケース数（施工完了除外済み）: ' + allCasesAll.length + '件\n\n';
 
-  // 対象日の確定下見・AI提案
   var targetConfirmed = [];
   var targetAI = [];
   for (var i = 0; i < allCasesAll.length; i++) {
@@ -814,7 +811,6 @@ function buildCaseDataContext(targetDate) {
   }
   lines += '\n';
 
-  // アラートケース
   var alertCases = [];
   for (var i = 0; i < allCasesAll.length; i++) {
     var alerts = getAlerts(allCasesAll[i]);
@@ -835,14 +831,12 @@ function buildCaseDataContext(targetDate) {
   }
   lines += '\n';
 
-  // ★ Firebase全案件生データをそのまま渡す（施工完了除外済み）
   lines += '=== 全案件 Firebase生データ（完了除外済み） ===\n';
   lines += JSON.stringify(globalTasks) + '\n';
 
   return lines;
 }
 
-// ==================== AGENDA ====================
 function getWorkdayRule(dateStr) {
   if (isLongBreak(dateStr)) return 'longbreak';
   var dow = getWeekdayNum(dateStr);
@@ -1070,7 +1064,6 @@ function renderAgendaResult(rawText, tDate, dow, rule, whenLabel) {
   document.getElementById('agendaContent').innerHTML = html;
 }
 
-// ==================== CHAT ====================
 function buildSystemPrompt() {
   return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
     'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
@@ -1209,7 +1202,6 @@ function sendChat() {
   });
 }
 
-// ==================== INIT ====================
 document.getElementById('topbarDate').textContent = formatTopbarDate();
 buildDateSelector();
 loadCases();
