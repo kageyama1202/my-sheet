@@ -2,1211 +2,216 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<title>案件管理リスト</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Today's Agenda</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; background: #f0f2f5; color: #333; }
-
-.topbar {
-  background: #1a237e; color: #fff;
-  padding: 10px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
-}
-.topbar-left { display: flex; align-items: center; gap: 12px; }
-.topbar a { color: #fff; text-decoration: none; font-size: 18px; }
-.topbar-title { font-size: 15px; font-weight: bold; }
-.topbar-date { font-size: 12px; opacity: 0.8; }
-
-.tab-nav { display: flex; background: #283593; border-bottom: 3px solid #1a237e; }
-.tab-btn {
-  padding: 10px 20px; color: rgba(255,255,255,0.7);
-  background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: bold;
-  border-bottom: 3px solid transparent; margin-bottom: -3px;
-}
-.tab-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
-.tab-btn.active { color: #fff; border-bottom: 3px solid #ffeb3b; }
-
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* LIST TAB */
-.list-controls {
-  padding: 10px 16px; background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-}
-.list-controls input, .list-controls select {
-  border: 1px solid #ccc; border-radius: 4px;
-  padding: 5px 8px; font-size: 12px;
-}
-.list-controls input { width: 160px; }
-.badge {
-  display: inline-block; background: #e53935; color: #fff;
-  border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 4px;
-}
-
-table { width: 100%; border-collapse: collapse; }
-thead th {
-  background: #e8eaf6; padding: 7px 8px;
-  text-align: left; font-size: 12px; font-weight: bold;
-  border-bottom: 2px solid #9fa8da; white-space: nowrap;
-}
-tbody tr { border-bottom: 1px solid #e8e8e8; cursor: pointer; }
-tbody tr:hover { background: #f5f5f5; }
-tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
-
-.cell-orange { color: #e65100; font-weight: bold; }
-.cell-blue { color: #1565c0; }
-
-.tag {
-  display: inline-block; border-radius: 3px;
-  padding: 1px 5px; font-size: 10px; font-weight: bold; margin-right: 2px;
-}
-.tag-reform { background: #fff3e0; color: #e65100; }
-.tag-new    { background: #e3f2fd; color: #1565c0; }
-.tag-sk     { background: #f3e5f5; color: #6a1b9a; }
-.tag-sb     { background: #e0f2f1; color: #00695c; }
-.tag-su     { background: #fce4ec; color: #880e4f; }
-
-.alert-tag {
-  display: inline-block; border-radius: 3px;
-  padding: 1px 5px; font-size: 10px; font-weight: bold; margin: 1px 0;
-}
-.alert-red    { background: #ffebee; color: #c62828; }
-.alert-orange { background: #fff8e1; color: #e65100; }
-.alert-blue   { background: #e3f2fd; color: #1565c0; }
-
-.tbl-wrap { overflow-x: auto; }
-.loading-msg { text-align: center; padding: 40px; color: #888; }
-
-/* AGENDA TAB */
-.agenda-container { max-width: 680px; margin: 20px auto; padding: 0 16px 40px; }
-.agenda-header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
-}
-.agenda-header h2 { font-size: 16px; color: #1a237e; }
-.btn-refresh {
-  background: #3949ab; color: #fff; border: none;
-  border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
-}
-.btn-refresh:hover { background: #283593; }
-.btn-refresh:disabled { background: #9fa8da; cursor: not-allowed; }
-
-.date-selector {
-  display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
-}
-.date-sel-btn {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 2px solid #9fa8da;
-  background: #fff;
-  color: #3949ab;
-  font-size: 13px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.date-sel-btn:hover { background: #e8eaf6; }
-.date-sel-btn.active {
-  background: #3949ab;
-  color: #fff;
-  border-color: #3949ab;
-}
-
-.agenda-status { text-align: center; padding: 40px; color: #888; font-size: 13px; }
-
-.agenda-card {
-  background: #fff; border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 14px; overflow: hidden;
-}
-.agenda-card-header {
-  padding: 10px 16px; font-weight: bold; font-size: 13px;
-  display: flex; align-items: center; gap: 8px;
-}
-.agenda-card-body { padding: 12px 16px; font-size: 13px; line-height: 1.7; color: #444; }
-.card-focus .agenda-card-header { background: #e8eaf6; color: #1a237e; }
-.card-tasks .agenda-card-header { background: #e8f5e9; color: #2e7d32; }
-.card-notes .agenda-card-header { background: #fff8e1; color: #e65100; }
-.card-visits .agenda-card-header { background: #e3f2fd; color: #1565c0; }
-
-.task-list { list-style: none; padding: 0; }
-.task-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
-.task-list li:last-child { border-bottom: none; }
-
-.visit-list { list-style: none; padding: 0; }
-.visit-item {
-  padding: 7px 0; border-bottom: 1px solid #f0f0f0;
-  display: flex; gap: 8px; align-items: flex-start; font-size: 12px;
-}
-.visit-item:last-child { border-bottom: none; }
-.visit-num {
-  background: #1565c0; color: #fff;
-  border-radius: 50%; width: 20px; height: 20px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: bold; flex-shrink: 0; margin-top: 1px;
-}
-.visit-num.no-order { background: #9fa8da; }
-.visit-info { flex: 1; line-height: 1.6; }
-.visit-title { font-weight: bold; color: #1a237e; }
-.visit-time { color: #e65100; font-weight: bold; }
-.visit-addr { color: #666; font-size: 11px; }
-
-.agenda-footer { text-align: right; font-size: 11px; color: #aaa; margin-top: 8px; }
-
-.agenda-day-info {
-  background: #fff; border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  padding: 12px 16px; margin-bottom: 14px;
-  display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; align-items: center;
-}
-.day-chip {
-  background: #e8eaf6; color: #1a237e;
-  border-radius: 20px; padding: 3px 12px; font-weight: bold;
-}
-.day-chip.weekend { background: #fff3e0; color: #e65100; }
-.day-chip.holiday { background: #ffebee; color: #c62828; }
-
-.error-card {
-  background: #fff; border-radius: 10px;
-  border: 1px solid #ffcdd2; padding: 16px; color: #c62828; font-size: 13px;
-}
-
-.spinner {
-  display: inline-block; width: 14px; height: 14px;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* CHAT TAB */
-#tab-chat {
-  display: none;
-  flex-direction: column;
-  height: calc(100vh - 90px);
-}
-#tab-chat.active {
-  display: flex;
-}
-
-.chat-quick-btns {
-  padding: 8px 12px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.quick-btn {
-  background: #e8eaf6;
-  color: #1a237e;
-  border: 1px solid #9fa8da;
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.quick-btn:hover { background: #c5cae9; }
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chat-msg {
-  display: flex;
-  gap: 8px;
-  max-width: 100%;
-}
-.chat-msg.user { flex-direction: row-reverse; }
-
-.chat-bubble {
-  padding: 9px 13px;
-  border-radius: 14px;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.chat-msg.ai .chat-bubble {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  color: #333;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.chat-msg.user .chat-bubble {
-  max-width: 80%;
-  background: #3949ab;
-  color: #fff;
-  border-radius: 14px 14px 4px 14px;
-}
-
-.chat-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.chat-msg.ai .chat-avatar { background: #e8eaf6; }
-.chat-msg.user .chat-avatar { background: #3949ab; color: #fff; }
-
-.chat-typing {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  padding: 10px 14px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  width: fit-content;
-}
-.typing-dot {
-  width: 6px; height: 6px;
-  background: #9fa8da;
-  border-radius: 50%;
-  animation: typingBounce 1.2s infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes typingBounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-  30% { transform: translateY(-5px); opacity: 1; }
-}
-
-.chat-input-area {
-  padding: 10px 12px;
-  background: #fff;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-.chat-input-area textarea {
-  flex: 1;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  max-height: 100px;
-  min-height: 36px;
-  line-height: 1.5;
-}
-.chat-input-area textarea:focus { border-color: #3949ab; }
-.btn-send {
-  background: #3949ab;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  flex-shrink: 0;
-  height: 36px;
-}
-.btn-send:hover { background: #283593; }
-.btn-send:disabled { background: #9fa8da; cursor: not-allowed; }
-
-.btn-chat-clear {
-  background: none;
-  border: none;
-  color: #aaa;
-  font-size: 11px;
-  cursor: pointer;
-  padding: 4px 8px;
-  align-self: center;
-}
-.btn-chat-clear:hover { color: #e53935; }
+*{box-sizing:border-box;}
+body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
+.header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.header-bar h3{margin:0;font-size:15px;color:#d32f2f;}
+.top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
+.search-box{margin-left:auto;display:flex;align-items:center;gap:5px;}
+.search-box input{padding:3px 8px;border:1px solid #ccc;border-radius:4px;width:160px;font-size:13px;}
+.filter-panel{background:#fff;border-bottom:2px solid #007bff;padding:4px 10px;}
+.filter-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;}
+.filter-row:last-child{border-bottom:none;}
+.filter-label{font-weight:bold;color:#fff;background:#007bff;padding:1px 7px;border-radius:3px;font-size:11px;min-width:45px;text-align:center;white-space:nowrap;}
+.filter-checks{display:flex;flex-wrap:wrap;gap:1px 6px;align-items:center;}
+.filter-checks label{cursor:pointer;display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap;padding:0 3px;border-radius:3px;}
+.filter-checks label:hover{background:#e8f4ff;}
+.filter-checks input[type="checkbox"]{cursor:pointer;margin:0;width:13px;height:13px;}
+.filter-toggle{font-size:10px;color:#007bff;cursor:pointer;font-weight:bold;padding:1px 5px;border:1px solid #007bff;border-radius:3px;background:#fff;}
+.filter-toggle:hover{background:#e8f4ff;}
+.sel-btn{font-size:10px;color:#007bff;cursor:pointer;text-decoration:underline;}.sel-btn.red{color:#dc3545;}
+.date-area{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.date-area input[type="date"]{padding:2px 4px;border:1px solid #999;border-radius:3px;font-size:12px;width:125px;}
+.date-area span{font-size:12px;font-weight:bold;}
+.sm-btn{font-size:10px;padding:2px 6px;cursor:pointer;border:1px solid #999;border-radius:3px;background:#fff;font-weight:bold;}.sm-btn:hover{background:#f0f0f0;}
+.table-wrapper{overflow:auto;background:#fff;border:1px solid #ccc;height:calc(100vh - 170px);}
+table{border-collapse:collapse;table-layout:fixed;width:max-content;}
+th,td{border:1px solid #ccc;text-align:left;font-size:12px;vertical-align:middle;}
+th{background:#e0e0e0;padding:3px 5px;position:sticky;top:0;z-index:10;white-space:nowrap;}
+tbody tr:hover{background:#e8f4ff;cursor:pointer;}
+.cell-inner{padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.col-no{width:30px;min-width:30px;max-width:30px;text-align:center;}
+.col-status{width:45px;min-width:45px;max-width:45px;}
+.col-kubun{width:25px;min-width:25px;max-width:25px;text-align:center;}
+.col-name{width:170px;min-width:170px;max-width:170px;}
+.col-company{width:140px;min-width:140px;max-width:140px;}
+.col-tel{width:105px;min-width:105px;max-width:105px;}
+.col-date{width:92px;min-width:92px;max-width:92px;}
+.col-memo{width:190px;min-width:190px;max-width:190px;}
+.col-address{width:170px;min-width:170px;max-width:170px;}
+.col-yotei{width:92px;min-width:92px;max-width:92px;}
+.col-ai-yotei{width:92px;min-width:92px;max-width:92px;}
+.link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
+#tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
+.count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
+#noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
+.kanryo-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #999;background:#fff;font-weight:bold;}
+.kanryo-toggle.active{background:#ffc107;border-color:#ffc107;color:#333;}
+.yotei-cell{color:#7b1fa2;font-weight:600;}
+.ai-yotei-cell{color:#ff6b00;font-weight:700;background:#fff8e1;}
 </style>
 </head>
 <body>
-
-<div class="topbar">
-  <div class="topbar-left">
-    <a href="index.html">◀</a>
-    <div class="topbar-title">🎯 Today's Agenda</div>
-  </div>
-  <div class="topbar-date" id="topbarDate"></div>
-</div>
-
-<div class="tab-nav">
-  <button class="tab-btn active" id="tabBtnList" onclick="switchTab('list',this)">📋 List <span class="badge" id="listCount">0</span></button>
-  <button class="tab-btn" id="tabBtnAgenda" onclick="switchTab('agenda',this)">🎯 Agenda</button>
-  <button class="tab-btn" id="tabBtnChat" onclick="switchTab('chat',this)">💬 チャット</button>
-</div>
-
-<!-- LIST TAB -->
-<div id="tab-list" class="tab-content active">
-  <div class="list-controls">
-    <input type="text" id="filterInput" placeholder="🔍 名前・住所で検索..." oninput="applyFilter()">
-    <select id="filterType" onchange="applyFilter()">
-      <option value="">全区分</option>
-      <option value="ﾘ">ﾘ（リフォーム）</option>
-      <option value="新">新（新築）</option>
-    </select>
-    <select id="filterAlert" onchange="applyFilter()">
-      <option value="">全アラート</option>
-      <option value="alert">アラートあり</option>
-    </select>
-  </div>
-  <div class="tbl-wrap">
-    <div id="listStatus" class="loading-msg">🔄 データ読み込み中...</div>
-    <table id="caseTable" style="display:none">
-      <thead>
-        <tr>
-          <th>区分</th>
-          <th>タイトル</th>
-          <th>施工日</th>
-          <th>下見日 / <span style="color:#e65100">AI下見</span></th>
-          <th>担当</th>
-          <th>住所</th>
-          <th>アラート</th>
-        </tr>
-      </thead>
-      <tbody id="caseBody"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- AGENDA TAB -->
-<div id="tab-agenda" class="tab-content">
-  <div class="agenda-container">
-    <div class="agenda-header">
-      <h2>🎯 K のアジェンダ</h2>
-      <button class="btn-refresh" id="refreshBtn" onclick="generateAgenda()">🔄 更新</button>
-    </div>
-    <div class="date-selector" id="dateSelectorArea"></div>
-    <div id="agendaContent">
-      <div class="agenda-status">日付を選んで「更新」を押すと AI がアジェンダを生成します。</div>
-    </div>
-  </div>
-</div>
-
-<!-- CHAT TAB -->
-<div id="tab-chat" class="tab-content">
-  <div class="chat-quick-btns">
-    <button class="quick-btn" onclick="sendQuick('今日の下見順を教えて')">📍 今日の下見順</button>
-    <button class="quick-btn" onclick="sendQuick('明日の下見順を教えて')">📍 明日の下見順</button>
-    <button class="quick-btn" onclick="sendQuick('下見未定のアラートケースを整理して')">⚠️ アラート整理</button>
-    <button class="quick-btn" onclick="sendQuick('今週の施工件数と状況をまとめて')">📊 今週サマリー</button>
-    <button class="quick-btn" onclick="sendQuick('下見日程の候補を提案して')">📅 日程提案</button>
-    <button class="btn-chat-clear" onclick="clearChat()">🗑 クリア</button>
-  </div>
-  <div class="chat-messages" id="chatMessages">
-    <div class="chat-msg ai">
-      <div class="chat-avatar">🤖</div>
-      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。</div>
-    </div>
-  </div>
-  <div class="chat-input-area">
-    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1"
-      oninput="autoResizeTextarea(this)"
-      onkeydown="handleChatKeydown(event)"
-      oncompositionstart="onIMEStart()"
-      oncompositionend="onIMEEnd()"></textarea>
-    <button class="btn-send" id="sendBtn" onclick="sendChat()">送信</button>
-  </div>
-</div>
-
+<div id="tooltip"></div>
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
+<div class="header-bar">
+<a href="index.html" class="top-link">◀ トップ</a>
+<h3>📋 案件管理リスト</h3>
+<div class="search-box"><span style="font-weight:bold;color:#555;">🔍</span><input type="text" id="searchInput" placeholder="テキスト検索..." /></div>
+</div>
+<div class="filter-panel">
+<div class="filter-row"><span class="filter-label">📅 期間</span><div class="date-area"><input type="date" id="dateFrom" /><span>〜</span><input type="date" id="dateTo" /><button class="sm-btn" id="dateToday">今日</button><button class="sm-btn" id="dateWeek">1週間</button><button class="sm-btn" id="dateMonth">1ヶ月</button><button class="sm-btn" id="dateFuture">今日以降</button><button class="sm-btn" id="dateClear">全期間</button></div><div class="filter-checks"><label><input type="checkbox" id="chkSekou" checked> 施工日</label><label><input type="checkbox" id="chkShitami"> 下見日</label><label><input type="checkbox" id="chkYotei"> 下見予定日</label><label><input type="checkbox" id="chkAiYotei"> AI予定</label></div></div>
+<div class="filter-row"><span class="filter-label">📌 状態</span><div class="filter-checks" id="statusFilters"></div><button class="kanryo-toggle" id="kanryoToggle">完了も表示</button></div>
+<div class="filter-row"><span class="filter-label">🏷 区分</span><div class="filter-checks" id="kubunFilters"></div></div>
+<div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
+<div class="filter-row"><span class="filter-label">📍 地域</span><div class="filter-checks" id="areaFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="areaToggle">▶ 展開</span></div>
+</div>
+<div class="count-display" id="countDisplay">-</div>
+<div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
-
 <script>
-var firebaseConfig = {
-  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-  authDomain: "project-6745138395263517914.firebaseapp.com",
-  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-  projectId: "project-6745138395263517914",
-  storageBucket: "project-6745138395263517914.firebasestorage.app",
-  messagingSenderId: "1054295910908",
-  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-};
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-var database = firebase.database();
-
-var allCases = [];
-var allCasesAll = [];
-var filteredCases = [];
-var chatHistory = [];
-var globalHeaders = [];
-var globalTasks = {};
-var fullData = null;
-var selectedAgendaDate = '';
-var isComposing = false;
-
-function onIMEStart() { isComposing = true; }
-function onIMEEnd()   { isComposing = false; }
-
-var DEFAULT_HOME = '札幌市白石区栄通18丁目4-17';
-function getHomeAddress() {
-  return localStorage.getItem('homeAddress') || DEFAULT_HOME;
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+var database=firebase.database();
+var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
+var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
+/* displayCols: CSV列インデックス。-1は「下見予定日（obj.date）」、-2は「AI下見予定日（obj.ai_shitami_date）」 */
+var displayCols=[1,3,4,5,6,7,10,11,2,12,-1,-2];
+var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date','col-yotei','col-ai-yotei'];
+var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','下見予定日','AI下見予定'];
+function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
+function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s=a.match(/札幌市(.+?区)/);if(s)return s[1];var c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];var t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
+function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
+function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
+function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
+/* 起動時は全期間表示（空のまま） */
+var todayStr=getTodayStr();
+document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
+document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
+document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
+document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
+document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
+dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
+chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);chkAiYotei.addEventListener('change',renderTable);
+searchInput.addEventListener('input',applyTextSearch);
+var showKanryo=false;
+document.getElementById('kanryoToggle').addEventListener('click',function(){showKanryo=!showKanryo;this.classList.toggle('active',showKanryo);this.textContent=showKanryo?'✔ 完了表示中':'完了も表示';renderTable();});
+var globalHeaders=[],globalTasks={},fullData=null;
+try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
+function initFilters(){
+var stMap={},kbMap={},cpMap={},arMap={};
+Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
+buildChecks('statusFilters',sortByCount(stMap),true,true);buildChecks('kubunFilters',sortByCount(kbMap),true,false);
+buildChecks('companyFilters',sortByCount(cpMap),false,true);setupToggle('companyToggle','companyFilters');
+var aA=Object.entries(arMap),kuA=aA.filter(function(a){return a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];}),oA=aA.filter(function(a){return!a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
+buildChecksFromArr('areaFilters',kuA.concat(oA).map(function(a){return{name:a[0],count:a[1]};}),false,true);setupToggle('areaToggle','areaFilters');
 }
-
-var HOLIDAYS = [
-  '2025-01-01','2025-01-13','2025-02-11','2025-02-24',
-  '2025-03-21','2025-04-29','2025-05-03','2025-05-04','2025-05-05',
-  '2025-07-21','2025-08-11','2025-09-15','2025-09-23',
-  '2025-10-13','2025-11-03','2025-11-23',
-  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
-  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05',
-  '2026-07-20','2026-08-11','2026-09-21','2026-09-23',
-  '2026-10-12','2026-11-03','2026-11-23'
-];
-
-var LONG_BREAKS = [
-  { start: '2025-08-13', end: '2025-08-16' },
-  { start: '2025-12-29', end: '2026-01-04' },
-  { start: '2026-04-29', end: '2026-05-06' },
-  { start: '2026-08-13', end: '2026-08-16' }
-];
-
-function todayJST() {
-  var d = new Date();
-  var jst = new Date(d.getTime() + 9 * 3600000);
-  return jst.toISOString().slice(0, 10);
+function sortByCount(map){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).map(function(a){return{name:a[0],count:a[1]};});}
+function buildChecks(id,items,allChecked,showCount){var el=document.getElementById(id);addSelBtns(el);items.forEach(function(item){var lbl=document.createElement('label');var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;cb.addEventListener('change',renderTable);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));el.appendChild(lbl);});}
+function buildChecksFromArr(id,items,allChecked,showCount){var el=document.getElementById(id);addSelBtns(el);items.forEach(function(item){var lbl=document.createElement('label');var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;cb.addEventListener('change',renderTable);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));el.appendChild(lbl);});}
+function addSelBtns(el){var ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';ba.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=true;});renderTable();});var bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';bn.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false;});renderTable();});el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));}
+function setupToggle(tid,cid){var tog=document.getElementById(tid),el=document.getElementById(cid);var open=false;tog.addEventListener('click',function(){open=!open;el.style.maxHeight=open?'none':'20px';el.style.overflow=open?'visible':'hidden';tog.textContent=open?'▼ 閉じる':'▶ 展開';});}
+function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(function(c){v.push(c.value);});return v;}
+function applyTextSearch(){var w=searchInput.value.toLowerCase();var rows=document.getElementById('table-body').getElementsByTagName('tr');var n=0;for(var i=0;i<rows.length;i++){var s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';}
+function renderTable(){
+var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');thead.innerHTML="";tbody.innerHTML="";
+var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
+var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cAI=chkAiYotei.checked;
+var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
+/* ヘッダー行 */
+var trH=document.createElement('tr');
+var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
+for(var hi=0;hi<displayCols.length;hi++){
+var h=document.createElement('th');
+h.className=colClasses[hi+1]||'';
+if(displayCols[hi]===-1){
+h.textContent='下見予定日';
+}else if(displayCols[hi]===-2){
+h.textContent='AI下見予定';
+h.style.background='#fff3e0';
+h.style.color='#e65100';
+}else{
+h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';
 }
-
-function addDays(dateStr, n) {
-  var d = new Date(dateStr + 'T00:00:00+09:00');
-  d.setDate(d.getDate() + n);
-  var jst = new Date(d.getTime() + 9 * 3600000);
-  return jst.toISOString().slice(0, 10);
+trH.appendChild(h);
 }
-
-function getWeekdayJA(dateStr) {
-  var days = ['日','月','火','水','木','金','土'];
-  var d = new Date(dateStr + 'T00:00:00+09:00');
-  return days[d.getDay()];
+thead.appendChild(trH);
+var valid=Object.keys(globalTasks).filter(function(key){
+var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
+var status=getSafeVal(cols,1).replace(/\s+/g,""),sekouDate=formatToYMD(getSafeVal(cols,2));
+if(sekouDate<today&&!showKanryo)return false;
+if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
+var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;
+var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;
+var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;
+if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(!dm)return false;}return true;
+});
+/* ★ソート: 1.下見日(C15) 2.ルート順番(C17) 3.下見時間(C16) 4.施工日(C2) */
+valid.sort(function(a,b){
+var oA=globalTasks[a],oB=globalTasks[b];
+var cA=oA.csvData,cB=oB.csvData;
+var dA=formatToYMD(getSafeVal(cA,15)),dB=formatToYMD(getSafeVal(cB,15));
+if(!dA&&dB)return 1;if(dA&&!dB)return -1;
+if(dA!==dB)return dA<dB?-1:1;
+var rA=parseInt(getSafeVal(cA,17),10)||9999,rB=parseInt(getSafeVal(cB,17),10)||9999;
+if(rA!==rB)return rA-rB;
+var tA=getSafeVal(cA,16).replace(/\s+/g,''),tB=getSafeVal(cB,16).replace(/\s+/g,'');
+if(tA!==tB)return tA<tB?-1:1;
+var sA=formatToYMD(getSafeVal(cA,2)),sB=formatToYMD(getSafeVal(cB,2));
+return sA<sB?-1:sA>sB?1:0;
+});
+valid.forEach(function(key,idx){
+var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
+var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
+for(var ci2=0;ci2<displayCols.length;ci2++){
+var colIdx=displayCols[ci2];
+var td=document.createElement('td');
+td.className=colClasses[ci2+1]||'';
+var inner=document.createElement('div');
+inner.className='cell-inner';
+if(colIdx===-1){
+var yotei=obj.date||'';
+inner.textContent=yotei;
+if(yotei)inner.classList.add('yotei-cell');
+}else if(colIdx===-2){
+var aiYotei=obj.ai_shitami_date||'';
+inner.textContent=aiYotei;
+if(aiYotei){inner.classList.add('ai-yotei-cell');}
+}else{
+var cv=getSafeVal(cols,colIdx);
+var disp=cv.replace(/\n|\r/g,' '),clean=cv.replace(/\s+/g,'');
+if(colIdx===11&&clean!==''){
+var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
+if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');
+else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
+inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';
+}else if(colIdx===6&&clean!==''){
+inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';
+}else{
+inner.textContent=disp;
 }
-
-function getWeekdayNum(dateStr) {
-  return new Date(dateStr + 'T00:00:00+09:00').getDay();
+if(clean!==''){
+td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));
+td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
+td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
 }
-
-function isHoliday(dateStr) { return HOLIDAYS.indexOf(dateStr) >= 0; }
-
-function isLongBreak(dateStr) {
-  for (var i = 0; i < LONG_BREAKS.length; i++) {
-    if (dateStr >= LONG_BREAKS[i].start && dateStr <= LONG_BREAKS[i].end) return true;
-  }
-  return false;
 }
-
-function formatTopbarDate() {
-  var d = new Date(new Date().getTime() + 9 * 3600000);
-  var days = ['日','月','火','水','木','金','土'];
-  var y = d.getUTCFullYear();
-  var m = d.getUTCMonth() + 1;
-  var day = d.getUTCDate();
-  var wd = days[d.getUTCDay()];
-  return y + '/' + (m<10?'0'+m:m) + '/' + (day<10?'0'+day:day) + '（' + wd + '）';
+td.appendChild(inner);
+tr.appendChild(td);
 }
-
-function switchTab(name, btn) {
-  document.getElementById('tab-list').classList.remove('active');
-  document.getElementById('tab-agenda').classList.remove('active');
-  document.getElementById('tab-chat').classList.remove('active');
-  document.getElementById('tab-' + name).classList.add('active');
-  var btns = document.querySelectorAll('.tab-btn');
-  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-  btn.classList.add('active');
-}
-
-function buildDateSelector() {
-  var today = todayJST();
-  var area = document.getElementById('dateSelectorArea');
-  area.innerHTML = '';
-  var labels = ['今日', '明日', '明後日'];
-  for (var i = 0; i < 4; i++) {
-    var d = addDays(today, i);
-    var wd = getWeekdayJA(d);
-    var label = i < labels.length ? labels[i] : (i + '日後');
-    var isWkend = (getWeekdayNum(d) === 0 || getWeekdayNum(d) === 6 || isHoliday(d));
-    var dateShort = (parseInt(d.slice(5,7))) + '/' + parseInt(d.slice(8,10));
-    var btnLabel = label + '<br><small style="font-weight:normal;font-size:11px">' + dateShort + '（' + wd + '）' + (isWkend ? ' 休' : '') + '</small>';
-    var btn = document.createElement('button');
-    btn.className = 'date-sel-btn' + (i === 0 ? ' active' : '');
-    btn.innerHTML = btnLabel;
-    btn.setAttribute('data-date', d);
-    (function(dateVal, el) {
-      el.onclick = function() {
-        selectedAgendaDate = dateVal;
-        var allBtns = document.querySelectorAll('.date-sel-btn');
-        for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
-        el.classList.add('active');
-        document.getElementById('agendaContent').innerHTML =
-          '<div class="agenda-status">「更新」ボタンを押してアジェンダを生成します。</div>';
-      };
-    })(d, btn);
-    area.appendChild(btn);
-  }
-  selectedAgendaDate = today;
-}
-
-function isKoujiCompleted(task, koujiDate) {
-  var today = todayJST();
-  if (koujiDate >= today) return false;
-  var sfStatus = task.csvData && task.csvData[1] ? String(task.csvData[1]).trim() : '';
-  var localStatus = task.local_status ? String(task.local_status).trim() : '';
-  var completedPatterns = ['施工完了', '報告書提出済', '施工日連絡済'];
-  for (var i = 0; i < completedPatterns.length; i++) {
-    if (sfStatus === completedPatterns[i] || localStatus === completedPatterns[i]) return true;
-  }
-  var diffMs = new Date(today) - new Date(koujiDate);
-  var diffDays = diffMs / 86400000;
-  if (diffDays > 60) return true;
-  return false;
-}
-
-function loadCases() {
-  database.ref().once('value').then(function(snapshot) {
-    var dbData = snapshot.val();
-    if (!dbData || !dbData.app_tasks) {
-      document.getElementById('listStatus').textContent = '⚠️ データなし';
-      return;
-    }
-    fullData = dbData;
-    globalTasks = dbData.app_tasks;
-    globalHeaders = (dbData.app_meta && dbData.app_meta.headers) ? dbData.app_meta.headers : [];
-
-    var tasks = dbData.app_tasks;
-    allCases = [];
-    allCasesAll = [];
-    var today = todayJST();
-    var pastLimit = addDays(today, -3);
-    var futureLimit = addDays(today, 21);
-
-    for (var key in tasks) {
-      var task = tasks[key];
-      var cols = task.csvData || [];
-      var koujiDate = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
-      if (!koujiDate) continue;
-      if (isKoujiCompleted(task, koujiDate)) continue;
-
-      var caseObj = {
-        key: key,
-        kouji: koujiDate,
-        kubun: cols[3] ? String(cols[3]).replace(/\s+/g, '') : '',
-        title: cols[4] ? String(cols[4]).trim() : '',
-        tanto: cols[5] ? String(cols[5]).trim() : '',
-        tel: cols[6] ? String(cols[6]).trim() : '',
-        address: cols[11] ? String(cols[11]).trim() : '',
-        shitami: task.date || '',
-        /* ★ C16(下見時間)・C17(ルート順番)を正しく取得 */
-        shitami_time: cols[16] ? String(cols[16]).trim() : (task.time || ''),
-        shitami_order: cols[17] ? String(cols[17]).trim() : (task.order || ''),
-        ai_shitami: task.ai_shitami_date || ''
-      };
-
-      allCasesAll.push(caseObj);
-      if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
-        allCases.push(caseObj);
-      }
-    }
-
-    /* ★ソート: 1.下見日 2.ルート順番(C17) 3.下見時間(C16) 4.施工日 */
-    function sortCases(arr) {
-      arr.sort(function(a, b) {
-        var dA = a.shitami || '', dB = b.shitami || '';
-        if (!dA && dB) return 1;
-        if (dA && !dB) return -1;
-        if (dA !== dB) return dA < dB ? -1 : 1;
-        var rA = parseInt(a.shitami_order, 10) || 9999;
-        var rB = parseInt(b.shitami_order, 10) || 9999;
-        if (rA !== rB) return rA - rB;
-        var tA = a.shitami_time || '', tB = b.shitami_time || '';
-        if (tA !== tB) return tA < tB ? -1 : 1;
-        return a.kouji < b.kouji ? -1 : a.kouji > b.kouji ? 1 : 0;
-      });
-    }
-    sortCases(allCasesAll);
-    sortCases(allCases);
-
-    filteredCases = allCases.slice();
-    renderTable();
-    document.getElementById('listCount').textContent = allCases.length;
-  }).catch(function(err) {
-    document.getElementById('listStatus').textContent = '❌ ' + err.message;
-  });
-}
-
-function openModal(key) {
-  var task = globalTasks[key];
-  if (!task) return;
-  openCaseModal(key, task, globalHeaders, globalTasks, fullData, database, function() {
-    for (var i = 0; i < allCases.length; i++) {
-      if (allCases[i].key === key) {
-        var cols = globalTasks[key].csvData || [];
-        allCases[i].shitami = globalTasks[key].date || '';
-        allCases[i].shitami_time = cols[16] ? String(cols[16]).trim() : (globalTasks[key].time || '');
-        allCases[i].shitami_order = cols[17] ? String(cols[17]).trim() : (globalTasks[key].order || '');
-      }
-    }
-    for (var i = 0; i < allCasesAll.length; i++) {
-      if (allCasesAll[i].key === key) {
-        var cols = globalTasks[key].csvData || [];
-        allCasesAll[i].shitami = globalTasks[key].date || '';
-        allCasesAll[i].shitami_time = cols[16] ? String(cols[16]).trim() : (globalTasks[key].time || '');
-        allCasesAll[i].shitami_order = cols[17] ? String(cols[17]).trim() : (globalTasks[key].order || '');
-      }
-    }
-    renderTable();
-  });
-}
-
-function getAlerts(c) {
-  var alerts = [];
-  var today = todayJST();
-  var daysToKouji = Math.ceil((new Date(c.kouji) - new Date(today)) / 86400000);
-  if ((c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') && !c.shitami && !c.ai_shitami) {
-    alerts.push({ label: '下見日決めて', cls: 'alert-red' });
-  }
-  if (c.kubun === '新' && daysToKouji <= 21 && daysToKouji >= 0 && !c.shitami && !c.ai_shitami) {
-    alerts.push({ label: '訪問必要', cls: 'alert-orange' });
-  }
-  if (c.kubun === '新' && c.title.indexOf('SK') >= 0 && daysToKouji <= 10 && daysToKouji >= 0) {
-    alerts.push({ label: '再訪問必要', cls: 'alert-blue' });
-  }
-  return alerts;
-}
-
-function renderTable() {
-  var tbody = document.getElementById('caseBody');
-  tbody.innerHTML = '';
-  if (filteredCases.length === 0) {
-    document.getElementById('listStatus').style.display = 'block';
-    document.getElementById('listStatus').textContent = '該当ケースなし';
-    document.getElementById('caseTable').style.display = 'none';
-    return;
-  }
-  document.getElementById('listStatus').style.display = 'none';
-  document.getElementById('caseTable').style.display = 'table';
-
-  for (var i = 0; i < filteredCases.length; i++) {
-    var c = filteredCases[i];
-    var alerts = getAlerts(c);
-    var kubunTag = '';
-    if (c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') kubunTag = '<span class="tag tag-reform">ﾘ</span>';
-    else if (c.kubun === '新') kubunTag = '<span class="tag tag-new">新</span>';
-    var titleTag = '';
-    if (c.title.indexOf('SK') >= 0) titleTag = '<span class="tag tag-sk">SK</span>';
-    else if (c.title.indexOf('SB') >= 0) titleTag = '<span class="tag tag-sb">SB</span>';
-    else if (c.title.indexOf('SU') >= 0) titleTag = '<span class="tag tag-su">SU</span>';
-    var shitamiCell = '';
-    if (c.shitami) shitamiCell += '<div class="cell-blue">' + c.shitami + (c.shitami_time ? ' ' + c.shitami_time : '') + (c.shitami_order ? ' 順' + c.shitami_order : '') + '</div>';
-    if (c.ai_shitami) shitamiCell += '<div class="cell-orange">AI: ' + c.ai_shitami + '</div>';
-    var alertCell = '';
-    for (var j = 0; j < alerts.length; j++) {
-      alertCell += '<div class="alert-tag ' + alerts[j].cls + '">' + alerts[j].label + '</div>';
-    }
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td>' + kubunTag + '</td>' +
-      '<td>' + titleTag + ' <small>' + c.title + '</small></td>' +
-      '<td class="cell-blue">' + c.kouji + '<br><small>(' + getWeekdayJA(c.kouji) + ')</small></td>' +
-      '<td>' + (shitamiCell || '<span style="color:#ccc">未定</span>') + '</td>' +
-      '<td><small>' + c.tanto + '</small></td>' +
-      '<td><small>' + c.address + '</small></td>' +
-      '<td>' + alertCell + '</td>';
-    (function(k) {
-      row.addEventListener('click', function() { if (typeof openModal === 'function') openModal(k); });
-    })(c.key);
-    tbody.appendChild(row);
-  }
-}
-
-function applyFilter() {
-  var text = document.getElementById('filterInput').value.toLowerCase();
-  var kubun = document.getElementById('filterType').value;
-  var alertOnly = document.getElementById('filterAlert').value === 'alert';
-  filteredCases = [];
-  for (var i = 0; i < allCases.length; i++) {
-    var c = allCases[i];
-    if (kubun && c.kubun !== kubun) continue;
-    if (text && c.address.toLowerCase().indexOf(text) < 0 &&
-        c.tanto.toLowerCase().indexOf(text) < 0 &&
-        c.title.toLowerCase().indexOf(text) < 0) continue;
-    if (alertOnly && getAlerts(c).length === 0) continue;
-    filteredCases.push(c);
-  }
-  renderTable();
-}
-
-function buildCaseDataContext(targetDate) {
-  var today = todayJST();
-  var tDate = targetDate || selectedAgendaDate || today;
-  var dow = getWeekdayJA(tDate);
-  var rule = getWorkdayRule(tDate);
-  var ruleDesc = {
-    'weekday':   '通常営業日',
-    'saturday':  '土曜（条件次第で現場）',
-    'sunday':    '日曜（自宅のみ・下見不可）',
-    'longbreak': '長期休暇中'
-  };
-
-  var lines = '';
-  lines += '=== 基本情報 ===\n';
-  lines += '対象日: ' + tDate + '（' + dow + '曜日）/ ' + (ruleDesc[rule] || rule) + '\n';
-  lines += '今日（現在）: ' + today + '\n';
-  lines += 'Kの出発地点（自宅）: ' + getHomeAddress() + '\n';
-  lines += '有効ケース数（施工完了除外済み）: ' + allCasesAll.length + '件\n\n';
-
-  var targetConfirmed = [];
-  var targetAI = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var c = allCasesAll[i];
-    if (c.shitami === tDate) targetConfirmed.push(c);
-    else if (c.ai_shitami === tDate && !c.shitami) targetAI.push(c);
-  }
-
-  lines += '=== ' + tDate + 'の下見予定（確定済み） ' + targetConfirmed.length + '件 ===\n';
-  if (targetConfirmed.length === 0) {
-    lines += '（なし）\n';
-  } else {
-    targetConfirmed.sort(function(a, b) {
-      return (parseInt(a.shitami_order) || 99) - (parseInt(b.shitami_order) || 99);
-    });
-    for (var i = 0; i < targetConfirmed.length; i++) {
-      var c = targetConfirmed[i];
-      lines += '  [確定' + (i+1) + '] ';
-      lines += (c.shitami_order ? '順番' + c.shitami_order + ' ' : '');
-      lines += (c.shitami_time ? c.shitami_time + ' ' : '時間未設定 ');
-      lines += c.tanto + ' | ' + c.kubun + ' ' + c.title;
-      lines += ' | 住所: ' + c.address;
-      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
-    }
-  }
-  lines += '\n';
-
-  lines += '=== ' + tDate + 'のAI提案下見 ' + targetAI.length + '件 ===\n';
-  if (targetAI.length === 0) {
-    lines += '（なし）\n';
-  } else {
-    for (var i = 0; i < targetAI.length; i++) {
-      var c = targetAI[i];
-      lines += '  [AI提案] ' + c.tanto + ' | ' + c.kubun + ' ' + c.title;
-      lines += ' | 住所: ' + c.address;
-      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
-    }
-  }
-  lines += '\n';
-
-  var alertCases = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var alerts = getAlerts(allCasesAll[i]);
-    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
-  }
-  lines += '=== アラートケース ' + alertCases.length + '件 ===\n';
-  for (var i = 0; i < alertCases.length; i++) {
-    var item = alertCases[i];
-    var alertStr = '';
-    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
-    lines += '  ' + alertStr + ' ';
-    lines += item.c.tanto + ' | ' + item.c.kubun + ' ' + item.c.title;
-    lines += ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')';
-    lines += ' | 下見確定: ' + (item.c.shitami || '未定');
-    if (item.c.shitami && item.c.shitami_time) lines += ' ' + item.c.shitami_time;
-    lines += ' | AI提案: ' + (item.c.ai_shitami || '未定');
-    lines += ' | 住所: ' + item.c.address + '\n';
-  }
-  lines += '\n';
-
-  lines += '=== 全案件 Firebase生データ（完了除外済み） ===\n';
-  lines += JSON.stringify(globalTasks) + '\n';
-
-  return lines;
-}
-
-function getWorkdayRule(dateStr) {
-  if (isLongBreak(dateStr)) return 'longbreak';
-  var dow = getWeekdayNum(dateStr);
-  if (dow === 0) return 'sunday';
-  if (dow === 6 || isHoliday(dateStr)) return 'saturday';
-  return 'weekday';
-}
-
-function countRemainingWeekdays(fromDate) {
-  var count = 0;
-  for (var i = 0; i <= 6; i++) {
-    var d = addDays(fromDate, i);
-    var dow = getWeekdayNum(d);
-    if (dow >= 1 && dow <= 5 && !isHoliday(d) && !isLongBreak(d)) count++;
-  }
-  return count;
-}
-
-function generateAgenda() {
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (!geminiKey) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください。</div>';
-    return;
-  }
-  if (allCasesAll.length === 0) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="agenda-status">⚠️ データ読み込み中です。しばらく待ってから再試行してください。</div>';
-    return;
-  }
-
-  var tDate = selectedAgendaDate || todayJST();
-  var today = todayJST();
-  var btn = document.getElementById('refreshBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 生成中...';
-
-  var dow = getWeekdayJA(tDate);
-  var rule = getWorkdayRule(tDate);
-  var holiday = isHoliday(tDate);
-  var longBreak = isLongBreak(tDate);
-  var remainingWeekdays = countRemainingWeekdays(tDate);
-  var diffDays = Math.round((new Date(tDate) - new Date(today)) / 86400000);
-  var whenLabel = diffDays === 0 ? '今日' : diffDays === 1 ? '明日' : diffDays + '日後（' + tDate + '）';
-
-  var ruleDesc = {
-    'weekday':   '通常営業日（下見・メール送信・報告書すべて可）',
-    'saturday':  '土曜日（月〜金で不足する下見がある場合のみ現場、なければ自宅でメール仮制作・報告書作成）',
-    'sunday':    '日曜日（自宅のみ・下見不可・メール送信不可。メール仮制作と報告書作成のみ）',
-    'longbreak': '長期休暇中（完全休止）'
-  };
-
-  var prompt =
-    '【対象日の情報】\n' +
-    '対象日：' + tDate + '（' + dow + '曜日）= ' + whenLabel + '\n' +
-    '今日の実際の日付：' + today + '\n' +
-    '祝日フラグ：' + (holiday ? 'はい' : 'いいえ') + '\n' +
-    '長期休暇中：' + (longBreak ? 'はい' : 'いいえ') + '\n' +
-    '今週残り営業日（この日から数えて）：' + remainingWeekdays + '日\n' +
-    '出発地点（自宅）：' + getHomeAddress() + '\n\n' +
-    '【K行動ルール（対象日基準）】\n' +
-    (ruleDesc[rule] || rule) + '\n\n' +
-    '【補足ルール】\n' +
-    '・取引先は土日祝休み（メール送信しても平日まで見られない）\n' +
-    '・現場（大工等）は月〜土稼働、日休み\n' +
-    '・土曜現場可否は「今週残り営業日 × 1件/日」と当週ケース数を比較して判断すること\n' +
-    '・csvDataの備考・施工指示欄（特にC10前後）に「下見XX日」「XX時希望」「XX日訪問」等の文言がある場合はその日時をshitami候補として優先的に提案すること\n' +
-    '・同様の文言が通信履歴（comms）にある場合も拾って反映すること\n\n' +
-    '【Firebaseケースデータ（施工完了除外済み・生データ含む）】\n' +
-    buildCaseDataContext(tDate) + '\n' +
-    '【ステータス定義（モーダル看板）】\n' +
-    '依頼→連絡済→下見日確定→下見実施済→報告書提出済→施工日連絡済\n' +
-    'local_statusはFirebase内のローカル更新ステータス。csvData[1]はSFステータス。両方見て進んでいる方を優先すること。\n\n' +
-    '【アラート定義】\n' +
-    '下見日決めて＝リフォームで下見未定（最優先）\n' +
-    '訪問必要＝新築で施工21日前以内かつ下見未実施\n' +
-    '再訪問必要＝新築SK案件で施工10日前以内（2回目必要）\n\n' +
-    '【出力指示】\n' +
-    '以下JSONのみ返却。前置き・コードブロック・説明文不要。\n' +
-    '{\n' +
-    '  "today": "' + whenLabel + 'にKが集中すべき活動（一文）",\n' +
-    '  "priority_tasks": ["絵文字＋タスク説明", "...（3〜5件）"],\n' +
-    '  "notes": "曜日・祝日ルールに基づく制約や注意点、ステータス状況を踏まえた指摘"\n' +
-    '}';
-
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, responseMimeType: 'application/json' }
-    })
-  }).then(function(res) {
-    return res.json();
-  }).then(function(data) {
-    btn.disabled = false;
-    btn.innerHTML = '🔄 更新';
-    if (!data.candidates || !data.candidates[0]) throw new Error('API レスポンス異常: ' + JSON.stringify(data));
-    var rawText = data.candidates[0].content.parts[0].text;
-    renderAgendaResult(rawText, tDate, dow, rule, whenLabel);
-  }).catch(function(err) {
-    btn.disabled = false;
-    btn.innerHTML = '🔄 更新';
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="error-card">❌ エラー：' + err.message + '</div>';
-  });
-}
-
-function repairJson(str) {
-  try { JSON.parse(str); return str; } catch(e) {}
-  var s = str;
-  s = s.replace(/,\s*$/, '');
-  var quoteCount = 0;
-  for (var qi = 0; qi < s.length; qi++) {
-    if (s[qi] === '"' && (qi === 0 || s[qi-1] !== '\\')) quoteCount++;
-  }
-  if (quoteCount % 2 !== 0) s += '"';
-  s = s.replace(/,\s*([\]\}])/g, '$1').replace(/,\s*$/, '');
-  var opens = 0, closes = 0, braces = 0, braceC = 0;
-  for (var i = 0; i < s.length; i++) {
-    if (s[i] === '[') opens++;
-    if (s[i] === ']') closes++;
-    if (s[i] === '{') braces++;
-    if (s[i] === '}') braceC++;
-  }
-  for (var k = 0; k < (opens - closes); k++) s += ']';
-  for (var m = 0; m < (braces - braceC); m++) s += '}';
-  try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
-}
-
-function renderAgendaResult(rawText, tDate, dow, rule, whenLabel) {
-  var parsed = null;
-  try {
-    var jsonStr = '';
-    var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) {
-      jsonStr = fenceMatch[1].trim();
-    } else {
-      var bs = rawText.indexOf('{');
-      var be = rawText.lastIndexOf('}');
-      if (bs !== -1 && be > bs) jsonStr = rawText.substring(bs, be + 1);
-      else jsonStr = rawText.trim();
-    }
-    jsonStr = repairJson(jsonStr);
-    parsed = JSON.parse(jsonStr);
-  } catch (e) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="agenda-card"><div class="agenda-card-header">🤖 AI 応答（raw）</div>' +
-      '<div class="agenda-card-body"><pre style="white-space:pre-wrap;font-size:12px">' + rawText + '</pre></div></div>';
-    return;
-  }
-
-  var ruleLabels = {
-    'weekday':   '通常営業日',
-    'saturday':  '土曜（条件次第で現場）',
-    'sunday':    '日曜（自宅のみ）',
-    'longbreak': '長期休暇中'
-  };
-  var chipCls = 'day-chip';
-  if (rule === 'sunday' || rule === 'saturday' || rule === 'longbreak') chipCls += ' weekend';
-  if (isHoliday(tDate)) chipCls += ' holiday';
-
-  var targetVisits = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    if (allCasesAll[i].shitami === tDate) targetVisits.push(allCasesAll[i]);
-  }
-  targetVisits.sort(function(a, b) {
-    return (parseInt(a.shitami_order) || 99) - (parseInt(b.shitami_order) || 99);
-  });
-
-  var html = '<div class="agenda-day-info">' +
-    '<span class="' + chipCls + '">' + whenLabel + ' ' + dow + '曜日</span>' +
-    '<span style="color:#666">' + (ruleLabels[rule] || rule) + '</span>' +
-    (targetVisits.length > 0 ? '<span style="color:#e65100;font-weight:bold">確定下見: ' + targetVisits.length + '件</span>' : '') +
-    '</div>';
-
-  if (targetVisits.length > 0) {
-    var visitItems = '';
-    for (var i = 0; i < targetVisits.length; i++) {
-      var v = targetVisits[i];
-      var numCls = v.shitami_order ? 'visit-num' : 'visit-num no-order';
-      var numLabel = v.shitami_order ? v.shitami_order : (i + 1);
-      var timeStr = v.shitami_time ? '<span class="visit-time">' + v.shitami_time + '</span> ' : '';
-      var kubunTag = (v.kubun === 'ﾘ' || v.kubun === 'ﾊﾘ') ? '<span class="tag tag-reform" style="font-size:10px">ﾘ</span>' : '<span class="tag tag-new" style="font-size:10px">新</span>';
-      visitItems +=
-        '<li class="visit-item">' +
-        '<div class="' + numCls + '">' + numLabel + '</div>' +
-        '<div class="visit-info">' +
-        timeStr + kubunTag + ' <span class="visit-title">' + v.title + '</span>' +
-        '<div class="visit-addr">📍 ' + (v.address || '住所未登録') + '</div>' +
-        '</div></li>';
-    }
-    html += '<div class="agenda-card card-visits">' +
-      '<div class="agenda-card-header">📍 ' + whenLabel + 'の下見リスト</div>' +
-      '<div class="agenda-card-body"><ul class="visit-list">' + visitItems + '</ul></div></div>';
-  }
-
-  if (parsed.today) {
-    html += '<div class="agenda-card card-focus">' +
-      '<div class="agenda-card-header">📌 ' + whenLabel + 'の焦点</div>' +
-      '<div class="agenda-card-body">' + parsed.today + '</div></div>';
-  }
-
-  if (parsed.priority_tasks && parsed.priority_tasks.length > 0) {
-    var items = '';
-    for (var i = 0; i < parsed.priority_tasks.length; i++) {
-      items += '<li>' + parsed.priority_tasks[i] + '</li>';
-    }
-    html += '<div class="agenda-card card-tasks">' +
-      '<div class="agenda-card-header">⭐ 優先タスク</div>' +
-      '<div class="agenda-card-body"><ul class="task-list">' + items + '</ul></div></div>';
-  }
-
-  if (parsed.notes) {
-    html += '<div class="agenda-card card-notes">' +
-      '<div class="agenda-card-header">💡 メモ・アラート</div>' +
-      '<div class="agenda-card-body">' + parsed.notes + '</div></div>';
-  }
-
-  var now = new Date(new Date().getTime() + 9 * 3600000);
-  var hh = now.getUTCHours();
-  var mm = now.getUTCMinutes();
-  html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + ' | 対象: ' + tDate + '（' + dow + '）| 自宅: ' + getHomeAddress() + '</div>';
-
-  document.getElementById('agendaContent').innerHTML = html;
-}
-
-function buildSystemPrompt() {
-  return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
-    'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
-    '【役割】\n' +
-    'Firebaseから渡されるケースデータを整理・分析して、Kに必要な情報を提供する。\n\n' +
-    '【ステータス定義（モーダル看板）】\n' +
-    '依頼→連絡済→下見日確定→下見実施済→報告書提出済→施工日連絡済\n' +
-    'local_statusはFirebase内のローカル更新ステータス。csvData[1]はSFステータス。両方見て進んでいる方を優先すること。\n' +
-    '施工完了済み案件はデータから除外済み。\n\n' +
-    '【行動ルール】\n' +
-    '- 下見日・時間・順番が確定しているケースはその値を絶対に優先すること\n' +
-    '- 「確定」と「AI提案」は別物。確定があればAI提案は無視する\n' +
-    '- 今日・明日の確定下見がある場合は必ず順番・時間・住所を正確に伝える\n' +
-    '- 住所から地域を推測してルート最適化を提案する（出発地点は自宅）\n' +
-    '- 情報が不足していたら質問する\n' +
-    '- 回答は簡潔・箇条書き優先\n' +
-    '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
-    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n' +
-    '- 地域の目安: 千歳・恵庭・北広島は南方向（遠方）、石狩・当別は北方向、江別・北広島は東方向\n' +
-    '- csvDataの備考・施工指示欄や通信履歴（comms）に「下見XX日」「XX時希望」等の文言があれば拾って日程提案に反映すること\n\n' +
-    '【最新Firebaseデータ（施工完了除外済み・生データ）】\n' +
-    buildCaseDataContext();
-}
-
-function appendChatMessage(role, text) {
-  var container = document.getElementById('chatMessages');
-  var div = document.createElement('div');
-  div.className = 'chat-msg ' + role;
-  var avatar = role === 'ai' ? '🤖' : 'K';
-  div.innerHTML =
-    '<div class="chat-avatar">' + avatar + '</div>' +
-    '<div class="chat-bubble">' + escapeHtml(text) + '</div>';
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-function appendTypingIndicator() {
-  var container = document.getElementById('chatMessages');
-  var div = document.createElement('div');
-  div.className = 'chat-msg ai';
-  div.id = 'typingIndicator';
-  div.innerHTML =
-    '<div class="chat-avatar">🤖</div>' +
-    '<div class="chat-typing">' +
-    '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>' +
-    '</div>';
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-function removeTypingIndicator() {
-  var el = document.getElementById('typingIndicator');
-  if (el) el.parentNode.removeChild(el);
-}
-
-function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-}
-
-function sendQuick(text) {
-  document.getElementById('chatInput').value = text;
-  sendChat();
-}
-
-function clearChat() {
-  chatHistory = [];
-  document.getElementById('chatMessages').innerHTML =
-    '<div class="chat-msg ai"><div class="chat-avatar">🤖</div>' +
-    '<div class="chat-bubble">会話をクリアしました。何でも聞いてください。</div></div>';
-}
-
-function autoResizeTextarea(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
-}
-
-function handleChatKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-    e.preventDefault();
-    sendChat();
-  }
-}
-
-function sendChat() {
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (!geminiKey) {
-    appendChatMessage('ai', '⚠️ Gemini APIキーが未設定です。sogo.html の「API設定」から設定してください。');
-    return;
-  }
-  var input = document.getElementById('chatInput');
-  var text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  input.style.height = 'auto';
-  document.getElementById('sendBtn').disabled = true;
-  appendChatMessage('user', text);
-  chatHistory.push({ role: 'user', text: text });
-  appendTypingIndicator();
-
-  var contents = [];
-  var sysPrompt = buildSystemPrompt();
-  for (var i = 0; i < chatHistory.length; i++) {
-    var item = chatHistory[i];
-    if (item.role === 'user') {
-      if (i === 0) {
-        contents.push({ role: 'user', parts: [{ text: sysPrompt + '\n\n---\n以下Kとの会話です。\n\nK: ' + item.text }] });
-      } else {
-        contents.push({ role: 'user', parts: [{ text: item.text }] });
-      }
-    } else {
-      contents.push({ role: 'model', parts: [{ text: item.text }] });
-    }
-  }
-
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: contents,
-      generationConfig: { temperature: 0.5, maxOutputTokens: 65536 }
-    })
-  }).then(function(res) {
-    return res.json();
-  }).then(function(data) {
-    removeTypingIndicator();
-    document.getElementById('sendBtn').disabled = false;
-    if (!data.candidates || !data.candidates[0]) throw new Error('APIレスポンス異常: ' + JSON.stringify(data));
-    var replyText = data.candidates[0].content.parts[0].text;
-    appendChatMessage('ai', replyText);
-    chatHistory.push({ role: 'model', text: replyText });
-  }).catch(function(err) {
-    removeTypingIndicator();
-    document.getElementById('sendBtn').disabled = false;
-    appendChatMessage('ai', '❌ エラー：' + err.message);
-    if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') chatHistory.pop();
-  });
-}
-
-document.getElementById('topbarDate').textContent = formatTopbarDate();
-buildDateSelector();
-loadCases();
-if (!localStorage.getItem('homeAddress')) {
-  localStorage.setItem('homeAddress', DEFAULT_HOME);
+tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
+tbody.appendChild(tr);
+});
+document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';if(searchInput.value)applyTextSearch();
 }
 </script>
 </body>
