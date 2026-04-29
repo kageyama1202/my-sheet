@@ -33,28 +33,30 @@
 
   <script>
     var GAS_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
-    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910888",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=firebase.database();
 
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
 
-    // IDリストを1件ずつGASに送る（タイムアウトしない）
-    function notifyGASIds(ids, label) {
-      if (!ids || ids.length === 0) return;
+    // IDリストを1件ずつGASに送る（3秒間隔でタイムアウト回避）
+    function notifyGASIds(ids, label, onDone) {
+      if (!ids || ids.length === 0) { if(onDone)onDone(); return; }
       log((label||'カレンダー同期')+'開始: '+ids.length+'件...');
       var i = 0;
       function next() {
         if (i >= ids.length) {
           log('✅ '+(label||'カレンダー同期')+'完了: '+ids.length+'件','ok');
+          if(onDone)onDone();
           return;
         }
         var id = ids[i++];
-        log('('+(i)+'/'+ids.length+') '+id);
-        fetch(GAS_URL + "?id=" + encodeURIComponent(id), {method:'GET', mode:'no-cors'})
-          .then(function(){ setTimeout(next, 500); })
-          .catch(function(){ setTimeout(next, 500); });
+        log('('+i+'/'+ids.length+') '+id);
+        var img = new Image();
+        img.onload = function(){ setTimeout(next, 3000); };
+        img.onerror = function(){ setTimeout(next, 3000); };
+        img.src = GAS_URL + "?id=" + encodeURIComponent(id) + "&t=" + Date.now();
       }
       next();
     }
@@ -76,9 +78,10 @@
           return status !== '完了';
         });
         log('対象案件: '+ids.length+'件');
-        notifyGASIds(ids, '全件カレンダー同期');
-        btn.disabled = false;
-        btn.textContent = '📅 全件カレンダー同期（既存案件を全て反映）';
+        notifyGASIds(ids, '全件カレンダー同期', function(){
+          btn.disabled = false;
+          btn.textContent = '📅 全件カレンダー同期（既存案件を全て反映）';
+        });
       });
     });
 
@@ -179,9 +182,6 @@
           var delCount=0;
           existingKeys.forEach(function(oldKey){
             if(newMap[oldKey])return;
-            var oldObj=existing[oldKey];
-            var oldId='';
-            if(oldObj&&oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
             updates['app_tasks/'+oldKey]=null;
             delCount++;
           });
@@ -220,10 +220,8 @@
                 log('✅ 保存完了！','ok');
                 alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
-                // スプシ全件同期
-                fetch(GAS_URL, {method:'GET', mode:'no-cors'}).catch(function(){});
-                // 新規案件カレンダー同期
-                if(newIds.length > 0) notifyGASIds(newIds, '新規案件カレンダー同期');
+                fetch(GAS_URL,{method:'GET',mode:'no-cors'}).catch(function(){});
+                if(newIds.length>0)notifyGASIds(newIds,'新規案件カレンダー同期');
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
                 alert('エラー: '+err);
