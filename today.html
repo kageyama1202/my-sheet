@@ -56,8 +56,8 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .yotei-cell{color:#7b1fa2;font-weight:600;}
 .ai-yotei-cell{color:#ff6b00;font-weight:700;background:#fff8e1;}
 
-/* ===== 下見日が過去 ===== */
-.shitami-past{background:#ffe0e0 !important;color:#b71c1c !important;font-weight:700;}
+/* ===== 過去日付セル（下見日・下見予定日・AI予定日） ===== */
+.date-past{background:#e0e0e0 !important;color:#888 !important;font-weight:700;}
 
 /* ===== ソートボタン付きヘッダー ===== */
 th.sortable{cursor:pointer;user-select:none;padding-right:18px;position:relative;}
@@ -263,18 +263,24 @@ inner.className='cell-inner';
 if(colIdx===-1){
 var yotei=obj.date||'';
 inner.textContent=yotei;
-if(yotei)inner.classList.add('yotei-cell');
+if(yotei){
+  if(yotei<today){inner.classList.add('date-past');}
+  else{inner.classList.add('yotei-cell');}
+}
 }else if(colIdx===-2){
 var aiYotei=obj.ai_shitami_date||'';
 inner.textContent=aiYotei;
-if(aiYotei){inner.classList.add('ai-yotei-cell');}
+if(aiYotei){
+  if(aiYotei<today){inner.classList.add('date-past');}
+  else{inner.classList.add('ai-yotei-cell');}
+}
 }else{
 var cv=getSafeVal(cols,colIdx);
 var disp=cv.replace(/\n|\r/g,' '),clean=cv.replace(/\s+/g,'');
 
 /* 下見日列(colIdx===12)かつ過去ならセル色変更 */
 if(colIdx===12&&isShitamiPast&&clean!==''){
-  inner.classList.add('shitami-past');
+  inner.classList.add('date-past');
 }
 
 if(colIdx===11&&clean!==''){
