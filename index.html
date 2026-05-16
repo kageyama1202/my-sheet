@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-05-16 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -7,107 +8,375 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; margin: 0; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
-    .status { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding: 15px; border-radius: 4px; }
-    .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-    .menu-btn { display: block; text-decoration: none; padding: 20px; background-color: #007bff; color: white; border-radius: 6px; font-size: 18px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .menu-btn:hover { background-color: #0056b3; }
-    .menu-btn.disabled { background-color: #ccc; color: #888; pointer-events: none; box-shadow: none; }
-    @media (max-width: 480px) {
-      .menu-grid { grid-template-columns: 1fr; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      padding: 16px;
+      background: #f0f2f5;
+      margin: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      color: #1a237e;
+      text-align: center;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 44px;
+    }
+    .status.loading { background: #e3f2fd; color: #1565c0; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.error   { background: #ffebee; color: #c62828; }
+    .status.cal-sync { background: #f3e5f5; color: #6a1b9a; font-size: 12px; margin-top: 6px; padding: 8px 12px; }
+
+    .btn-fetch {
+      width: 100%;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: bold;
+      background: #1a237e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    .btn-fetch:hover { background: #283593; }
+    .btn-fetch:disabled { background: #9fa8da; cursor: not-allowed; }
+
+    .menu-section {
+      margin-bottom: 14px;
+    }
+    .menu-section-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      padding-left: 2px;
+    }
+    .menu-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .menu-btn {
+      display: block;
+      padding: 12px 10px;
+      background: #f5f5f5;
+      color: #333;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      text-align: center;
+      border: 1px solid #e0e0e0;
+      transition: background 0.15s;
+    }
+    .menu-btn:hover { background: #e8e8e8; }
+    .menu-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .menu-btn.blue   { background: #e3f2fd; color: #1565c0; border-color: #90caf9; }
+    .menu-btn.green  { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+    .menu-btn.orange { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+    .menu-btn.purple { background: #f3e5f5; color: #6a1b9a; border-color: #ce93d8; }
+    .menu-btn.red    { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
+    .menu-btn.teal   { background: #e0f2f1; color: #00695c; border-color: #80cbc4; }
+    .menu-btn.indigo { background: #e8eaf6; color: #283593; border-color: #9fa8da; }
+
+    .menu-btn.blue:hover   { background: #bbdefb; }
+    .menu-btn.green:hover  { background: #c8e6c9; }
+    .menu-btn.orange:hover { background: #ffe0b2; }
+    .menu-btn.purple:hover { background: #e1bee7; }
+    .menu-btn.red:hover    { background: #ffcdd2; }
+    .menu-btn.teal:hover   { background: #b2dfdb; }
+    .menu-btn.indigo:hover { background: #c5cae9; }
+
+    .menu-btn-full {
+      grid-column: 1 / -1;
+    }
+    .settings-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      align-items: center;
+    }
+    .settings-row input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .settings-row button {
+      padding: 8px 14px;
+      background: #607d8b;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .settings-row button:hover { background: #455a64; }
+    .settings-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid #eee;
+      margin: 16px 0;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🏠 案件管理システム</h1>
-    
-    <div id="statusMsg" class="status loading">
-      ⏳ クラウドから最新データを取得中...<br>
-      <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
-    </div>
-    
+<div class="container">
+  <h2>📋 案件管理システム</h2>
+
+  <div id="statusMsg" class="status loading">起動中...</div>
+  <div id="calStatusMsg" class="status cal-sync" style="display:none;"></div>
+
+  <button id="btnFetch" class="btn-fetch" onclick="doFetch()">🔄 最新データを取得</button>
+
+  <div class="menu-section">
+    <div class="menu-section-title">日程・案件</div>
     <div class="menu-grid">
-      <a href="action.html" class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション</a>
-      <a href="agenda.html" class="menu-btn disabled" style="grid-column:1/3;background-color:#1a237e;">🎯 Today's Agenda</a>
-      <a href="today.html" class="menu-btn disabled">📋 案件リスト</a>
-      <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
-      <a href="map.html" class="menu-btn disabled">🗺️ マップ</a>
-      <a href="sogo.html" class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
-      <a href="comm.html" class="menu-btn" style="background-color:#1a73e8;">📨 通信タイムライン</a>
-      <a href="mailer-test.html" class="menu-btn" style="background-color:#00796b;">✉️ メーラー</a>
-      <a href="gencho.html" class="menu-btn" style="background-color:#2e7d32;">🔖 現調・下見受付</a>
-      <a href="admin.html" class="menu-btn disabled" style="background-color:#6c757d;">👑 CSV取込（管理者）</a>
+      <a href="today.html"   class="menu-btn blue   disabled" id="btn_today">📋 下見リスト</a>
+      <a href="agenda.html"  class="menu-btn indigo disabled" id="btn_agenda">🗺️ Agenda</a>
+      <a href="sogo.html"    class="menu-btn green  disabled" id="btn_sogo">📊 AI スケジューラー</a>
+      <a href="action.html"  class="menu-btn orange disabled" id="btn_action">⚡ 案件抽出</a>
     </div>
   </div>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-      authDomain: "project-6745138395263517914.firebaseapp.com",
-      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-      projectId: "project-6745138395263517914",
-      storageBucket: "project-6745138395263517914.firebasestorage.app",
-      messagingSenderId: "1054295910908",
-      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-    };
-    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-    const database = firebase.database();
+  <div class="menu-section">
+    <div class="menu-section-title">地図・通信</div>
+    <div class="menu-grid">
+      <a href="calendar.html" class="menu-btn purple disabled" id="btn_calendar">📅 カレンダー</a>
+      <a href="map.html"      class="menu-btn teal   disabled" id="btn_map">🗺️ マップ</a>
+      <a href="comm.html"     class="menu-btn blue   disabled" id="btn_comm">📨 通信</a>
+      <a href="mailer.html"   class="menu-btn teal   disabled" id="btn_mailer">✉️ メーラー</a>
+    </div>
+  </div>
 
-    database.ref().once('value').then(function(snapshot) {
-      const dbData = snapshot.val();
-      const statusMsg = document.getElementById('statusMsg');
+  <div class="menu-section">
+    <div class="menu-section-title">その他</div>
+    <div class="menu-grid">
+      <a href="voice.html"      class="menu-btn orange disabled" id="btn_voice">🎤 音声メモ</a>
+      <a href="clipboard.html"  class="menu-btn indigo"          id="btn_clipboard">📎 クリップボード</a>
+      <a href="gencho.html"     class="menu-btn red    disabled" id="btn_gencho">🏠 現調</a>
+      <a href="recordings.html" class="menu-btn purple disabled" id="btn_recordings">🎙️ 録音</a>
+    </div>
+  </div>
 
-      if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-        statusMsg.className = 'status error';
-        statusMsg.innerHTML = "⚠️ データがありません。<br><span style='font-size:12px; font-weight:normal;'>管理画面からCSVをアップロードしてください。</span>";
-        return;
-      }
+  <hr class="divider">
 
-      var tasks = dbData.app_tasks;
-      var maxSeq = 0;
-      Object.values(tasks).forEach(function(t) {
-        if (t.seqNo && t.seqNo > maxSeq) maxSeq = t.seqNo;
-      });
-      var updates = {};
-      Object.keys(tasks).forEach(function(key) {
-        if (!tasks[key].seqNo) {
-          maxSeq++;
-          tasks[key].seqNo = maxSeq;
-          updates['app_tasks/' + key + '/seqNo'] = maxSeq;
-        }
-      });
-      if (Object.keys(updates).length > 0) {
-        database.ref().update(updates);
-        console.log("通し番号を " + Object.keys(updates).length + " 件に付与");
-      }
-
-      localStorage.setItem('appData', JSON.stringify(dbData));
-      
-      const now = new Date();
-      const timeStr = (now.getMonth()+1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + ('0'+now.getMinutes()).slice(-2);
-
-      statusMsg.className = 'status success';
-      statusMsg.innerHTML = `✅ 最新データ取得完了！<br><span style="font-size:12px; font-weight:normal;">（${timeStr}）</span>`;
-
-      document.querySelectorAll('.menu-btn').forEach(btn => {
-        btn.classList.remove('disabled');
-      });
-
-    }).catch(function(error) {
-      const statusMsg = document.getElementById('statusMsg');
-      statusMsg.className = 'status error';
-      statusMsg.innerHTML = "❌ 通信エラー<br><span style='font-size:12px; font-weight:normal;'>電波の良いところで再読み込みしてください。</span>";
-      console.error(error);
-    });
-  </script>
-  <div id="modal-overlay">
-  <div id="modal-content"></div>
+  <!-- GAS doGet URL 設定 -->
+  <div class="settings-label">📅 マイカレンダー同期URL（GAS doGet）</div>
+  <div class="settings-row">
+    <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." />
+    <button onclick="saveGasUrl()">保存</button>
+  </div>
+  <div id="gasUrlStatus" class="settings-label" style="margin-top:4px;"></div>
 </div>
+
+<script>
+// ============================================================
+// Firebase 初期化
+// ============================================================
+var firebaseConfig = {
+  apiKey:            "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain:        "project-6745138395263517914.firebaseapp.com",
+  databaseURL:       "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId:         "project-6745138395263517914",
+  storageBucket:     "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId:             "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var database = firebase.database();
+
+// ============================================================
+// ページ読み込み時の処理
+// ============================================================
+window.addEventListener('load', function() {
+  // GAS URL を入力欄に反映
+  var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
+  document.getElementById('gasUrlInput').value = savedUrl;
+  if (savedUrl) {
+    document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み';
+  }
+
+  // localStorage に既存データがあればすぐメニューを有効化
+  var cached = null;
+  try { cached = localStorage.getItem('appData'); } catch(e) {}
+  if (cached) {
+    enableMenu();
+    var statusMsg = document.getElementById('statusMsg');
+    statusMsg.className = 'status success';
+    statusMsg.innerHTML = '✅ キャッシュデータ読込済み<br><span style="font-size:11px;font-weight:normal;">（「最新データを取得」で更新できます）</span>';
+  } else {
+    var statusMsg = document.getElementById('statusMsg');
+    statusMsg.className = 'status loading';
+    statusMsg.textContent = '「最新データを取得」を押してください';
+  }
+
+  // GAS doGet でマイカレンダー同期（バックグラウンド）
+  syncMyCalendar();
+});
+
+// ============================================================
+// Firebase からデータ取得 → localStorage 保存
+// ============================================================
+function doFetch() {
+  var btn = document.getElementById('btnFetch');
+  var statusMsg = document.getElementById('statusMsg');
+
+  btn.disabled = true;
+  btn.textContent = '読込中...';
+  statusMsg.className = 'status loading';
+  statusMsg.textContent = '🔄 データ取得中...';
+
+  database.ref().once('value').then(function(snapshot) {
+    var dbData = snapshot.val() || {};
+
+    // ── 完了済み & 施工日が過去の案件を除外して QuotaExceededError 回避 ──
+    if (dbData.app_tasks) {
+      var today = getTodayStr();
+      var tasks = dbData.app_tasks;
+      var filtered = {};
+      Object.keys(tasks).forEach(function(key) {
+        var t = tasks[key];
+        var status = t.localStatus || '';
+        var sekoDate = (t.csvData && t.csvData[2]) ? t.csvData[2] : '';
+        // 完了 かつ 施工日が過去 → 除外
+        if (status === '完了' && sekoDate && sekoDate < today) return;
+        filtered[key] = t;
+      });
+      dbData.app_tasks = filtered;
+    }
+
+    try {
+      localStorage.setItem('appData', JSON.stringify(dbData));
+    } catch(e) {
+      console.warn('localStorage 保存スキップ（容量超過）', e.message);
+    }
+
+    var now = new Date();
+    var timeStr = (now.getMonth()+1) + '/' + now.getDate() + ' ' +
+                  now.getHours() + ':' + ('0'+now.getMinutes()).slice(-2);
+
+    statusMsg.className = 'status success';
+    statusMsg.innerHTML = '✅ 最新データ取得完了！<br><span style="font-size:11px;font-weight:normal;">（' + timeStr + '）</span>';
+
+    enableMenu();
+
+    btn.disabled = false;
+    btn.textContent = '🔄 最新データを取得';
+
+    // カレンダー同期もついでに実行
+    syncMyCalendar();
+
+  }).catch(function(error) {
+    statusMsg.className = 'status error';
+    statusMsg.innerHTML = '❌ 通信エラー<br><span style="font-size:11px;font-weight:normal;">電波の良いところで再読み込みしてください</span>';
+    console.error(error);
+    btn.disabled = false;
+    btn.textContent = '🔄 最新データを取得';
+  });
+}
+
+// ============================================================
+// GAS doGet 経由でマイカレンダーを Firebase に同期
+// ============================================================
+function syncMyCalendar() {
+  var gasUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
+  if (!gasUrl) return; // URL未設定なら何もしない
+
+  var calMsg = document.getElementById('calStatusMsg');
+  calMsg.style.display = 'block';
+  calMsg.textContent = '📅 マイカレンダー同期中...';
+
+  fetch(gasUrl)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.status === 'ok') {
+        calMsg.textContent = '📅 マイカレンダー同期完了（' + data.count + '件）';
+        // localStorageにも保存（被りチェック用）
+        if (data.calData) {
+          try {
+            localStorage.setItem('personalCalendar', JSON.stringify(data.calData));
+          } catch(e) {}
+        } else {
+          // Firebaseから取得してlocalStorageにキャッシュ
+          database.ref('personal_calendar').once('value').then(function(snap) {
+            try {
+              localStorage.setItem('personalCalendar', JSON.stringify(snap.val() || {}));
+            } catch(e) {}
+          });
+        }
+        setTimeout(function() { calMsg.style.display = 'none'; }, 4000);
+      } else {
+        calMsg.textContent = '⚠️ カレンダー同期エラー: ' + (data.message || 'unknown');
+      }
+    })
+    .catch(function(e) {
+      calMsg.textContent = '⚠️ カレンダー同期失敗（GAS URLを確認）';
+      console.warn('Calendar sync failed:', e);
+      setTimeout(function() { calMsg.style.display = 'none'; }, 4000);
+    });
+}
+
+// ============================================================
+// GAS URL 保存
+// ============================================================
+function saveGasUrl() {
+  var url = document.getElementById('gasUrlInput').value.trim();
+  if (!url) {
+    localStorage.removeItem('gasCalendarSyncUrl');
+    document.getElementById('gasUrlStatus').textContent = '❌ URLを削除しました';
+    return;
+  }
+  localStorage.setItem('gasCalendarSyncUrl', url);
+  document.getElementById('gasUrlStatus').textContent = '✅ 保存しました';
+  syncMyCalendar();
+}
+
+// ============================================================
+// メニューボタンを有効化
+// ============================================================
+function enableMenu() {
+  var btns = document.querySelectorAll('.menu-btn.disabled');
+  btns.forEach(function(btn) {
+    btn.classList.remove('disabled');
+  });
+}
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function getTodayStr() {
+  var d = new Date();
+  d.setTime(d.getTime() + 9 * 60 * 60 * 1000); // JST
+  return d.toISOString().slice(0, 10);
+}
+</script>
 </body>
 </html>
