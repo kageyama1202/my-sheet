@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VERSION: 2025-05-16 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -63,6 +64,8 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .date-future{background:#e3f2fd !important;color:#1565c0 !important;font-weight:700;}
 /* ===== リフォームかつ下見日未入力（区分・施工日セル警告） ===== */
 .kubun-warn{background:#ffe0e0 !important;color:#c62828 !important;font-weight:700;}
+/* ===== 下見予定日が過去なのに下見日(CSV)が未入力 ===== */
+.yotei-past-nowarn{background:#fff3cd !important;color:#7b4f00 !important;font-weight:700;}
 </style>
 </head>
 <body>
@@ -179,6 +182,9 @@ var sekouDateStr=formatToYMD(getSafeVal(cols,2));
 var isKubunWarn=(getSafeVal(cols,3).replace(/\s+/g,'')==='ﾘ'&&shitamiDateStr==='');
 /* 下見日が過去かつステータスが依頼or下見日程確定 → 報告書未作成警告 */
 var isReportMissing=(shitamiDateStr!==''&&shitamiDateStr<today2&&(statusStr==='依頼'||statusStr==='下見日程確定'));
+/* ★ 下見予定日が過去なのに下見日(CSV C12)が未入力 → 予定日未消化警告 */
+var yoteiStr=formatToYMD(obj.date||'');
+var isYoteiPastNoShitami=(yoteiStr!==''&&yoteiStr<today2&&shitamiDateStr==='');
 var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
 for(var ci2=0;ci2<displayCols.length;ci2++){
 var colIdx=displayCols[ci2];
@@ -190,7 +196,9 @@ if(colIdx===-1){
 var yotei=obj.date||'';
 inner.textContent=yotei;
 if(yotei){
-if(yotei<today2){inner.classList.add('date-past');}
+/* ★ 優先度: 予定日未消化(黄警告) > 過去(灰) */
+if(isYoteiPastNoShitami){inner.classList.add('yotei-past-nowarn');}
+else if(yotei<today2){inner.classList.add('date-past');}
 else{inner.classList.add('yotei-cell');}
 }
 }else if(colIdx===-2){
