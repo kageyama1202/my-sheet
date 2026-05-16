@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>録音管理</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background: #f0f0f5; color: #333; }
+.header { background: #1a73e8; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 17px; font-weight: 600; }
+.back-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.container { padding: 12px; max-width: 800px; margin: 0 auto; }
+.card { background: white; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); overflow: hidden; }
+.card-header { padding: 12px 14px; background: #f8f8f8; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.card-header .filename { font-size: 13px; font-weight: 600; color: #333; }
+.card-header .meta { font-size: 11px; color: #888; }
+.card-body { padding: 12px 14px; }
+.transcription-box { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #444; max-height: 200px; overflow-y: auto; }
+.transcription-box.empty { color: #aaa; font-style: italic; min-height: 40px; }
+.transcription-toggle { font-size: 12px; color: #1a73e8; cursor: pointer; margin-top: 4px; display: inline-block; }
+.btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.btn { padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.btn-blue { background: #1a73e8; color: white; }
+.btn-green { background: #34a853; color: white; }
+.btn-orange { background: #fa7b17; color: white; }
+.btn-red { background: #ea4335; color: white; }
+.btn-gray { background: #e0e0e0; color: #333; }
+.status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.badge-done { background: #e6f4ea; color: #137333; }
+.badge-pending { background: #fce8e6; color: #c5221f; }
+.badge-linked { background: #e8f0fe; color: #1558d6; }
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; }
+.modal-overlay.active { display: flex; }
+.modal { background: white; border-radius: 16px 16px 0 0; padding: 20px; width: 100%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 12px; }
+.modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+.case-item { padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: background 0.2s; }
+.case-item:hover { background: #e8f0fe; border-color: #1a73e8; }
+.case-item .case-title { font-size: 14px; font-weight: 500; }
+.case-item .case-meta { font-size: 12px; color: #888; margin-top: 2px; }
+.search-box { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+.loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+.empty-state { text-align: center; padding: 60px 20px; color: #aaa; font-size: 14px; }
+@media print {
+  .header, .btn-row, .back-btn { display: none !important; }
+  .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+  body { background: white; }
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <button class="back-btn" onclick="history.back()">← 戻る</button>
+  <h1>🎙 録音管理</h1>
+  <button id="toggleLinked" class="back-btn" onclick="toggleShowLinked()" style="margin-left:auto;font-size:12px;">紐付済を表示</button>
+</div>
+<div class="container">
+  <div id="loadingEl" class="loading">読み込み中...</div>
+  <div id="emptyEl" class="empty-state" style="display:none">録音ファイルがありません</div>
+  <div id="listEl"></div>
+</div>
+
+<!-- 案件紐付けモーダル -->
+<div id="linkModal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3>📎 案件に紐付け</h3>
+    <input type="text" class="search-box" id="caseSearch" placeholder="案件名・住所で検索..." oninput="filterCases()">
+    <div id="caseList"></div>
+  </div>
+</div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+var db = firebase.database();
+
+var recordings = [];
+var allTasks = {};
+var currentRecordingKey = null;
+var currentTranscription = null;
+var showLinked = false;
+
+// Firebase読み込み
+db.ref('app_recordings').on('value', function(snap) {
+  var data = snap.val() || {};
+  recordings = [];
+  Object.keys(data).forEach(function(k) {
+    var r = data[k]; r._key = k; recordings.push(r);
+  });
+  recordings.sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+  renderList();
+});
+
+db.ref('app_tasks').once('value', function(snap) {
+  var data = snap.val() || {};
+  Object.keys(data).forEach(function(k) {
+    var t = data[k]; if (t && t.csvData) { allTasks[k] = t; }
+  });
+});
+
+function toggleShowLinked() {
+  showLinked = !showLinked;
+  var btn = document.getElementById('toggleLinked');
+  btn.style.background = showLinked ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)';
+  btn.textContent = showLinked ? '紐付済を非表示' : '紐付済を表示';
+  renderList();
+}
+
+function renderList() {
+  var el = document.getElementById('listEl');
+  var loadEl = document.getElementById('loadingEl');
+  var emptyEl = document.getElementById('emptyEl');
+  loadEl.style.display = 'none';
+  var filtered = recordings.filter(function(r) {
+    var isLinked = r.linked_case && r.linked_case.length > 0;
+    return showLinked || !isLinked;
+  });
+  if (filtered.length === 0) { emptyEl.style.display = 'block'; el.innerHTML = ''; return; }
+  emptyEl.style.display = 'none';
+  var html = '';
+  filtered.forEach(function(r) {
+    var hasTrans = r.transcription && r.transcription.length > 0;
+    var isLinked = r.linked_case && r.linked_case.length > 0;
+    var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
+    var driveIcon = r.driveId ? ' 📂' : '';
+    var badge = isLinked ? '<span class="status-badge badge-linked">📎 紐付済</span>'
+      : hasTrans ? '<span class="status-badge badge-done">✅ 文字起こし済</span>'
+      : '<span class="status-badge badge-pending">未処理</span>';
+    var safeKey = r._key.replace(/'/g, "\\'");
+    var safeFile = escHtml(r.filename || r._key);
+    html += '<div class="card"><div class="card-header">';
+    html += '<div><div class="filename">🎵 ' + safeFile + driveIcon + '</div>';
+    html += '<div class="meta">' + date + (isLinked ? ' · 案件: ' + escHtml(r.linked_case) : '') + '</div></div>';
+    html += badge + '</div><div class="card-body">';
+    if (hasTrans) {
+      var transId = 'trans_' + safeKey;
+      html += '<div class="transcription-box" id="' + transId + '">' + escHtml(r.transcription) + '</div>';
+      html += '<span class="transcription-toggle" onclick="toggleTrans(\'' + transId + '\', this)">▼ 全文表示</span>';
+    } else {
+      html += '<div class="transcription-box empty">まだ文字起こしされていません</div>';
+    }
+    html += '<div class="btn-row">';
+    if (hasTrans && !isLinked) {
+      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + safeKey + '\')">📎 案件に紐付け</button>';
+    }
+    if (isLinked) {
+      html += '<button class="btn btn-green" onclick="openLinkModal(\'' + safeKey + '\')">🔁 紐付け変更</button>';
+    }
+    if (hasTrans) {
+      html += '<button class="btn btn-orange" onclick="printRecord(\'' + safeKey + '\')">🖨 PDF出力</button>';
+    }
+    if (r.url) {
+      html += '<button class="btn btn-gray" onclick="togglePlayer(\'' + safeKey + '\', this)">▶ 再生</button>';
+      html += '<div id="player_' + safeKey + '" style="display:none;margin-top:8px;width:100%;"><audio controls style="width:100%;" src="' + escHtml(r.url) + '"></audio></div>';
+    }
+    html += '<button class="btn btn-red" onclick="deleteRecord(\'' + safeKey + '\',\'' + safeFile + '\')">🗑 削除</button>';
+    html += '</div></div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function togglePlayer(key, btn) {
+  var el = document.getElementById('player_' + key);
+  if (!el) return;
+  if (el.style.display === 'none') { el.style.display = 'block'; btn.textContent = '■ 閉じる'; }
+  else { el.style.display = 'none'; var audio = el.querySelector('audio'); if (audio) audio.pause(); btn.textContent = '▶ 再生'; }
+}
+
+function toggleTrans(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.style.maxHeight === 'none') { el.style.maxHeight = '200px'; btn.textContent = '▼ 全文表示'; }
+  else { el.style.maxHeight = 'none'; btn.textContent = '▲ 折りたたむ'; }
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function openLinkModal(key) {
+  currentRecordingKey = key;
+  var r = recordings.find(function(x) { return x._key === key; });
+  currentTranscription = r ? r.transcription : '';
+  document.getElementById('caseSearch').value = '';
+  renderCaseList('');
+  document.getElementById('linkModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('linkModal').classList.remove('active');
+  currentRecordingKey = null; currentTranscription = null;
+}
+
+function filterCases() { renderCaseList(document.getElementById('caseSearch').value); }
+
+function renderCaseList(query) {
+  var keys = Object.keys(allTasks);
+  var q = (query || '').toLowerCase();
+  var filtered = keys.filter(function(k) {
+    var t = allTasks[k]; var csv = t.csvData || [];
+    return (csv[4]||'').toLowerCase().indexOf(q) >= 0 || (csv[11]||'').toLowerCase().indexOf(q) >= 0 || (csv[5]||'').toLowerCase().indexOf(q) >= 0;
+  });
+  var html = '';
+  filtered.slice(0, 20).forEach(function(k) {
+    var t = allTasks[k]; var csv = t.csvData || [];
+    html += '<div class="case-item" onclick="linkToCase(\'' + k + '\')">';
+    html += '<div class="case-title">' + escHtml(csv[4] || k) + '</div>';
+    html += '<div class="case-meta">' + escHtml(csv[2] || '') + ' · ' + escHtml(csv[11] || '') + '</div></div>';
+  });
+  if (filtered.length === 0) html = '<div style="text-align:center;color:#aaa;padding:20px;font-size:13px">該当案件なし</div>';
+  document.getElementById('caseList').innerHTML = html;
+}
+
+function linkToCase(caseKey) {
+  if (!currentRecordingKey) return;
+  var t = allTasks[caseKey];
+  var csv = t ? (t.csvData || []) : [];
+  var title = csv[4] || caseKey;
+  db.ref('app_recordings/' + currentRecordingKey + '/linked_case').set(caseKey);
+  if (currentTranscription) {
+    var memoRef = db.ref('app_tasks/' + caseKey + '/memo');
+    memoRef.once('value', function(snap) {
+      var existing = snap.val() || '';
+      var ts = new Date().toLocaleString('ja-JP');
+      var newMemo = existing + (existing ? '\n\n' : '') + '【音声メモ ' + ts + '】\n' + currentTranscription;
+      memoRef.set(newMemo);
+    });
+  }
+  alert('「' + title + '」に紐付けました');
+  closeModal();
+}
+
+function deleteRecord(key, filename) {
+  if (!confirm('「' + filename + '」を削除しますか？')) return;
+  db.ref('app_recordings/' + key).remove();
+}
+
+function printRecord(key) {
+  var r = recordings.find(function(x) { return x._key === key; });
+  if (!r) return;
+  var win = window.open('', '_blank');
+  var date = r.timestamp ? new Date(r.timestamp).toLocaleString('ja-JP') : '';
+  win.document.write('<html><head><meta charset="UTF-8"><title>録音メモ</title>');
+  win.document.write('<style>body{font-family:-apple-system,sans-serif;padding:20px;max-width:700px;margin:0 auto}h2{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px}pre{white-space:pre-wrap;font-size:13px;line-height:1.7;background:#f9f9f9;padding:16px;border-radius:8px;border:1px solid #ddd}.meta{color:#888;font-size:13px;margin-bottom:16px}</style>');
+  win.document.write('</head><body><h2>🎙 録音メモ</h2>');
+  win.document.write('<div class="meta">ファイル: ' + escHtml(r.filename || r._key) + '<br>日時: ' + date + (r.linked_case ? '<br>案件: ' + escHtml(r.linked_case) : '') + '</div>');
+  win.document.write('<pre>' + escHtml(r.transcription || '（文字起こしなし）') + '</pre>');
+  win.document.write('</body></html>');
+  win.document.close();
+  setTimeout(function() { win.print(); }, 500);
+}
+</script>
+</body>
+</html>
