@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-16 -->
+<!-- VERSION: 2026-05-17 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -42,7 +42,6 @@
     .ev-sekou{background:#c8e6c9;color:#1b5e20;border-left:2px solid #2e7d32;}
     .ev-shitami{background:#bbdefb;color:#0d47a1;border-left:2px solid #1565c0;}
     .ev-yotei{background:#fff3e0;color:#e65100;border-left:2px solid #ef6c00;}
-    /* ★追加: マイカレンダー（紫） */
     .ev-personal{background:#f3e5f5;color:#4a148c;border-left:2px solid #7b1fa2;}
     .cal-more{font-size:9px;color:#1a73e8;font-weight:bold;padding:0 3px;cursor:pointer;}
 
@@ -104,7 +103,6 @@
     <label><input type="checkbox" id="chkSekou" checked><span class="legend-dot" style="background:#2e7d32;"></span> 施工</label>
     <label><input type="checkbox" id="chkShitami" checked><span class="legend-dot" style="background:#1565c0;"></span> 下見</label>
     <label><input type="checkbox" id="chkYotei" checked><span class="legend-dot" style="background:#ef6c00;"></span> 下見予定</label>
-    <!-- ★追加 -->
     <label><input type="checkbox" id="chkPersonal" checked><span class="legend-dot" style="background:#7b1fa2;"></span> マイカレンダー</label>
   </div>
 
@@ -123,10 +121,30 @@
     function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
     function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 
+    // ★時間文字列を整形する関数（HH:MMまたは空文字を返す）
+    function formatTime(t){
+      if(!t)return"";
+      var s=String(t).trim();
+      // HH:MM形式ならそのまま
+      if(/^\d{1,2}:\d{2}$/.test(s))return s;
+      return s;
+    }
+
+    // ★個人予定から時間文字列を取得（ISO形式 "2026-05-17T09:30:00" → "09:30"）
+    function getPersonalTime(ev){
+      if(ev.allDay)return"終日";
+      var start="",end="";
+      if(ev.start&&ev.start.length>=16)start=ev.start.substring(11,16);
+      if(ev.end&&ev.end.length>=16)end=ev.end.substring(11,16);
+      if(start&&end)return start+" 〜 "+end;
+      if(start)return start;
+      return"";
+    }
+
     var chkSekou=document.getElementById('chkSekou');
     var chkShitami=document.getElementById('chkShitami');
     var chkYotei=document.getElementById('chkYotei');
-    var chkPersonal=document.getElementById('chkPersonal'); // ★追加
+    var chkPersonal=document.getElementById('chkPersonal');
     var modalOverlay=document.getElementById('modal-overlay');
     var dayListOverlay=document.getElementById('dayListOverlay');
 
@@ -143,7 +161,6 @@
 
     var todayStr=getTodayStr();
 
-    // ★追加: personal_calendar をlocalStorageから読み込み、Firebaseから最新取得
     var personalCalCache={};
     try{var _pc=localStorage.getItem('personalCalendar');if(_pc)personalCalCache=JSON.parse(_pc);}catch(e){}
     database.ref('personal_calendar').once('value').then(function(snap){
@@ -156,7 +173,7 @@
 
     function buildDateMap(){
       var dm={};
-      var showS=chkSekou.checked, showD=chkShitami.checked, showY=chkYotei.checked, showP=chkPersonal.checked; // ★showP追加
+      var showS=chkSekou.checked, showD=chkShitami.checked, showY=chkYotei.checked, showP=chkPersonal.checked;
 
       Object.keys(globalTasks).forEach(function(key){
         var obj=globalTasks[key];
@@ -170,33 +187,68 @@
         var shortMatch=name.match(/【(.+?)】/);
         var shortName=shortMatch?shortMatch[0]:name.substring(0,12);
 
+        // ★C16（csvData[13]）が時間列 → 施工時間として使用
+        // ※列マッピング: C0=0,C1=1...C16=index13(0-based csvData配列)
+        // csvData は C1から始まる場合も考慮し、getSafeVal(cols,13) を使用
+        // 既存の obj.time は下見予定時間
+        var sekouTime=formatTime(getSafeVal(cols,13)); // C16=施工時間
+
         if(showS&&sekouDate){
           if(!dm[sekouDate])dm[sekouDate]=[];
-          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:'施工 '+shortName});
+          // ★ラベルに時間を付加
+          var sekouLabel='施工 '+(sekouTime?sekouTime+' ':'')+shortName;
+          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:sekouLabel,timeStr:sekouTime});
         }
+
         var shitamiDate=formatToYMD(getSafeVal(cols,12));
+        // ★下見日(C15)の時間はcsvData[14]相当だが、既存ソースにはC16が時間として定義
+        // C16(csvData[13])をshitamiにも流用（施工日と同日の場合は区別できないが、列定義に従う）
+        // ※下見専用の時間列がある場合はここを変更
         if(showD&&shitamiDate){
           if(!dm[shitamiDate])dm[shitamiDate]=[];
-          dm[shitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:'下見 '+shortName});
+          var shitamiLabel='下見 '+shortName;
+          dm[shitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:shitamiLabel,timeStr:''});
         }
+
+        // ★下見予定(yotei): obj.time はFirebaseに保存された予定時間
         var yoteiDate=obj.date||"";
+        var yoteiTime=formatTime(obj.time||"");
         if(showY&&yoteiDate){
           if(!dm[yoteiDate])dm[yoteiDate]=[];
-          dm[yoteiDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:'予定 '+shortName});
+          // ★ラベルに時間を付加
+          var yoteiLabel='予定 '+(yoteiTime?yoteiTime+' ':'')+shortName;
+          dm[yoteiDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:yoteiLabel,timeStr:yoteiTime});
         }
       });
 
-      // ★追加: マイカレンダー
+      // ★マイカレンダー（personal）: 時間をlabelに反映
       if(showP){
         Object.keys(personalCalCache).forEach(function(dateKey){
           var evs=personalCalCache[dateKey];if(!evs)return;
           Object.keys(evs).forEach(function(evId){
             var ev=evs[evId];if(!ev||!ev.title)return;
+            var pTime=getPersonalTime(ev);
+            // ★ラベルに時間を付加
+            var pLabel='📅 '+(pTime&&pTime!=='終日'?pTime+' ':'')+ev.title;
             if(!dm[dateKey])dm[dateKey]=[];
-            dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:'📅 '+ev.title});
+            dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:pLabel,timeStr:pTime});
           });
         });
       }
+
+      // ★各日付のイベントを時間順にソート（時間なしは後ろ）
+      Object.keys(dm).forEach(function(dateKey){
+        dm[dateKey].sort(function(a,b){
+          var ta=a.timeStr&&a.timeStr!=='終日'?a.timeStr:'99:99';
+          var tb=b.timeStr&&b.timeStr!=='終日'?b.timeStr:'99:99';
+          // 終日は先頭に
+          if(a.timeStr==='終日')ta='00:00';
+          if(b.timeStr==='終日')tb='00:00';
+          if(ta<tb)return -1;
+          if(ta>tb)return 1;
+          return 0;
+        });
+      });
 
       return dm;
     }
@@ -213,7 +265,7 @@
     chkSekou.addEventListener('change',renderCal);
     chkShitami.addEventListener('change',renderCal);
     chkYotei.addEventListener('change',renderCal);
-    chkPersonal.addEventListener('change',renderCal); // ★追加
+    chkPersonal.addEventListener('change',renderCal);
 
     document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
     modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
@@ -283,7 +335,7 @@
         evDiv.textContent=ev.label;
         evDiv.addEventListener('click',function(e){
           e.stopPropagation();
-          if(ev.type==='personal'){openPersonalModal(ev.obj);} // ★追加
+          if(ev.type==='personal'){openPersonalModal(ev.obj);}
           else{openModal(ev.key,ev.obj,ev.cols);}
         });
         cell.appendChild(evDiv);
@@ -307,15 +359,16 @@
     function openDayList(dateStr,events){
       var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
       events.forEach(function(ev){
-        // ★personalタイプ対応
         var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':'ev-yotei';
         var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':'予定';
         var name=ev.type==='personal'?(ev.obj.title||''):getSafeVal(ev.cols,4).trim()||"名称未設定";
-        var sub=ev.type==='personal'?(ev.obj.allDay?'終日':(ev.obj.start?ev.obj.start.substring(11,16):'')):getSafeVal(ev.cols,5).trim();
+        // ★時間表示: timeStr を優先使用（personalはgetPersonalTime済み）
+        var timeDisplay=ev.timeStr||'';
         html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'">'+
           '<span class="ev-tag '+tagClass+'">'+tagText+'</span>'+
+          (timeDisplay?'<span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:50px;">'+timeDisplay+'</span>':'<span style="min-width:50px;"></span>')+
           '<span style="font-weight:bold;font-size:13px;">'+name+'</span>'+
-          '<span style="color:#666;font-size:11px;">'+sub+'</span></div>';
+          '</div>';
       });
       document.getElementById('dayListBody').innerHTML=html;
       dayListOverlay.style.display='block';
@@ -323,7 +376,6 @@
       document.querySelectorAll('.day-list-item').forEach(function(item){
         item.addEventListener('click',function(){
           dayListOverlay.style.display='none';
-          // ★personalの場合は個人予定モーダル
           if(item.dataset.type==='personal'){
             var evObj=null;
             for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}
@@ -337,9 +389,8 @@
       });
     }
 
-    // ★追加: 個人予定モーダル
     function openPersonalModal(ev){
-      var timeStr=ev.allDay?'終日':((ev.start?ev.start.substring(11,16):'')+(ev.end?' 〜 '+ev.end.substring(11,16):''));
+      var timeStr=getPersonalTime(ev);
       var html='<div class="modal-header-info">'+
         '<div class="modal-title-row" style="color:#4a148c">📅 '+(ev.title||'')+'</div></div>'+
         '<table class="modal-table">'+
@@ -356,10 +407,11 @@
       var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
       var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
       var yoteiStr=obj.date||"未定";
+      var yoteiTime=formatTime(obj.time||"");
       var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
 
       var html='<div class="modal-header-info">'+
-        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+'</div>'+
+        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+(yoteiTime?' '+yoteiTime:'')+'</div>'+
         '<div class="modal-title-row">🏷️ '+ankenText+
         ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
         '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
@@ -407,7 +459,7 @@
         localStorage.setItem('appData',JSON.stringify(fullData));
         var msg=document.getElementById('modal-save-msg');
         msg.style.display='inline';
-        setTimeout(function(){msg.style.display='none';},2000);
+        setTimeout(function(){msg.style.display='none';renderCal();},2000);
       });
     }
   </script>
