@@ -1,1280 +1,415 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-05-16 -->
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Today's Agenda</title>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<link rel="stylesheet" href="shared-modal.css">
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; background: #f0f2f5; color: #333; }
+  <meta charset="UTF-8">
+  <title>案件カレンダー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
+    .header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .header-bar h3{margin:0;font-size:15px;color:#1a73e8;}
+    .top-link{text-decoration:none;font-weight:bold;color:#007bff;font-size:14px;}
+    .nav-area{display:flex;align-items:center;gap:8px;margin-left:auto;}
+    .nav-btn{font-size:14px;padding:4px 12px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#fff;font-weight:bold;}
+    .nav-btn:hover{background:#f0f0f0;}
+    .month-label{font-size:18px;font-weight:bold;color:#333;min-width:140px;text-align:center;}
+    .today-btn{font-size:12px;padding:3px 10px;cursor:pointer;border:1px solid #1a73e8;border-radius:4px;background:#1a73e8;color:#fff;font-weight:bold;}
 
-.topbar {
-  background: #1a237e; color: #fff;
-  padding: 10px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
-}
-.topbar-left { display: flex; align-items: center; gap: 12px; }
-.topbar a { color: #fff; text-decoration: none; font-size: 18px; }
-.topbar-title { font-size: 15px; font-weight: bold; }
-.topbar-date { font-size: 12px; opacity: 0.8; }
+    .filter-bar{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;gap:15px;align-items:center;flex-wrap:wrap;font-size:12px;}
+    .filter-bar label{cursor:pointer;display:flex;align-items:center;gap:3px;font-weight:bold;}
+    .filter-bar input[type="checkbox"]{cursor:pointer;margin:0;width:14px;height:14px;}
+    .legend-dot{width:12px;height:12px;border-radius:3px;display:inline-block;}
 
-.tab-nav { display: flex; background: #283593; border-bottom: 3px solid #1a237e; }
-.tab-btn {
-  padding: 10px 20px; color: rgba(255,255,255,0.7);
-  background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: bold;
-  border-bottom: 3px solid transparent; margin-bottom: -3px;
-}
-.tab-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
-.tab-btn.active { color: #fff; border-bottom: 3px solid #ffeb3b; }
+    .cal-wrapper{padding:6px;height:calc(100vh - 90px);display:flex;flex-direction:column;}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;gap:1px;background:#ccc;border:1px solid #ccc;}
+    .cal-header{background:#e8eaed;text-align:center;font-weight:bold;padding:3px;font-size:12px;color:#555;}
+    .cal-header.sun{color:#d32f2f;}
+    .cal-header.sat{color:#1a73e8;}
+    .cal-cell{background:#fff;padding:2px;display:flex;flex-direction:column;min-height:75px;overflow:hidden;cursor:pointer;}
+    .cal-cell:hover{background:#f8f9ff;}
+    .cal-cell.other-month{background:#fafafa;}
+    .cal-cell.other-month .day-num{color:#bbb;}
+    .cal-cell.today{background:#e8f0fe;}
+    .day-num{font-size:11px;font-weight:bold;color:#333;padding:1px 3px;text-align:right;}
+    .day-num.sun{color:#d32f2f;}
+    .day-num.sat{color:#1a73e8;}
+    .cal-event{font-size:9px;padding:1px 3px;margin:0 1px 1px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.3;}
+    .cal-event:hover{opacity:0.85;}
+    .ev-sekou{background:#c8e6c9;color:#1b5e20;border-left:2px solid #2e7d32;}
+    .ev-shitami{background:#bbdefb;color:#0d47a1;border-left:2px solid #1565c0;}
+    .ev-yotei{background:#fff3e0;color:#e65100;border-left:2px solid #ef6c00;}
+    /* ★追加: マイカレンダー（紫） */
+    .ev-personal{background:#f3e5f5;color:#4a148c;border-left:2px solid #7b1fa2;}
+    .cal-more{font-size:9px;color:#1a73e8;font-weight:bold;padding:0 3px;cursor:pointer;}
 
-.tab-content { display: none; }
-.tab-content.active { display: block; }
+    #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
+    #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
+    #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
+    .modal-header-info{margin-bottom:12px;}
+    .modal-date-row{font-size:13px;color:#555;font-weight:bold;background:#e9ecef;padding:6px 10px;border-radius:6px;display:inline-block;}
+    .modal-title-row{font-size:17px;font-weight:bold;color:#333;margin-top:8px;display:flex;align-items:center;gap:10px;}
+    .modal-copy-btn{font-size:11px;padding:4px 10px;cursor:pointer;border-radius:4px;border:none;background:#007bff;color:#fff;font-weight:bold;}
+    .modal-copy-btn.copied{background:#28a745;}
+    .modal-table{width:100%;border-collapse:collapse;margin-top:12px;}
+    .modal-table th,.modal-table td{border:1px solid #ddd;padding:7px 9px;font-size:13px;text-align:left;}
+    .modal-table th{background:#f8f9fa;width:28%;color:#495057;}
+    .modal-input-section{margin-top:18px;}
+    .modal-input-section h4{color:#155724;border-bottom:2px solid #28a745;padding-bottom:4px;font-size:14px;}
+    .modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+    .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
+    .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
 
-/* LIST TAB */
-.list-controls {
-  padding: 10px 16px; background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-}
-.list-controls input, .list-controls select {
-  border: 1px solid #ccc; border-radius: 4px;
-  padding: 5px 8px; font-size: 12px;
-}
-.list-controls input { width: 160px; }
-.badge {
-  display: inline-block; background: #e53935; color: #fff;
-  border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 4px;
-}
-
-table { width: 100%; border-collapse: collapse; }
-thead th {
-  background: #e8eaf6; padding: 7px 8px;
-  text-align: left; font-size: 12px; font-weight: bold;
-  border-bottom: 2px solid #9fa8da; white-space: nowrap;
-}
-tbody tr { border-bottom: 1px solid #e8e8e8; cursor: pointer; }
-tbody tr:hover { background: #f5f5f5; }
-tbody td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
-
-.cell-orange { color: #e65100; font-weight: bold; }
-.cell-blue { color: #1565c0; }
-
-.tag {
-  display: inline-block; border-radius: 3px;
-  padding: 1px 5px; font-size: 10px; font-weight: bold; margin-right: 2px;
-}
-.tag-reform { background: #fff3e0; color: #e65100; }
-.tag-new    { background: #e3f2fd; color: #1565c0; }
-.tag-sk     { background: #f3e5f5; color: #6a1b9a; }
-.tag-sb     { background: #e0f2f1; color: #00695c; }
-.tag-su     { background: #fce4ec; color: #880e4f; }
-
-.alert-tag {
-  display: inline-block; border-radius: 3px;
-  padding: 1px 5px; font-size: 10px; font-weight: bold; margin: 1px 0;
-}
-.alert-red    { background: #ffebee; color: #c62828; }
-.alert-orange { background: #fff8e1; color: #e65100; }
-.alert-blue   { background: #e3f2fd; color: #1565c0; }
-
-.tbl-wrap { overflow-x: auto; }
-.loading-msg { text-align: center; padding: 40px; color: #888; }
-
-/* AGENDA TAB */
-.agenda-container { max-width: 680px; margin: 20px auto; padding: 0 16px 40px; }
-.agenda-header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
-}
-.agenda-header h2 { font-size: 16px; color: #1a237e; }
-.btn-refresh {
-  background: #3949ab; color: #fff; border: none;
-  border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
-}
-.btn-refresh:hover { background: #283593; }
-.btn-refresh:disabled { background: #9fa8da; cursor: not-allowed; }
-
-.date-selector {
-  display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
-}
-.date-sel-btn {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 2px solid #9fa8da;
-  background: #fff;
-  color: #3949ab;
-  font-size: 13px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.date-sel-btn:hover { background: #e8eaf6; }
-.date-sel-btn.active {
-  background: #3949ab;
-  color: #fff;
-  border-color: #3949ab;
-}
-
-.agenda-status { text-align: center; padding: 40px; color: #888; font-size: 13px; }
-
-.agenda-card {
-  background: #fff; border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 14px; overflow: hidden;
-}
-.agenda-card-header {
-  padding: 10px 16px; font-weight: bold; font-size: 13px;
-  display: flex; align-items: center; gap: 8px;
-}
-.agenda-card-body { padding: 12px 16px; font-size: 13px; line-height: 1.7; color: #444; }
-.card-focus .agenda-card-header { background: #e8eaf6; color: #1a237e; }
-.card-tasks .agenda-card-header { background: #e8f5e9; color: #2e7d32; }
-.card-notes .agenda-card-header { background: #fff8e1; color: #e65100; }
-.card-visits .agenda-card-header { background: #e3f2fd; color: #1565c0; }
-
-.task-list { list-style: none; padding: 0; }
-.task-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
-.task-list li:last-child { border-bottom: none; }
-
-.visit-list { list-style: none; padding: 0; }
-.visit-item {
-  padding: 7px 0; border-bottom: 1px solid #f0f0f0;
-  display: flex; gap: 8px; align-items: flex-start; font-size: 12px;
-}
-.visit-item:last-child { border-bottom: none; }
-.visit-num {
-  background: #1565c0; color: #fff;
-  border-radius: 50%; width: 20px; height: 20px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: bold; flex-shrink: 0; margin-top: 1px;
-}
-.visit-num.no-order { background: #9fa8da; }
-.visit-info { flex: 1; line-height: 1.6; }
-.visit-title { font-weight: bold; color: #1a237e; }
-.visit-time { color: #e65100; font-weight: bold; }
-.visit-addr { color: #666; font-size: 11px; }
-
-.agenda-footer { text-align: right; font-size: 11px; color: #aaa; margin-top: 8px; }
-
-.agenda-day-info {
-  background: #fff; border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  padding: 12px 16px; margin-bottom: 14px;
-  display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; align-items: center;
-}
-.day-chip {
-  background: #e8eaf6; color: #1a237e;
-  border-radius: 20px; padding: 3px 12px; font-weight: bold;
-}
-.day-chip.weekend { background: #fff3e0; color: #e65100; }
-.day-chip.holiday { background: #ffebee; color: #c62828; }
-
-.error-card {
-  background: #fff; border-radius: 10px;
-  border: 1px solid #ffcdd2; padding: 16px; color: #c62828; font-size: 13px;
-}
-
-.spinner {
-  display: inline-block; width: 14px; height: 14px;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* CHAT TAB */
-#tab-chat {
-  display: none;
-  flex-direction: column;
-  height: calc(100vh - 90px);
-}
-#tab-chat.active {
-  display: flex;
-}
-
-.chat-quick-btns {
-  padding: 8px 12px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.quick-btn {
-  background: #e8eaf6;
-  color: #1a237e;
-  border: 1px solid #9fa8da;
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.quick-btn:hover { background: #c5cae9; }
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chat-msg {
-  display: flex;
-  gap: 8px;
-  max-width: 100%;
-}
-.chat-msg.user { flex-direction: row-reverse; }
-
-.chat-bubble {
-  padding: 9px 13px;
-  border-radius: 14px;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.chat-msg.ai .chat-bubble {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  color: #333;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.chat-msg.user .chat-bubble {
-  max-width: 80%;
-  background: #3949ab;
-  color: #fff;
-  border-radius: 14px 14px 4px 14px;
-}
-
-.chat-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.chat-msg.ai .chat-avatar { background: #e8eaf6; }
-.chat-msg.user .chat-avatar { background: #3949ab; color: #fff; }
-
-.chat-typing {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  padding: 10px 14px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  width: fit-content;
-}
-.typing-dot {
-  width: 6px; height: 6px;
-  background: #9fa8da;
-  border-radius: 50%;
-  animation: typingBounce 1.2s infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes typingBounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-  30% { transform: translateY(-5px); opacity: 1; }
-}
-
-.chat-input-area {
-  padding: 10px 12px;
-  background: #fff;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-.chat-input-area textarea {
-  flex: 1;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  max-height: 100px;
-  min-height: 36px;
-  line-height: 1.5;
-}
-.chat-input-area textarea:focus { border-color: #3949ab; }
-.btn-send {
-  background: #3949ab;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  flex-shrink: 0;
-  height: 36px;
-}
-.btn-send:hover { background: #283593; }
-.btn-send:disabled { background: #9fa8da; cursor: not-allowed; }
-
-.btn-chat-clear {
-  background: none;
-  border: none;
-  color: #aaa;
-  font-size: 11px;
-  cursor: pointer;
-  padding: 4px 8px;
-  align-self: center;
-}
-.btn-chat-clear:hover { color: #e53935; }
-</style>
+    .day-list-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:8888;}
+    .day-list-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:16px;border-radius:8px;width:85%;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,0.25);}
+    .day-list-panel h3{margin:0 0 10px 0;font-size:16px;color:#333;}
+    .day-list-item{padding:8px 10px;border-bottom:1px solid #eee;cursor:pointer;display:flex;align-items:center;gap:8px;border-radius:4px;}
+    .day-list-item:hover{background:#e8f4ff;}
+    .day-list-item .ev-tag{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:bold;white-space:nowrap;}
+    .day-list-close{float:right;font-size:13px;padding:4px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
+    #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;text-align:center;}
+  </style>
 </head>
 <body>
-
-<div class="topbar">
-  <div class="topbar-left">
-    <a href="index.html">◀</a>
-    <div class="topbar-title">🎯 Today's Agenda</div>
-  </div>
-  <div class="topbar-date" id="topbarDate"></div>
-</div>
-
-<div class="tab-nav">
-  <button class="tab-btn active" id="tabBtnList" onclick="switchTab('list',this)">📋 List <span class="badge" id="listCount">0</span></button>
-  <button class="tab-btn" id="tabBtnAgenda" onclick="switchTab('agenda',this)">🎯 Agenda</button>
-  <button class="tab-btn" id="tabBtnChat" onclick="switchTab('chat',this)">💬 チャット</button>
-</div>
-
-<!-- LIST TAB -->
-<div id="tab-list" class="tab-content active">
-  <div class="list-controls">
-    <input type="text" id="filterInput" placeholder="🔍 名前・住所で検索..." oninput="applyFilter()">
-    <select id="filterType" onchange="applyFilter()">
-      <option value="">全区分</option>
-      <option value="ﾘ">ﾘ（リフォーム）</option>
-      <option value="新">新（新築）</option>
-    </select>
-    <select id="filterAlert" onchange="applyFilter()">
-      <option value="">全アラート</option>
-      <option value="alert">アラートあり</option>
-    </select>
-  </div>
-  <div class="tbl-wrap">
-    <div id="listStatus" class="loading-msg">🔄 データ読み込み中...</div>
-    <table id="caseTable" style="display:none">
-      <thead>
-        <tr>
-          <th>区分</th>
-          <th>タイトル</th>
-          <th>施工日</th>
-          <th>下見日 / <span style="color:#e65100">AI下見</span></th>
-          <th>担当</th>
-          <th>住所</th>
-          <th>アラート</th>
-        </tr>
-      </thead>
-      <tbody id="caseBody"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- AGENDA TAB -->
-<div id="tab-agenda" class="tab-content">
-  <div class="agenda-container">
-    <div class="agenda-header">
-      <h2>🎯 K のアジェンダ</h2>
-      <button class="btn-refresh" id="refreshBtn" onclick="generateAgenda()">🔄 更新</button>
-    </div>
-    <div class="date-selector" id="dateSelectorArea"></div>
-    <div id="agendaContent">
-      <div class="agenda-status">日付を選んで「更新」を押すと AI がアジェンダを生成します。</div>
+  <div id="modal-overlay">
+    <div id="modal-content">
+      <button id="modal-close">✖ 閉じる</button>
+      <div id="modal-body"></div>
     </div>
   </div>
-</div>
 
-<!-- CHAT TAB -->
-<div id="tab-chat" class="tab-content">
-  <div class="chat-quick-btns">
-    <button class="quick-btn" onclick="sendQuick('今日の下見順を教えて')">📍 今日の下見順</button>
-    <button class="quick-btn" onclick="sendQuick('明日の下見順を教えて')">📍 明日の下見順</button>
-    <button class="quick-btn" onclick="sendQuick('下見未定のアラートケースを整理して')">⚠️ アラート整理</button>
-    <button class="quick-btn" onclick="sendQuick('今週の施工件数と状況をまとめて')">📊 今週サマリー</button>
-    <button class="quick-btn" onclick="sendQuick('下見日程の候補を提案して')">📅 日程提案</button>
-    <button class="btn-chat-clear" onclick="clearChat()">🗑 クリア</button>
-  </div>
-  <div class="chat-messages" id="chatMessages">
-    <div class="chat-msg ai">
-      <div class="chat-avatar">🤖</div>
-      <div class="chat-bubble">こんにちは。Firebaseのデータを元にお手伝いします。<br>下見順の確認・アラート整理・日程提案など、何でも聞いてください。</div>
+  <div class="day-list-overlay" id="dayListOverlay">
+    <div class="day-list-panel">
+      <button class="day-list-close" id="dayListClose">✖</button>
+      <div id="dayListBody"></div>
     </div>
   </div>
-  <div class="chat-input-area">
-    <textarea id="chatInput" placeholder="メッセージを入力... (Shift+Enterで改行)" rows="1"
-      oninput="autoResizeTextarea(this)"
-      onkeydown="handleChatKeydown(event)"
-      oncompositionstart="onIMEStart()"
-      oncompositionend="onIMEEnd()"></textarea>
-    <button class="btn-send" id="sendBtn" onclick="sendChat()">送信</button>
+
+  <div class="header-bar">
+    <a href="index.html" class="top-link">◀ トップ</a>
+    <a href="today.html" class="top-link">📋 リスト</a>
+    <h3>📅 案件カレンダー</h3>
+    <div class="nav-area">
+      <button class="today-btn" id="btnToday">今日</button>
+      <button class="nav-btn" id="btnPrev">◀</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" id="btnNext">▶</button>
+    </div>
   </div>
-</div>
 
-<div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
-<script src="shared-modal.js"></script>
+  <div class="filter-bar">
+    <label><input type="checkbox" id="chkSekou" checked><span class="legend-dot" style="background:#2e7d32;"></span> 施工</label>
+    <label><input type="checkbox" id="chkShitami" checked><span class="legend-dot" style="background:#1565c0;"></span> 下見</label>
+    <label><input type="checkbox" id="chkYotei" checked><span class="legend-dot" style="background:#ef6c00;"></span> 下見予定</label>
+    <!-- ★追加 -->
+    <label><input type="checkbox" id="chkPersonal" checked><span class="legend-dot" style="background:#7b1fa2;"></span> マイカレンダー</label>
+  </div>
 
-<script>
-// ==================== FIREBASE ====================
-var firebaseConfig = {
-  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-  authDomain: "project-6745138395263517914.firebaseapp.com",
-  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-  projectId: "project-6745138395263517914",
-  storageBucket: "project-6745138395263517914.firebasestorage.app",
-  messagingSenderId: "1054295910908",
-  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-};
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-var database = firebase.database();
+  <div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
+  <div class="cal-wrapper" id="calWrapper">
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
 
-// ==================== GLOBALS ====================
-var allCases = [];
-var allCasesAll = [];
-var filteredCases = [];
-var chatHistory = [];
-var globalHeaders = [];
-var globalTasks = {};
-var fullData = null;
-var selectedAgendaDate = '';
-var isComposing = false;
+  <script>
+    var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+    var database=firebase.database();
 
-function onIMEStart() { isComposing = true; }
-function onIMEEnd()   { isComposing = false; }
+    function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+    function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+    function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
+    function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 
-var DEFAULT_HOME = '札幌市白石区栄通18丁目4-17';
-function getHomeAddress() {
-  return localStorage.getItem('homeAddress') || DEFAULT_HOME;
-}
+    var chkSekou=document.getElementById('chkSekou');
+    var chkShitami=document.getElementById('chkShitami');
+    var chkYotei=document.getElementById('chkYotei');
+    var chkPersonal=document.getElementById('chkPersonal'); // ★追加
+    var modalOverlay=document.getElementById('modal-overlay');
+    var dayListOverlay=document.getElementById('dayListOverlay');
 
-var HOLIDAYS = [
-  '2025-01-01','2025-01-13','2025-02-11','2025-02-24',
-  '2025-03-21','2025-04-29','2025-05-03','2025-05-04','2025-05-05',
-  '2025-07-21','2025-08-11','2025-09-15','2025-09-23',
-  '2025-10-13','2025-11-03','2025-11-23',
-  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
-  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05',
-  '2026-07-20','2026-08-11','2026-09-21','2026-09-23',
-  '2026-10-12','2026-11-03','2026-11-23'
-];
+    var globalHeaders=[],globalTasks={},fullData=null;
+    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 
-var LONG_BREAKS = [
-  { start: '2025-08-13', end: '2025-08-16' },
-  { start: '2025-12-29', end: '2026-01-04' },
-  { start: '2026-04-29', end: '2026-05-06' },
-  { start: '2026-08-13', end: '2026-08-16' }
-];
-
-// ==================== DATE HELPERS ====================
-function todayJST() {
-  var d = new Date();
-  var jst = new Date(d.getTime() + 9 * 3600000);
-  return jst.toISOString().slice(0, 10);
-}
-
-function addDays(dateStr, n) {
-  var d = new Date(dateStr + 'T00:00:00+09:00');
-  d.setDate(d.getDate() + n);
-  var jst = new Date(d.getTime() + 9 * 3600000);
-  return jst.toISOString().slice(0, 10);
-}
-
-function getWeekdayJA(dateStr) {
-  var days = ['日','月','火','水','木','金','土'];
-  var d = new Date(dateStr + 'T00:00:00+09:00');
-  return days[d.getDay()];
-}
-
-function getWeekdayNum(dateStr) {
-  return new Date(dateStr + 'T00:00:00+09:00').getDay();
-}
-
-function isHoliday(dateStr) { return HOLIDAYS.indexOf(dateStr) >= 0; }
-
-function isLongBreak(dateStr) {
-  for (var i = 0; i < LONG_BREAKS.length; i++) {
-    if (dateStr >= LONG_BREAKS[i].start && dateStr <= LONG_BREAKS[i].end) return true;
-  }
-  return false;
-}
-
-function formatTopbarDate() {
-  var d = new Date(new Date().getTime() + 9 * 3600000);
-  var days = ['日','月','火','水','木','金','土'];
-  var y = d.getUTCFullYear();
-  var m = d.getUTCMonth() + 1;
-  var day = d.getUTCDate();
-  var wd = days[d.getUTCDay()];
-  return y + '/' + (m<10?'0'+m:m) + '/' + (day<10?'0'+day:day) + '（' + wd + '）';
-}
-
-// ==================== TAB SWITCH ====================
-function switchTab(name, btn) {
-  document.getElementById('tab-list').classList.remove('active');
-  document.getElementById('tab-agenda').classList.remove('active');
-  document.getElementById('tab-chat').classList.remove('active');
-  document.getElementById('tab-' + name).classList.add('active');
-  var btns = document.querySelectorAll('.tab-btn');
-  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-  btn.classList.add('active');
-}
-
-// ==================== 日付セレクタ ====================
-function buildDateSelector() {
-  var today = todayJST();
-  var area = document.getElementById('dateSelectorArea');
-  area.innerHTML = '';
-  var labels = ['今日', '明日', '明後日'];
-  for (var i = 0; i < 4; i++) {
-    var d = addDays(today, i);
-    var wd = getWeekdayJA(d);
-    var label = i < labels.length ? labels[i] : (i + '日後');
-    var isWkend = (getWeekdayNum(d) === 0 || getWeekdayNum(d) === 6 || isHoliday(d));
-    var dateShort = (parseInt(d.slice(5,7))) + '/' + parseInt(d.slice(8,10));
-    var btnLabel = label + '<br><small style="font-weight:normal;font-size:11px">' + dateShort + '（' + wd + '）' + (isWkend ? ' 休' : '') + '</small>';
-    var btn = document.createElement('button');
-    btn.className = 'date-sel-btn' + (i === 0 ? ' active' : '');
-    btn.innerHTML = btnLabel;
-    btn.setAttribute('data-date', d);
-    (function(dateVal, el) {
-      el.onclick = function() {
-        selectedAgendaDate = dateVal;
-        var allBtns = document.querySelectorAll('.date-sel-btn');
-        for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
-        el.classList.add('active');
-        document.getElementById('agendaContent').innerHTML =
-          '<div class="agenda-status">「更新」ボタンを押してアジェンダを生成します。</div>';
-      };
-    })(d, btn);
-    area.appendChild(btn);
-  }
-  selectedAgendaDate = today;
-}
-
-// ==================== FIREBASE LOAD ====================
-// ★ 施工完了判定ヘルパー
-function isKoujiCompleted(task, koujiDate) {
-  var today = todayJST();
-  // 施工日が未来なら除外しない
-  if (koujiDate >= today) return false;
-  // 施工日が過去 → SFステータスまたはlocalステータスが「完了」系なら除外
-  var sfStatus = task.csvData && task.csvData[1] ? String(task.csvData[1]).trim() : '';
-  var localStatus = task.local_status ? String(task.local_status).trim() : '';
-  // 「施工完了」「完了」のみ除外。「下見完了」は除外しない
-  var completedPatterns = ['施工完了', '報告書提出済', '施工日連絡済'];
-  for (var i = 0; i < completedPatterns.length; i++) {
-    if (sfStatus === completedPatterns[i] || localStatus === completedPatterns[i]) return true;
-  }
-  // 施工日が60日以上過去なら問答無用で除外（取りこぼし対策）
-  var diffMs = new Date(today) - new Date(koujiDate);
-  var diffDays = diffMs / 86400000;
-  if (diffDays > 60) return true;
-  return false;
-}
-
-function loadCases() {
-  database.ref().once('value').then(function(snapshot) {
-    var dbData = snapshot.val();
-    if (!dbData || !dbData.app_tasks) {
-      document.getElementById('listStatus').textContent = '⚠️ データなし';
-      return;
-    }
-    fullData = dbData;
-    globalTasks = dbData.app_tasks;
-    globalHeaders = (dbData.app_meta && dbData.app_meta.headers) ? dbData.app_meta.headers : [];
-
-    var tasks = dbData.app_tasks;
-    allCases = [];
-    allCasesAll = [];
-    var today = todayJST();
-    var pastLimit = addDays(today, -3);
-    var futureLimit = addDays(today, 21);
-
-    for (var key in tasks) {
-      var task = tasks[key];
-      var cols = task.csvData || [];
-      var koujiDate = cols[2] ? String(cols[2]).replace(/\s+/g, '') : '';
-      if (!koujiDate) continue;
-
-      // ★ 施工完了済みはallCasesAllにも入れない
-      if (isKoujiCompleted(task, koujiDate)) continue;
-
-      var caseObj = {
-        key: key,
-        kouji: koujiDate,
-        kubun: cols[3] ? String(cols[3]).replace(/\s+/g, '') : '',
-        title: cols[4] ? String(cols[4]).trim() : '',
-        tanto: cols[5] ? String(cols[5]).trim() : '',
-        tel: cols[6] ? String(cols[6]).trim() : '',
-        address: cols[11] ? String(cols[11]).trim() : '',
-        shitami: task.date || '',
-        shitami_time: task.time || '',
-        shitami_order: task.order || '',
-        ai_shitami: task.ai_shitami_date || ''
-      };
-
-      // ★ allCasesAllは完了除外済みの全件
-      allCasesAll.push(caseObj);
-
-      // allCasesはリスト表示用ウィンドウ
-      if (koujiDate >= pastLimit && koujiDate <= futureLimit) {
-        allCases.push(caseObj);
-      }
-    }
-
-    allCasesAll.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
-    allCases.sort(function(a, b) { return a.kouji > b.kouji ? 1 : -1; });
-    filteredCases = allCases.slice();
-    renderTable();
-    document.getElementById('listCount').textContent = allCases.length;
-  }).catch(function(err) {
-    document.getElementById('listStatus').textContent = '❌ ' + err.message;
-  });
-}
-
-function openModal(key) {
-  var task = globalTasks[key];
-  if (!task) return;
-  openCaseModal(key, task, globalHeaders, globalTasks, fullData, database, function() {
-    for (var i = 0; i < allCases.length; i++) {
-      if (allCases[i].key === key) {
-        allCases[i].shitami = globalTasks[key].date || '';
-        allCases[i].shitami_time = globalTasks[key].time || '';
-        allCases[i].shitami_order = globalTasks[key].order || '';
-      }
-    }
-    for (var i = 0; i < allCasesAll.length; i++) {
-      if (allCasesAll[i].key === key) {
-        allCasesAll[i].shitami = globalTasks[key].date || '';
-        allCasesAll[i].shitami_time = globalTasks[key].time || '';
-        allCasesAll[i].shitami_order = globalTasks[key].order || '';
-      }
-    }
-    renderTable();
-  });
-}
-
-// ==================== ALERT LOGIC ====================
-function getAlerts(c) {
-  var alerts = [];
-  var today = todayJST();
-  var daysToKouji = Math.ceil((new Date(c.kouji) - new Date(today)) / 86400000);
-  if ((c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') && !c.shitami && !c.ai_shitami) {
-    alerts.push({ label: '下見日決めて', cls: 'alert-red' });
-  }
-  if (c.kubun === '新' && daysToKouji <= 21 && daysToKouji >= 0 && !c.shitami && !c.ai_shitami) {
-    alerts.push({ label: '訪問必要', cls: 'alert-orange' });
-  }
-  if (c.kubun === '新' && c.title.indexOf('SK') >= 0 && daysToKouji <= 10 && daysToKouji >= 0) {
-    alerts.push({ label: '再訪問必要', cls: 'alert-blue' });
-  }
-  return alerts;
-}
-
-// ==================== RENDER TABLE ====================
-function renderTable() {
-  var tbody = document.getElementById('caseBody');
-  tbody.innerHTML = '';
-  if (filteredCases.length === 0) {
-    document.getElementById('listStatus').style.display = 'block';
-    document.getElementById('listStatus').textContent = '該当ケースなし';
-    document.getElementById('caseTable').style.display = 'none';
-    return;
-  }
-  document.getElementById('listStatus').style.display = 'none';
-  document.getElementById('caseTable').style.display = 'table';
-
-  for (var i = 0; i < filteredCases.length; i++) {
-    var c = filteredCases[i];
-    var alerts = getAlerts(c);
-    var kubunTag = '';
-    if (c.kubun === 'ﾘ' || c.kubun === 'ﾊﾘ') kubunTag = '<span class="tag tag-reform">ﾘ</span>';
-    else if (c.kubun === '新') kubunTag = '<span class="tag tag-new">新</span>';
-    var titleTag = '';
-    if (c.title.indexOf('SK') >= 0) titleTag = '<span class="tag tag-sk">SK</span>';
-    else if (c.title.indexOf('SB') >= 0) titleTag = '<span class="tag tag-sb">SB</span>';
-    else if (c.title.indexOf('SU') >= 0) titleTag = '<span class="tag tag-su">SU</span>';
-    var shitamiCell = '';
-    if (c.shitami) shitamiCell += '<div class="cell-blue">' + c.shitami + (c.shitami_time ? ' ' + c.shitami_time : '') + (c.shitami_order ? ' 順' + c.shitami_order : '') + '</div>';
-    if (c.ai_shitami) shitamiCell += '<div class="cell-orange">AI: ' + c.ai_shitami + '</div>';
-    var alertCell = '';
-    for (var j = 0; j < alerts.length; j++) {
-      alertCell += '<div class="alert-tag ' + alerts[j].cls + '">' + alerts[j].label + '</div>';
-    }
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td>' + kubunTag + '</td>' +
-      '<td>' + titleTag + ' <small>' + c.title + '</small></td>' +
-      '<td class="cell-blue">' + c.kouji + '<br><small>(' + getWeekdayJA(c.kouji) + ')</small></td>' +
-      '<td>' + (shitamiCell || '<span style="color:#ccc">未定</span>') + '</td>' +
-      '<td><small>' + c.tanto + '</small></td>' +
-      '<td><small>' + c.address + '</small></td>' +
-      '<td>' + alertCell + '</td>';
-    (function(k) {
-      row.addEventListener('click', function() { if (typeof openModal === 'function') openModal(k); });
-    })(c.key);
-    tbody.appendChild(row);
-  }
-}
-
-// ==================== FILTER ====================
-function applyFilter() {
-  var text = document.getElementById('filterInput').value.toLowerCase();
-  var kubun = document.getElementById('filterType').value;
-  var alertOnly = document.getElementById('filterAlert').value === 'alert';
-  filteredCases = [];
-  for (var i = 0; i < allCases.length; i++) {
-    var c = allCases[i];
-    if (kubun && c.kubun !== kubun) continue;
-    if (text && c.address.toLowerCase().indexOf(text) < 0 &&
-        c.tanto.toLowerCase().indexOf(text) < 0 &&
-        c.title.toLowerCase().indexOf(text) < 0) continue;
-    if (alertOnly && getAlerts(c).length === 0) continue;
-    filteredCases.push(c);
-  }
-  renderTable();
-}
-
-// ==================== DATA CONTEXT BUILDER ====================
-// ★ Firebase生データ丸ごと渡す版
-function buildCaseDataContext(targetDate) {
-  var today = todayJST();
-  var tDate = targetDate || selectedAgendaDate || today;
-  var dow = getWeekdayJA(tDate);
-  var rule = getWorkdayRule(tDate);
-  var ruleDesc = {
-    'weekday':   '通常営業日',
-    'saturday':  '土曜（条件次第で現場）',
-    'sunday':    '日曜（自宅のみ・下見不可）',
-    'longbreak': '長期休暇中'
-  };
-
-  var lines = '';
-  lines += '=== 基本情報 ===\n';
-  lines += '対象日: ' + tDate + '（' + dow + '曜日）/ ' + (ruleDesc[rule] || rule) + '\n';
-  lines += '今日（現在）: ' + today + '\n';
-  lines += 'Kの出発地点（自宅）: ' + getHomeAddress() + '\n';
-  lines += '有効ケース数（施工完了除外済み）: ' + allCasesAll.length + '件\n\n';
-
-  // 対象日の確定下見・AI提案
-  var targetConfirmed = [];
-  var targetAI = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var c = allCasesAll[i];
-    if (c.shitami === tDate) targetConfirmed.push(c);
-    else if (c.ai_shitami === tDate && !c.shitami) targetAI.push(c);
-  }
-
-  lines += '=== ' + tDate + 'の下見予定（確定済み） ' + targetConfirmed.length + '件 ===\n';
-  if (targetConfirmed.length === 0) {
-    lines += '（なし）\n';
-  } else {
-    targetConfirmed.sort(function(a, b) {
-      return (parseInt(a.shitami_order) || 99) - (parseInt(b.shitami_order) || 99);
-    });
-    for (var i = 0; i < targetConfirmed.length; i++) {
-      var c = targetConfirmed[i];
-      lines += '  [確定' + (i+1) + '] ';
-      lines += (c.shitami_order ? '順番' + c.shitami_order + ' ' : '');
-      lines += (c.shitami_time ? c.shitami_time + ' ' : '時間未設定 ');
-      lines += c.tanto + ' | ' + c.kubun + ' ' + c.title;
-      lines += ' | 住所: ' + c.address;
-      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
-    }
-  }
-  lines += '\n';
-
-  lines += '=== ' + tDate + 'のAI提案下見 ' + targetAI.length + '件 ===\n';
-  if (targetAI.length === 0) {
-    lines += '（なし）\n';
-  } else {
-    for (var i = 0; i < targetAI.length; i++) {
-      var c = targetAI[i];
-      lines += '  [AI提案] ' + c.tanto + ' | ' + c.kubun + ' ' + c.title;
-      lines += ' | 住所: ' + c.address;
-      lines += ' | 施工日: ' + c.kouji + '(' + getWeekdayJA(c.kouji) + ')\n';
-    }
-  }
-  lines += '\n';
-
-  // アラートケース
-  var alertCases = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    var alerts = getAlerts(allCasesAll[i]);
-    if (alerts.length > 0) alertCases.push({ c: allCasesAll[i], alerts: alerts });
-  }
-  lines += '=== アラートケース ' + alertCases.length + '件 ===\n';
-  for (var i = 0; i < alertCases.length; i++) {
-    var item = alertCases[i];
-    var alertStr = '';
-    for (var j = 0; j < item.alerts.length; j++) alertStr += '[' + item.alerts[j].label + ']';
-    lines += '  ' + alertStr + ' ';
-    lines += item.c.tanto + ' | ' + item.c.kubun + ' ' + item.c.title;
-    lines += ' | 施工: ' + item.c.kouji + '(' + getWeekdayJA(item.c.kouji) + ')';
-    lines += ' | 下見確定: ' + (item.c.shitami || '未定');
-    if (item.c.shitami && item.c.shitami_time) lines += ' ' + item.c.shitami_time;
-    lines += ' | AI提案: ' + (item.c.ai_shitami || '未定');
-    lines += ' | 住所: ' + item.c.address + '\n';
-  }
-  lines += '\n';
-
-  // ★ Firebase全案件生データをそのまま渡す（施工完了除外済み）
-  lines += '=== 全案件 Firebase生データ（完了除外済み） ===\n';
-  lines += JSON.stringify(globalTasks) + '\n';
-
-  return lines;
-}
-
-// ==================== AGENDA ====================
-function getWorkdayRule(dateStr) {
-  if (isLongBreak(dateStr)) return 'longbreak';
-  var dow = getWeekdayNum(dateStr);
-  if (dow === 0) return 'sunday';
-  if (dow === 6 || isHoliday(dateStr)) return 'saturday';
-  return 'weekday';
-}
-
-function countRemainingWeekdays(fromDate) {
-  var count = 0;
-  for (var i = 0; i <= 6; i++) {
-    var d = addDays(fromDate, i);
-    var dow = getWeekdayNum(d);
-    if (dow >= 1 && dow <= 5 && !isHoliday(d) && !isLongBreak(d)) count++;
-  }
-  return count;
-}
-
-function generateAgenda() {
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (!geminiKey) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="error-card">⚠️ Gemini API キーが未設定です。<br>sogo.html の「API設定」から設定してください。</div>';
-    return;
-  }
-  if (allCasesAll.length === 0) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="agenda-status">⚠️ データ読み込み中です。しばらく待ってから再試行してください。</div>';
-    return;
-  }
-
-  var tDate = selectedAgendaDate || todayJST();
-  var today = todayJST();
-  var btn = document.getElementById('refreshBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 生成中...';
-
-  var dow = getWeekdayJA(tDate);
-  var rule = getWorkdayRule(tDate);
-  var holiday = isHoliday(tDate);
-  var longBreak = isLongBreak(tDate);
-  var remainingWeekdays = countRemainingWeekdays(tDate);
-  var diffDays = Math.round((new Date(tDate) - new Date(today)) / 86400000);
-  var whenLabel = diffDays === 0 ? '今日' : diffDays === 1 ? '明日' : diffDays + '日後（' + tDate + '）';
-
-  var ruleDesc = {
-    'weekday':   '通常営業日（下見・メール送信・報告書すべて可）',
-    'saturday':  '土曜日（月〜金で不足する下見がある場合のみ現場、なければ自宅でメール仮制作・報告書作成）',
-    'sunday':    '日曜日（自宅のみ・下見不可・メール送信不可。メール仮制作と報告書作成のみ）',
-    'longbreak': '長期休暇中（完全休止）'
-  };
-
-  var prompt =
-    '【対象日の情報】\n' +
-    '対象日：' + tDate + '（' + dow + '曜日）= ' + whenLabel + '\n' +
-    '今日の実際の日付：' + today + '\n' +
-    '祝日フラグ：' + (holiday ? 'はい' : 'いいえ') + '\n' +
-    '長期休暇中：' + (longBreak ? 'はい' : 'いいえ') + '\n' +
-    '今週残り営業日（この日から数えて）：' + remainingWeekdays + '日\n' +
-    '出発地点（自宅）：' + getHomeAddress() + '\n\n' +
-    '【K行動ルール（対象日基準）】\n' +
-    (ruleDesc[rule] || rule) + '\n\n' +
-    '【補足ルール】\n' +
-    '・取引先は土日祝休み（メール送信しても平日まで見られない）\n' +
-    '・現場（大工等）は月〜土稼働、日休み\n' +
-    '・土曜現場可否は「今週残り営業日 × 1件/日」と当週ケース数を比較して判断すること\n' +
-    '・csvDataの備考・施工指示欄（特にC10前後）に「下見XX日」「XX時希望」「XX日訪問」等の文言がある場合はその日時をshitami候補として優先的に提案すること\n' +
-    '・同様の文言が通信履歴（comms）にある場合も拾って反映すること\n\n' +
-    '【Firebaseケースデータ（施工完了除外済み・生データ含む）】\n' +
-    buildCaseDataContext(tDate) + '\n' +
-    '【ステータス定義（モーダル看板）】\n' +
-    '依頼→連絡済→下見日確定→下見実施済→報告書提出済→施工日連絡済\n' +
-    'local_statusはFirebase内のローカル更新ステータス。csvData[1]はSFステータス。両方見て進んでいる方を優先すること。\n\n' +
-    '【アラート定義】\n' +
-    '下見日決めて＝リフォームで下見未定（最優先）\n' +
-    '訪問必要＝新築で施工21日前以内かつ下見未実施\n' +
-    '再訪問必要＝新築SK案件で施工10日前以内（2回目必要）\n\n' +
-    '【出力指示】\n' +
-    '以下JSONのみ返却。前置き・コードブロック・説明文不要。\n' +
-    '{\n' +
-    '  "today": "' + whenLabel + 'にKが集中すべき活動（一文）",\n' +
-    '  "priority_tasks": ["絵文字＋タスク説明", "...（3〜5件）"],\n' +
-    '  "notes": "曜日・祝日ルールに基づく制約や注意点、ステータス状況を踏まえた指摘"\n' +
-    '}';
-
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, responseMimeType: 'application/json' }
-    })
-  }).then(function(res) {
-    return res.json();
-  }).then(function(data) {
-    btn.disabled = false;
-    btn.innerHTML = '🔄 更新';
-    if (!data.candidates || !data.candidates[0]) throw new Error('API レスポンス異常: ' + JSON.stringify(data));
-    var rawText = data.candidates[0].content.parts[0].text;
-    renderAgendaResult(rawText, tDate, dow, rule, whenLabel);
-  }).catch(function(err) {
-    btn.disabled = false;
-    btn.innerHTML = '🔄 更新';
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="error-card">❌ エラー：' + err.message + '</div>';
-  });
-}
-
-function repairJson(str) {
-  try { JSON.parse(str); return str; } catch(e) {}
-  var s = str;
-  s = s.replace(/,\s*$/, '');
-  var quoteCount = 0;
-  for (var qi = 0; qi < s.length; qi++) {
-    if (s[qi] === '"' && (qi === 0 || s[qi-1] !== '\\')) quoteCount++;
-  }
-  if (quoteCount % 2 !== 0) s += '"';
-  s = s.replace(/,\s*([\]\}])/g, '$1').replace(/,\s*$/, '');
-  var opens = 0, closes = 0, braces = 0, braceC = 0;
-  for (var i = 0; i < s.length; i++) {
-    if (s[i] === '[') opens++;
-    if (s[i] === ']') closes++;
-    if (s[i] === '{') braces++;
-    if (s[i] === '}') braceC++;
-  }
-  for (var k = 0; k < (opens - closes); k++) s += ']';
-  for (var m = 0; m < (braces - braceC); m++) s += '}';
-  try { JSON.parse(s); return s; } catch(e2) { throw new Error('JSON修復失敗'); }
-}
-
-function renderAgendaResult(rawText, tDate, dow, rule, whenLabel) {
-  var parsed = null;
-  try {
-    var jsonStr = '';
-    var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) {
-      jsonStr = fenceMatch[1].trim();
+    if(fullData&&fullData.app_meta&&fullData.app_tasks){
+      globalHeaders=fullData.app_meta.headers;
+      globalTasks=fullData.app_tasks;
     } else {
-      var bs = rawText.indexOf('{');
-      var be = rawText.lastIndexOf('}');
-      if (bs !== -1 && be > bs) jsonStr = rawText.substring(bs, be + 1);
-      else jsonStr = rawText.trim();
+      document.getElementById('noDataMsg').style.display='block';
+      document.getElementById('calWrapper').style.display='none';
     }
-    jsonStr = repairJson(jsonStr);
-    parsed = JSON.parse(jsonStr);
-  } catch (e) {
-    document.getElementById('agendaContent').innerHTML =
-      '<div class="agenda-card"><div class="agenda-card-header">🤖 AI 応答（raw）</div>' +
-      '<div class="agenda-card-body"><pre style="white-space:pre-wrap;font-size:12px">' + rawText + '</pre></div></div>';
-    return;
-  }
 
-  var ruleLabels = {
-    'weekday':   '通常営業日',
-    'saturday':  '土曜（条件次第で現場）',
-    'sunday':    '日曜（自宅のみ）',
-    'longbreak': '長期休暇中'
-  };
-  var chipCls = 'day-chip';
-  if (rule === 'sunday' || rule === 'saturday' || rule === 'longbreak') chipCls += ' weekend';
-  if (isHoliday(tDate)) chipCls += ' holiday';
+    var todayStr=getTodayStr();
 
-  var targetVisits = [];
-  for (var i = 0; i < allCasesAll.length; i++) {
-    if (allCasesAll[i].shitami === tDate) targetVisits.push(allCasesAll[i]);
-  }
-  targetVisits.sort(function(a, b) {
-    return (parseInt(a.shitami_order) || 99) - (parseInt(b.shitami_order) || 99);
-  });
-
-  var html = '<div class="agenda-day-info">' +
-    '<span class="' + chipCls + '">' + whenLabel + ' ' + dow + '曜日</span>' +
-    '<span style="color:#666">' + (ruleLabels[rule] || rule) + '</span>' +
-    (targetVisits.length > 0 ? '<span style="color:#e65100;font-weight:bold">確定下見: ' + targetVisits.length + '件</span>' : '') +
-    '</div>';
-
-  // 個人予定も表示
-  var personalEvs = getPersonalEventsForDate(tDate);
-  if (personalEvs.length > 0) {
-    var pItems = '';
-    for (var pi = 0; pi < personalEvs.length; pi++) {
-      var pev = personalEvs[pi];
-      var timeDisp = pev.allDay ? '終日' : (pev.start ? pev.start.substring(11,16) : '');
-      pItems += '<li class="visit-item">' +
-        '<div class="visit-num" style="background:#7b1fa2">📅</div>' +
-        '<div class="visit-info">' +
-        (timeDisp ? '<span class="visit-time">' + timeDisp + '</span> ' : '') +
-        '<span class="visit-title" style="color:#4a148c">' + pev.title + '</span>' +
-        (pev.location ? '<div class="visit-addr">📍 ' + pev.location + '</div>' : '') +
-        '</div></li>';
-    }
-    html += '<div class="agenda-card" style="border-left:3px solid #7b1fa2">' +
-      '<div class="agenda-card-header" style="background:#f3e5f5;color:#4a148c">📅 マイカレンダー（' + personalEvs.length + '件）</div>' +
-      '<div class="agenda-card-body"><ul class="visit-list">' + pItems + '</ul></div></div>';
-  }
-
-  if (targetVisits.length > 0) {
-    var visitItems = '';
-    for (var i = 0; i < targetVisits.length; i++) {
-      var v = targetVisits[i];
-      var numCls = v.shitami_order ? 'visit-num' : 'visit-num no-order';
-      var numLabel = v.shitami_order ? v.shitami_order : (i + 1);
-      var timeStr = v.shitami_time ? '<span class="visit-time">' + v.shitami_time + '</span> ' : '';
-      var kubunTag = (v.kubun === 'ﾘ' || v.kubun === 'ﾊﾘ') ? '<span class="tag tag-reform" style="font-size:10px">ﾘ</span>' : '<span class="tag tag-new" style="font-size:10px">新</span>';
-      visitItems +=
-        '<li class="visit-item">' +
-        '<div class="' + numCls + '">' + numLabel + '</div>' +
-        '<div class="visit-info">' +
-        timeStr + kubunTag + ' <span class="visit-title">' + v.title + '</span>' +
-        '<div class="visit-addr">📍 ' + (v.address || '住所未登録') + '</div>' +
-        '</div></li>';
-    }
-    html += '<div class="agenda-card card-visits">' +
-      '<div class="agenda-card-header">📍 ' + whenLabel + 'の下見リスト</div>' +
-      '<div class="agenda-card-body"><ul class="visit-list">' + visitItems + '</ul></div></div>';
-  }
-
-  if (parsed.today) {
-    html += '<div class="agenda-card card-focus">' +
-      '<div class="agenda-card-header">📌 ' + whenLabel + 'の焦点</div>' +
-      '<div class="agenda-card-body">' + parsed.today + '</div></div>';
-  }
-
-  if (parsed.priority_tasks && parsed.priority_tasks.length > 0) {
-    var items = '';
-    for (var i = 0; i < parsed.priority_tasks.length; i++) {
-      items += '<li>' + parsed.priority_tasks[i] + '</li>';
-    }
-    html += '<div class="agenda-card card-tasks">' +
-      '<div class="agenda-card-header">⭐ 優先タスク</div>' +
-      '<div class="agenda-card-body"><ul class="task-list">' + items + '</ul></div></div>';
-  }
-
-  if (parsed.notes) {
-    html += '<div class="agenda-card card-notes">' +
-      '<div class="agenda-card-header">💡 メモ・アラート</div>' +
-      '<div class="agenda-card-body">' + parsed.notes + '</div></div>';
-  }
-
-  var now = new Date(new Date().getTime() + 9 * 3600000);
-  var hh = now.getUTCHours();
-  var mm = now.getUTCMinutes();
-  html += '<div class="agenda-footer">⏰ 生成：' + (hh<10?'0'+hh:hh) + ':' + (mm<10?'0'+mm:mm) + ' | 対象: ' + tDate + '（' + dow + '）| 自宅: ' + getHomeAddress() + '</div>';
-
-  document.getElementById('agendaContent').innerHTML = html;
-}
-
-// ==================== CHAT ====================
-function buildSystemPrompt() {
-  return 'あなたは建設現場の事務担当K（北海道札幌市）のアシスタントです。\n' +
-    'タカラスタンダードのキッチン設置工事の検査スケジュール管理を担当しています。\n\n' +
-    '【役割】\n' +
-    'Firebaseから渡されるケースデータを整理・分析して、Kに必要な情報を提供する。\n\n' +
-    '【ステータス定義（モーダル看板）】\n' +
-    '依頼→連絡済→下見日確定→下見実施済→報告書提出済→施工日連絡済\n' +
-    'local_statusはFirebase内のローカル更新ステータス。csvData[1]はSFステータス。両方見て進んでいる方を優先すること。\n' +
-    '施工完了済み案件はデータから除外済み。\n\n' +
-    '【行動ルール】\n' +
-    '- 下見日・時間・順番が確定しているケースはその値を絶対に優先すること\n' +
-    '- 「確定」と「AI提案」は別物。確定があればAI提案は無視する\n' +
-    '- 今日・明日の確定下見がある場合は必ず順番・時間・住所を正確に伝える\n' +
-    '- 住所から地域を推測してルート最適化を提案する（出発地点は自宅）\n' +
-    '- 情報が不足していたら質問する\n' +
-    '- 回答は簡潔・箇条書き優先\n' +
-    '- 区分ルール: ﾘ/ﾊﾘ=リフォーム（下見1回）、新=新築（SK:2回、その他:1回）\n' +
-    '- 下見タイミング: 施工21日前（SK案件は+施工10日前に再訪）\n' +
-    '- 地域の目安: 千歳・恵庭・北広島は南方向（遠方）、石狩・当別は北方向、江別・北広島は東方向\n' +
-    '- csvDataの備考・施工指示欄や通信履歴（comms）に「下見XX日」「XX時希望」等の文言があれば拾って日程提案に反映すること\n\n' +
-    '【最新Firebaseデータ（施工完了除外済み・生データ）】\n' +
-    buildCaseDataContext();
-}
-
-function appendChatMessage(role, text) {
-  var container = document.getElementById('chatMessages');
-  var div = document.createElement('div');
-  div.className = 'chat-msg ' + role;
-  var avatar = role === 'ai' ? '🤖' : 'K';
-  div.innerHTML =
-    '<div class="chat-avatar">' + avatar + '</div>' +
-    '<div class="chat-bubble">' + escapeHtml(text) + '</div>';
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-function appendTypingIndicator() {
-  var container = document.getElementById('chatMessages');
-  var div = document.createElement('div');
-  div.className = 'chat-msg ai';
-  div.id = 'typingIndicator';
-  div.innerHTML =
-    '<div class="chat-avatar">🤖</div>' +
-    '<div class="chat-typing">' +
-    '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>' +
-    '</div>';
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-
-function removeTypingIndicator() {
-  var el = document.getElementById('typingIndicator');
-  if (el) el.parentNode.removeChild(el);
-}
-
-function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-}
-
-function sendQuick(text) {
-  document.getElementById('chatInput').value = text;
-  sendChat();
-}
-
-function clearChat() {
-  chatHistory = [];
-  document.getElementById('chatMessages').innerHTML =
-    '<div class="chat-msg ai"><div class="chat-avatar">🤖</div>' +
-    '<div class="chat-bubble">会話をクリアしました。何でも聞いてください。</div></div>';
-}
-
-function autoResizeTextarea(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
-}
-
-function handleChatKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-    e.preventDefault();
-    sendChat();
-  }
-}
-
-function sendChat() {
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (!geminiKey) {
-    appendChatMessage('ai', '⚠️ Gemini APIキーが未設定です。sogo.html の「API設定」から設定してください。');
-    return;
-  }
-  var input = document.getElementById('chatInput');
-  var text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  input.style.height = 'auto';
-  document.getElementById('sendBtn').disabled = true;
-  appendChatMessage('user', text);
-  chatHistory.push({ role: 'user', text: text });
-  appendTypingIndicator();
-
-  var contents = [];
-  var sysPrompt = buildSystemPrompt();
-  for (var i = 0; i < chatHistory.length; i++) {
-    var item = chatHistory[i];
-    if (item.role === 'user') {
-      if (i === 0) {
-        contents.push({ role: 'user', parts: [{ text: sysPrompt + '\n\n---\n以下Kとの会話です。\n\nK: ' + item.text }] });
-      } else {
-        contents.push({ role: 'user', parts: [{ text: item.text }] });
+    // ★追加: personal_calendar をlocalStorageから読み込み、Firebaseから最新取得
+    var personalCalCache={};
+    try{var _pc=localStorage.getItem('personalCalendar');if(_pc)personalCalCache=JSON.parse(_pc);}catch(e){}
+    database.ref('personal_calendar').once('value').then(function(snap){
+      if(snap.val()){
+        personalCalCache=snap.val();
+        try{localStorage.setItem('personalCalendar',JSON.stringify(personalCalCache));}catch(e){}
       }
-    } else {
-      contents.push({ role: 'model', parts: [{ text: item.text }] });
-    }
-  }
-
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: contents,
-      generationConfig: { temperature: 0.5, maxOutputTokens: 65536 }
-    })
-  }).then(function(res) {
-    return res.json();
-  }).then(function(data) {
-    removeTypingIndicator();
-    document.getElementById('sendBtn').disabled = false;
-    if (!data.candidates || !data.candidates[0]) throw new Error('APIレスポンス異常: ' + JSON.stringify(data));
-    var replyText = data.candidates[0].content.parts[0].text;
-    appendChatMessage('ai', replyText);
-    chatHistory.push({ role: 'model', text: replyText });
-  }).catch(function(err) {
-    removeTypingIndicator();
-    document.getElementById('sendBtn').disabled = false;
-    appendChatMessage('ai', '❌ エラー：' + err.message);
-    if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') chatHistory.pop();
-  });
-}
-
-// ==================== PERSONAL CALENDAR ====================
-var personalCalData = {};
-
-function loadPersonalCalendar() {
-  // まずlocalStorageから
-  try {
-    var pc = localStorage.getItem('personalCalendar');
-    if (pc) personalCalData = JSON.parse(pc);
-  } catch(e) {}
-  // Firebaseから最新取得
-  database.ref('personal_calendar').once('value').then(function(snap) {
-    if (snap.val()) {
-      personalCalData = snap.val();
-      try { localStorage.setItem('personalCalendar', JSON.stringify(personalCalData)); } catch(e) {}
-    }
-  });
-}
-
-function getPersonalEventsForDate(dateStr) {
-  var evs = personalCalData[dateStr];
-  if (!evs) return [];
-  var result = [];
-  Object.keys(evs).forEach(function(evId) {
-    var ev = evs[evId];
-    if (!ev || !ev.title) return;
-    result.push({
-      key: 'personal_' + evId,
-      title: ev.title,
-      start: ev.start || dateStr,
-      end: ev.end || dateStr,
-      allDay: ev.allDay || false,
-      location: ev.location || '',
-      isPersonal: true
+      renderCal();
     });
-  });
-  return result;
-}
 
-// ==================== INIT ====================
-document.getElementById('topbarDate').textContent = formatTopbarDate();
-buildDateSelector();
-loadCases();
-loadPersonalCalendar();
-if (!localStorage.getItem('homeAddress')) {
-  localStorage.setItem('homeAddress', DEFAULT_HOME);
-}
-</script>
+    function buildDateMap(){
+      var dm={};
+      var showS=chkSekou.checked, showD=chkShitami.checked, showY=chkYotei.checked, showP=chkPersonal.checked; // ★showP追加
+
+      Object.keys(globalTasks).forEach(function(key){
+        var obj=globalTasks[key];
+        var cols=obj.csvData;if(!cols)return;
+        var status=getSafeVal(cols,1).replace(/\s+/g,"");
+        var sekouDate=formatToYMD(getSafeVal(cols,2));
+        if(status==="完了"&&sekouDate<todayStr)return;
+        if(sekouDate&&sekouDate<todayStr)return;
+
+        var name=getSafeVal(cols,4).trim();
+        var shortMatch=name.match(/【(.+?)】/);
+        var shortName=shortMatch?shortMatch[0]:name.substring(0,12);
+
+        if(showS&&sekouDate){
+          if(!dm[sekouDate])dm[sekouDate]=[];
+          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:'施工 '+shortName});
+        }
+        var shitamiDate=formatToYMD(getSafeVal(cols,12));
+        if(showD&&shitamiDate){
+          if(!dm[shitamiDate])dm[shitamiDate]=[];
+          dm[shitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:'下見 '+shortName});
+        }
+        var yoteiDate=obj.date||"";
+        if(showY&&yoteiDate){
+          if(!dm[yoteiDate])dm[yoteiDate]=[];
+          dm[yoteiDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:'予定 '+shortName});
+        }
+      });
+
+      // ★追加: マイカレンダー
+      if(showP){
+        Object.keys(personalCalCache).forEach(function(dateKey){
+          var evs=personalCalCache[dateKey];if(!evs)return;
+          Object.keys(evs).forEach(function(evId){
+            var ev=evs[evId];if(!ev||!ev.title)return;
+            if(!dm[dateKey])dm[dateKey]=[];
+            dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:'📅 '+ev.title});
+          });
+        });
+      }
+
+      return dm;
+    }
+
+    var currentYear,currentMonth;
+    var now=new Date();
+    currentYear=now.getFullYear();
+    currentMonth=now.getMonth();
+
+    document.getElementById('btnPrev').addEventListener('click',function(){currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}renderCal();});
+    document.getElementById('btnNext').addEventListener('click',function(){currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}renderCal();});
+    document.getElementById('btnToday').addEventListener('click',function(){currentYear=now.getFullYear();currentMonth=now.getMonth();renderCal();});
+
+    chkSekou.addEventListener('change',renderCal);
+    chkShitami.addEventListener('change',renderCal);
+    chkYotei.addEventListener('change',renderCal);
+    chkPersonal.addEventListener('change',renderCal); // ★追加
+
+    document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
+    modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
+    document.getElementById('dayListClose').addEventListener('click',function(){dayListOverlay.style.display='none';});
+    dayListOverlay.addEventListener('click',function(e){if(e.target===dayListOverlay)dayListOverlay.style.display='none';});
+
+    renderCal();
+
+    function renderCal(){
+      var dateMap=buildDateMap();
+      var grid=document.getElementById('calGrid');
+      grid.innerHTML='';
+      document.getElementById('monthLabel').textContent=currentYear+'年 '+(currentMonth+1)+'月';
+
+      var days=['日','月','火','水','木','金','土'];
+      days.forEach(function(d,i){
+        var div=document.createElement('div');
+        div.className='cal-header'+(i===0?' sun':'')+(i===6?' sat':'');
+        div.textContent=d;grid.appendChild(div);
+      });
+
+      var firstDay=new Date(currentYear,currentMonth,1);
+      var lastDay=new Date(currentYear,currentMonth+1,0);
+      var startDow=firstDay.getDay();
+      var totalDays=lastDay.getDate();
+
+      var prevLast=new Date(currentYear,currentMonth,0);
+      var prevDays=prevLast.getDate();
+      for(var i=startDow-1;i>=0;i--){
+        var day=prevDays-i;
+        var m=currentMonth-1;var y=currentYear;if(m<0){m=11;y--;}
+        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(day).padStart(2,'0');
+        grid.appendChild(createCell(day,ds,true,startDow-1-i,dateMap));
+      }
+
+      for(var d=1;d<=totalDays;d++){
+        var ds=currentYear+"-"+String(currentMonth+1).padStart(2,'0')+"-"+String(d).padStart(2,'0');
+        var dow=(startDow+d-1)%7;
+        grid.appendChild(createCell(d,ds,false,dow,dateMap));
+      }
+
+      var totalCells=startDow+totalDays;
+      var remaining=Math.ceil(totalCells/7)*7-totalCells;
+      for(var i=1;i<=remaining;i++){
+        var m=currentMonth+1;var y=currentYear;if(m>11){m=0;y++;}
+        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(i).padStart(2,'0');
+        var dow=(totalCells+i-1)%7;
+        grid.appendChild(createCell(i,ds,true,dow,dateMap));
+      }
+    }
+
+    function createCell(dayNum,dateStr,isOther,dow,dateMap){
+      var cell=document.createElement('div');
+      cell.className='cal-cell'+(isOther?' other-month':'')+(dateStr===todayStr?' today':'');
+
+      var numDiv=document.createElement('div');
+      numDiv.className='day-num'+(dow===0?' sun':'')+(dow===6?' sat':'');
+      numDiv.textContent=dayNum;
+      cell.appendChild(numDiv);
+
+      var events=dateMap[dateStr]||[];
+      var maxShow=3;
+
+      events.slice(0,maxShow).forEach(function(ev){
+        var evDiv=document.createElement('div');
+        evDiv.className='cal-event ev-'+ev.type;
+        evDiv.textContent=ev.label;
+        evDiv.addEventListener('click',function(e){
+          e.stopPropagation();
+          if(ev.type==='personal'){openPersonalModal(ev.obj);} // ★追加
+          else{openModal(ev.key,ev.obj,ev.cols);}
+        });
+        cell.appendChild(evDiv);
+      });
+
+      if(events.length>maxShow){
+        var more=document.createElement('div');
+        more.className='cal-more';
+        more.textContent='他 '+(events.length-maxShow)+' 件';
+        cell.appendChild(more);
+      }
+
+      cell.addEventListener('click',function(){
+        if(events.length===0)return;
+        openDayList(dateStr,events);
+      });
+
+      return cell;
+    }
+
+    function openDayList(dateStr,events){
+      var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
+      events.forEach(function(ev){
+        // ★personalタイプ対応
+        var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':'ev-yotei';
+        var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':'予定';
+        var name=ev.type==='personal'?(ev.obj.title||''):getSafeVal(ev.cols,4).trim()||"名称未設定";
+        var sub=ev.type==='personal'?(ev.obj.allDay?'終日':(ev.obj.start?ev.obj.start.substring(11,16):'')):getSafeVal(ev.cols,5).trim();
+        html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'">'+
+          '<span class="ev-tag '+tagClass+'">'+tagText+'</span>'+
+          '<span style="font-weight:bold;font-size:13px;">'+name+'</span>'+
+          '<span style="color:#666;font-size:11px;">'+sub+'</span></div>';
+      });
+      document.getElementById('dayListBody').innerHTML=html;
+      dayListOverlay.style.display='block';
+
+      document.querySelectorAll('.day-list-item').forEach(function(item){
+        item.addEventListener('click',function(){
+          dayListOverlay.style.display='none';
+          // ★personalの場合は個人予定モーダル
+          if(item.dataset.type==='personal'){
+            var evObj=null;
+            for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}
+            if(evObj)openPersonalModal(evObj);
+            return;
+          }
+          var k=item.dataset.key;
+          var obj=globalTasks[k];if(!obj)return;
+          openModal(k,obj,obj.csvData);
+        });
+      });
+    }
+
+    // ★追加: 個人予定モーダル
+    function openPersonalModal(ev){
+      var timeStr=ev.allDay?'終日':((ev.start?ev.start.substring(11,16):'')+(ev.end?' 〜 '+ev.end.substring(11,16):''));
+      var html='<div class="modal-header-info">'+
+        '<div class="modal-title-row" style="color:#4a148c">📅 '+(ev.title||'')+'</div></div>'+
+        '<table class="modal-table">'+
+        '<tr><th>日時</th><td>'+timeStr+'</td></tr>';
+      if(ev.location)html+='<tr><th>場所</th><td><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ev.location)+'" target="_blank" style="color:#0056b3">🗺️ '+ev.location+'</a></td></tr>';
+      html+='</table>';
+      document.getElementById('modal-body').innerHTML=html;
+      modalOverlay.style.display='block';
+    }
+
+    var timeOpts=generateTimeOptions();
+
+    function openModal(key,obj,cols){
+      var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
+      var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
+      var yoteiStr=obj.date||"未定";
+      var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
+
+      var html='<div class="modal-header-info">'+
+        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+'</div>'+
+        '<div class="modal-title-row">🏷️ '+ankenText+
+        ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
+        '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
+        '<table class="modal-table">';
+
+      globalHeaders.forEach(function(hdr,index){
+        var val=getSafeVal(cols,index);
+        var dh=val.replace(/\n|\r/g,'<br>');
+        var ct=val.replace(/\s+/g,'');
+        if(index===11&&ct!=="")dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;text-decoration:underline;">🗺️ '+val+'</a>';
+        else if(index===6&&ct!=="")dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 '+val+'</a>';
+        html+='<tr><th>'+(hdr||('列'+(index+1)))+'</th><td>'+dh+'</td></tr>';
+      });
+      html+='</table>';
+
+      html+='<div class="modal-input-section">'+
+        '<h4>📝 入力データ</h4>'+
+        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>'+
+        '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">'+timeOpts+'</select></div>'+
+        '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div>'+
+        '<div style="margin-top:10px;">'+
+        '<button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
+        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>'+
+        '</div></div>';
+
+      document.getElementById('modal-body').innerHTML=html;
+      modalOverlay.style.display='block';
+      document.getElementById('modal-time').value=obj.time||'';
+
+      document.getElementById('modal-copy-btn').addEventListener('click',function(){
+        navigator.clipboard.writeText(ankenText).then(function(){
+          document.getElementById('modal-copy-btn').textContent="✔ コピー完了！";
+          document.getElementById('modal-copy-btn').classList.add('copied');
+          setTimeout(function(){document.getElementById('modal-copy-btn').textContent="コピー";document.getElementById('modal-copy-btn').classList.remove('copied');},2000);
+        });
+      });
+
+      document.getElementById('modal-save-btn').addEventListener('click',function(){
+        var nd=document.getElementById('modal-date').value;
+        var nt=document.getElementById('modal-time').value;
+        var no=document.getElementById('modal-order').value;
+        database.ref('app_tasks/'+key).update({date:nd,time:nt,order:no});
+        globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
+        fullData.app_tasks=globalTasks;
+        localStorage.setItem('appData',JSON.stringify(fullData));
+        var msg=document.getElementById('modal-save-msg');
+        msg.style.display='inline';
+        setTimeout(function(){msg.style.display='none';},2000);
+      });
+    }
+  </script>
 </body>
 </html>
