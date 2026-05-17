@@ -245,6 +245,45 @@ function openModal(key) {
 }
 
 // ==================== プロンプト構築 ====================
+// 曜日種別判定
+function getDayType(s) {
+  var HOLIDAYS = [
+    '2025-01-01','2025-01-13','2025-02-11','2025-02-24','2025-03-21',
+    '2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-07-21',
+    '2025-08-11','2025-09-15','2025-09-23','2025-10-13','2025-11-03','2025-11-23',
+    '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20',
+    '2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-07-20',
+    '2026-08-11','2026-09-21','2026-09-23','2026-10-12','2026-11-03','2026-11-23'
+  ];
+  var dow = new Date(s + 'T00:00:00+09:00').getDay();
+  if (HOLIDAYS.indexOf(s) >= 0) return '祝日（外回り禁止）';
+  if (dow === 0) return '日曜（外回り禁止）';
+  if (dow === 6) return '土曜（原則外回り回避・要確認）';
+  return '平日（通常稼働）';
+}
+
+// Firebase task から下見日時情報を取得（CSV優先・Firebase補完）
+function getShitamiInfo(item) {
+  var csvDate = '', csvTime = '', fbDate = '', fbTime = '';
+  if (item.key && globalTasks[item.key]) {
+    var t = globalTasks[item.key];
+    var c = t.csvData || [];
+    csvDate = (c[15] ? String(c[15]).replace(/\s+/g,'') : '');
+    csvTime = (c[16] ? String(c[16]).replace(/\s+/g,'') : '');
+    fbDate  = (t.date  ? String(t.date).replace(/\s+/g,'')  : '');
+    fbTime  = (t.time  ? String(t.time).replace(/\s+/g,'')  : '');
+  }
+  return {
+    csvDate: csvDate, csvTime: csvTime,
+    fbDate:  fbDate,  fbTime:  fbTime,
+    // 優先順位: CSV > Firebase
+    fixedDate: csvDate || fbDate,
+    fixedTime: csvTime || fbTime,
+    isCSVFixed: !!(csvDate),
+    isFBFixed:  !!(fbDate && !csvDate)
+  };
+}
+
 function buildPrompt() {
   var today = todayStr();
   var d0 = today, d1 = addDays(today,1), d2 = addDays(today,2);
@@ -256,26 +295,46 @@ function buildPrompt() {
     var travel = getTravelMin(it.addr);
     var stay = (it.type === 'personal') ? PERSONAL_MIN : STAY_MIN;
     var areaShort = trimAddr(it.addr);
-    var isFixed = !!(it.time);
     var isPersonal = (it.type === 'personal');
-    var isUrgent = (it.type === 'alert');
-    var isReform = (it.type === 'reform');
+    var isUrgent   = (it.type === 'alert');
+    var isReform   = (it.type === 'reform');
+    var isNewbuild = (it.type === 'newbuild');
 
+    // 下見日時情報を取得（CSV優先・Firebase補完）
+    var si = getShitamiInfo(it);
+    var fixedDate = si.fixedDate || it.date || '';
+    var fixedTime = si.fixedTime || it.time || '';
+    var isTimeFixed = !!(fixedTime);
+    var isDateFixed = !!(fixedDate);
+
+    // タグ生成
     var tag = '';
-    if (isPersonal)                  tag = '[個人予定・時間絶対固定・移動不可]';
-    else if (isReform && isFixed)    tag = '[リフォーム下見・時間固定]';
-    else if (isReform && !isFixed)   tag = '[リフォーム下見・時間調整可]';
-    else if (isUrgent)               tag = '[緊急・訪問必要]';
-    else                             tag = '[新築下見・日程調整可]';
+    if (isPersonal) {
+      tag = '[個人予定・日時絶対固定]';
+    } else if (isReform) {
+      if (si.isCSVFixed) tag = '[ﾘ リフォーム・CSV確定日時・最優先固定]';
+      else if (si.isFBFixed) tag = '[ﾘ リフォーム・アプリ入力日時・優先固定]';
+      else if (isDateFixed)  tag = '[ﾘ リフォーム・日付確定]';
+      else                   tag = '[ﾘ リフォーム・日程未定・要調整]';
+    } else if (isUrgent) {
+      tag = '[新 緊急・訪問必要]';
+    } else {
+      tag = '[新 新築下見・日程調整可]';
+    }
 
     var line = tag;
     line += ' id=' + (it.id || '');
+    line += ' / 区分=' + (isReform ? 'ﾘ(リフォーム)' : isPersonal ? '個人' : '新(新築)');
     line += ' / ' + (it.title || '');
-    line += ' / 元日付=' + (it.date || '未定');
-    if (it.time) line += ' / 時間=' + it.time + '(固定・変更禁止)';
-    line += ' / エリア=' + (areaShort || '不明') + '　(' + (it.addr || '') + ')';
-    line += ' / 移動時間=' + travel + '分(片道・白石区出発基準)';
-    line += ' / 現場滞在=' + stay + '分';
+    // 日時情報（優先順位を明記）
+    if (si.csvDate) line += ' / CSV確定日=' + si.csvDate;
+    if (si.csvTime) line += ' / CSV確定時間=' + si.csvTime + '【変更禁止】';
+    if (si.fbDate && !si.csvDate) line += ' / アプリ入力日=' + si.fbDate + '(参考優先)';
+    if (si.fbTime && !si.csvTime) line += ' / アプリ入力時間=' + si.fbTime + '(参考優先)';
+    if (!si.csvDate && !si.fbDate && it.date) line += ' / 抽出元日付=' + it.date;
+    if (!si.csvTime && !si.fbTime && it.time) line += ' / 抽出元時間=' + it.time;
+    line += ' / エリア=' + (areaShort || '不明') + ' (' + (it.addr || '') + ')';
+    line += ' / 移動=' + travel + '分(片道) / 滞在=' + stay + '分';
     if (it.reason) line += ' / 理由=' + it.reason;
     if (it.company) line += ' / 担当=' + it.company;
     lines.push(line);
@@ -284,34 +343,53 @@ function buildPrompt() {
   return (
 '# Kの3日間下見プラン生成\n\n' +
 '## 基本情報\n' +
-'今日=' + d0 + '(' + wday(d0) + ')　明日=' + d1 + '(' + wday(d1) + ')　明後日=' + d2 + '(' + wday(d2) + ')\n' +
+'今日=' + d0 + '(' + wday(d0) + ') ' + getDayType(d0) + '\n' +
+'明日=' + d1 + '(' + wday(d1) + ') ' + getDayType(d1) + '\n' +
+'明後日=' + d2 + '(' + wday(d2) + ') ' + getDayType(d2) + '\n' +
 '出発地点: 白石区栄通18丁目（札幌市白石区）\n\n' +
+'## 曜日・祝日ルール（厳守）\n' +
+'・平日: 通常外回り可\n' +
+'・土曜: 原則外回り回避。よほど緊急でない限り自宅作業。\n' +
+'  → 土曜が含まれる場合は、外回りが必要か判断しnotesに「土曜確認: 〜が必要です。外回りしますか？」と記載\n' +
+'・日曜・祝日: 外回り絶対不可。下見案件を割り当て禁止\n' +
+'・例外: [日時絶対固定]タグは曜日に関係なくその時間に配置（先方指定のため）\n\n' +
+'## 下見日時の優先順位（重要）\n' +
+'1. CSV確定日時（[CSV確定日=][CSV確定時間=]）→ 最優先・絶対固定・変更禁止\n' +
+'2. アプリ入力日時（[アプリ入力日=][アプリ入力時間=]）→ 優先参考・基本その日その時間で組む\n' +
+'3. 抽出元日付（7日間抽出の元日付）→ 参考程度\n' +
+'4. 日時なし → Geminiが自由にエリア効率で提案\n\n' +
 '## 移動時間の目安（白石区から片道）\n' +
 '白石・厚別・豊平・東区・中央区・北区: 15分\n' +
 '手稲・清田・南区・西区: 20分\n' +
 '江別・石狩: 30分\n' +
 '北広島・小樽・当別・岩見沢: 40分\n' +
 '千歳・恵庭・苫小牧: 55分\n\n' +
+'## プランニングの順序（必ずこの順で）\n' +
+'STEP1: リフォーム確定下見（[ﾘ リフォーム・CSV確定][ﾘ リフォーム・アプリ入力]）を各日の「柱」として配置\n' +
+'STEP2: 個人予定（[個人予定]）を時間固定で配置\n' +
+'STEP3: 柱のある日に同エリア・近隣の新築案件を引き寄せる\n' +
+'STEP4: 緊急案件（[新 緊急]）を平日の早い日に配置\n' +
+'STEP5: 残り新築案件をエリア効率で振り分け\n' +
+'STEP6: 日曜・祝日の案件は全て別日へ移動。土曜は要確認\n\n' +
 '## 絶対ルール\n' +
-'1. 「時間固定・変更禁止」の案件はその時間に必ず置く。絶対に動かすな\n' +
-'2. 個人予定は時間も日付も絶対に変えない\n' +
-'3. リフォームで時間固定のものも同様\n' +
-'4. 同じエリアの案件は同じ日に集める（最重要：移動効率の核心）\n' +
-'5. 時間固定の案件がある日は、その前後に同エリア・近隣エリアの案件を引き寄せる\n' +
-'6. 緊急案件（[緊急]タグ）は今日か明日に必ず入れる\n' +
-'7. 7日間データは参考情報。3日以降の案件でも同エリアなら今3日に組み込んでよい\n' +
-'8. 1日の合計（移動+滞在）が480分（9:00〜17:00）を超えないよう調整する\n' +
-'9. 遠方（千歳・恵庭等55分）は単独日か近郊案件とセットで1日に2件まで\n\n' +
+'1. CSV確定時間は変更禁止。その時間帯を必ず空ける\n' +
+'2. アプリ入力日時がある案件は基本その日その時間で組む（やむを得ない場合のみ変更可・notesに理由記載）\n' +
+'3. 同エリアは同じ日にまとめる\n' +
+'4. 1日の合計（移動+滞在）が480分を超えない\n' +
+'5. 遠方（55分）は1日2件まで\n' +
+'6. 日曜・祝日に下見案件を割り当て禁止\n\n' +
 '## 全案件リスト（' + items.length + '件）\n' +
 lines.join('\n') + '\n\n' +
 '## 出力形式（JSONのみ・前置き不要・コードブロック不要）\n' +
 '{\n' +
 '  "summary": "3日間プランの全体方針（2〜3文）",\n' +
+'  "saturday_confirm": "土曜が含まれる場合の確認メッセージ（なければ空文字）",\n' +
 '  "days": [\n' +
 '    {\n' +
 '      "date": "YYYY-MM-DD",\n' +
 '      "label": "今日 or 明日 or 明後日",\n' +
-'      "theme": "その日のテーマ（例: 白石・厚別エリア集中）",\n' +
+'      "day_type": "平日 or 土曜 or 日曜・祝日",\n' +
+'      "theme": "その日のテーマ（例: ﾘ確定+白石エリア集中）",\n' +
 '      "cases": [\n' +
 '        {\n' +
 '          "order": 1,\n' +
@@ -319,16 +397,16 @@ lines.join('\n') + '\n\n' +
 '          "arrive": "09:00",\n' +
 '          "leave": "09:25",\n' +
 '          "travel_from_prev": 15,\n' +
-'          "reason": "この日この順にした理由（簡潔に20字以内）"\n' +
+'          "reason": "この順にした理由（20字以内）"\n' +
 '        }\n' +
 '      ],\n' +
 '      "total_min": 120,\n' +
 '      "end_time": "11:00",\n' +
-'      "notes": "この日の注意点"\n' +
+'      "notes": "この日の注意点・土曜確認メッセージ等"\n' +
 '    }\n' +
 '  ],\n' +
 '  "deferred": [\n' +
-'    { "id": "元のid", "title": "タイトル", "reason": "3日間に入れなかった理由" }\n' +
+'    { "id": "元のid", "title": "タイトル", "reason": "入れなかった理由" }\n' +
 '  ],\n' +
 '  "notes": "全体補足"\n' +
 '}'
