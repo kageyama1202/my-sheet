@@ -183,6 +183,25 @@ function extractItems(){
     var isReform=(kubun==='ﾘ');
     var isSK=title&&title.indexOf('SK')!==-1;
 
+    // ステータスチェック
+    var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
+    var localStatus=obj.local_status?String(obj.local_status).replace(/\s+/g,''):'';
+    var status=localStatus||sfStatus;
+
+    // 施工完了系は問答無用で除外
+    var SKIP_STATUS=['施工完了','報告書提出済','施工日連絡済'];
+    for(var si=0;si<SKIP_STATUS.length;si++){
+      if(status===SKIP_STATUS[si])return;
+    }
+
+    // 下見済み除外（3条件）
+    // ① 下見完了 → 無条件除外
+    if(status==='下見完了')return;
+    // ② 下見実施中 + CSV下見日が過去 → 除外
+    if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
+    // ③ 下見日程確定 + CSV下見日が過去 → 除外
+    if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
+
     if(isReform){
       // ★修正: 時間なしでも下見日があれば抽出。CSV・Firebase両方参照
       if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
