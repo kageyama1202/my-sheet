@@ -359,7 +359,7 @@ function generatePlan() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       contents: [{parts: [{text: buildPrompt()}]}],
-      generationConfig: {temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json'}
+      generationConfig: {temperature: 0.3, maxOutputTokens: 65536, responseMimeType: 'application/json'}
     })
   }).then(function(r){return r.json();})
   .then(function(data){
