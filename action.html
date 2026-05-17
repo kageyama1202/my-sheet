@@ -29,6 +29,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .day-header{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px 8px 0 0;font-size:13px;font-weight:bold;}
 .day-header.today{background:#1b4332;border-left:4px solid #52b788;color:#d8f3dc;}
 .day-header.future{background:#1a2744;border-left:4px solid #4a90d9;color:#a8c8f8;}
+.day-header.weekend{background:#2a1a1a;border-left:4px solid #9ca3af;color:#9ca3af;}
 .day-count{font-size:11px;background:rgba(255,255,255,0.1);padding:1px 7px;border-radius:10px;margin-left:auto;}
 .day-items{background:#111827;border-radius:0 0 8px 8px;border:1px solid #1f2937;border-top:none;overflow:hidden;margin-bottom:4px;}
 
@@ -56,9 +57,11 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .item-sub .addr{color:#52b788;}
 .item-sub .company{color:#9ca3af;}
 .item-sub .reason{color:#fb923c;font-weight:bold;}
+.item-sub .csv-fixed{color:#fbbf24;font-weight:bold;}
+.item-sub .fb-fixed{color:#60a5fa;font-weight:bold;}
 
 .item-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:bold;white-space:nowrap;margin-right:3px;}
-.badge-reform{background:#2d3748;color:#90cdf4;}
+.badge-reform{background:#1e3a5f;color:#93c5fd;}
 .badge-newbuild{background:#2d2a1a;color:#fbbf24;}
 .badge-newbuild-alert{background:#7c2d12;color:#fed7aa;}
 .badge-personal{background:#2d1b4e;color:#c4b5fd;}
@@ -113,9 +116,11 @@ var db=firebase.database();
 
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
-function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
-function addDays(s,n){var d=new Date(s+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
-function getDayLabel(ymd){var days=['日','月','火','水','木','金','土'];var d=new Date(ymd+"T00:00:00");return ymd.replace(/^\d{4}-/,'')+'('+days[d.getDay()]+')'; }
+function getTodayStr(){var t=new Date();return new Date(t.getTime()+9*3600000).toISOString().slice(0,10);}
+function addDays(s,n){var d=new Date(s+"T00:00:00+09:00");d.setDate(d.getDate()+n);return new Date(d.getTime()+9*3600000).toISOString().slice(0,10);}
+function getDayLabel(ymd){var days=['日','月','火','水','木','金','土'];var d=new Date(ymd+"T00:00:00+09:00");return ymd.replace(/^\d{4}-/,'')+'('+days[d.getDay()]+')';}
+function getDow(ymd){return new Date(ymd+"T00:00:00+09:00").getDay();}
+function isWeekend(ymd){var dow=getDow(ymd);return dow===0||dow===6;}
 function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,18);}
 function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
@@ -162,33 +167,55 @@ function extractItems(){
     var tel=getSafeVal(c,6);
     var addr=getSafeVal(c,11);
     var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
-    var shitamiDate=formatYMD(getSafeVal(c,15));
-    var shitamiTime=getSafeVal(c,16);
+
+    // CSV側の下見日時（最優先）
+    var csvShitamiDate=formatYMD(getSafeVal(c,15));
+    var csvShitamiTime=getSafeVal(c,16);
+
+    // Firebase側の下見日時（補完用）
+    var fbShitamiDate=obj.date?String(obj.date).replace(/\s+/g,''):'';
+    var fbShitamiTime=obj.time?String(obj.time).replace(/\s+/g,''):'';
+
+    // 有効な下見日時（CSV優先・Firebase補完）
+    var shitamiDate=csvShitamiDate||fbShitamiDate;
+    var shitamiTime=csvShitamiTime||fbShitamiTime;
+
     var isReform=(kubun==='ﾘ');
     var isSK=title&&title.indexOf('SK')!==-1;
 
     if(isReform){
-      if(shitamiDate&&shitamiTime&&shitamiDate>=todayStr&&shitamiDate<=endStr){
+      // ★修正: 時間なしでも下見日があれば抽出。CSV・Firebase両方参照
+      if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
         items.push({
-          id:'task_'+key,type:'reform',date:shitamiDate,time:shitamiTime,
+          id:'task_'+key,type:'reform',
+          date:shitamiDate,time:shitamiTime,
+          csvDate:csvShitamiDate,csvTime:csvShitamiTime,
+          fbDate:fbShitamiDate,fbTime:fbShitamiTime,
           title:title,company:company,addr:addr,tel:tel,
-          reason:'下見',badge:'badge-reform',badgeText:'ﾘ 下見',key:key
+          reason:'下見'+(csvShitamiDate?'(CSV確定)':fbShitamiDate?'(アプリ入力)':''),
+          badge:'badge-reform',badgeText:'ﾘ 下見',key:key
         });
       }
       return;
     }
 
+    // 新築：下見日確定済み
     if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
       items.push({
-        id:'task_'+key,type:'newbuild',date:shitamiDate,time:shitamiTime||'',
+        id:'task_'+key,type:'newbuild',
+        date:shitamiDate,time:shitamiTime,
+        csvDate:csvShitamiDate,csvTime:csvShitamiTime,
+        fbDate:fbShitamiDate,fbTime:fbShitamiTime,
         title:title,company:company,addr:addr,tel:tel,
-        reason:'下見',badge:'badge-newbuild',badgeText:'新 下見',key:key
+        reason:'下見'+(csvShitamiDate?'(CSV確定)':fbShitamiDate?'(アプリ入力)':''),
+        badge:'badge-newbuild',badgeText:'新 下見',key:key
       });
       return;
     }
 
+    // 新築：下見未定・アラート
     if(!shitamiDate&&sekouDate){
-      var diff=Math.ceil((new Date(sekouDate+"T00:00:00")-new Date(todayStr+"T00:00:00"))/(1000*60*60*24));
+      var diff=Math.ceil((new Date(sekouDate+"T00:00:00+09:00")-new Date(todayStr+"T00:00:00+09:00"))/(1000*60*60*24));
       if(diff<0)return;
       if(isSK&&diff<=10){
         items.push({
@@ -208,6 +235,7 @@ function extractItems(){
     }
   });
 
+  // 個人カレンダー
   Object.keys(personalEvents).forEach(function(dateKey){
     if(dateKey<todayStr||dateKey>endStr)return;
     var dayEvs=personalEvents[dateKey];
@@ -264,7 +292,6 @@ function render(){
   for(var i=0;i<7;i++)dates.push(addDays(todayStr,i));
 
   var html='<div style="padding-bottom:24px;">';
-
   html+='<div class="summary-bar">';
   html+='<div class="summary-item">期間: <strong>'+todayStr+'〜'+endStr+'</strong></div>';
   html+='<div class="summary-item">総抽出: <strong>'+allItems.length+'件</strong></div>';
@@ -274,10 +301,13 @@ function render(){
   dates.forEach(function(dateStr){
     var dayItems=byDate[dateStr]||[];
     var isToday=(dateStr===todayStr);
+    var isWkend=isWeekend(dateStr);
+    var headerCls=isToday?'day-header today':isWkend?'day-header weekend':'day-header future';
+    var wkendLabel=isWkend?(getDow(dateStr)===0?' 🔴 日曜（外回り不可）':' ⚠ 土曜（外回り要確認）'):'';
 
     html+='<div class="day-section">';
-    html+='<div class="'+(isToday?'day-header today':'day-header future')+'">';
-    html+='<span>'+getDayLabel(dateStr)+(isToday?' 🔴 今日':'')+'</span>';
+    html+='<div class="'+headerCls+'">';
+    html+='<span>'+getDayLabel(dateStr)+(isToday?' 🔴 今日':'')+wkendLabel+'</span>';
     html+='<span class="day-count">'+dayItems.length+'件</span>';
     html+='</div>';
     html+='<div class="day-items">';
@@ -297,9 +327,7 @@ function render(){
         var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
 
         html+='<div class="'+rowClass+'" id="row_'+safeId+'">';
-
         html+='<div class="item-check"><input type="checkbox" '+(excluded[item.id]?'checked':'')+' data-id="'+escHtml(item.id)+'" onchange="toggleExclude(this)" onclick="event.stopPropagation()"></div>';
-
         html+='<div class="'+timeClass+'">'+escHtml(item.time||'')+'</div>';
         html+='<div class="item-type">'+typeIcon+'</div>';
 
@@ -308,15 +336,25 @@ function render(){
         }else{
           html+='<div class="item-body-plain">';
         }
-        html+='<div class="item-title"><span class="item-badge '+item.badge+'">'+escHtml(item.badgeText)+'</span>'+escHtml(item.title)+'</div>';
+
+        // 区分バッジ（ﾘ/新を明確に）
+        var kubunBadge='';
+        if(item.type==='reform')      kubunBadge='<span class="item-badge badge-reform">ﾘ リフォーム</span>';
+        else if(item.type==='newbuild')kubunBadge='<span class="item-badge badge-newbuild">新 新築</span>';
+        else if(item.type==='alert')  kubunBadge='<span class="item-badge badge-newbuild-alert">新 アラート</span>';
+        else if(item.type==='personal')kubunBadge='<span class="item-badge badge-personal">📅 個人</span>';
+
+        html+='<div class="item-title">'+kubunBadge+escHtml(item.title)+'</div>';
         html+='<div class="item-sub">';
         if(item.reason)html+='<span class="reason">'+escHtml(item.reason)+'</span>';
+        // 日時ソース表示
+        if(item.csvDate)html+='<span class="csv-fixed">📌CSV確定:'+escHtml(item.csvDate)+(item.csvTime?' '+escHtml(item.csvTime):'')+'</span>';
+        else if(item.fbDate)html+='<span class="fb-fixed">🔵アプリ:'+escHtml(item.fbDate)+(item.fbTime?' '+escHtml(item.fbTime):'')+'</span>';
         if(addrDisp)html+='<span class="addr">📍'+escHtml(addrDisp)+'</span>';
         if(item.company)html+='<span class="company">'+escHtml(item.company)+'</span>';
         if(item.tel)html+='<span class="company">📞'+escHtml(item.tel)+'</span>';
         html+='</div>';
         html+=(item.key?'</div>':'</div>');
-
         html+='</div>';
       });
     }
@@ -352,7 +390,6 @@ function saveToFirebase(){
   btn.textContent='保存中...';
 
   var saveItems=allItems.filter(function(item){return !excluded[item.id];});
-
   var saveData={
     updated:new Date().toISOString(),
     range:{from:todayStr,to:endStr},
@@ -361,8 +398,8 @@ function saveToFirebase(){
   };
 
   db.ref('app_action_7day').set(saveData).then(function(){
-    var now=new Date();
-    var ts=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    var now=new Date(new Date().getTime()+9*3600000);
+    var ts=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0');
     document.getElementById('lastSavedWrap').style.display='';
     document.getElementById('lastSavedTime').textContent=ts;
     var notice=document.getElementById('saveNotice');
