@@ -1,1011 +1,453 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-05-17 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>アクション管理</title>
+<title>7日間 行動抽出</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<link rel="stylesheet" href="shared-modal.css">
 <style>
-*{box-sizing:border-box;}
-body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px;}
-.header-bar{background:#fff;padding:6px 12px;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.header-bar h3{margin:0;font-size:15px;color:#ff6b00;}
-.top-link{text-decoration:none;font-weight:bold;color:#ff6b00;font-size:14px;}
-.search-box{margin-left:auto;display:flex;align-items:center;gap:5px;}
-.search-box input{padding:3px 8px;border:1px solid #ccc;border-radius:4px;width:160px;font-size:13px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f2e;color:#e0e6f0;min-height:100vh;}
 
-/* タブ */
-.tab-bar{background:#fff;border-bottom:2px solid #ff6b00;display:flex;gap:0;overflow-x:auto;}
-.tab{padding:8px 16px;cursor:pointer;border-bottom:3px solid transparent;font-weight:bold;font-size:13px;color:#666;white-space:nowrap;}
-.tab:hover{background:#f5f5f5;}
-.tab.active{color:#ff6b00;border-bottom-color:#ff6b00;background:#fff3e0;}
+/* ヘッダー */
+.header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
+.header a{color:#52b788;text-decoration:none;font-size:13px;font-weight:bold;}
+.header h2{font-size:16px;color:#d8f3dc;flex:1;}
+.header-meta{font-size:11px;color:#74c69d;background:#1b4332;padding:3px 10px;border-radius:12px;}
 
-.filter-panel{background:#fff;border-bottom:2px solid #ff6b00;padding:4px 10px;display:none;}
-.filter-panel.show{display:block;}
-.filter-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;}
-.filter-row:last-child{border-bottom:none;}
-.filter-label{font-weight:bold;color:#fff;background:#ff6b00;padding:1px 7px;border-radius:3px;font-size:11px;min-width:45px;text-align:center;white-space:nowrap;}
-.filter-checks{display:flex;flex-wrap:wrap;gap:1px 6px;align-items:center;}
-.filter-checks label{cursor:pointer;display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap;padding:0 3px;border-radius:3px;}
-.filter-checks label:hover{background:#fff3e0;}
-.filter-checks input[type="checkbox"]{cursor:pointer;margin:0;width:13px;height:13px;}
-.filter-toggle{font-size:10px;color:#ff6b00;cursor:pointer;font-weight:bold;padding:1px 5px;border:1px solid #ff6b00;border-radius:3px;background:#fff;}
-.filter-toggle:hover{background:#fff3e0;}
-.sel-btn{font-size:10px;color:#ff6b00;cursor:pointer;text-decoration:underline;}.sel-btn.red{color:#dc3545;}
-.date-area{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
-.date-area input[type="date"]{padding:2px 4px;border:1px solid #999;border-radius:3px;font-size:12px;width:125px;}
-.date-area span{font-size:12px;font-weight:bold;}
-.sm-btn{font-size:10px;padding:2px 6px;cursor:pointer;border:1px solid #999;border-radius:3px;background:#fff;font-weight:bold;}.sm-btn:hover{background:#f0f0f0;}
-.table-wrapper{overflow:auto;background:#fff;border:1px solid #ccc;height:calc(100vh - 210px);}
-table{border-collapse:collapse;table-layout:fixed;width:max-content;}
-th,td{border:1px solid #ccc;text-align:left;font-size:12px;vertical-align:middle;}
-th{background:#e0e0e0;padding:3px 5px;position:sticky;top:0;z-index:10;white-space:nowrap;}
-tbody tr:hover{background:#e8f4ff;cursor:pointer;}
-.cell-inner{padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.col-no{width:30px;min-width:30px;max-width:30px;text-align:center;}
-.col-status{width:80px;min-width:80px;max-width:80px;}
-.col-kubun{width:25px;min-width:25px;max-width:25px;text-align:center;}
-.col-name{width:170px;min-width:170px;max-width:170px;}
-.col-company{width:140px;min-width:140px;max-width:140px;}
-.col-tel{width:105px;min-width:105px;max-width:105px;}
-.col-date{width:92px;min-width:92px;max-width:92px;}
-.col-memo{width:190px;min-width:190px;max-width:190px;}
-.col-address{width:170px;min-width:170px;max-width:170px;}
-.col-yotei{width:92px;min-width:92px;max-width:92px;}
-.col-time{width:50px;min-width:50px;max-width:50px;}
-.col-order{width:35px;min-width:35px;max-width:35px;text-align:center;}
-.col-days{width:60px;min-width:60px;max-width:60px;font-weight:bold;text-align:center;font-size:14px;}
-.link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
-#tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
-.count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
-#noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
-.kanryo-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #999;background:#fff;font-weight:bold;}
-.kanryo-toggle.active{background:#ffc107;border-color:#ffc107;color:#333;}
-.yotei-cell{color:#7b1fa2;font-weight:600;}
+/* ステータスバー */
+.status-bar{padding:8px 16px;background:#0d1117;border-bottom:1px solid #222;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.status-item{font-size:11px;color:#aaa;}
+.status-item span{color:#52b788;font-weight:bold;}
+.sync-btn{margin-left:auto;background:#2d6a4f;color:#d8f3dc;border:none;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.sync-btn:hover{background:#40916c;}
+.sync-btn:disabled{background:#333;color:#666;cursor:not-allowed;}
 
-/* リフォームタブ専用 */
-.reform-status{width:80px;min-width:80px;max-width:80px;font-weight:bold;text-align:center;font-size:11px;}
-.reform-untreated{background:#ffebee;border-left:3px solid #d32f2f;}
-.reform-treated{background:#e8f5e9;border-left:3px solid #4caf50;}
+/* 日付セクション */
+.day-section{margin:12px 16px 0;}
+.day-header{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px 8px 0 0;font-size:13px;font-weight:bold;}
+.day-header.today{background:#1b4332;border-left:4px solid #52b788;color:#d8f3dc;}
+.day-header.future{background:#1a2744;border-left:4px solid #4a90d9;color:#a8c8f8;}
+.day-label{font-size:15px;}
+.day-count{font-size:11px;background:rgba(255,255,255,0.1);padding:1px 7px;border-radius:10px;margin-left:auto;}
+.day-items{background:#111827;border-radius:0 0 8px 8px;border:1px solid #1f2937;border-top:none;overflow:hidden;}
 
-/* 本日タブ専用 */
-.today-type{width:50px;min-width:50px;max-width:50px;text-align:center;font-size:16px;}
-.today-sekou{background:#e3f2fd;}
-.today-shitami{background:#e8f5e9;}
-.today-yotei{background:#fff9c4;}
-.today-ai{background:#f3e5f5;}
+/* 案件カード */
+.item-row{display:flex;align-items:stretch;border-bottom:1px solid #1f2937;min-height:48px;}
+.item-row:last-child{border-bottom:none;}
+.item-row:hover{background:#1f2937;}
 
-/* 報告書タブ専用 */
-.report-urgent{background:#ffebee;border-left:3px solid #d32f2f;}
-.report-warning{background:#fff9c4;border-left:3px solid #ff9800;}
-.report-safe{background:#e8f5e9;border-left:3px solid #4caf50;}
+.item-time{width:52px;min-width:52px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-direction:column;gap:1px;}
+.item-time.has-time{color:#ffd166;}
+.item-time.no-time{color:#555;}
 
-/* 下見予定タブ専用 */
-.shitami-today{background:#ffebee;border-left:3px solid #d32f2f;}
-.shitami-tomorrow{background:#fff9c4;border-left:3px solid #ff9800;}
-.shitami-later{background:#e8f5e9;border-left:3px solid #4caf50;}
+.item-type{width:36px;min-width:36px;display:flex;align-items:center;justify-content:center;font-size:16px;}
 
-/* AIスケジュールタブ専用 */
-.ai-schedule-today{background:#ffebee;border-left:3px solid #d32f2f;}
-.ai-schedule-tomorrow{background:#fff9c4;border-left:3px solid #ff9800;}
-.ai-schedule-later{background:#e8f5e9;border-left:3px solid #4caf50;}
-.promote-btn{font-size:10px;padding:3px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold;margin-left:8px;}
-.promote-btn:hover{background:#388e3c;}
-.promote-btn:disabled{background:#ccc;cursor:default;}
+.item-body{flex:1;padding:8px 10px;min-width:0;}
+.item-title{font-size:13px;font-weight:bold;color:#e0e6f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.item-sub{font-size:11px;color:#6b7280;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;}
+.item-sub .addr{color:#52b788;}
+.item-sub .company{color:#9ca3af;}
+.item-sub .reason{color:#fb923c;font-weight:bold;}
 
-/* アラート表示 */
-.alert-bar{background:#d32f2f;color:#fff;padding:8px 12px;font-weight:bold;font-size:12px;display:none;cursor:pointer;}
-.alert-bar.show{display:block;}
-.alert-bar:hover{background:#a71d2a;}
+.item-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:bold;white-space:nowrap;}
+.badge-reform{background:#2d3748;color:#90cdf4;}
+.badge-newbuild{background:#2d2a1a;color:#fbbf24;}
+.badge-newbuild-alert{background:#7c2d12;color:#fed7aa;}
+.badge-personal{background:#2d1b4e;color:#c4b5fd;}
+.badge-sk-alert{background:#4c0519;color:#fda4af;}
 
-/* 備忘録タブ */
-.memo-container{padding:10px;max-width:800px;margin:0 auto;}
-.memo-section{background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:10px;padding:12px;}
-.memo-section h3{margin:0 0 10px 0;font-size:14px;color:#333;}
-.memo-input{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:sans-serif;resize:vertical;min-height:80px;}
-.memo-btn{padding:8px 16px;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:13px;margin-right:6px;}
-.memo-save{background:#4caf50;color:#fff;}
-.memo-cancel{background:#f5f5f5;color:#666;border:1px solid #ccc;}
-.memo-item{background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:10px;margin-bottom:8px;}
-.memo-date{font-size:11px;color:#888;margin-bottom:4px;}
-.memo-text{font-size:13px;color:#333;white-space:pre-wrap;word-wrap:break-word;margin-bottom:6px;}
-.memo-delete{font-size:11px;color:#dc3545;cursor:pointer;text-decoration:underline;}
-.memo-delete:hover{color:#a71d2a;}
-.search-result-item{background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:8px;margin-bottom:6px;cursor:pointer;}
-.search-result-item:hover{background:#e9ecef;}
-.search-result-title{font-weight:bold;font-size:12px;color:#333;margin-bottom:2px;}
-.search-result-detail{font-size:11px;color:#666;}
-.search-result-match{font-size:11px;color:#0056b3;font-style:italic;margin-top:2px;}
+/* マイカレ行 */
+.item-row.personal{background:#1a1230;}
+.item-row.personal:hover{background:#231640;}
+
+/* アラート行 */
+.item-row.alert-row{background:#1f1008;}
+.item-row.alert-row:hover{background:#2d1a0e;}
+
+/* 空表示 */
+.empty-day{padding:12px 16px;font-size:12px;color:#4b5563;font-style:italic;}
+
+/* ローディング */
+.loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
+.loading::after{content:'';display:inline-block;width:20px;height:20px;border:2px solid #52b788;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-left:8px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* 保存通知 */
+.save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:999;}
+.save-notice.show{opacity:1;}
+
+/* サマリー */
+.summary-bar{margin:12px 16px;padding:10px 14px;background:#111827;border-radius:8px;border:1px solid #1f2937;display:flex;gap:16px;flex-wrap:wrap;}
+.summary-item{font-size:12px;color:#9ca3af;}
+.summary-item strong{color:#52b788;}
 </style>
 </head>
 <body>
 
-<div id="tooltip"></div>
-<div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
-
-<div class="header-bar">
-<a href="index.html" class="top-link">◀ トップ</a>
-<h3>⚡ アクション管理</h3>
-<div class="search-box"><span style="font-weight:bold;color:#555;">🔍</span><input type="text" id="searchInput" placeholder="テキスト検索..." /></div>
+<div class="header">
+  <a href="index.html">◀ トップ</a>
+  <h2>📅 7日間 行動抽出</h2>
+  <div class="header-meta" id="rangeLabel">-</div>
 </div>
 
-<div class="tab-bar">
-<div class="tab active" data-tab="all">全体</div>
-<div class="tab" data-tab="reform">リフォーム</div>
-<div class="tab" data-tab="today">本日</div>
-<div class="tab" data-tab="shitami">下見予定</div>
-<div class="tab" data-tab="ai">AIスケジュール</div>
-<div class="tab" data-tab="report">報告書</div>
-<div class="tab" data-tab="memo">備忘録</div>
+<div class="status-bar">
+  <div class="status-item">案件: <span id="taskCount">-</span></div>
+  <div class="status-item">マイカレ: <span id="calCount">-</span></div>
+  <div class="status-item">アラート: <span id="alertCount">-</span></div>
+  <div class="status-item" id="lastSaved" style="display:none;">保存: <span id="lastSavedTime">-</span></div>
+  <button class="sync-btn" id="saveBtn" onclick="saveToFirebase()">Firebaseに保存</button>
 </div>
 
-<!-- 全体タブのフィルター -->
-<div class="filter-panel show" id="filterPanel">
-<div class="filter-row"><span class="filter-label">📅 期間</span><div class="date-area"><input type="date" id="dateFrom" /><span>〜</span><input type="date" id="dateTo" /><button class="sm-btn" id="dateToday">今日</button><button class="sm-btn" id="dateWeek">1週間</button><button class="sm-btn" id="dateMonth">1ヶ月</button><button class="sm-btn" id="dateFuture">今日以降</button><button class="sm-btn" id="dateClear">全期間</button></div><div class="filter-checks"><label><input type="checkbox" id="chkSekou" checked> 施工日</label><label><input type="checkbox" id="chkShitami"> 下見日</label><label><input type="checkbox" id="chkYotei"> 下見予定日</label><label><input type="checkbox" id="chkAI"> AI予定日</label></div></div>
-<div class="filter-row"><span class="filter-label">📌 状態</span><div class="filter-checks" id="statusFilters"></div><button class="kanryo-toggle" id="kanryoToggle">完了も表示</button></div>
-<div class="filter-row"><span class="filter-label">🏷 区分</span><div class="filter-checks" id="kubunFilters"></div></div>
-<div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
-<div class="filter-row"><span class="filter-label">📍 地域</span><div class="filter-checks" id="areaFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="areaToggle">▶ 展開</span></div>
-</div>
+<div id="mainContent"><div class="loading">データ読み込み中</div></div>
+<div class="save-notice" id="saveNotice">✓ Firebase保存完了</div>
 
-<!-- 本日タブのフィルター -->
-<div class="filter-panel" id="todayFilterPanel">
-<div class="filter-row">
-<span class="filter-label">📅 本日</span>
-<div class="filter-checks">
-<label><input type="checkbox" id="chkTodaySekou" checked> 🔧 施工</label>
-<label><input type="checkbox" id="chkTodayShitami" checked> 👁 下見</label>
-<label><input type="checkbox" id="chkTodayYotei" checked> 📅 下見予定</label>
-<label><input type="checkbox" id="chkTodayAI" checked> 🤖 AI予定</label>
-</div>
-</div>
-</div>
-
-<div class="alert-bar" id="alertBar">⚠️ 緊急: 下見未設定で施工日が迫っている案件 <span id="alertCount">0</span> 件</div>
-
-<div class="count-display" id="countDisplay">-</div>
-
-<!-- テーブル表示エリア -->
-<div class="table-wrapper" id="tableArea">
-<div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div>
-<table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
-</div>
-
-<!-- 備忘録エリア -->
-<div class="memo-container" id="memoArea" style="display:none;">
-<div class="memo-section">
-<h3>🔍 案件検索</h3>
-<input type="text" class="memo-input" id="caseSearchInput" placeholder="検索ワード（例：２階設置、土屋ホーム）" style="min-height:40px;" />
-<div id="searchResults" style="margin-top:10px;"></div>
-</div>
-
-<div class="memo-section">
-<h3>📝 メモ</h3>
-<button class="memo-btn memo-save" id="newMemoBtn">+ 新規メモ</button>
-<div id="memoList" style="margin-top:10px;"></div>
-<div id="memoEditor" style="display:none;margin-top:10px;">
-<textarea class="memo-input" id="memoTextarea" placeholder="メモを入力..."></textarea>
-<div style="margin-top:8px;">
-<button class="memo-btn memo-save" id="saveMemoBtn">💾 保存</button>
-<button class="memo-btn memo-cancel" id="cancelMemoBtn">キャンセル</button>
-</div>
-</div>
-</div>
-</div>
-
-<script src="shared-modal.js"></script>
 <script>
-var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+var firebaseConfig={
+  apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain:"project-6745138395263517914.firebaseapp.com",
+  databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId:"project-6745138395263517914",
+  storageBucket:"project-6745138395263517914.firebasestorage.app",
+  messagingSenderId:"1054295910908",
+  appId:"1:1054295910908:web:4072df05bd90bbdc896a79"
+};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-var database=firebase.database();
+var db=firebase.database();
 
-var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
-var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAI=document.getElementById('chkAI'),searchInput=document.getElementById('searchInput');
-var chkTodaySekou=document.getElementById('chkTodaySekou'),chkTodayShitami=document.getElementById('chkTodayShitami'),chkTodayYotei=document.getElementById('chkTodayYotei'),chkTodayAI=document.getElementById('chkTodayAI');
-
-var currentTab='all';
-var displayCols=[1,3,4,5,6,7,10,11,2,12,-1];
-var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-date','col-memo','col-address','col-date','col-date','col-yotei'];
-var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','下見予定日'];
-
+// ユーティリティ
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
-function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
-function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
-function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s=a.match(/札幌市(.+?区)/);if(s)return s[1];var c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];var t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
+function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
 function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
-function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
-function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
-function daysDiff(d1,d2){var a=new Date(d1),b=new Date(d2);return Math.floor((a-b)/(1000*60*60*24));}
+function addDays(s,n){var d=new Date(s+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
+function fmtTime(s){if(!s||s.length<=10)return'';var t=s.substring(11,16);return t;}
+function getDayLabel(ymd){
+  var days=['日','月','火','水','木','金','土'];
+  var d=new Date(ymd+"T00:00:00");
+  return ymd.replace(/^\d{4}-/,'')+'('+days[d.getDay()]+')';
+}
+function shortAddr(addr){
+  if(!addr)return'';
+  var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');
+  // 区以降を取得
+  var m=a.match(/(.+?区.{0,20})/);
+  return m?m[1]:a.substring(0,20);
+}
 
-var todayStr=getTodayStr();dateFrom.value=todayStr;dateTo.value=todayStr;
+// グローバル
+var todayStr=getTodayStr();
+var endStr=addDays(todayStr,6); // 今日含めて7日
+var globalTasks={};
+var personalEvents={};
+var extractedData=[]; // Firebase保存用
 
-// 日付ボタン
-document.getElementById('dateToday').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=todayStr;renderTable();});
-document.getElementById('dateWeek').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,7);renderTable();});
-document.getElementById('dateMonth').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value=addDays(todayStr,30);renderTable();});
-document.getElementById('dateFuture').addEventListener('click',function(){dateFrom.value=todayStr;dateTo.value='';renderTable();});
-document.getElementById('dateClear').addEventListener('click',function(){dateFrom.value='';dateTo.value='';renderTable();});
-dateFrom.addEventListener('change',renderTable);dateTo.addEventListener('change',renderTable);
-chkSekou.addEventListener('change',renderTable);chkShitami.addEventListener('change',renderTable);chkYotei.addEventListener('change',renderTable);chkAI.addEventListener('change',renderTable);
-chkTodaySekou.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
-chkTodayShitami.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
-chkTodayYotei.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
-chkTodayAI.addEventListener('change',function(){if(currentTab==='today')renderTodayTab();});
-searchInput.addEventListener('input',applyTextSearch);
+// ラベル
+document.getElementById('rangeLabel').textContent=
+  (todayStr.replace(/^\d{4}-/,''))+'〜'+(endStr.replace(/^\d{4}-/,''));
 
-var showKanryo=false;
-document.getElementById('kanryoToggle').addEventListener('click',function(){showKanryo=!showKanryo;this.classList.toggle('active',showKanryo);this.textContent=showKanryo?'✔ 完了表示中':'完了も表示';renderTable();});
-
-var globalHeaders=[],globalTasks={},fullData=null,globalMemos=[];
-
+// ----------------------------------------------------------------
 // データ読み込み
-try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
-if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();checkAlert();renderTable();}else{document.getElementById('noDataMsg').style.display='block';}
+// ----------------------------------------------------------------
+var tasksReady=false, calReady=false;
 
-// アラートチェック（下見未設定で施工日が7日以内）
-function checkAlert(){
-  var endDate=addDays(todayStr,7);
-  var alertCases=[];
-  
-  Object.keys(globalTasks).forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
-    var sekouDate=formatToYMD(getSafeVal(cols,2));
-    if(!sekouDate||sekouDate<todayStr||sekouDate>endDate)return;
-    
-    var shitamiDate=formatToYMD(getSafeVal(cols,15));
-    var yoteiDate=obj.date||'';
-    var sfShitamiDate=formatToYMD(getSafeVal(cols,20));
-    
-    if(!shitamiDate&&!yoteiDate&&!sfShitamiDate){
-      alertCases.push(key);
-    }
-  });
-  
-  if(alertCases.length>0){
-    document.getElementById('alertCount').textContent=alertCases.length;
-    document.getElementById('alertBar').classList.add('show');
-    document.getElementById('alertBar').addEventListener('click',function(){
-      document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
-      document.querySelectorAll('.tab[data-tab="shitami"]').forEach(function(t){t.classList.add('active');});
-      currentTab='shitami';
-      switchTab('shitami');
-    });
+// localStorage から app_tasks
+try{
+  var s=localStorage.getItem('appData');
+  if(s){
+    var fd=JSON.parse(s);
+    if(fd&&fd.app_tasks){globalTasks=fd.app_tasks;}
   }
-}
+}catch(e){console.error('localStorage読み込みエラー',e);}
+tasksReady=true;
 
-// メモ読み込み
-database.ref('app_memos').once('value').then(function(snap){
-  var data=snap.val();
-  if(data){
-    globalMemos=Object.keys(data).map(function(k){return{id:k,text:data[k].text,created:data[k].created};});
-    globalMemos.sort(function(a,b){return (b.created||'').localeCompare(a.created||'');});
-  }
-  renderMemoList();
+// Firebase から personal_calendar
+db.ref('personal_calendar').once('value').then(function(snap){
+  personalEvents=snap.val()||{};
+  calReady=true;
+  render();
+}).catch(function(e){
+  console.warn('personal_calendar取得失敗',e);
+  calReady=true;
+  render();
 });
 
-// タブ切り替え
-document.querySelectorAll('.tab').forEach(function(tab){
-  tab.addEventListener('click',function(){
-    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
-    this.classList.add('active');
-    currentTab=this.getAttribute('data-tab');
-    switchTab(currentTab);
-  });
-});
+// tasksReadyは同期なのですぐrender試行
+if(tasksReady&&calReady){render();}
 
-function switchTab(tab){
-  document.getElementById('filterPanel').classList.remove('show');
-  document.getElementById('todayFilterPanel').classList.remove('show');
-  document.getElementById('tableArea').style.display='none';
-  document.getElementById('memoArea').style.display='none';
-  
-  if(tab==='all'){
-    document.getElementById('filterPanel').classList.add('show');
-    document.getElementById('tableArea').style.display='block';
-    renderTable();
-  }else if(tab==='reform'){
-    document.getElementById('tableArea').style.display='block';
-    renderReformTab();
-  }else if(tab==='today'){
-    document.getElementById('todayFilterPanel').classList.add('show');
-    document.getElementById('tableArea').style.display='block';
-    renderTodayTab();
-  }else if(tab==='shitami'){
-    document.getElementById('tableArea').style.display='block';
-    renderShitamiTab();
-  }else if(tab==='ai'){
-    document.getElementById('tableArea').style.display='block';
-    renderAIScheduleTab();
-  }else if(tab==='report'){
-    document.getElementById('tableArea').style.display='block';
-    renderReportTab();
-  }else if(tab==='memo'){
-    document.getElementById('memoArea').style.display='block';
-  }
-}
+// ----------------------------------------------------------------
+// 抽出ロジック
+// ----------------------------------------------------------------
+function extractItems(){
+  var items=[];
+  var taskC=0, alertC=0;
 
-function initFilters(){
-  var stMap={},kbMap={},cpMap={},arMap={};
-  Object.values(globalTasks).forEach(function(o){var c=o.csvData;if(!c)return;var st=getSafeVal(c,1).replace(/\s+/g,"");if(st&&st!=="完了")stMap[st]=(stMap[st]||0)+1;var k=getSafeVal(c,3).replace(/\s+/g,"");if(k)kbMap[k]=(kbMap[k]||0)+1;var cp=extractCompany(getSafeVal(c,5));if(cp)cpMap[cp]=(cpMap[cp]||0)+1;var ar=extractArea(getSafeVal(c,11));if(ar)arMap[ar]=(arMap[ar]||0)+1;});
-  buildChecks('statusFilters',sortByCount(stMap),true,true);buildChecks('kubunFilters',sortByCount(kbMap),true,false);
-  buildChecks('companyFilters',sortByCount(cpMap),false,true);setupToggle('companyToggle','companyFilters');
-  var aA=Object.entries(arMap),kuA=aA.filter(function(a){return a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];}),oA=aA.filter(function(a){return!a[0].endsWith('区');}).sort(function(a,b){return b[1]-a[1];});
-  buildChecksFromArr('areaFilters',kuA.concat(oA).map(function(a){return{name:a[0],count:a[1]};}),false,true);setupToggle('areaToggle','areaFilters');
-}
-
-function sortByCount(map){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).map(function(a){return{name:a[0],count:a[1]};});}
-function buildChecks(id,items,allChecked,showCount){var el=document.getElementById(id);addSelBtns(el);items.forEach(function(item){var lbl=document.createElement('label');var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;cb.addEventListener('change',renderTable);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));el.appendChild(lbl);});}
-function buildChecksFromArr(id,items,allChecked,showCount){var el=document.getElementById(id);addSelBtns(el);items.forEach(function(item){var lbl=document.createElement('label');var cb=document.createElement('input');cb.type='checkbox';cb.value=item.name;cb.checked=allChecked;cb.addEventListener('change',renderTable);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(' '+item.name+(showCount?'('+item.count+')':'')));el.appendChild(lbl);});}
-function addSelBtns(el){var ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';ba.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=true;});renderTable();});var bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';bn.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false;});renderTable();});el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));}
-function setupToggle(tid,cid){var tog=document.getElementById(tid),el=document.getElementById(cid);var open=false;tog.addEventListener('click',function(){open=!open;el.style.maxHeight=open?'none':'20px';el.style.overflow=open?'visible':'hidden';tog.textContent=open?'▼ 閉じる':'▶ 展開';});}
-function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(function(c){v.push(c.value);});return v;}
-
-function applyTextSearch(){
-  var w=searchInput.value.toLowerCase();
-  var rows=document.getElementById('table-body').getElementsByTagName('tr');
-  var n=0;
-  for(var i=0;i<rows.length;i++){
-    var s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;
-    rows[i].style.display=s?'':'none';
-    if(s)n++;
-  }
-  document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';
-}
-
-// 全体タブ（従来のtoday.html機能）
-function renderTable(){
-  if(currentTab!=='all')return;
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
-  var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cA=chkAI.checked;
-  var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
-  
-  var trH=document.createElement('tr');
-  var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
-  for(var hi=0;hi<displayCols.length;hi++){
-    var h=document.createElement('th');
-    h.className=colClasses[hi+1]||'';
-    if(displayCols[hi]===-1){h.textContent='下見予定日';}else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}
-    trH.appendChild(h);
-  }
-  thead.appendChild(trH);
-  
-  var valid=Object.keys(globalTasks).filter(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
-    var status=getSafeVal(cols,1).replace(/\s+/g,""),sekouDate=formatToYMD(getSafeVal(cols,2));
-    if(sekouDate<today&&!showKanryo)return false;
-    if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;
-    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;
-    var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;
-    var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;
-    if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cA)dm=true;if(cS&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cA&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(!dm)return false;}
-    return true;
-  });
-  
-  valid.sort(function(a,b){return getSafeVal(globalTasks[a].csvData,2).replace(/\s+/g,'').localeCompare(getSafeVal(globalTasks[b].csvData,2).replace(/\s+/g,''));});
-  
-  valid.forEach(function(key,idx){
-    var obj=globalTasks[key],cols=obj.csvData;var tr=document.createElement('tr');
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=obj.seqNo||(idx+1);tdNo.style.color='#888';tr.appendChild(tdNo);
-    
-    for(var ci2=0;ci2<displayCols.length;ci2++){
-      var colIdx=displayCols[ci2];
-      var td=document.createElement('td');
-      td.className=colClasses[ci2+1]||'';
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      
-      if(colIdx===-1){
-        var yotei=obj.date||'';
-        inner.textContent=yotei;
-        if(yotei)inner.classList.add('yotei-cell');
-      }else{
-        var c=getSafeVal(cols,colIdx);
-        var disp=c.replace(/\n|\r/g,' '),clean=c.replace(/\s+/g,'');
-        if(colIdx===11&&clean!==''){
-          var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
-          if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');
-          else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
-          inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';
-        }else if(colIdx===6&&clean!==''){
-          inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';
-        }else{
-          inner.textContent=disp;
-        }
-        if(clean!==''){
-          td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(c));
-          td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});
-          td.addEventListener('mouseleave',function(){tooltip.style.display='none';});
-        }
-      }
-      td.appendChild(inner);
-      tr.appendChild(td);
-    }
-    tr.addEventListener('click',function(e){if(e.target.tagName==='A')return;openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderTable);});
-    tbody.appendChild(tr);
-  });
-  
-  document.getElementById('countDisplay').textContent='表示: '+valid.length+' 件';
-  if(searchInput.value)applyTextSearch();
-}
-
-// リフォームタブ
-function renderReformTab(){
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var trH=document.createElement('tr');
-  ['No.','対処状態','区分','名前','電話','住所','施工日','下見予定日','下見日','備考'].forEach(function(h,i){
-    var th=document.createElement('th');
-    th.textContent=h;
-    if(i===0)th.className='col-no';
-    else if(i===1)th.className='reform-status';
-    else if(i===2)th.className='col-kubun';
-    else if(i===3)th.className='col-name';
-    else if(i===4)th.className='col-tel';
-    else if(i===5)th.className='col-address';
-    else if(i===6||i===7||i===8)th.className='col-date';
-    else if(i===9)th.className='col-memo';
-    trH.appendChild(th);
-  });
-  thead.appendChild(trH);
-  
-  var reformKeys=Object.keys(globalTasks).filter(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
-    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
-    if(kubun!=='ﾘ'&&kubun!=='ﾊﾘ')return false;
-    var sekouDate=formatToYMD(getSafeVal(cols,2));
-    if(sekouDate&&sekouDate<todayStr)return false;
-    return true;
-  });
-  
-  var untreated=[],treated=[];
-  reformKeys.forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;
-    var yoteiDate=obj.date||'',yoteiTime=obj.time||'',shitamiDate=formatToYMD(getSafeVal(cols,15)),sfShitamiDate=formatToYMD(getSafeVal(cols,20));
-    var isUntreated=!yoteiDate&&!yoteiTime&&!shitamiDate&&!sfShitamiDate;
-    if(isUntreated)untreated.push(key);else treated.push(key);
-  });
-  
-  var sortBySekouDate=function(a,b){
-    var aDate=formatToYMD(getSafeVal(globalTasks[a].csvData,2)),bDate=formatToYMD(getSafeVal(globalTasks[b].csvData,2));
-    return aDate.localeCompare(bDate);
-  };
-  untreated.sort(sortBySekouDate);
-  treated.sort(sortBySekouDate);
-  
-  var allKeys=untreated.concat(treated);
-  
-  allKeys.forEach(function(key,idx){
-    var obj=globalTasks[key],cols=obj.csvData;
-    var yoteiDate=obj.date||'',yoteiTime=obj.time||'',shitamiDate=formatToYMD(getSafeVal(cols,15)),sfShitamiDate=formatToYMD(getSafeVal(cols,20));
-    var isUntreated=!yoteiDate&&!yoteiTime&&!shitamiDate&&!sfShitamiDate;
-    
-    var tr=document.createElement('tr');
-    tr.className=isUntreated?'reform-untreated':'reform-treated';
-    
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tdNo.style.color='#888';tr.appendChild(tdNo);
-    
-    var tdStatus=document.createElement('td');tdStatus.className='reform-status';
-    tdStatus.innerHTML=isUntreated?'<div class="cell-inner">🔴 未対処</div>':'<div class="cell-inner">✅ 対処済み</div>';
-    if(isUntreated)tdStatus.style.fontWeight='bold';
-    tr.appendChild(tdStatus);
-    
-    var kubun=getSafeVal(cols,3),name=getSafeVal(cols,4),tel=getSafeVal(cols,6),addr=getSafeVal(cols,11),sekouDate=getSafeVal(cols,2),biko=getSafeVal(cols,7);
-    
-    [kubun,name,tel,addr,sekouDate,yoteiDate,shitamiDate||sfShitamiDate,biko].forEach(function(val,i){
-      var td=document.createElement('td');
-      if(i===0)td.className='col-kubun';
-      else if(i===1)td.className='col-name';
-      else if(i===2)td.className='col-tel';
-      else if(i===3)td.className='col-address';
-      else if(i===4||i===5||i===6)td.className='col-date';
-      else if(i===7)td.className='col-memo';
-      
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      inner.textContent=val;
-      td.appendChild(inner);
-      tr.appendChild(td);
-    });
-    
-    tr.addEventListener('click',function(){openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderReformTab);});
-    tbody.appendChild(tr);
-  });
-  
-  document.getElementById('countDisplay').textContent='リフォーム: 未対処 '+untreated.length+'件 / 対処済み '+treated.length+'件 / 合計 '+allKeys.length+'件';
-}
-
-// 本日タブ
-function renderTodayTab(){
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var trH=document.createElement('tr');
-  ['No.','種別','時刻','順番','名前','電話','住所','会社'].forEach(function(h,i){
-    var th=document.createElement('th');
-    th.textContent=h;
-    if(i===0)th.className='col-no';
-    else if(i===1)th.className='today-type';
-    else if(i===2)th.className='col-time';
-    else if(i===3)th.className='col-order';
-    else if(i===4)th.className='col-name';
-    else if(i===5)th.className='col-tel';
-    else if(i===6)th.className='col-address';
-    else if(i===7)th.className='col-company';
-    trH.appendChild(th);
-  });
-  thead.appendChild(trH);
-  
-  var todayCases=[];
-  var showSekou=chkTodaySekou.checked;
-  var showShitami=chkTodayShitami.checked;
-  var showYotei=chkTodayYotei.checked;
-  var showAI=chkTodayAI.checked;
-  
   Object.keys(globalTasks).forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
-    var sekouDate=formatToYMD(getSafeVal(cols,2)),shitamiDate=formatToYMD(getSafeVal(cols,15)),yoteiDate=obj.date||'',aiDate=obj.ai_shitami_date||'';
-    
-    if(sekouDate===todayStr&&showSekou)todayCases.push({key:key,type:'sekou',icon:'🔧',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(shitamiDate===todayStr&&showShitami)todayCases.push({key:key,type:'shitami',icon:'👁',time:getSafeVal(cols,16),order:getSafeVal(cols,17),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(yoteiDate===todayStr&&showYotei)todayCases.push({key:key,type:'yotei',icon:'📅',time:obj.time||'',order:obj.order||'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-    if(aiDate===todayStr&&showAI)todayCases.push({key:key,type:'ai',icon:'🤖',time:'',order:'',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),company:getSafeVal(cols,5)});
-  });
-  
-  todayCases.sort(function(a,b){
-    var aTime=a.time||'99:99',bTime=b.time||'99:99';
-    if(aTime!==bTime)return aTime.localeCompare(bTime);
-    var aOrder=parseInt(a.order)||999,bOrder=parseInt(b.order)||999;
-    return aOrder-bOrder;
-  });
-  
-  todayCases.forEach(function(c,idx){
-    var tr=document.createElement('tr');
-    if(c.type==='sekou')tr.className='today-sekou';
-    else if(c.type==='shitami')tr.className='today-shitami';
-    else if(c.type==='yotei')tr.className='today-yotei';
-    else if(c.type==='ai')tr.className='today-ai';
-    
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
-    
-    var tdType=document.createElement('td');tdType.className='today-type';tdType.textContent=c.icon;tr.appendChild(tdType);
-    
-    [c.time,c.order,c.name,c.tel,c.addr,c.company].forEach(function(val,i){
-      var td=document.createElement('td');
-      if(i===0)td.className='col-time';
-      else if(i===1)td.className='col-order';
-      else if(i===2)td.className='col-name';
-      else if(i===3)td.className='col-tel';
-      else if(i===4)td.className='col-address';
-      else if(i===5)td.className='col-company';
-      
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      inner.textContent=val;
-      td.appendChild(inner);
-      tr.appendChild(td);
-    });
-    
-    tr.addEventListener('click',function(){openCaseModal(c.key,globalTasks[c.key],globalHeaders,globalTasks,fullData,database,renderTodayTab);});
-    tbody.appendChild(tr);
-  });
-  
-  document.getElementById('countDisplay').textContent='本日: '+todayCases.length+'件（🔧施工 / 👁下見 / 📅予定 / 🤖AI）';
-}
+    var obj=globalTasks[key];
+    var c=obj.csvData;
+    if(!c)return;
 
-// 報告書タブ
-function renderReportTab(){
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var trH=document.createElement('tr');
-  ['No.','残日数','施工日','区分','名前','電話','住所','下見日','備考'].forEach(function(h,i){
-    var th=document.createElement('th');
-    th.textContent=h;
-    if(i===0)th.className='col-no';
-    else if(i===1)th.className='col-days';
-    else if(i===2)th.className='col-date';
-    else if(i===3)th.className='col-kubun';
-    else if(i===4)th.className='col-name';
-    else if(i===5)th.className='col-tel';
-    else if(i===6)th.className='col-address';
-    else if(i===7)th.className='col-date';
-    else if(i===8)th.className='col-memo';
-    trH.appendChild(th);
-  });
-  thead.appendChild(trH);
-  
-  var reportKeys=Object.keys(globalTasks).filter(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;
-    
-    // 手配ステータスが「完了」または「下見完了」→ 除外
-    var status=getSafeVal(cols,1).replace(/\s+/g,"");
-    if(status==='完了'||status==='下見完了')return false;
-    
-    // 下見実施済みフラグ → 除外
-    if(obj.shitami_completed===true||obj.shitamiCompleted===true)return false;
-    
-    var sekouDate=formatToYMD(getSafeVal(cols,2));
-    if(!sekouDate)return false;
-    var days=daysDiff(sekouDate,todayStr);
-    return days>=0&&days<=10;
-  });
-  
-  reportKeys.sort(function(a,b){
-    var aDate=formatToYMD(getSafeVal(globalTasks[a].csvData,2)),bDate=formatToYMD(getSafeVal(globalTasks[b].csvData,2));
-    if(aDate!==bDate)return aDate.localeCompare(bDate);
-    var aKubun=getSafeVal(globalTasks[a].csvData,3),bKubun=getSafeVal(globalTasks[b].csvData,3);
-    return aKubun.localeCompare(bKubun);
-  });
-  
-  var urgentCount=0,warningCount=0,safeCount=0;
-  
-  reportKeys.forEach(function(key,idx){
-    var obj=globalTasks[key],cols=obj.csvData;
-    var sekouDate=formatToYMD(getSafeVal(cols,2)),days=daysDiff(sekouDate,todayStr);
-    var kubun=getSafeVal(cols,3),name=getSafeVal(cols,4),tel=getSafeVal(cols,6),addr=getSafeVal(cols,11),shitamiDate=formatToYMD(getSafeVal(cols,15))||formatToYMD(getSafeVal(cols,20)),biko=getSafeVal(cols,7);
-    
-    var tr=document.createElement('tr');
-    if(days<=3){tr.className='report-urgent';urgentCount++;}
-    else if(days<=7){tr.className='report-warning';warningCount++;}
-    else{tr.className='report-safe';safeCount++;}
-    
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
-    
-    var tdDays=document.createElement('td');tdDays.className='col-days';
-    var daysIcon=days<=3?'🚨':days<=7?'⚠️':'ℹ️';
-    tdDays.textContent=daysIcon+' '+days+'日';
-    if(days<=3)tdDays.style.fontWeight='bold';
-    tr.appendChild(tdDays);
-    
-    [sekouDate,kubun,name,tel,addr,shitamiDate,biko].forEach(function(val,i){
-      var td=document.createElement('td');
-      if(i===0)td.className='col-date';
-      else if(i===1)td.className='col-kubun';
-      else if(i===2)td.className='col-name';
-      else if(i===3)td.className='col-tel';
-      else if(i===4)td.className='col-address';
-      else if(i===5)td.className='col-date';
-      else if(i===6)td.className='col-memo';
-      
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      inner.textContent=val;
-      td.appendChild(inner);
-      tr.appendChild(td);
-    });
-    
-    tr.addEventListener('click',function(){openCaseModal(key,obj,globalHeaders,globalTasks,fullData,database,renderReportTab);});
-    tbody.appendChild(tr);
-  });
-  
-  document.getElementById('countDisplay').textContent='報告書対象: 🚨緊急 '+urgentCount+'件 / ⚠️注意 '+warningCount+'件 / ℹ️余裕 '+safeCount+'件 / 合計 '+reportKeys.length+'件';
-}
+    var kubun=getSafeVal(c,3).replace(/\s+/g,''); // C3: 区分
+    var title=getSafeVal(c,4);                      // C4: タイトル(SK/SB/SU)
+    var company=getSafeVal(c,5);                    // C5: 担当者/会社
+    var tel=getSafeVal(c,6);                        // C6: TEL
+    var addr=getSafeVal(c,11);                      // C11: 住所
+    var sekouDate=formatYMD(getSafeVal(c,2));       // C2: 施工日
+    var shitamiDate=formatYMD(getSafeVal(c,15));    // C15: 下見日
+    var shitamiTime=getSafeVal(c,16);               // C16: 時間
+    var sekouDate2=formatYMD(getSafeVal(c,14));     // C14: 施工日(別)
+    var effectiveSekouDate=sekouDate||sekouDate2;
 
-// 下見予定タブ（7日以内に下見予定がある案件）
-function renderShitamiTab(){
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var trH=document.createElement('tr');
-  ['No.','下見日','残日数','区分','名前','電話','住所','施工日'].forEach(function(h,i){
-    var th=document.createElement('th');
-    th.textContent=h;
-    if(i===0)th.className='col-no';
-    else if(i===1||i===7)th.className='col-date';
-    else if(i===2)th.className='col-days';
-    else if(i===3)th.className='col-kubun';
-    else if(i===4)th.className='col-name';
-    else if(i===5)th.className='col-tel';
-    else if(i===6)th.className='col-address';
-    trH.appendChild(th);
-  });
-  thead.appendChild(trH);
-  
-  var shitamiCases=[];
-  var endDate=addDays(todayStr,6);
-  
-  Object.keys(globalTasks).forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
-    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
-    var sekouDate=formatToYMD(getSafeVal(cols,2));
-    
-    // リフォーム: obj.date が今日〜6日後
-    if((kubun==='ﾘ'||kubun==='ﾊﾘ')&&obj.date){
-      if(obj.date>=todayStr&&obj.date<=endDate){
-        shitamiCases.push({key:key,shitamiDate:obj.date,kubun:kubun,name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
+    var isReform=(kubun==='ﾘ');
+
+    // --- リフォーム：C15あり＋C16（時間）あり ---
+    if(isReform){
+      if(shitamiDate&&shitamiTime&&shitamiDate>=todayStr&&shitamiDate<=endStr){
+        items.push({
+          type:'reform',
+          date:shitamiDate,
+          time:shitamiTime,
+          title:title||key,
+          company:company,
+          addr:addr,
+          tel:tel,
+          reason:'下見',
+          badge:'badge-reform',
+          badgeText:'ﾘ 下見',
+          key:key
+        });
+        taskC++;
       }
+      return; // リフォームはここまで
     }
-    
-    // 新築: 算出された下見日が今日〜6日後
-    if(kubun==='新'&&sekouDate){
-      var sekou=new Date(sekouDate);
-      if(getSafeVal(cols,4).indexOf('SK')!==-1){
-        // SK: 21日前と10日前
-        var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
-        var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
-        if(v1s>=todayStr&&v1s<=endDate){
-          shitamiCases.push({key:key,shitamiDate:v1s,kubun:'SK1',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
-        }
-        
-        var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
-        var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
-        if(v2s>=todayStr&&v2s<=endDate){
-          shitamiCases.push({key:key,shitamiDate:v2s,kubun:'SK2',name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
-        }
-      }else{
-        // その他: 21日前
-        var v3=new Date(sekou);v3.setDate(v3.getDate()-21);
-        var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
-        if(v3s>=todayStr&&v3s<=endDate){
-          shitamiCases.push({key:key,shitamiDate:v3s,kubun:getSafeVal(cols,4),name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
-        }
+
+    // --- 新築：C15あり（時間なしもOK）---
+    if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
+      items.push({
+        type:'newbuild',
+        date:shitamiDate,
+        time:shitamiTime||'',
+        title:title||key,
+        company:company,
+        addr:addr,
+        tel:tel,
+        reason:'下見',
+        badge:'badge-newbuild',
+        badgeText:'新 下見',
+        key:key
+      });
+      taskC++;
+      return; // 下見日があれば以下アラートはスキップ
+    }
+
+    // --- 新築アラート：施工日3週間前（21日以内）---
+    if(effectiveSekouDate){
+      var daysUntilSekou=Math.ceil((new Date(effectiveSekouDate+"T00:00:00")-new Date(todayStr+"T00:00:00"))/(1000*60*60*24));
+      var isSK=title&&title.indexOf('SK')!==-1;
+
+      // SK: 10日前アラート
+      if(isSK&&daysUntilSekou>=0&&daysUntilSekou<=10){
+        items.push({
+          type:'alert',
+          date:todayStr,
+          time:'',
+          title:title||key,
+          company:company,
+          addr:addr,
+          tel:tel,
+          reason:'⚠ SK再訪問(施工'+daysUntilSekou+'日前)',
+          badge:'badge-sk-alert',
+          badgeText:'新SK 再訪問',
+          key:key
+        });
+        alertC++;
+        return;
+      }
+
+      // 新築全般: 3週間前（21日以内）アラート
+      if(daysUntilSekou>=0&&daysUntilSekou<=21){
+        items.push({
+          type:'alert',
+          date:todayStr,
+          time:'',
+          title:title||key,
+          company:company,
+          addr:addr,
+          tel:tel,
+          reason:'⚠ 訪問必要(施工'+daysUntilSekou+'日前)',
+          badge:'badge-newbuild-alert',
+          badgeText:'新 訪問必要',
+          key:key
+        });
+        alertC++;
       }
     }
   });
-  
-  shitamiCases.sort(function(a,b){return a.shitamiDate.localeCompare(b.shitamiDate);});
-  
-  shitamiCases.forEach(function(c,idx){
-    var days=daysDiff(c.shitamiDate,todayStr);
-    var tr=document.createElement('tr');
-    if(days===0)tr.className='shitami-today';
-    else if(days===1)tr.className='shitami-tomorrow';
-    else tr.className='shitami-later';
-    
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
-    
-    var tdDate=document.createElement('td');tdDate.className='col-date';
-    var dateInner=document.createElement('div');dateInner.className='cell-inner';dateInner.textContent=c.shitamiDate;
-    tdDate.appendChild(dateInner);tr.appendChild(tdDate);
-    
-    var tdDays=document.createElement('td');tdDays.className='col-days';
-    var daysText=days===0?'🔴 今日':days===1?'🟡 明日':'🟢 '+days+'日後';
-    tdDays.textContent=daysText;
-    if(days===0)tdDays.style.fontWeight='bold';
-    tr.appendChild(tdDays);
-    
-    [c.kubun,c.name,c.tel,c.addr,c.sekouDate].forEach(function(val,i){
-      var td=document.createElement('td');
-      if(i===0)td.className='col-kubun';
-      else if(i===1)td.className='col-name';
-      else if(i===2)td.className='col-tel';
-      else if(i===3)td.className='col-address';
-      else if(i===4)td.className='col-date';
-      
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      inner.textContent=val;
-      td.appendChild(inner);
-      tr.appendChild(td);
+
+  // マイカレンダー
+  var calC=0;
+  Object.keys(personalEvents).forEach(function(dateKey){
+    if(dateKey<todayStr||dateKey>endStr)return;
+    var dayEvs=personalEvents[dateKey];
+    if(!dayEvs)return;
+    Object.keys(dayEvs).forEach(function(evId){
+      var ev=dayEvs[evId];
+      var timeStr='';
+      if(!ev.allDay&&ev.start&&ev.start.length>10){timeStr=ev.start.substring(11,16);}
+      items.push({
+        type:'personal',
+        date:dateKey,
+        time:timeStr,
+        title:ev.title||'(タイトルなし)',
+        company:'',
+        addr:ev.location||'',
+        tel:'',
+        reason:'マイカレンダー',
+        badge:'badge-personal',
+        badgeText:'📅',
+        key:'cal_'+evId
+      });
+      calC++;
     });
-    
-    tr.addEventListener('click',function(){openCaseModal(c.key,globalTasks[c.key],globalHeaders,globalTasks,fullData,database,renderShitamiTab);});
-    tbody.appendChild(tr);
   });
-  
-  document.getElementById('countDisplay').textContent='下見予定（7日以内）: '+shitamiCases.length+'件';
+
+  // 日付→時間順ソート
+  items.sort(function(a,b){
+    var dc=a.date.localeCompare(b.date);
+    if(dc!==0)return dc;
+    if(!a.time&&!b.time)return 0;
+    if(!a.time)return 1;
+    if(!b.time)return -1;
+    return a.time.localeCompare(b.time);
+  });
+
+  document.getElementById('taskCount').textContent=taskC;
+  document.getElementById('calCount').textContent=calC;
+  document.getElementById('alertCount').textContent=alertC;
+
+  return items;
 }
 
-// AIスケジュールタブ（AIが提案した下見予定）
-function renderAIScheduleTab(){
-  var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');
-  thead.innerHTML="";tbody.innerHTML="";
-  
-  var trH=document.createElement('tr');
-  ['No.','AI予定日','残日数','区分','名前','電話','住所','施工日','操作'].forEach(function(h,i){
-    var th=document.createElement('th');
-    th.textContent=h;
-    if(i===0)th.className='col-no';
-    else if(i===1||i===7)th.className='col-date';
-    else if(i===2)th.className='col-days';
-    else if(i===3)th.className='col-kubun';
-    else if(i===4)th.className='col-name';
-    else if(i===5)th.className='col-tel';
-    else if(i===6)th.className='col-address';
-    else if(i===8)th.className='col-status';
-    trH.appendChild(th);
-  });
-  thead.appendChild(trH);
-  
-  var aiCases=[];
-  var endDate=addDays(todayStr,6);
-  
-  Object.keys(globalTasks).forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData;if(!cols)return;
-    var aiDate=obj.ai_shitami_date||'';
-    if(!aiDate||aiDate<todayStr||aiDate>endDate)return;
-    
-    var kubun=getSafeVal(cols,3).replace(/\s+/g,"");
-    var sekouDate=formatToYMD(getSafeVal(cols,2));
-    aiCases.push({key:key,aiDate:aiDate,kubun:kubun,name:getSafeVal(cols,4),tel:getSafeVal(cols,6),addr:getSafeVal(cols,11),sekouDate:sekouDate});
-  });
-  
-  aiCases.sort(function(a,b){return a.aiDate.localeCompare(b.aiDate);});
-  
-  aiCases.forEach(function(c,idx){
-    var days=daysDiff(c.aiDate,todayStr);
-    var tr=document.createElement('tr');
-    if(days===0)tr.className='ai-schedule-today';
-    else if(days===1)tr.className='ai-schedule-tomorrow';
-    else tr.className='ai-schedule-later';
-    
-    var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.textContent=idx+1;tr.appendChild(tdNo);
-    
-    var tdDate=document.createElement('td');tdDate.className='col-date';
-    var dateInner=document.createElement('div');dateInner.className='cell-inner';dateInner.textContent=c.aiDate;
-    tdDate.appendChild(dateInner);tr.appendChild(tdDate);
-    
-    var tdDays=document.createElement('td');tdDays.className='col-days';
-    var daysText=days===0?'🔴 今日':days===1?'🟡 明日':'🟢 '+days+'日後';
-    tdDays.textContent=daysText;
-    if(days===0)tdDays.style.fontWeight='bold';
-    tr.appendChild(tdDays);
-    
-    [c.kubun,c.name,c.tel,c.addr,c.sekouDate].forEach(function(val,i){
-      var td=document.createElement('td');
-      if(i===0)td.className='col-kubun';
-      else if(i===1)td.className='col-name';
-      else if(i===2)td.className='col-tel';
-      else if(i===3)td.className='col-address';
-      else if(i===4)td.className='col-date';
-      
-      var inner=document.createElement('div');
-      inner.className='cell-inner';
-      inner.textContent=val;
-      td.appendChild(inner);
-      tr.appendChild(td);
-    });
-    
-    var tdAction=document.createElement('td');
-    tdAction.className='col-status';
-    var btn=document.createElement('button');
-    btn.className='promote-btn';
-    btn.textContent='📅 正式予定に昇格';
-    btn.addEventListener('click',function(e){
-      e.stopPropagation();
-      promoteToOfficial(c.key,c.aiDate);
-    });
-    tdAction.appendChild(btn);
-    tr.appendChild(tdAction);
-    
-    tr.addEventListener('click',function(){openCaseModal(c.key,globalTasks[c.key],globalHeaders,globalTasks,fullData,database,renderAIScheduleTab);});
-    tbody.appendChild(tr);
-  });
-  
-  document.getElementById('countDisplay').textContent='AIスケジュール（7日以内）: '+aiCases.length+'件';
-}
+// ----------------------------------------------------------------
+// 描画
+// ----------------------------------------------------------------
+function render(){
+  var items=extractItems();
+  extractedData=items; // 保存用に保持
 
-function promoteToOfficial(key,aiDate){
-  if(!confirm('この案件のAI予定日を正式な下見予定日に昇格させますか？\n\n案件: '+globalTasks[key].csvData[4]+'\nAI予定日: '+aiDate+' → 下見予定日')){
+  if(Object.keys(globalTasks).length===0&&Object.keys(personalEvents).length===0){
+    document.getElementById('mainContent').innerHTML=
+      '<div class="loading" style="color:#ef4444;">⚠ データなし。トップに戻って最新データを取得してください。</div>';
     return;
   }
-  
-  var updates={};
-  updates['app_tasks/'+key+'/date']=aiDate;
-  
-  database.ref().update(updates).then(function(){
-    try{
-      var appData=JSON.parse(localStorage.getItem('appData')||'{}');
-      if(appData.app_tasks&&appData.app_tasks[key]){
-        appData.app_tasks[key].date=aiDate;
-        localStorage.setItem('appData',JSON.stringify(appData));
-      }
-    }catch(e){console.error(e);}
-    
-    globalTasks[key].date=aiDate;
-    
-    alert('✅ 正式な下見予定日に昇格しました。\n「下見予定」タブで確認できます。');
-    renderAIScheduleTab();
-  }).catch(function(err){
-    alert('❌ Firebase更新エラー: '+err.message);
-  });
-}
 
-// 備忘録タブ - 案件検索
-document.getElementById('caseSearchInput').addEventListener('input',function(){
-  var keyword=this.value.trim().toLowerCase();
-  var resultsDiv=document.getElementById('searchResults');
-  if(!keyword){resultsDiv.innerHTML='';return;}
-  
-  var results=[];
-  Object.keys(globalTasks).forEach(function(key){
-    var obj=globalTasks[key],cols=obj.csvData||[];
-    var allText=cols.join(' ').toLowerCase();
-    if(allText.indexOf(keyword)!==-1){
-      var contextStart=Math.max(0,allText.indexOf(keyword)-20);
-      var contextEnd=Math.min(allText.length,allText.indexOf(keyword)+keyword.length+20);
-      var context='...'+allText.substring(contextStart,contextEnd)+'...';
-      results.push({key:key,title:getSafeVal(cols,4),client:getSafeVal(cols,5),addr:getSafeVal(cols,11),context:context});
-    }
+  // 日付ごとにグループ化
+  var byDate={};
+  items.forEach(function(item){
+    if(!byDate[item.date])byDate[item.date]=[];
+    byDate[item.date].push(item);
   });
-  
-  if(results.length===0){resultsDiv.innerHTML='<div style="padding:10px;color:#888;">該当なし</div>';return;}
-  if(results.length>50)results=results.slice(0,50);
-  
-  var html='<div style="font-size:11px;color:#666;margin-bottom:6px;">検索: "'+keyword+'" → '+results.length+'件</div>';
-  results.forEach(function(r){
-    html+='<div class="search-result-item" data-key="'+r.key+'"><div class="search-result-title">'+escHtml(r.title)+' / '+escHtml(r.client)+'</div><div class="search-result-detail">住所: '+escHtml(r.addr)+'</div><div class="search-result-match">該当: '+escHtml(r.context)+'</div></div>';
-  });
-  resultsDiv.innerHTML=html;
-  
-  resultsDiv.querySelectorAll('.search-result-item').forEach(function(item){
-    item.addEventListener('click',function(){
-      var key=this.getAttribute('data-key');
-      openCaseModal(key,globalTasks[key],globalHeaders,globalTasks,fullData,database,function(){});
-    });
-  });
-});
 
-// 備忘録タブ - メモ機能
-var editingMemoId=null;
-document.getElementById('newMemoBtn').addEventListener('click',function(){
-  editingMemoId=null;
-  document.getElementById('memoTextarea').value='';
-  document.getElementById('memoEditor').style.display='block';
-  document.getElementById('newMemoBtn').style.display='none';
-});
+  // 今日〜7日の全日付を生成
+  var dates=[];
+  for(var i=0;i<7;i++){dates.push(addDays(todayStr,i));}
 
-document.getElementById('cancelMemoBtn').addEventListener('click',function(){
-  document.getElementById('memoEditor').style.display='none';
-  document.getElementById('newMemoBtn').style.display='inline-block';
-  editingMemoId=null;
-});
+  var html='<div style="padding-bottom:20px;">';
 
-document.getElementById('saveMemoBtn').addEventListener('click',function(){
-  var text=document.getElementById('memoTextarea').value.trim();
-  if(!text){alert('メモを入力してください');return;}
-  
-  var now=new Date().toISOString();
-  if(editingMemoId){
-    database.ref('app_memos/'+editingMemoId).update({text:text,created:now}).then(function(){
-      var memo=globalMemos.find(function(m){return m.id===editingMemoId;});
-      if(memo){memo.text=text;memo.created=now;}
-      renderMemoList();
-      document.getElementById('memoEditor').style.display='none';
-      document.getElementById('newMemoBtn').style.display='inline-block';
-      editingMemoId=null;
-    });
-  }else{
-    var memoId=database.ref('app_memos').push().key;
-    database.ref('app_memos/'+memoId).set({text:text,created:now}).then(function(){
-      globalMemos.unshift({id:memoId,text:text,created:now});
-      renderMemoList();
-      document.getElementById('memoEditor').style.display='none';
-      document.getElementById('newMemoBtn').style.display='inline-block';
-    });
+  // サマリー
+  html+='<div class="summary-bar">';
+  html+='<div class="summary-item">期間: <strong>'+todayStr+'〜'+endStr+'</strong></div>';
+  html+='<div class="summary-item">総件数: <strong>'+items.length+'件</strong></div>';
+  if(Object.keys(globalTasks).length===0){
+    html+='<div class="summary-item" style="color:#ef4444;">⚠ localStorageにデータなし</div>';
   }
-});
+  html+='</div>';
 
-function renderMemoList(){
-  var listDiv=document.getElementById('memoList');
-  if(globalMemos.length===0){listDiv.innerHTML='<div style="padding:10px;color:#888;">メモはありません</div>';return;}
-  
-  var html='';
-  globalMemos.forEach(function(memo){
-    var dateStr=memo.created?new Date(memo.created).toLocaleString('ja-JP'):'日付不明';
-    html+='<div class="memo-item"><div class="memo-date">'+dateStr+'</div><div class="memo-text">'+escHtml(memo.text)+'</div><span class="memo-delete" data-id="'+memo.id+'">削除</span></div>';
-  });
-  listDiv.innerHTML=html;
-  
-  listDiv.querySelectorAll('.memo-delete').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var id=this.getAttribute('data-id');
-      if(!confirm('このメモを削除しますか？'))return;
-      database.ref('app_memos/'+id).remove().then(function(){
-        globalMemos=globalMemos.filter(function(m){return m.id!==id;});
-        renderMemoList();
+  dates.forEach(function(dateStr){
+    var dayItems=byDate[dateStr]||[];
+    var isToday=(dateStr===todayStr);
+    var headerClass=isToday?'day-header today':'day-header future';
+    var todayMark=isToday?' 🔴 今日':'';
+
+    html+='<div class="day-section">';
+    html+='<div class="'+headerClass+'">';
+    html+='<span class="day-label">'+getDayLabel(dateStr)+todayMark+'</span>';
+    html+='<span class="day-count">'+dayItems.length+'件</span>';
+    html+='</div>';
+    html+='<div class="day-items">';
+
+    if(dayItems.length===0){
+      html+='<div class="empty-day">予定なし</div>';
+    }else{
+      dayItems.forEach(function(item){
+        var rowClass='item-row';
+        if(item.type==='personal')rowClass+=' personal';
+        if(item.type==='alert')rowClass+=' alert-row';
+
+        var timeDisp=item.time||(item.type==='alert'?'':'終日');
+        var timeClass=item.time?'item-time has-time':'item-time no-time';
+        var typeIcon=item.type==='reform'?'🔧':item.type==='newbuild'?'🏗':item.type==='alert'?'⚠️':'📅';
+        var addrDisp=shortAddr(item.addr);
+
+        html+='<div class="'+rowClass+'">';
+        html+='<div class="'+timeClass+'">'+timeDisp+'</div>';
+        html+='<div class="item-type">'+typeIcon+'</div>';
+        html+='<div class="item-body">';
+        html+='<div class="item-title"><span class="item-badge '+item.badge+'">'+item.badgeText+'</span> '+escHtml(item.title)+'</div>';
+        html+='<div class="item-sub">';
+        if(item.reason){html+='<span class="reason">'+escHtml(item.reason)+'</span>';}
+        if(addrDisp){html+='<span class="addr">📍'+escHtml(addrDisp)+'</span>';}
+        if(item.company){html+='<span class="company">'+escHtml(item.company)+'</span>';}
+        if(item.tel){html+='<span class="company">📞'+escHtml(item.tel)+'</span>';}
+        html+='</div>';
+        html+='</div>';
+        html+='</div>';
       });
-    });
+    }
+
+    html+='</div></div>';
   });
+
+  html+='</div>';
+  document.getElementById('mainContent').innerHTML=html;
 }
 
-function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function escHtml(s){
+  if(!s)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ----------------------------------------------------------------
+// Firebase保存
+// ----------------------------------------------------------------
+function saveToFirebase(){
+  var btn=document.getElementById('saveBtn');
+  btn.disabled=true;
+  btn.textContent='保存中...';
+
+  var saveData={
+    updated:new Date().toISOString(),
+    range:{from:todayStr,to:endStr},
+    items:extractedData
+  };
+
+  db.ref('app_action_7day').set(saveData).then(function(){
+    var now=new Date();
+    var timeStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('lastSaved').style.display='';
+    document.getElementById('lastSavedTime').textContent=timeStr;
+    var notice=document.getElementById('saveNotice');
+    notice.classList.add('show');
+    setTimeout(function(){notice.classList.remove('show');},2500);
+    btn.disabled=false;
+    btn.textContent='Firebaseに保存';
+  }).catch(function(e){
+    alert('保存失敗: '+e.message);
+    btn.disabled=false;
+    btn.textContent='Firebaseに保存';
+  });
+}
 </script>
 </body>
 </html>
