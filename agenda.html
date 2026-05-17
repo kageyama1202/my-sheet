@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-17 -->
+<!-- VERSION: 2026-05-17-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -93,6 +93,49 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .empty-msg{padding:40px;text-align:center;font-size:13px;color:#4b5563;}
 .error-msg{margin:14px;padding:14px;background:#1f0a0a;border:1px solid #7f1d1d;border-radius:8px;font-size:13px;color:#fca5a5;}
 .bottom-pad{height:40px;}
+
+/* ===== 保存ボタン ===== */
+.btn-save{background:#065f46;color:#6ee7b7;border:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;transition:background 0.2s;}
+.btn-save:hover{background:#047857;}
+.btn-save:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
+.save-notice{position:fixed;bottom:16px;right:16px;background:#065f46;color:#6ee7b7;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
+.save-notice.show{opacity:1;}
+
+/* ===== タイムライン ===== */
+.tl-wrap{margin:14px;}
+.tl-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+.tl-tab{padding:6px 16px;border-radius:20px;border:2px solid #1e40af;background:#111827;color:#60a5fa;font-size:12px;font-weight:bold;cursor:pointer;}
+.tl-tab.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
+.tl-empty{text-align:center;padding:30px;font-size:12px;color:#4b5563;}
+
+.tl-day{display:none;}
+.tl-day.active{display:block;}
+
+.tl-item{display:flex;gap:0;margin-bottom:0;position:relative;}
+/* タイムライン縦線 */
+.tl-item:not(:last-child) .tl-line::after{content:'';position:absolute;left:50%;top:28px;bottom:-8px;width:2px;background:#1e40af;transform:translateX(-50%);}
+.tl-line{width:40px;min-width:40px;display:flex;flex-direction:column;align-items:center;padding-top:6px;position:relative;}
+.tl-dot{width:14px;height:14px;border-radius:50%;border:2px solid #3b82f6;background:#0f1117;flex-shrink:0;}
+.tl-dot.fixed{border-color:#f59e0b;background:#78350f;}
+.tl-dot.urgent{border-color:#ef4444;background:#7f1d1d;}
+.tl-dot.personal{border-color:#a78bfa;background:#2d1b4e;}
+
+.tl-card{flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;margin-bottom:8px;overflow:hidden;}
+.tl-card-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #1f2937;}
+.tl-time-range{font-size:12px;font-weight:bold;color:#fbbf24;white-space:nowrap;}
+.tl-travel-badge{font-size:10px;color:#475569;background:#0d1117;padding:1px 6px;border-radius:4px;}
+.tl-card-body{padding:6px 12px 8px;}
+.tl-title{font-size:13px;font-weight:bold;color:#e2e8f0;}
+.tl-sub{font-size:11px;color:#64748b;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.tl-sub .area{color:#34d399;}
+.tl-sub .ai-r{color:#94a3b8;font-style:italic;}
+.tl-card-foot{display:flex;align-items:center;justify-content:space-between;padding:4px 12px 8px;}
+.tl-end-time{font-size:10px;color:#475569;}
+
+/* 合計バー */
+.tl-summary{background:#0d1117;border:1px solid #1e40af;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;}
+.tl-summary span{color:#60a5fa;font-weight:bold;}
+.tl-summary label{color:#64748b;}
 </style>
 </head>
 <body>
@@ -111,6 +154,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="gen-area">
   <button class="btn-gen" id="btnGen" onclick="generatePlan()" disabled>🤖 Geminiでプラン生成</button>
+  <button class="btn-save" id="btnSave" onclick="savePlan()" disabled>💾 プラン保存</button>
   <span class="gen-note" id="genNote">データ取得中...</span>
 </div>
 
@@ -118,6 +162,19 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
   <div class="loading-wrap"><span class="spin"></span><p>Firebase読み込み中...</p></div>
 </div>
 
+<!-- タイムライン表示エリア -->
+<div id="timelineArea" style="display:none;">
+  <div style="margin:14px 14px 0;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-size:13px;font-weight:bold;color:#60a5fa;">📅 保存済みタイムライン</div>
+    <div style="font-size:11px;color:#475569;" id="tlSavedAt"></div>
+  </div>
+  <div class="tl-wrap">
+    <div class="tl-tabs" id="tlTabs"></div>
+    <div id="tlContent"></div>
+  </div>
+</div>
+
+<div class="save-notice" id="saveNotice">💾 プラン保存完了</div>
 <div class="bottom-pad"></div>
 <script src="shared-modal.js"></script>
 <script>
@@ -606,11 +663,178 @@ function renderPlan(plan) {
 
   html += '<div class="bottom-pad"></div>';
   document.getElementById('mainContent').innerHTML = html;
+
+  // 保存ボタン有効化・currentPlan保持
+  currentPlan = plan;
+  document.getElementById('btnSave').disabled = false;
+}
+
+// ==================== プラン保存 ====================
+var currentPlan = null;
+
+function savePlan() {
+  if (!currentPlan) return;
+  var btn = document.getElementById('btnSave');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  var saveData = {
+    saved_at: new Date().toISOString(),
+    plan: currentPlan,
+    items_snapshot: raw7day ? raw7day.items : []
+  };
+
+  db.ref('app_action_plan').set(saveData).then(function() {
+    btn.disabled = false;
+    btn.textContent = '💾 プラン保存';
+    var n = document.getElementById('saveNotice');
+    n.classList.add('show');
+    setTimeout(function(){ n.classList.remove('show'); }, 2500);
+    renderTimeline(saveData);
+  }).catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '💾 プラン保存';
+    alert('保存失敗: ' + e.message);
+  });
+}
+
+// ==================== タイムライン描画 ====================
+function renderTimeline(saveData) {
+  if (!saveData || !saveData.plan || !saveData.plan.days) return;
+  var plan = saveData.plan;
+  var items = saveData.items_snapshot || [];
+
+  // items をidでマップ
+  var itemMap = {};
+  for (var i = 0; i < items.length; i++) itemMap[items[i].id] = items[i];
+
+  var tlArea = document.getElementById('timelineArea');
+  var tlTabs = document.getElementById('tlTabs');
+  var tlContent = document.getElementById('tlContent');
+  var tlSavedAt = document.getElementById('tlSavedAt');
+
+  var savedAt = saveData.saved_at ? saveData.saved_at.slice(0,16).replace('T',' ') : '';
+  tlSavedAt.textContent = '保存: ' + savedAt;
+
+  tlTabs.innerHTML = '';
+  tlContent.innerHTML = '';
+
+  for (var di = 0; di < plan.days.length && di < 3; di++) {
+    var day = plan.days[di];
+    var dateStr = day.date || '';
+    var tabLabel = (day.label || '') + ' ' + fmtMD(dateStr) + '(' + wday(dateStr) + ')';
+
+    // タブボタン
+    var tabBtn = document.createElement('button');
+    tabBtn.className = 'tl-tab' + (di === 0 ? ' active' : '');
+    tabBtn.textContent = tabLabel;
+    tabBtn.setAttribute('data-di', di);
+    tabBtn.onclick = (function(idx) {
+      return function() {
+        var tabs = document.querySelectorAll('.tl-tab');
+        var days = document.querySelectorAll('.tl-day');
+        for (var t = 0; t < tabs.length; t++) tabs[t].classList.remove('active');
+        for (var d = 0; d < days.length; d++) days[d].classList.remove('active');
+        this.classList.add('active');
+        document.getElementById('tl-day-' + idx).classList.add('active');
+      };
+    })(di);
+    tlTabs.appendChild(tabBtn);
+
+    // 日別コンテンツ
+    var dayDiv = document.createElement('div');
+    dayDiv.className = 'tl-day' + (di === 0 ? ' active' : '');
+    dayDiv.id = 'tl-day-' + di;
+
+    var cases = day.cases || [];
+    if (cases.length === 0) {
+      dayDiv.innerHTML = '<div class="tl-empty">この日の予定なし</div>';
+    } else {
+      // サマリー
+      var sumHtml = '<div class="tl-summary">' +
+        '<div><label>合計 </label><span>' + (day.total_min || '-') + '分</span></div>' +
+        '<div><label>終了予定 </label><span>' + esc(day.end_time || '-') + '</span></div>' +
+        '<div><label>テーマ </label><span>' + esc(day.theme || '-') + '</span></div>' +
+        '</div>';
+
+      var tlHtml = '';
+      for (var ci = 0; ci < cases.length; ci++) {
+        var cas = cases[ci];
+        var item = itemMap[cas.id];
+        if (!item) continue;
+
+        var isPersonal = (item.type === 'personal');
+        var isFixed    = !!(item.time);
+        var isUrgent   = (item.type === 'alert');
+        var isReform   = (item.type === 'reform');
+
+        var dotCls = 'tl-dot';
+        if (isPersonal) dotCls += ' personal';
+        else if (isFixed && isReform) dotCls += ' fixed';
+        else if (isUrgent) dotCls += ' urgent';
+
+        var badges = '';
+        if (isReform)          badges += '<span class="badge badge-reform">ﾘ</span> ';
+        else if (item.type === 'newbuild') badges += '<span class="badge badge-new">新</span> ';
+        else if (isUrgent)     badges += '<span class="badge badge-urgent">⚠</span> ';
+        else if (isPersonal)   badges += '<span class="badge badge-personal">📅</span> ';
+        if (isFixed)           badges += '<span class="badge badge-fixed">🔒</span> ';
+
+        var travelMin = cas.travel_from_prev || getTravelMin(item.addr);
+        var mapBtn = item.addr ?
+          '<a class="btn-map" href="' + mapsUrl(item.addr) + '" target="_blank" rel="noopener" style="font-size:10px;padding:3px 7px;">🗺 MAP</a>' : '';
+
+        tlHtml += '<div class="tl-item">' +
+          '<div class="tl-line"><div class="' + dotCls + '"></div></div>' +
+          '<div class="tl-card">' +
+            '<div class="tl-card-head">' +
+              '<span class="tl-time-range">' + esc(cas.arrive || '') + ' 〜 ' + esc(cas.leave || '') + '</span>' +
+              (ci > 0 ? '<span class="tl-travel-badge">移動' + travelMin + '分</span>' : '<span class="tl-travel-badge">出発</span>') +
+            '</div>' +
+            '<div class="tl-card-body">' +
+              '<div class="tl-title">' + badges + esc(item.title || '') + '</div>' +
+              '<div class="tl-sub">' +
+                (item.addr ? '<span class="area">📍' + esc(trimAddr(item.addr)) + '</span>' : '') +
+                (isFixed ? '<span class="lock">⏰' + esc(item.time) + '</span>' : '') +
+                (item.company ? '<span>' + esc(item.company) + '</span>' : '') +
+                (cas.reason ? '<span class="ai-r">' + esc(cas.reason) + '</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<div class="tl-card-foot">' +
+              '<span class="tl-end-time">退出 ' + esc(cas.leave || '') + '</span>' +
+              mapBtn +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
+
+      if (day.notes) {
+        tlHtml += '<div class="day-notes" style="margin-top:4px;">💡 ' + esc(day.notes) + '</div>';
+      }
+
+      dayDiv.innerHTML = sumHtml + tlHtml;
+    }
+    tlContent.appendChild(dayDiv);
+  }
+
+  tlArea.style.display = 'block';
+  tlArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ==================== 保存済みプラン読み込み ====================
+function loadSavedPlan() {
+  db.ref('app_action_plan').once('value').then(function(snap) {
+    var saved = snap.val();
+    if (saved && saved.plan) {
+      renderTimeline(saved);
+    }
+  }).catch(function(e) { console.warn('保存済みプラン取得失敗', e); });
 }
 
 // ==================== INIT ====================
 setHeader();
 loadData();
+loadSavedPlan();
 </script>
 </body>
 </html>
