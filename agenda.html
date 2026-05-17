@@ -365,9 +365,24 @@ function generatePlan() {
   .then(function(data){
     btn.disabled = false;
     btn.textContent = '🔄 再生成';
-    if (!data.candidates || !data.candidates[0]) throw new Error('APIレスポンス異常: ' + JSON.stringify(data).slice(0,200));
+    if (!data.candidates || !data.candidates[0]) throw new Error('APIレスポンス異常: ' + JSON.stringify(data).slice(0,300));
     var raw = data.candidates[0].content.parts[0].text;
-    renderPlan(parseJson(raw));
+    var finishReason = data.candidates[0].finishReason || '';
+    if (finishReason !== 'STOP') {
+      document.getElementById('mainContent').innerHTML =
+        '<div class="error-msg">⚠ 生成途中で停止（' + esc(finishReason) + '）。再生成してください。</div>' +
+        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭600文字）:</b><br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,600)) + '</pre></div>';
+      btn.disabled = false;
+      btn.textContent = '🔄 再生成';
+      return;
+    }
+    try {
+      renderPlan(parseJson(raw));
+    } catch(pe) {
+      document.getElementById('mainContent').innerHTML =
+        '<div class="error-msg">❌ JSONパースエラー: ' + esc(pe.message) + '</div>' +
+        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭800文字）:</b><br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,800)) + '</pre></div>';
+    }
   }).catch(function(e){
     btn.disabled = false;
     btn.textContent = '🤖 Geminiでプラン生成';
