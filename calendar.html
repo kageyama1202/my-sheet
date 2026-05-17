@@ -18,12 +18,10 @@
     .nav-btn:hover{background:#f0f0f0;}
     .month-label{font-size:18px;font-weight:bold;color:#333;min-width:140px;text-align:center;}
     .today-btn{font-size:12px;padding:3px 10px;cursor:pointer;border:1px solid #1a73e8;border-radius:4px;background:#1a73e8;color:#fff;font-weight:bold;}
-
     .filter-bar{background:#fff;padding:4px 12px;border-bottom:1px solid #ccc;display:flex;gap:15px;align-items:center;flex-wrap:wrap;font-size:12px;}
     .filter-bar label{cursor:pointer;display:flex;align-items:center;gap:3px;font-weight:bold;}
     .filter-bar input[type="checkbox"]{cursor:pointer;margin:0;width:14px;height:14px;}
     .legend-dot{width:12px;height:12px;border-radius:3px;display:inline-block;}
-
     .cal-wrapper{padding:6px;height:calc(100vh - 90px);display:flex;flex-direction:column;}
     .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;gap:1px;background:#ccc;border:1px solid #ccc;}
     .cal-header{background:#e8eaed;text-align:center;font-weight:bold;padding:3px;font-size:12px;color:#555;}
@@ -44,7 +42,6 @@
     .ev-yotei{background:#fff3e0;color:#e65100;border-left:2px solid #ef6c00;}
     .ev-personal{background:#f3e5f5;color:#4a148c;border-left:2px solid #7b1fa2;}
     .cal-more{font-size:9px;color:#1a73e8;font-weight:bold;padding:0 3px;cursor:pointer;}
-
     #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
     #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
     #modal-close{float:right;font-size:14px;padding:5px 10px;cursor:pointer;background:#dc3545;color:#fff;border:none;border-radius:4px;font-weight:bold;}
@@ -61,7 +58,6 @@
     .modal-input-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
     .modal-input-row label{font-weight:bold;min-width:95px;font-size:13px;}
     .modal-input-row input,.modal-input-row select{padding:4px 7px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
-
     .day-list-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:8888;}
     .day-list-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:16px;border-radius:8px;width:85%;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,0.25);}
     .day-list-panel h3{margin:0 0 10px 0;font-size:16px;color:#333;}
@@ -79,7 +75,6 @@
       <div id="modal-body"></div>
     </div>
   </div>
-
   <div class="day-list-overlay" id="dayListOverlay">
     <div class="day-list-panel">
       <button class="day-list-close" id="dayListClose">✖</button>
@@ -116,31 +111,51 @@
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=firebase.database();
 
+    // ---- ユーティリティ ----
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
     function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
     function generateTimeOptions(){var o='<option value="">--:--</option>';for(var h=8;h<=20;h++){var hh=('0'+h).slice(-2);o+='<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>';}return o;}
     function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 
-    // ★時間文字列を整形する関数（HH:MMまたは空文字を返す）
-    function formatTime(t){
-      if(!t)return"";
-      var s=String(t).trim();
-      // HH:MM形式ならそのまま
-      if(/^\d{1,2}:\d{2}$/.test(s))return s;
-      return s;
+    // 区分: ﾘ→リ、新→新
+    function getKubun(cols){
+      var k=getSafeVal(cols,3).replace(/\s+/g,"");
+      if(k==="ﾘ"||k==="リ")return"リ";
+      if(k==="新")return"新";
+      return k.substring(0,1)||"";
     }
 
-    // ★個人予定から時間文字列を取得（ISO形式 "2026-05-17T09:30:00" → "09:30"）
+    // 種別: 【SK手配】→SK、【SB手配】→SB、【SK】→SK、等
+    function getShortType(cols){
+      var title=getSafeVal(cols,4).trim();
+      var m=title.match(/【(.+?)(?:手配)?】/);
+      if(m)return m[1];
+      // マッチしない場合: 先頭からSK/SB/SU等を検索
+      var m2=title.match(/\b(SK|SB|SU)\b/);
+      if(m2)return m2[1];
+      return title.substring(0,4);
+    }
+
+    // 邸宅名: 【...】以降の文字列。なければ担当者名(cols[5])
+    function getTeiName(cols){
+      var title=getSafeVal(cols,4).trim();
+      var after=title.replace(/【.+?】/g,"").trim();
+      if(after)return after;
+      return getSafeVal(cols,5).trim();
+    }
+
+    // 個人予定の時間
     function getPersonalTime(ev){
+      if(!ev)return"";
       if(ev.allDay)return"終日";
-      var start="",end="";
-      if(ev.start&&ev.start.length>=16)start=ev.start.substring(11,16);
-      if(ev.end&&ev.end.length>=16)end=ev.end.substring(11,16);
-      if(start&&end)return start+" 〜 "+end;
-      if(start)return start;
-      return"";
+      var s="",e="";
+      if(ev.start&&ev.start.length>=16)s=ev.start.substring(11,16);
+      if(ev.end&&ev.end.length>=16)e=ev.end.substring(11,16);
+      if(s&&e)return s+"〜"+e;
+      return s||"";
     }
 
+    // ---- グローバル ----
     var chkSekou=document.getElementById('chkSekou');
     var chkShitami=document.getElementById('chkShitami');
     var chkYotei=document.getElementById('chkYotei');
@@ -149,8 +164,7 @@
     var dayListOverlay=document.getElementById('dayListOverlay');
 
     var globalHeaders=[],globalTasks={},fullData=null;
-    try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
-
+    try{var _s=localStorage.getItem('appData');if(_s)fullData=JSON.parse(_s);}catch(e){console.error(e);}
     if(fullData&&fullData.app_meta&&fullData.app_tasks){
       globalHeaders=fullData.app_meta.headers;
       globalTasks=fullData.app_tasks;
@@ -164,109 +178,102 @@
     var personalCalCache={};
     try{var _pc=localStorage.getItem('personalCalendar');if(_pc)personalCalCache=JSON.parse(_pc);}catch(e){}
     database.ref('personal_calendar').once('value').then(function(snap){
-      if(snap.val()){
-        personalCalCache=snap.val();
-        try{localStorage.setItem('personalCalendar',JSON.stringify(personalCalCache));}catch(e){}
-      }
+      if(snap.val()){personalCalCache=snap.val();try{localStorage.setItem('personalCalendar',JSON.stringify(personalCalCache));}catch(e){}}
       renderCal();
     });
 
+    // ---- dateMap構築 ----
     function buildDateMap(){
       var dm={};
-      var showS=chkSekou.checked, showD=chkShitami.checked, showY=chkYotei.checked, showP=chkPersonal.checked;
+      var showS=chkSekou.checked,showD=chkShitami.checked,showY=chkYotei.checked,showP=chkPersonal.checked;
 
       Object.keys(globalTasks).forEach(function(key){
         var obj=globalTasks[key];
         var cols=obj.csvData;if(!cols)return;
         var status=getSafeVal(cols,1).replace(/\s+/g,"");
-        var sekouDate=formatToYMD(getSafeVal(cols,2));
+        var sekouDate=formatToYMD(getSafeVal(cols,2)); // C2=施工日
         if(status==="完了"&&sekouDate<todayStr)return;
         if(sekouDate&&sekouDate<todayStr)return;
 
-        var name=getSafeVal(cols,4).trim();
-        var shortMatch=name.match(/【(.+?)】/);
-        var shortName=shortMatch?shortMatch[0]:name.substring(0,12);
+        var kubun=getKubun(cols);
+        var shortType=getShortType(cols);    // SK / SB / SU 等
+        var tei=getTeiName(cols);            // 邸宅名
 
-        // ★C16（csvData[13]）が時間列 → 施工時間として使用
-        // ※列マッピング: C0=0,C1=1...C16=index13(0-based csvData配列)
-        // csvData は C1から始まる場合も考慮し、getSafeVal(cols,13) を使用
-        // 既存の obj.time は下見予定時間
-        var sekouTime=formatTime(getSafeVal(cols,13)); // C16=施工時間
+        // CSV側の下見日・時間（cols[12]=下見日, cols[13]=下見時間）
+        var csvShitamiDate=formatToYMD(getSafeVal(cols,12));
+        var csvShitamiTime=getSafeVal(cols,13).trim();
 
+        // Firebase側の予定日・時間
+        var fbDate=obj.date||"";
+        var fbTime=obj.time||"";
+
+        // ── 施工（時間表示なし）──
         if(showS&&sekouDate){
           if(!dm[sekouDate])dm[sekouDate]=[];
-          // ★ラベルに時間を付加
-          var sekouLabel='施工 '+(sekouTime?sekouTime+' ':'')+shortName;
-          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:sekouLabel,timeStr:sekouTime});
+          // 書式: 施[区分] [種別] [邸宅名]
+          dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',
+            label:"施"+kubun+" "+shortType+" "+tei, timeStr:''});
         }
 
-        var shitamiDate=formatToYMD(getSafeVal(cols,12));
-        // ★下見日(C15)の時間はcsvData[14]相当だが、既存ソースにはC16が時間として定義
-        // C16(csvData[13])をshitamiにも流用（施工日と同日の場合は区別できないが、列定義に従う）
-        // ※下見専用の時間列がある場合はここを変更
-        if(showD&&shitamiDate){
-          if(!dm[shitamiDate])dm[shitamiDate]=[];
-          var shitamiLabel='下見 '+shortName;
-          dm[shitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:shitamiLabel,timeStr:''});
+        // ── 下見（CSV下見日 + CSV時間）──
+        if(showD&&csvShitamiDate){
+          if(!dm[csvShitamiDate])dm[csvShitamiDate]=[];
+          // 書式: 下[区分] [時間] [種別] [邸宅名]
+          var lbl="下"+kubun+" "+(csvShitamiTime?csvShitamiTime+" ":"")+shortType+" "+tei;
+          dm[csvShitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',
+            label:lbl, timeStr:csvShitamiTime});
         }
 
-        // ★下見予定(yotei): obj.time はFirebaseに保存された予定時間
-        var yoteiDate=obj.date||"";
-        var yoteiTime=formatTime(obj.time||"");
-        if(showY&&yoteiDate){
-          if(!dm[yoteiDate])dm[yoteiDate]=[];
-          // ★ラベルに時間を付加
-          var yoteiLabel='予定 '+(yoteiTime?yoteiTime+' ':'')+shortName;
-          dm[yoteiDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:yoteiLabel,timeStr:yoteiTime});
+        // ── 下見予定（Firebase）──
+        // CSV下見日と日付・時間が完全一致する場合は重複表示しない
+        if(showY&&fbDate){
+          var isSameAsCSV=(fbDate===csvShitamiDate)&&(fbTime===csvShitamiTime||(fbTime===''&&csvShitamiTime===''));
+          if(!isSameAsCSV){
+            if(!dm[fbDate])dm[fbDate]=[];
+            var lbl="予"+kubun+" "+(fbTime?fbTime+" ":"")+shortType+" "+tei;
+            dm[fbDate].push({key:key,obj:obj,cols:cols,type:'yotei',
+              label:lbl, timeStr:fbTime});
+          }
         }
       });
 
-      // ★マイカレンダー（personal）: 時間をlabelに反映
+      // ── マイカレンダー ──
       if(showP){
         Object.keys(personalCalCache).forEach(function(dateKey){
           var evs=personalCalCache[dateKey];if(!evs)return;
           Object.keys(evs).forEach(function(evId){
             var ev=evs[evId];if(!ev||!ev.title)return;
             var pTime=getPersonalTime(ev);
-            // ★ラベルに時間を付加
-            var pLabel='📅 '+(pTime&&pTime!=='終日'?pTime+' ':'')+ev.title;
+            var lbl="📅 "+(pTime&&pTime!=='終日'?pTime+" ":pTime==='終日'?'終日 ':'')+ev.title;
             if(!dm[dateKey])dm[dateKey]=[];
-            dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:pLabel,timeStr:pTime});
+            dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',
+              label:lbl, timeStr:pTime});
           });
         });
       }
 
-      // ★各日付のイベントを時間順にソート（時間なしは後ろ）
-      Object.keys(dm).forEach(function(dateKey){
-        dm[dateKey].sort(function(a,b){
-          var ta=a.timeStr&&a.timeStr!=='終日'?a.timeStr:'99:99';
-          var tb=b.timeStr&&b.timeStr!=='終日'?b.timeStr:'99:99';
-          // 終日は先頭に
-          if(a.timeStr==='終日')ta='00:00';
-          if(b.timeStr==='終日')tb='00:00';
-          if(ta<tb)return -1;
-          if(ta>tb)return 1;
-          return 0;
+      // 時間順ソート（終日先頭、時間なし末尾）
+      Object.keys(dm).forEach(function(dk){
+        dm[dk].sort(function(a,b){
+          var ta=a.timeStr==='終日'?'00:00':a.timeStr||'99:99';
+          var tb=b.timeStr==='終日'?'00:00':b.timeStr||'99:99';
+          return ta<tb?-1:ta>tb?1:0;
         });
       });
-
       return dm;
     }
 
+    // ---- ナビ・イベント ----
     var currentYear,currentMonth;
-    var now=new Date();
-    currentYear=now.getFullYear();
-    currentMonth=now.getMonth();
+    var now=new Date();currentYear=now.getFullYear();currentMonth=now.getMonth();
 
     document.getElementById('btnPrev').addEventListener('click',function(){currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}renderCal();});
     document.getElementById('btnNext').addEventListener('click',function(){currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}renderCal();});
     document.getElementById('btnToday').addEventListener('click',function(){currentYear=now.getFullYear();currentMonth=now.getMonth();renderCal();});
-
     chkSekou.addEventListener('change',renderCal);
     chkShitami.addEventListener('change',renderCal);
     chkYotei.addEventListener('change',renderCal);
     chkPersonal.addEventListener('change',renderCal);
-
     document.getElementById('modal-close').addEventListener('click',function(){modalOverlay.style.display='none';});
     modalOverlay.addEventListener('click',function(e){if(e.target===modalOverlay)modalOverlay.style.display='none';});
     document.getElementById('dayListClose').addEventListener('click',function(){dayListOverlay.style.display='none';});
@@ -279,144 +286,123 @@
       var grid=document.getElementById('calGrid');
       grid.innerHTML='';
       document.getElementById('monthLabel').textContent=currentYear+'年 '+(currentMonth+1)+'月';
-
-      var days=['日','月','火','水','木','金','土'];
-      days.forEach(function(d,i){
+      ['日','月','火','水','木','金','土'].forEach(function(d,i){
         var div=document.createElement('div');
         div.className='cal-header'+(i===0?' sun':'')+(i===6?' sat':'');
         div.textContent=d;grid.appendChild(div);
       });
-
       var firstDay=new Date(currentYear,currentMonth,1);
       var lastDay=new Date(currentYear,currentMonth+1,0);
       var startDow=firstDay.getDay();
       var totalDays=lastDay.getDate();
-
-      var prevLast=new Date(currentYear,currentMonth,0);
-      var prevDays=prevLast.getDate();
+      var prevDays=new Date(currentYear,currentMonth,0).getDate();
       for(var i=startDow-1;i>=0;i--){
-        var day=prevDays-i;
-        var m=currentMonth-1;var y=currentYear;if(m<0){m=11;y--;}
-        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(day).padStart(2,'0');
-        grid.appendChild(createCell(day,ds,true,startDow-1-i,dateMap));
+        var day=prevDays-i;var m=currentMonth-1;var y=currentYear;if(m<0){m=11;y--;}
+        grid.appendChild(createCell(day,y+"-"+String(m+1).padStart(2,'0')+"-"+String(day).padStart(2,'0'),true,startDow-1-i,dateMap));
       }
-
       for(var d=1;d<=totalDays;d++){
         var ds=currentYear+"-"+String(currentMonth+1).padStart(2,'0')+"-"+String(d).padStart(2,'0');
-        var dow=(startDow+d-1)%7;
-        grid.appendChild(createCell(d,ds,false,dow,dateMap));
+        grid.appendChild(createCell(d,ds,false,(startDow+d-1)%7,dateMap));
       }
-
       var totalCells=startDow+totalDays;
       var remaining=Math.ceil(totalCells/7)*7-totalCells;
       for(var i=1;i<=remaining;i++){
         var m=currentMonth+1;var y=currentYear;if(m>11){m=0;y++;}
-        var ds=y+"-"+String(m+1).padStart(2,'0')+"-"+String(i).padStart(2,'0');
-        var dow=(totalCells+i-1)%7;
-        grid.appendChild(createCell(i,ds,true,dow,dateMap));
+        grid.appendChild(createCell(i,y+"-"+String(m+1).padStart(2,'0')+"-"+String(i).padStart(2,'0'),true,(totalCells+i-1)%7,dateMap));
       }
     }
 
     function createCell(dayNum,dateStr,isOther,dow,dateMap){
       var cell=document.createElement('div');
       cell.className='cal-cell'+(isOther?' other-month':'')+(dateStr===todayStr?' today':'');
-
       var numDiv=document.createElement('div');
       numDiv.className='day-num'+(dow===0?' sun':'')+(dow===6?' sat':'');
-      numDiv.textContent=dayNum;
-      cell.appendChild(numDiv);
-
+      numDiv.textContent=dayNum;cell.appendChild(numDiv);
       var events=dateMap[dateStr]||[];
-      var maxShow=3;
-
-      events.slice(0,maxShow).forEach(function(ev){
+      events.slice(0,3).forEach(function(ev){
         var evDiv=document.createElement('div');
         evDiv.className='cal-event ev-'+ev.type;
         evDiv.textContent=ev.label;
         evDiv.addEventListener('click',function(e){
           e.stopPropagation();
-          if(ev.type==='personal'){openPersonalModal(ev.obj);}
-          else{openModal(ev.key,ev.obj,ev.cols);}
+          if(ev.type==='personal')openPersonalModal(ev.obj);
+          else openModal(ev.key,ev.obj,ev.cols);
         });
         cell.appendChild(evDiv);
       });
-
-      if(events.length>maxShow){
+      if(events.length>3){
         var more=document.createElement('div');
         more.className='cal-more';
-        more.textContent='他 '+(events.length-maxShow)+' 件';
+        more.textContent='他 '+(events.length-3)+' 件';
         cell.appendChild(more);
       }
-
-      cell.addEventListener('click',function(){
-        if(events.length===0)return;
-        openDayList(dateStr,events);
-      });
-
+      cell.addEventListener('click',function(){if(events.length)openDayList(dateStr,events);});
       return cell;
     }
 
+    // ---- 日リストパネル ----
     function openDayList(dateStr,events){
       var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
       events.forEach(function(ev){
         var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':'ev-yotei';
         var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':'予定';
-        var name=ev.type==='personal'?(ev.obj.title||''):getSafeVal(ev.cols,4).trim()||"名称未設定";
-        // ★時間表示: timeStr を優先使用（personalはgetPersonalTime済み）
-        var timeDisplay=ev.timeStr||'';
+        var name='';
+        if(ev.type==='personal'){
+          name=ev.obj.title||'';
+        } else {
+          var kubun=getKubun(ev.cols);
+          var st=getShortType(ev.cols);
+          var tei=getTeiName(ev.cols);
+          name='['+kubun+'] '+st+' '+tei;
+        }
+        var td=ev.timeStr&&ev.timeStr!=='終日'?ev.timeStr:ev.timeStr==='終日'?'終日':'';
         html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'">'+
           '<span class="ev-tag '+tagClass+'">'+tagText+'</span>'+
-          (timeDisplay?'<span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:50px;">'+timeDisplay+'</span>':'<span style="min-width:50px;"></span>')+
+          '<span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:60px;">'+td+'</span>'+
           '<span style="font-weight:bold;font-size:13px;">'+name+'</span>'+
           '</div>';
       });
       document.getElementById('dayListBody').innerHTML=html;
       dayListOverlay.style.display='block';
-
       document.querySelectorAll('.day-list-item').forEach(function(item){
         item.addEventListener('click',function(){
           dayListOverlay.style.display='none';
           if(item.dataset.type==='personal'){
             var evObj=null;
             for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}
-            if(evObj)openPersonalModal(evObj);
-            return;
+            if(evObj)openPersonalModal(evObj);return;
           }
-          var k=item.dataset.key;
-          var obj=globalTasks[k];if(!obj)return;
-          openModal(k,obj,obj.csvData);
+          var obj=globalTasks[item.dataset.key];if(!obj)return;
+          openModal(item.dataset.key,obj,obj.csvData);
         });
       });
     }
 
+    // ---- 個人予定モーダル ----
     function openPersonalModal(ev){
       var timeStr=getPersonalTime(ev);
-      var html='<div class="modal-header-info">'+
-        '<div class="modal-title-row" style="color:#4a148c">📅 '+(ev.title||'')+'</div></div>'+
-        '<table class="modal-table">'+
-        '<tr><th>日時</th><td>'+timeStr+'</td></tr>';
+      var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#4a148c">📅 '+(ev.title||'')+'</div></div>'+
+        '<table class="modal-table"><tr><th>日時</th><td>'+timeStr+'</td></tr>';
       if(ev.location)html+='<tr><th>場所</th><td><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ev.location)+'" target="_blank" style="color:#0056b3">🗺️ '+ev.location+'</a></td></tr>';
       html+='</table>';
       document.getElementById('modal-body').innerHTML=html;
       modalOverlay.style.display='block';
     }
 
+    // ---- 案件モーダル ----
     var timeOpts=generateTimeOptions();
-
     function openModal(key,obj,cols){
       var sekouStr=getSafeVal(cols,2).replace(/\s+/g,"")||"未定";
-      var shitamiStr=formatToYMD(getSafeVal(cols,12))||"未定";
-      var yoteiStr=obj.date||"未定";
-      var yoteiTime=formatTime(obj.time||"");
+      var csvShitamiDate=formatToYMD(getSafeVal(cols,12))||"未定";
+      var csvShitamiTime=getSafeVal(cols,13).trim();
+      var fbDate=obj.date||"";
+      var fbTime=obj.time||"";
       var ankenText=getSafeVal(cols,4).trim()||"名称未設定";
-
       var html='<div class="modal-header-info">'+
-        '<div class="modal-date-row">🔨 施工日: '+sekouStr+'　|　📋 下見日: '+shitamiStr+'　|　📅 予定日: '+yoteiStr+(yoteiTime?' '+yoteiTime:'')+'</div>'+
-        '<div class="modal-title-row">🏷️ '+ankenText+
-        ' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
+        '<div class="modal-date-row">🔨 施工: '+sekouStr+'　|　📋 下見: '+csvShitamiDate+(csvShitamiTime?' '+csvShitamiTime:'')+'　|　📅 予定: '+(fbDate||'未定')+(fbTime?' '+fbTime:'')+'</div>'+
+        '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>'+
         '<h4 style="margin-top:16px;color:#495057;border-bottom:2px solid #ccc;padding-bottom:4px;font-size:14px;">📄 CSVデータ</h4>'+
         '<table class="modal-table">';
-
       globalHeaders.forEach(function(hdr,index){
         var val=getSafeVal(cols,index);
         var dh=val.replace(/\n|\r/g,'<br>');
@@ -425,22 +411,15 @@
         else if(index===6&&ct!=="")dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;text-decoration:underline;">📞 '+val+'</a>';
         html+='<tr><th>'+(hdr||('列'+(index+1)))+'</th><td>'+dh+'</td></tr>';
       });
-      html+='</table>';
-
-      html+='<div class="modal-input-section">'+
-        '<h4>📝 入力データ</h4>'+
-        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>'+
+      html+='</table><div class="modal-input-section"><h4>📝 入力データ（Firebase）</h4>'+
+        '<div class="modal-input-row"><label>📅 下見予定日:</label><input type="date" id="modal-date" value="'+fbDate+'" /></div>'+
         '<div class="modal-input-row"><label>⏰ 予定時間:</label><select id="modal-time">'+timeOpts+'</select></div>'+
         '<div class="modal-input-row"><label>🔢 下見順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div>'+
-        '<div style="margin-top:10px;">'+
-        '<button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
-        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span>'+
-        '</div></div>';
-
+        '<div style="margin-top:10px;"><button id="modal-save-btn" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">💾 保存</button>'+
+        '<span id="modal-save-msg" style="margin-left:8px;color:#28a745;font-weight:bold;display:none;">✔ 保存しました</span></div></div>';
       document.getElementById('modal-body').innerHTML=html;
       modalOverlay.style.display='block';
-      document.getElementById('modal-time').value=obj.time||'';
-
+      document.getElementById('modal-time').value=fbTime;
       document.getElementById('modal-copy-btn').addEventListener('click',function(){
         navigator.clipboard.writeText(ankenText).then(function(){
           document.getElementById('modal-copy-btn').textContent="✔ コピー完了！";
@@ -448,7 +427,6 @@
           setTimeout(function(){document.getElementById('modal-copy-btn').textContent="コピー";document.getElementById('modal-copy-btn').classList.remove('copied');},2000);
         });
       });
-
       document.getElementById('modal-save-btn').addEventListener('click',function(){
         var nd=document.getElementById('modal-date').value;
         var nt=document.getElementById('modal-time').value;
@@ -457,8 +435,7 @@
         globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
         fullData.app_tasks=globalTasks;
         localStorage.setItem('appData',JSON.stringify(fullData));
-        var msg=document.getElementById('modal-save-msg');
-        msg.style.display='inline';
+        var msg=document.getElementById('modal-save-msg');msg.style.display='inline';
         setTimeout(function(){msg.style.display='none';renderCal();},2000);
       });
     }
