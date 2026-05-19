@@ -15,25 +15,25 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
 .header a{color:#52b788;text-decoration:none;font-size:13px;font-weight:bold;}
 .header h2{font-size:16px;color:#d8f3dc;flex:1;}
-.header-meta{font-size:11px;color:#74c69d;background:#1b4332;padding:3px 10px;border-radius:12px;}
 
-.status-bar{padding:6px 16px;background:#0d1117;border-bottom:1px solid #222;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:45px;z-index:49;}
-.status-item{font-size:11px;color:#aaa;}
-.status-item span{color:#52b788;font-weight:bold;}
-.save-btn{margin-left:auto;background:#2d6a4f;color:#d8f3dc;border:none;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
-.save-btn:hover{background:#40916c;}
-.save-btn:disabled{background:#333;color:#666;cursor:not-allowed;}
+.week-nav{padding:8px 12px;background:#0d1117;border-bottom:1px solid #222;display:flex;align-items:center;gap:8px;position:sticky;top:45px;z-index:49;}
+.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.week-btn:hover{background:#374151;color:#e0e6f0;}
+.week-btn.active{background:#1b4332;color:#d8f3dc;border-color:#52b788;}
+.week-label{font-size:12px;color:#74c69d;font-weight:bold;flex:1;text-align:center;}
+.week-count{font-size:11px;color:#6b7280;background:#1f2937;padding:2px 8px;border-radius:10px;}
 
-.cal-wrap{overflow-x:auto;padding:10px 10px 20px;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:700px;}
+.cal-wrap{overflow-x:auto;padding:10px 10px 24px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:560px;}
 
-.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;}
+.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;min-height:120px;}
 
 .cal-col-header{padding:7px 6px 5px;text-align:center;font-size:12px;font-weight:bold;line-height:1.4;}
 .cal-col-header.today{background:#1b4332;color:#d8f3dc;border-bottom:2px solid #52b788;}
 .cal-col-header.weekday{background:#161f30;color:#a8c8f8;border-bottom:2px solid #2a3a5a;}
 .cal-col-header.weekend{background:#1e1212;color:#9ca3af;border-bottom:2px solid #3a2020;}
-.cal-col-header .date-num{font-size:17px;font-weight:bold;display:block;}
+.cal-col-header.past{background:#111;color:#555;border-bottom:1px solid #222;}
+.cal-col-header .date-num{font-size:16px;font-weight:bold;display:block;}
 .cal-col-header .dow-label{font-size:10px;opacity:0.8;}
 .cal-col-header .count-badge{display:inline-block;font-size:9px;background:rgba(255,255,255,0.12);padding:0 5px;border-radius:8px;margin-top:2px;}
 
@@ -49,6 +49,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .cal-card.type-personal{border-left-color:#a78bfa;background:#1a1230;}
 .cal-card.type-personal:hover{background:#221540;}
 .cal-card.no-click{cursor:default;}
+.cal-card.past-card{opacity:0.5;}
 
 .card-badge{display:inline-block;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:bold;white-space:nowrap;margin-bottom:3px;}
 .badge-reform{background:#1e3a5f;color:#93c5fd;}
@@ -64,7 +65,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .card-sub .reason{color:#fb923c;}
 .card-sub .sekou{color:#9ca3af;}
 
-.empty-col{color:#4b5563;font-size:11px;text-align:center;padding:12px 4px;font-style:italic;}
+.empty-col{color:#4b5563;font-size:11px;text-align:center;padding:16px 4px;font-style:italic;}
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
 .save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
 .save-notice.show{opacity:1;}
@@ -75,20 +76,18 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>📅 7日間 行動カレンダー</h2>
-  <div class="header-meta" id="rangeLabel">-</div>
+  <h2>📅 行動カレンダー</h2>
 </div>
 
-<div class="status-bar">
-  <div class="status-item">総件数: <span id="totalCount">-</span></div>
-  <div class="status-item">下見確定: <span id="shitamiCount">0</span></div>
-  <div class="status-item">アラート: <span id="alertCount">0</span></div>
-  <div class="status-item">マイカレ: <span id="calCount">0</span></div>
-  <button class="save-btn" id="saveBtn" onclick="saveToFirebase()">✓ Firebase保存</button>
+<div class="week-nav">
+  <button class="week-btn" id="btnPrev" onclick="changeWeek(-1)">◀ 前週</button>
+  <div class="week-label" id="weekLabel">-</div>
+  <span class="week-count" id="weekCount">-</span>
+  <button class="week-btn" id="btnNext" onclick="changeWeek(1)">次週 ▶</button>
 </div>
 
 <div id="mainContent"><div class="loading">読み込み中...</div></div>
-<div class="save-notice" id="saveNotice">✓ Firebase保存完了</div>
+<div class="save-notice" id="saveNotice">✓ 保存完了</div>
 
 <script src="shared-modal.js"></script>
 <script>
@@ -109,18 +108,24 @@ function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").repla
 function getTodayStr(){var t=new Date();return new Date(t.getTime()+9*3600000).toISOString().slice(0,10);}
 function addDays(s,n){var d=new Date(s+"T00:00:00+09:00");d.setDate(d.getDate()+n);return new Date(d.getTime()+9*3600000).toISOString().slice(0,10);}
 function getDow(ymd){return new Date(ymd+"T00:00:00+09:00").getDay();}
+function getMondayOf(ymd){var dow=getDow(ymd);var diff=dow===0?-6:1-dow;return addDays(ymd,diff);}
 function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,16);}
 function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 var todayStr=getTodayStr();
-var endStr=addDays(todayStr,6);
 var globalTasks={};
 var globalHeaders=[];
 var fullData=null;
 var personalEvents={};
 var allItems=[];
 
-document.getElementById('rangeLabel').textContent=todayStr.replace(/^\d{4}-/,'')+'〜'+endStr.replace(/^\d{4}-/,'');
+// 週オフセット：-1=先週, 0=今週, 1=来週
+var weekOffset=0;
+// 週の開始日（月曜）
+var baseMonday=getMondayOf(todayStr);
+
+function getWeekStart(){return addDays(baseMonday,weekOffset*7);}
+function getWeekEnd(){return addDays(getWeekStart(),6);}
 
 try{
   var ls=localStorage.getItem('appData');
@@ -139,11 +144,8 @@ db.ref('personal_calendar').once('value').then(function(snap){
   render();
 });
 
-function extractItems(){
+function extractAllItems(){
   var items=[];
-  var shitamiC=0;
-  var alertC=0;
-  var calC=0;
 
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];
@@ -157,36 +159,29 @@ function extractItems(){
     var addr=getSafeVal(c,11);
     var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
 
-    // CSV下見日(C15)・時間(C16)
     var csvShitamiDate=formatYMD(getSafeVal(c,15));
     var csvShitamiTime=getSafeVal(c,16);
-    // Firebase側下見予定日・時間
     var fbShitamiDate=obj.date?String(obj.date).replace(/\s+/g,''):'';
     var fbShitamiTime=obj.time?String(obj.time).replace(/\s+/g,''):'';
 
-    // 有効下見日：CSV優先、なければFirebase
     var shitamiDate=csvShitamiDate||fbShitamiDate;
     var shitamiTime=csvShitamiTime||fbShitamiTime;
 
     var isReform=(kubun==='ﾘ');
     var isSK=title&&title.indexOf('SK')!==-1;
 
-    // ステータス
     var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
     var localStatus=obj.local_status?String(obj.local_status).replace(/\s+/g,''):'';
     var status=localStatus||sfStatus;
 
-    // 完了系除外
-    var SKIP_STATUS=['施工完了','報告書提出済','施工日連絡済'];
-    for(var si=0;si<SKIP_STATUS.length;si++){
-      if(status===SKIP_STATUS[si])return;
-    }
+    var SKIP=['施工完了','報告書提出済','施工日連絡済'];
+    for(var si=0;si<SKIP.length;si++){if(status===SKIP[si])return;}
     if(status==='下見完了')return;
     if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
     if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
 
-    // ① 下見日確定（CSV or Firebase）→ その日付にそのまま表示（7日以内）
-    if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
+    // ① 下見日確定 → その日付に置く
+    if(shitamiDate){
       var srcLabel=csvShitamiDate?'CSV確定':(fbShitamiDate?'アプリ入力':'');
       items.push({
         id:'task_'+key,
@@ -198,56 +193,40 @@ function extractItems(){
         sekouDate:sekouDate,
         key:key
       });
-      shitamiC++;
       return;
     }
 
-    // ② 新築のみ：下見未定 → 施工日から逆算した日付に表示
-    if(!isReform&&!shitamiDate&&sekouDate){
+    // ② 新築のみ：施工日逆算 → その日付に置く
+    if(!isReform&&sekouDate){
       var diff=Math.ceil((new Date(sekouDate+"T00:00:00+09:00")-new Date(todayStr+"T00:00:00+09:00"))/(1000*60*60*24));
       if(diff<0)return;
 
-      var alertDate=null;
-      var alertReason='';
-      var alertType='alert';
-      var alertBadge='newbuild-alert';
-
       if(isSK&&diff<=10){
-        // SK：施工10日前の日付に表示
-        alertDate=addDays(sekouDate,-10);
-        alertReason='⚠ SK再訪問(施工'+diff+'日前)';
-        alertBadge='sk-alert';
-      }else if(diff<=21){
-        // 新築：施工21日前の日付に表示
-        alertDate=addDays(sekouDate,-21);
-        alertReason='⚠ 訪問必要(施工'+diff+'日前)';
+        items.push({
+          id:'alert_'+key,type:'alert',
+          date:addDays(sekouDate,-10),
+          time:'',
+          title:title,company:company,addr:addr,tel:tel,
+          reason:'⚠ SK再訪問(施工'+diff+'日前)',
+          sekouDate:sekouDate,key:key
+        });
+        return;
       }
-
-      if(!alertDate)return;
-
-      // 逆算日が7日以内に入っていれば表示
-      // 逆算日が過去の場合は今日に表示（すでに期限超過）
-      var dispDate=alertDate;
-      if(dispDate<todayStr)dispDate=todayStr;
-      if(dispDate>endStr)return;
-
-      items.push({
-        id:'alert_'+key,
-        type:'alert',
-        date:dispDate,
-        time:'',
-        title:title,company:company,addr:addr,tel:tel,
-        reason:alertReason,
-        sekouDate:sekouDate,
-        key:key
-      });
-      alertC++;
+      if(diff<=21){
+        items.push({
+          id:'alert_'+key,type:'alert',
+          date:addDays(sekouDate,-21),
+          time:'',
+          title:title,company:company,addr:addr,tel:tel,
+          reason:'⚠ 訪問必要(施工'+diff+'日前)',
+          sekouDate:sekouDate,key:key
+        });
+      }
     }
   });
 
-  // ③ 個人カレンダー（そのまま表示）
+  // ③ 個人カレンダー
   Object.keys(personalEvents).forEach(function(dateKey){
-    if(dateKey<todayStr||dateKey>endStr)return;
     var dayEvs=personalEvents[dateKey];
     if(!dayEvs)return;
     Object.keys(dayEvs).forEach(function(evId){
@@ -260,15 +239,9 @@ function extractItems(){
         addr:ev.location||'',tel:'',
         reason:'マイカレンダー',sekouDate:'',key:null
       });
-      calC++;
     });
   });
 
-  document.getElementById('shitamiCount').textContent=shitamiC;
-  document.getElementById('alertCount').textContent=alertC;
-  document.getElementById('calCount').textContent=calC;
-
-  // ソート：日付→時間あり優先→時間順
   items.sort(function(a,b){
     var dc=a.date.localeCompare(b.date);
     if(dc!==0)return dc;
@@ -281,36 +254,61 @@ function extractItems(){
   return items;
 }
 
-function render(){
-  allItems=extractItems();
+function changeWeek(dir){
+  // 過去1週・今週・来週の範囲制限
+  var newOffset=weekOffset+dir;
+  if(newOffset<-1||newOffset>1)return;
+  weekOffset=newOffset;
+  render();
+}
 
+function render(){
   if(Object.keys(globalTasks).length===0&&Object.keys(personalEvents).length===0){
     document.getElementById('mainContent').innerHTML='<div class="loading" style="color:#ef4444;">⚠ データなし。トップに戻って最新データを取得してください。</div>';
     return;
   }
 
-  document.getElementById('totalCount').textContent=allItems.length+'件';
+  allItems=extractAllItems();
 
+  var weekStart=getWeekStart();
+  var weekEnd=getWeekEnd();
+
+  // ナビ更新
+  var dowNames=['日','月','火','水','木','金','土'];
+  var wLabel=weekOffset===0?'今週':weekOffset===-1?'先週':'来週';
+  document.getElementById('weekLabel').textContent=
+    wLabel+' '+weekStart.replace(/^\d{4}-/,'')+'〜'+weekEnd.replace(/^\d{4}-/,'');
+  document.getElementById('btnPrev').disabled=(weekOffset<=-1);
+  document.getElementById('btnNext').disabled=(weekOffset>=1);
+
+  // この週の件数
+  var weekItems=allItems.filter(function(item){
+    return item.date>=weekStart&&item.date<=weekEnd;
+  });
+  document.getElementById('weekCount').textContent=weekItems.length+'件';
+
+  // 日付→アイテム
   var byDate={};
-  allItems.forEach(function(item){
+  weekItems.forEach(function(item){
     if(!byDate[item.date])byDate[item.date]=[];
     byDate[item.date].push(item);
   });
 
   var days=[];
-  for(var i=0;i<7;i++)days.push(addDays(todayStr,i));
+  for(var i=0;i<7;i++)days.push(addDays(weekStart,i));
 
-  var dowNames=['日','月','火','水','木','金','土'];
   var html='<div class="cal-wrap"><div class="cal-grid">';
 
   days.forEach(function(dateStr){
     var dayItems=byDate[dateStr]||[];
     var isToday=(dateStr===todayStr);
+    var isPast=(dateStr<todayStr);
     var dow=getDow(dateStr);
     var isWkend=(dow===0||dow===6);
     var dayNum=dateStr.replace(/^\d{4}-\d{2}-/,'');
     var monthNum=dateStr.replace(/^\d{4}-/,'').replace(/-\d{2}$/,'');
-    var headerCls=isToday?'today':isWkend?'weekend':'weekday';
+
+    var headerCls=isPast?'past':isToday?'today':isWkend?'weekend':'weekday';
     var dowColor=dow===0?'color:#ef4444':dow===6?'color:#60a5fa':'';
 
     html+='<div class="cal-col">';
@@ -325,7 +323,8 @@ function render(){
       html+='<div class="empty-col">-</div>';
     }else{
       dayItems.forEach(function(item){
-        var cardCls='cal-card type-'+item.type+(item.key?'':' no-click');
+        var isPastCard=(item.date<todayStr);
+        var cardCls='cal-card type-'+item.type+(item.key?'':' no-click')+(isPastCard?' past-card':'');
         var badgeCls='card-badge ';
         var badgeTxt='';
         if(item.type==='reform'){badgeCls+='badge-reform';badgeTxt='ﾘ 下見';}
@@ -358,26 +357,6 @@ function render(){
 function openModal(key){
   if(!key||!globalTasks[key])return;
   openCaseModal(key,globalTasks[key],globalHeaders,globalTasks,fullData,db,function(){});
-}
-
-function saveToFirebase(){
-  var btn=document.getElementById('saveBtn');
-  btn.disabled=true;btn.textContent='保存中...';
-  var saveData={
-    updated:new Date().toISOString(),
-    range:{from:todayStr,to:endStr},
-    count:allItems.length,
-    items:allItems
-  };
-  db.ref('app_action_7day').set(saveData).then(function(){
-    var notice=document.getElementById('saveNotice');
-    notice.classList.add('show');
-    setTimeout(function(){notice.classList.remove('show');},2500);
-    btn.disabled=false;btn.textContent='✓ Firebase保存';
-  }).catch(function(e){
-    alert('保存失敗: '+e.message);
-    btn.disabled=false;btn.textContent='✓ Firebase保存';
-  });
 }
 </script>
 </body>
