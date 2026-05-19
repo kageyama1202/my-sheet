@@ -14,16 +14,19 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;}
 .header a{color:#52b788;text-decoration:none;font-size:13px;font-weight:bold;}
 .header h2{font-size:16px;color:#d8f3dc;flex:1;}
-.week-nav{padding:8px 12px;background:#0d1117;border-bottom:1px solid #222;display:flex;align-items:center;gap:8px;position:sticky;top:45px;z-index:49;}
-.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.week-nav{padding:8px 12px;background:#0d1117;border-bottom:1px solid #222;display:flex;align-items:center;gap:6px;position:sticky;top:45px;z-index:49;flex-wrap:wrap;}
+.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
 .week-btn:hover{background:#374151;color:#e0e6f0;}
 .week-btn:disabled{opacity:0.3;cursor:not-allowed;}
-.week-btn.save-btn{background:#1b4332;color:#d8f3dc;border-color:#2d6a4f;margin-left:4px;}
+.week-btn.save-btn{background:#1b4332;color:#d8f3dc;border-color:#2d6a4f;}
 .week-btn.save-btn:hover{background:#2d6a4f;}
-.save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
-.save-notice.show{opacity:1;}
+.week-btn.all-btn{background:#2a1f3d;color:#c4b5fd;border-color:#4c1d95;}
+.week-btn.all-btn:hover{background:#3b2a5a;}
 .week-label{font-size:12px;color:#74c69d;font-weight:bold;flex:1;text-align:center;}
 .week-count{font-size:11px;color:#6b7280;background:#1f2937;padding:2px 8px;border-radius:10px;}
+.checked-count{font-size:11px;color:#52b788;background:#1b4332;padding:2px 8px;border-radius:10px;}
+.save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
+.save-notice.show{opacity:1;}
 .cal-wrap{overflow-x:auto;padding:10px 10px 24px;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:560px;}
 .cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;min-height:100px;}
@@ -36,17 +39,19 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .cal-col-header .dow-label{font-size:10px;opacity:0.8;}
 .cal-col-header .count-badge{display:inline-block;font-size:9px;background:rgba(255,255,255,0.12);padding:0 5px;border-radius:8px;margin-top:2px;}
 .cal-col-body{flex:1;padding:4px;}
-.cal-card{background:#1a2232;border-radius:5px;padding:5px 6px;margin-bottom:4px;cursor:pointer;border-left:3px solid #52b788;transition:background 0.15s;}
-.cal-card:hover{background:#1f2d42;}
-.cal-card:last-child{margin-bottom:0;}
+.cal-card{background:#1a2232;border-radius:5px;padding:5px 6px;margin-bottom:4px;border-left:3px solid #52b788;transition:background 0.15s,opacity 0.2s;}
 .cal-card.type-reform{border-left-color:#4a90d9;}
 .cal-card.type-newbuild{border-left-color:#f59e0b;}
 .cal-card.type-alert{border-left-color:#ef4444;background:#1f1008;}
-.cal-card.type-alert:hover{background:#2a1510;}
 .cal-card.type-personal{border-left-color:#a78bfa;background:#1a1230;}
-.cal-card.type-personal:hover{background:#221540;}
-.cal-card.no-click{cursor:default;}
 .cal-card.past-card{opacity:0.5;}
+.cal-card.unchecked{opacity:0.3;}
+/* チェックボックス行 */
+.card-top{display:flex;align-items:flex-start;gap:4px;}
+.card-cb{width:15px;height:15px;min-width:15px;margin-top:2px;cursor:pointer;accent-color:#52b788;}
+.card-main{flex:1;min-width:0;cursor:pointer;}
+.card-main:hover .card-title{color:#74c69d;text-decoration:underline;}
+.card-no-modal{flex:1;min-width:0;}
 .card-badge{display:inline-block;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:bold;white-space:nowrap;margin-bottom:3px;}
 .badge-reform{background:#1e3a5f;color:#93c5fd;}
 .badge-newbuild{background:#2d2a1a;color:#fbbf24;}
@@ -73,8 +78,10 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
   <button class="week-btn" id="btnPrev" onclick="changeWeek(-1)">◀ 前週</button>
   <div class="week-label" id="weekLabel">-</div>
   <span class="week-count" id="weekCount">-</span>
-  <button class="week-btn" id="btnNext" onclick="changeWeek(1)">次週 ▶</button>
+  <span class="checked-count" id="checkedCount">✓ 0件</span>
+  <button class="week-btn all-btn" id="allBtn" onclick="toggleAll()">全選択</button>
   <button class="week-btn save-btn" id="saveBtn" onclick="saveToFirebase()">💾 保存</button>
+  <button class="week-btn" id="btnNext" onclick="changeWeek(1)">次週 ▶</button>
 </div>
 <div class="save-notice" id="saveNotice">✓ Firebase保存完了</div>
 <div id="mainContent"><div class="loading">読み込み中...</div></div>
@@ -107,8 +114,10 @@ var globalTasks={};
 var globalHeaders=[];
 var fullData=null;
 var personalEvents={};
-var weekOffset=0; // -1=先週, 0=今週, 1=来週
+var weekOffset=0;
 var baseMonday=getMondayOf(todayStr);
+var allItems=[];
+var checkedIds={}; // id→true/false
 
 function getWeekStart(){return addDays(baseMonday,weekOffset*7);}
 function getWeekEnd(){return addDays(getWeekStart(),6);}
@@ -127,91 +136,49 @@ db.ref('personal_calendar').once('value').then(function(snap){
   render();
 }).catch(function(e){render();});
 
-// 全案件を日付付きで抽出（週フィルタなし）
-// アラート案件は逆算日をそのまま date に入れる
 function extractAllItems(){
   var items=[];
-
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];
     var c=obj.csvData;
     if(!c)return;
-
     var kubun=getSafeVal(c,3).replace(/\s+/g,'');
     var title=getSafeVal(c,4);
     var company=getSafeVal(c,5);
     var addr=getSafeVal(c,11);
     var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
-
     var csvShitamiDate=formatYMD(getSafeVal(c,15));
     var csvShitamiTime=getSafeVal(c,16);
     var fbShitamiDate=obj.date?String(obj.date).replace(/\s+/g,''):'';
     var fbShitamiTime=obj.time?String(obj.time).replace(/\s+/g,''):'';
-
     var shitamiDate=csvShitamiDate||fbShitamiDate;
     var shitamiTime=csvShitamiTime||fbShitamiTime;
-
     var isReform=(kubun==='ﾘ');
     var isSK=title&&title.indexOf('SK')!==-1;
-
     var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
     var localStatus=obj.local_status?String(obj.local_status).replace(/\s+/g,''):'';
     var status=localStatus||sfStatus;
-
     var SKIP=['施工完了','報告書提出済','施工日連絡済'];
     for(var si=0;si<SKIP.length;si++){if(status===SKIP[si])return;}
     if(status==='下見完了')return;
     if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
     if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
 
-    // ① 下見日確定（CSV or Firebase）→ その日付に置く
     if(shitamiDate){
       var srcLabel=csvShitamiDate?'CSV確定':(fbShitamiDate?'アプリ入力':'');
-      items.push({
-        id:'task_'+key,
-        type:isReform?'reform':'newbuild',
-        date:shitamiDate,
-        time:shitamiTime,
-        title:title,company:company,addr:addr,
-        reason:'下見'+(srcLabel?'('+srcLabel+')':''),
-        sekouDate:sekouDate,
-        key:key
-      });
+      items.push({id:'task_'+key,type:isReform?'reform':'newbuild',date:shitamiDate,time:shitamiTime,title:title,company:company,addr:addr,reason:'下見'+(srcLabel?'('+srcLabel+')':''),sekouDate:sekouDate,key:key});
       return;
     }
-
-    // ② 新築のみ：施工日から逆算した日付に置く（diffチェックなし）
     if(!isReform&&sekouDate){
-      // 施工日が過去なら除外
       if(sekouDate<todayStr)return;
-
       if(isSK){
-        // SK：施工10日前
-        var skAlertDate=addDays(sekouDate,-10);
-        items.push({
-          id:'alert_'+key,type:'alert',
-          date:skAlertDate,
-          time:'',
-          title:title,company:company,addr:addr,
-          reason:'⚠ SK再訪問',
-          sekouDate:sekouDate,key:key
-        });
+        items.push({id:'alert_'+key,type:'alert',date:addDays(sekouDate,-10),time:'',title:title,company:company,addr:addr,reason:'⚠ SK再訪問',sekouDate:sekouDate,key:key});
       }else{
-        // 新築：施工21日前
-        var alertDate=addDays(sekouDate,-21);
-        items.push({
-          id:'alert_'+key,type:'alert',
-          date:alertDate,
-          time:'',
-          title:title,company:company,addr:addr,
-          reason:'⚠ 訪問必要',
-          sekouDate:sekouDate,key:key
-        });
+        items.push({id:'alert_'+key,type:'alert',date:addDays(sekouDate,-21),time:'',title:title,company:company,addr:addr,reason:'⚠ 訪問必要',sekouDate:sekouDate,key:key});
       }
     }
   });
 
-  // ③ 個人カレンダー
   Object.keys(personalEvents).forEach(function(dateKey){
     var dayEvs=personalEvents[dateKey];
     if(!dayEvs)return;
@@ -219,61 +186,82 @@ function extractAllItems(){
       var ev=dayEvs[evId];
       var timeStr='';
       if(!ev.allDay&&ev.start&&ev.start.length>10)timeStr=ev.start.substring(11,16);
-      items.push({
-        id:'cal_'+evId,type:'personal',date:dateKey,time:timeStr,
-        title:ev.title||'(タイトルなし)',company:'',
-        addr:ev.location||'',
-        reason:'マイカレンダー',sekouDate:'',key:null
-      });
+      items.push({id:'cal_'+evId,type:'personal',date:dateKey,time:timeStr,title:ev.title||'(タイトルなし)',company:'',addr:ev.location||'',reason:'マイカレンダー',sekouDate:'',key:null});
     });
   });
-
   return items;
+}
+
+function updateCheckedCount(){
+  var n=Object.keys(checkedIds).filter(function(k){return checkedIds[k];}).length;
+  document.getElementById('checkedCount').textContent='✓ '+n+'件';
+}
+
+function onCheck(id,checked){
+  checkedIds[id]=checked;
+  var safeId=id.replace(/[^a-zA-Z0-9_]/g,'_');
+  var card=document.getElementById('card_'+safeId);
+  if(card){
+    if(checked)card.classList.remove('unchecked');
+    else card.classList.add('unchecked');
+  }
+  updateCheckedCount();
+}
+
+var allChecked=false;
+function toggleAll(){
+  // 現在の週のアイテムだけ対象
+  var weekStart=getWeekStart();
+  var weekEnd=getWeekEnd();
+  var weekItems=allItems.filter(function(item){return item.date>=weekStart&&item.date<=weekEnd;});
+  allChecked=!allChecked;
+  weekItems.forEach(function(item){
+    checkedIds[item.id]=allChecked;
+    var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
+    var cb=document.getElementById('cb_'+safeId);
+    if(cb)cb.checked=allChecked;
+    var card=document.getElementById('card_'+safeId);
+    if(card){
+      if(allChecked)card.classList.remove('unchecked');
+      else card.classList.add('unchecked');
+    }
+  });
+  document.getElementById('allBtn').textContent=allChecked?'全解除':'全選択';
+  updateCheckedCount();
 }
 
 function changeWeek(dir){
   var newOffset=weekOffset+dir;
   if(newOffset<-1||newOffset>1)return;
   weekOffset=newOffset;
+  allChecked=false;
+  document.getElementById('allBtn').textContent='全選択';
   render();
 }
-
-var allItems=[];
 
 function render(){
   if(Object.keys(globalTasks).length===0&&Object.keys(personalEvents).length===0){
     document.getElementById('mainContent').innerHTML='<div class="loading" style="color:#ef4444;">⚠ データなし。トップに戻って最新データを取得してください。</div>';
     return;
   }
-
-  // 全件抽出（毎回再計算）
   allItems=extractAllItems();
-
   var weekStart=getWeekStart();
   var weekEnd=getWeekEnd();
-
-  // ナビ更新
   var dowNames=['日','月','火','水','木','金','土'];
   var wLabel=weekOffset===0?'今週':weekOffset===-1?'先週':'来週';
-  document.getElementById('weekLabel').textContent=
-    wLabel+' '+weekStart.replace(/^\d{4}-/,'')+'〜'+weekEnd.replace(/^\d{4}-/,'');
+  document.getElementById('weekLabel').textContent=wLabel+' '+weekStart.replace(/^\d{4}-/,'')+'〜'+weekEnd.replace(/^\d{4}-/,'');
   document.getElementById('btnPrev').disabled=(weekOffset<=-1);
   document.getElementById('btnNext').disabled=(weekOffset>=1);
 
-  // この週だけフィルタ
-  var weekItems=allItems.filter(function(item){
-    return item.date>=weekStart&&item.date<=weekEnd;
-  });
-
-  // ソート
+  var weekItems=allItems.filter(function(item){return item.date>=weekStart&&item.date<=weekEnd;});
   weekItems.sort(function(a,b){
     if(!a.time&&!b.time)return 0;
     if(!a.time)return 1;
     if(!b.time)return -1;
     return a.time.localeCompare(b.time);
   });
-
   document.getElementById('weekCount').textContent=weekItems.length+'件';
+  updateCheckedCount();
 
   var byDate={};
   weekItems.forEach(function(item){
@@ -285,7 +273,6 @@ function render(){
   for(var i=0;i<7;i++)days.push(addDays(weekStart,i));
 
   var html='<div class="cal-wrap"><div class="cal-grid">';
-
   days.forEach(function(dateStr){
     var dayItems=byDate[dateStr]||[];
     var isToday=(dateStr===todayStr);
@@ -303,14 +290,15 @@ function render(){
     html+='<span class="dow-label" style="'+dowColor+'">'+dowNames[dow]+(isToday?' 今日':'')+'</span>';
     if(dayItems.length>0)html+='<span class="count-badge">'+dayItems.length+'件</span>';
     html+='</div>';
-
     html+='<div class="cal-col-body">';
     if(dayItems.length===0){
       html+='<div class="empty-col">-</div>';
     }else{
       dayItems.forEach(function(item){
         var isPastCard=(item.date<todayStr);
-        var cardCls='cal-card type-'+item.type+(item.key?'':' no-click')+(isPastCard?' past-card':'');
+        var isChecked=!!checkedIds[item.id];
+        var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
+        var cardCls='cal-card type-'+item.type+(isPastCard?' past-card':'')+(isChecked?'':' unchecked');
         var badgeCls='card-badge ';
         var badgeTxt='';
         if(item.type==='reform'){badgeCls+='badge-reform';badgeTxt='ﾘ 下見';}
@@ -319,9 +307,14 @@ function render(){
         else if(item.type==='alert'){badgeCls+='badge-newbuild-alert';badgeTxt='新 ⚠';}
         else{badgeCls+='badge-personal';badgeTxt='📅';}
 
-        var clickAttr=item.key?'onclick="openModal(\''+escHtml(item.key)+'\')"':'';
-
-        html+='<div class="'+cardCls+'" '+clickAttr+'>';
+        html+='<div class="'+cardCls+'" id="card_'+safeId+'">';
+        html+='<div class="card-top">';
+        html+='<input type="checkbox" class="card-cb" id="cb_'+safeId+'"'+(isChecked?' checked':'')+' onchange="onCheck(\''+escHtml(item.id)+'\',this.checked)" onclick="event.stopPropagation()">';
+        if(item.key){
+          html+='<div class="card-main" onclick="openModal(\''+escHtml(item.key)+'\')">';
+        }else{
+          html+='<div class="card-no-modal">';
+        }
         html+='<span class="'+badgeCls+'">'+badgeTxt+'</span>';
         if(item.time)html+='<div class="card-time">🕐 '+escHtml(item.time)+'</div>';
         html+='<div class="card-title">'+escHtml(item.title)+'</div>';
@@ -330,12 +323,13 @@ function render(){
         if(item.sekouDate)html+='<span class="sekou">施工:'+escHtml(item.sekouDate.replace(/^\d{4}-/,''))+'</span><br>';
         if(item.addr)html+='<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>';
         html+='</div>';
-        html+='</div>';
+        html+='</div>'; // card-main or card-no-modal
+        html+='</div>'; // card-top
+        html+='</div>'; // cal-card
       });
     }
     html+='</div></div>';
   });
-
   html+='</div></div>';
   document.getElementById('mainContent').innerHTML=html;
 }
@@ -346,14 +340,18 @@ function openModal(key){
 }
 
 function saveToFirebase(){
+  var checkedItems=allItems.filter(function(item){return !!checkedIds[item.id];});
+  if(checkedItems.length===0){alert('チェックされた案件がありません');return;}
   var btn=document.getElementById('saveBtn');
   btn.disabled=true;btn.textContent='保存中...';
   var saveData={
     updated:new Date().toISOString(),
-    items:allItems
+    count:checkedItems.length,
+    items:checkedItems
   };
   db.ref('app_action_7day').set(saveData).then(function(){
     var notice=document.getElementById('saveNotice');
+    notice.textContent='✓ '+checkedItems.length+'件 Firebase保存完了';
     notice.classList.add('show');
     setTimeout(function(){notice.classList.remove('show');},2500);
     btn.disabled=false;btn.textContent='💾 保存';
