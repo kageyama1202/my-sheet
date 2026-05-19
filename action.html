@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-17 -->
+<!-- VERSION: 2026-05-20 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>7日間 行動抽出</title>
+<title>7日間 行動カレンダー</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -17,83 +17,74 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .header h2{font-size:16px;color:#d8f3dc;flex:1;}
 .header-meta{font-size:11px;color:#74c69d;background:#1b4332;padding:3px 10px;border-radius:12px;}
 
-.status-bar{padding:8px 16px;background:#0d1117;border-bottom:1px solid #222;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:45px;z-index:49;}
+.status-bar{padding:6px 16px;background:#0d1117;border-bottom:1px solid #222;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:45px;z-index:49;}
 .status-item{font-size:11px;color:#aaa;}
 .status-item span{color:#52b788;font-weight:bold;}
-.status-item span.red{color:#ef4444;}
-.save-btn{margin-left:auto;background:#2d6a4f;color:#d8f3dc;border:none;padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.save-btn{margin-left:auto;background:#2d6a4f;color:#d8f3dc;border:none;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
 .save-btn:hover{background:#40916c;}
 .save-btn:disabled{background:#333;color:#666;cursor:not-allowed;}
 
-.day-section{margin:10px 14px 0;}
-.day-header{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px 8px 0 0;font-size:13px;font-weight:bold;}
-.day-header.today{background:#1b4332;border-left:4px solid #52b788;color:#d8f3dc;}
-.day-header.future{background:#1a2744;border-left:4px solid #4a90d9;color:#a8c8f8;}
-.day-header.weekend{background:#2a1a1a;border-left:4px solid #9ca3af;color:#9ca3af;}
-.day-count{font-size:11px;background:rgba(255,255,255,0.1);padding:1px 7px;border-radius:10px;margin-left:auto;}
-.day-items{background:#111827;border-radius:0 0 8px 8px;border:1px solid #1f2937;border-top:none;overflow:hidden;margin-bottom:4px;}
+/* ===== 7列横並びカレンダー ===== */
+.cal-wrap{overflow-x:auto;padding:10px 10px 20px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:700px;}
 
-.item-row{display:flex;align-items:stretch;border-bottom:1px solid #1f2937;min-height:50px;transition:opacity 0.25s,background 0.15s;}
-.item-row:last-child{border-bottom:none;}
-.item-row.personal{background:#1a1230;}
-.item-row.alert-row{background:#1f1008;}
-.item-row.excluded{opacity:0.22;background:#0d1117 !important;}
+.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;}
 
-.item-check{width:38px;min-width:38px;display:flex;align-items:center;justify-content:center;}
-.item-check input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#ef4444;}
+.cal-col-header{padding:7px 6px 5px;text-align:center;font-size:12px;font-weight:bold;line-height:1.4;}
+.cal-col-header.today{background:#1b4332;color:#d8f3dc;border-bottom:2px solid #52b788;}
+.cal-col-header.weekday{background:#161f30;color:#a8c8f8;border-bottom:2px solid #2a3a5a;}
+.cal-col-header.weekend{background:#1e1212;color:#9ca3af;border-bottom:2px solid #3a2020;}
+.cal-col-header .date-num{font-size:17px;font-weight:bold;display:block;}
+.cal-col-header .dow-label{font-size:10px;opacity:0.8;}
 
-.item-time{width:48px;min-width:48px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-direction:column;line-height:1.3;}
-.item-time.has-time{color:#ffd166;}
-.item-time.no-time{color:#444;}
+.cal-col-body{flex:1;padding:4px;}
 
-.item-type{width:30px;min-width:30px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.cal-card{background:#1a2232;border-radius:5px;padding:5px 6px;margin-bottom:4px;cursor:pointer;border-left:3px solid #52b788;transition:background 0.15s;}
+.cal-card:hover{background:#1f2d42;}
+.cal-card:last-child{margin-bottom:0;}
+.cal-card.type-reform{border-left-color:#4a90d9;}
+.cal-card.type-newbuild{border-left-color:#f59e0b;}
+.cal-card.type-alert{border-left-color:#ef4444;}
+.cal-card.type-personal{border-left-color:#a78bfa;background:#1a1230;}
+.cal-card.type-personal:hover{background:#221540;}
+.cal-card.no-click{cursor:default;}
 
-.item-body{flex:1;padding:7px 10px 7px 4px;min-width:0;cursor:pointer;}
-.item-body:hover .item-title{color:#74c69d;text-decoration:underline;}
-.item-body-plain{flex:1;padding:7px 10px 7px 4px;min-width:0;}
-
-.item-title{font-size:13px;font-weight:bold;color:#e0e6f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.item-sub{font-size:11px;color:#6b7280;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;}
-.item-sub .addr{color:#52b788;}
-.item-sub .company{color:#9ca3af;}
-.item-sub .reason{color:#fb923c;font-weight:bold;}
-.item-sub .csv-fixed{color:#fbbf24;font-weight:bold;}
-.item-sub .fb-fixed{color:#60a5fa;font-weight:bold;}
-
-.item-badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;font-weight:bold;white-space:nowrap;margin-right:3px;}
+.card-badge{display:inline-block;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:bold;white-space:nowrap;margin-bottom:3px;}
 .badge-reform{background:#1e3a5f;color:#93c5fd;}
 .badge-newbuild{background:#2d2a1a;color:#fbbf24;}
 .badge-newbuild-alert{background:#7c2d12;color:#fed7aa;}
 .badge-personal{background:#2d1b4e;color:#c4b5fd;}
 .badge-sk-alert{background:#4c0519;color:#fda4af;}
 
-.empty-day{padding:12px 16px;font-size:12px;color:#4b5563;font-style:italic;}
+.card-time{font-size:10px;color:#ffd166;font-weight:bold;margin-bottom:2px;}
+.card-title{font-size:11px;font-weight:bold;color:#e0e6f0;line-height:1.3;word-break:break-all;}
+.card-sub{font-size:10px;color:#6b7280;margin-top:2px;line-height:1.3;}
+.card-sub .addr{color:#52b788;}
+.card-sub .shift-note{color:#fb923c;font-size:9px;}
+
+.empty-col{color:#4b5563;font-size:11px;text-align:center;padding:12px 4px;font-style:italic;}
+
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
-
-.summary-bar{margin:10px 14px;padding:10px 14px;background:#111827;border-radius:8px;border:1px solid #1f2937;display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
-.summary-item{font-size:12px;color:#9ca3af;}
-.summary-item strong{color:#52b788;}
-.hint{font-size:10px;color:#4b5563;margin-left:auto;}
-
 .save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
 .save-notice.show{opacity:1;}
+
+/* 件数バッジ */
+.cal-col-header .count-badge{display:inline-block;font-size:9px;background:rgba(255,255,255,0.12);padding:0 5px;border-radius:8px;margin-top:2px;}
 </style>
 </head>
 <body>
-<div id="tooltip" style="display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;max-width:360px;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:12px;color:#333;pointer-events:none;"></div>
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>📅 7日間 行動抽出</h2>
+  <h2>📅 7日間 行動カレンダー</h2>
   <div class="header-meta" id="rangeLabel">-</div>
 </div>
 
 <div class="status-bar">
-  <div class="status-item">残件数: <span id="remainCount">-</span></div>
-  <div class="status-item">除外: <span class="red" id="excludedCount">0</span></div>
+  <div class="status-item">総件数: <span id="totalCount">-</span></div>
+  <div class="status-item">土日シフト: <span id="shiftCount">0</span>件</div>
   <div class="status-item">マイカレ: <span id="calCount">-</span></div>
-  <div class="status-item" id="lastSavedWrap" style="display:none;">保存済: <span id="lastSavedTime">-</span></div>
   <button class="save-btn" id="saveBtn" onclick="saveToFirebase()">✓ Firebase保存</button>
 </div>
 
@@ -121,8 +112,16 @@ function addDays(s,n){var d=new Date(s+"T00:00:00+09:00");d.setDate(d.getDate()+
 function getDayLabel(ymd){var days=['日','月','火','水','木','金','土'];var d=new Date(ymd+"T00:00:00+09:00");return ymd.replace(/^\d{4}-/,'')+'('+days[d.getDay()]+')';}
 function getDow(ymd){return new Date(ymd+"T00:00:00+09:00").getDay();}
 function isWeekend(ymd){var dow=getDow(ymd);return dow===0||dow===6;}
-function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,18);}
+function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,16);}
 function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// 土日→前の金曜にシフト（再帰）
+function shiftToWeekday(ymd){
+  var dow=getDow(ymd);
+  if(dow===0)return shiftToWeekday(addDays(ymd,-2)); // 日→金
+  if(dow===6)return shiftToWeekday(addDays(ymd,-1)); // 土→金
+  return ymd;
+}
 
 var todayStr=getTodayStr();
 var endStr=addDays(todayStr,6);
@@ -131,7 +130,6 @@ var globalHeaders=[];
 var fullData=null;
 var personalEvents={};
 var allItems=[];
-var excluded={};
 
 document.getElementById('rangeLabel').textContent=todayStr.replace(/^\d{4}-/,'')+'〜'+endStr.replace(/^\d{4}-/,'');
 
@@ -155,6 +153,7 @@ db.ref('personal_calendar').once('value').then(function(snap){
 function extractItems(){
   var items=[];
   var calC=0;
+  var shiftC=0;
 
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];
@@ -168,87 +167,73 @@ function extractItems(){
     var addr=getSafeVal(c,11);
     var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
 
-    // CSV側の下見日時（最優先）
     var csvShitamiDate=formatYMD(getSafeVal(c,15));
     var csvShitamiTime=getSafeVal(c,16);
-
-    // Firebase側の下見日時（補完用）
     var fbShitamiDate=obj.date?String(obj.date).replace(/\s+/g,''):'';
     var fbShitamiTime=obj.time?String(obj.time).replace(/\s+/g,''):'';
 
-    // 有効な下見日時（CSV優先・Firebase補完）
     var shitamiDate=csvShitamiDate||fbShitamiDate;
     var shitamiTime=csvShitamiTime||fbShitamiTime;
 
     var isReform=(kubun==='ﾘ');
     var isSK=title&&title.indexOf('SK')!==-1;
 
-    // ステータスチェック
     var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
     var localStatus=obj.local_status?String(obj.local_status).replace(/\s+/g,''):'';
     var status=localStatus||sfStatus;
 
-    // 施工完了系は問答無用で除外
     var SKIP_STATUS=['施工完了','報告書提出済','施工日連絡済'];
     for(var si=0;si<SKIP_STATUS.length;si++){
       if(status===SKIP_STATUS[si])return;
     }
-
-    // 下見済み除外（3条件）
-    // ① 下見完了 → 無条件除外
     if(status==='下見完了')return;
-    // ② 下見実施中 + CSV下見日が過去 → 除外
     if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
-    // ③ 下見日程確定 + CSV下見日が過去 → 除外
     if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
 
-    if(isReform){
-      // ★修正: 時間なしでも下見日があれば抽出。CSV・Firebase両方参照
-      if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
-        items.push({
-          id:'task_'+key,type:'reform',
-          date:shitamiDate,time:shitamiTime,
-          csvDate:csvShitamiDate,csvTime:csvShitamiTime,
-          fbDate:fbShitamiDate,fbTime:fbShitamiTime,
-          title:title,company:company,addr:addr,tel:tel,
-          reason:'下見'+(csvShitamiDate?'(CSV確定)':fbShitamiDate?'(アプリ入力)':''),
-          badge:'badge-reform',badgeText:'ﾘ 下見',key:key
-        });
-      }
-      return;
-    }
-
-    // 新築：下見日確定済み
+    // 下見日が存在して7日以内の場合に土日シフト適用
     if(shitamiDate&&shitamiDate>=todayStr&&shitamiDate<=endStr){
+      var origDate=shitamiDate;
+      var shiftedDate=shiftToWeekday(shitamiDate);
+      var wasShifted=(shiftedDate!==origDate);
+      if(wasShifted)shiftC++;
+
+      // シフト後が7日範囲外になっても表示する（前倒しなので基本範囲内）
+      var dispDate=shiftedDate;
+      // シフト後が今日以前（過去）になる場合は今日に置く
+      if(dispDate<todayStr)dispDate=todayStr;
+
       items.push({
-        id:'task_'+key,type:'newbuild',
-        date:shitamiDate,time:shitamiTime,
+        id:'task_'+key,
+        type:isReform?'reform':'newbuild',
+        date:dispDate,
+        origDate:wasShifted?origDate:null,
+        time:shitamiTime,
         csvDate:csvShitamiDate,csvTime:csvShitamiTime,
         fbDate:fbShitamiDate,fbTime:fbShitamiTime,
         title:title,company:company,addr:addr,tel:tel,
         reason:'下見'+(csvShitamiDate?'(CSV確定)':fbShitamiDate?'(アプリ入力)':''),
-        badge:'badge-newbuild',badgeText:'新 下見',key:key
+        key:key
       });
       return;
     }
 
-    // 新築：下見未定・アラート
-    if(!shitamiDate&&sekouDate){
+    // 新築アラート（下見未定）
+    if(!isReform&&!shitamiDate&&sekouDate){
       var diff=Math.ceil((new Date(sekouDate+"T00:00:00+09:00")-new Date(todayStr+"T00:00:00+09:00"))/(1000*60*60*24));
       if(diff<0)return;
       if(isSK&&diff<=10){
         items.push({
-          id:'alert_'+key,type:'alert',date:todayStr,time:'',
+          id:'alert_'+key,type:'alert',date:todayStr,origDate:null,time:'',
           title:title,company:company,addr:addr,tel:tel,
-          reason:'⚠ SK再訪問(施工'+diff+'日前)',badge:'badge-sk-alert',badgeText:'新SK 再訪問',key:key
+          reason:'⚠ SK再訪問(施工'+diff+'日前)',key:key
         });
         return;
       }
       if(diff<=21){
         items.push({
-          id:'alert_'+key,type:'alert',date:todayStr,time:'',
+          id:'alert_'+key,type:'alert',date:todayStr,origDate:null,time:'',
           title:title,company:company,addr:addr,tel:tel,
-          reason:'⚠ 訪問必要(施工'+diff+'日前)',badge:'badge-newbuild-alert',badgeText:'新 訪問必要',key:key
+          reason:'⚠ 訪問必要(施工'+diff+'日前)',key:key
         });
       }
     }
@@ -263,18 +248,21 @@ function extractItems(){
       var ev=dayEvs[evId];
       var timeStr='';
       if(!ev.allDay&&ev.start&&ev.start.length>10)timeStr=ev.start.substring(11,16);
+      // 個人カレンダーは土日シフトしない（そのまま表示）
       items.push({
-        id:'cal_'+evId,type:'personal',date:dateKey,time:timeStr,
+        id:'cal_'+evId,type:'personal',date:dateKey,origDate:null,time:timeStr,
         title:ev.title||'(タイトルなし)',company:'',
         addr:ev.location||'',tel:'',
-        reason:'マイカレンダー',badge:'badge-personal',badgeText:'📅',key:null
+        reason:'マイカレンダー',key:null
       });
       calC++;
     });
   });
 
   document.getElementById('calCount').textContent=calC;
+  document.getElementById('shiftCount').textContent=shiftC;
 
+  // ソート：日付→時間あり優先→時間順
   items.sort(function(a,b){
     var dc=a.date.localeCompare(b.date);
     if(dc!==0)return dc;
@@ -287,12 +275,6 @@ function extractItems(){
   return items;
 }
 
-function updateCounts(){
-  var excl=Object.keys(excluded).filter(function(k){return excluded[k];}).length;
-  document.getElementById('remainCount').textContent=(allItems.length-excl);
-  document.getElementById('excludedCount').textContent=excl;
-}
-
 function render(){
   allItems=extractItems();
 
@@ -301,101 +283,69 @@ function render(){
     return;
   }
 
+  document.getElementById('totalCount').textContent=allItems.length+'件';
+
+  // 日付ごとに分類
   var byDate={};
   allItems.forEach(function(item){
     if(!byDate[item.date])byDate[item.date]=[];
     byDate[item.date].push(item);
   });
 
-  var dates=[];
-  for(var i=0;i<7;i++)dates.push(addDays(todayStr,i));
+  var days=[];
+  for(var i=0;i<7;i++)days.push(addDays(todayStr,i));
 
-  var html='<div style="padding-bottom:24px;">';
-  html+='<div class="summary-bar">';
-  html+='<div class="summary-item">期間: <strong>'+todayStr+'〜'+endStr+'</strong></div>';
-  html+='<div class="summary-item">総抽出: <strong>'+allItems.length+'件</strong></div>';
-  html+='<div class="hint">☑ チェック＝除外　／　案件名クリック＝詳細</div>';
-  html+='</div>';
+  var html='<div class="cal-wrap"><div class="cal-grid">';
 
-  dates.forEach(function(dateStr){
-    var dayItems=byDate[dateStr]||[];
+  days.forEach(function(dateStr){
+    var items=byDate[dateStr]||[];
     var isToday=(dateStr===todayStr);
-    var isWkend=isWeekend(dateStr);
-    var headerCls=isToday?'day-header today':isWkend?'day-header weekend':'day-header future';
-    var wkendLabel=isWkend?(getDow(dateStr)===0?' 🔴 日曜（外回り不可）':' ⚠ 土曜（外回り要確認）'):'';
+    var dow=getDow(dateStr);
+    var isWkend=(dow===0||dow===6);
+    var dowNames=['日','月','火','水','木','金','土'];
+    var dayNum=dateStr.replace(/^\d{4}-\d{2}-/,'');
+    var monthNum=dateStr.replace(/^\d{4}-/,'').replace(/-\d{2}$/,'');
+    var headerCls=isToday?'today':isWkend?'weekend':'weekday';
+    var dowColor=dow===0?'color:#ef4444':dow===6?'color:#60a5fa':'';
 
-    html+='<div class="day-section">';
-    html+='<div class="'+headerCls+'">';
-    html+='<span>'+getDayLabel(dateStr)+(isToday?' 🔴 今日':'')+wkendLabel+'</span>';
-    html+='<span class="day-count">'+dayItems.length+'件</span>';
+    html+='<div class="cal-col">';
+    html+='<div class="cal-col-header '+headerCls+'">';
+    html+='<span class="date-num" style="'+dowColor+'">'+monthNum+'/'+dayNum+'</span>';
+    html+='<span class="dow-label" style="'+dowColor+'">'+dowNames[dow]+(isToday?' 今日':'')+'</span>';
+    if(items.length>0)html+='<span class="count-badge">'+items.length+'件</span>';
     html+='</div>';
-    html+='<div class="day-items">';
 
-    if(dayItems.length===0){
-      html+='<div class="empty-day">予定なし</div>';
+    html+='<div class="cal-col-body">';
+    if(items.length===0){
+      html+='<div class="empty-col">-</div>';
     }else{
-      dayItems.forEach(function(item){
-        var rowClass='item-row';
-        if(item.type==='personal')rowClass+=' personal';
-        if(item.type==='alert')rowClass+=' alert-row';
-        if(excluded[item.id])rowClass+=' excluded';
+      items.forEach(function(item){
+        var cardCls='cal-card type-'+item.type+(item.key?'':' no-click');
+        var badgeCls='card-badge ';
+        var badgeTxt='';
+        if(item.type==='reform'){badgeCls+='badge-reform';badgeTxt='ﾘ 下見';}
+        else if(item.type==='newbuild'){badgeCls+='badge-newbuild';badgeTxt='新 下見';}
+        else if(item.type==='alert'){badgeCls+='badge-newbuild-alert';badgeTxt='⚠ 訪問';}
+        else{badgeCls+='badge-personal';badgeTxt='📅';}
 
-        var typeIcon=item.type==='reform'?'🔧':item.type==='newbuild'?'🏗':item.type==='alert'?'⚠️':'📅';
-        var timeClass=item.time?'item-time has-time':'item-time no-time';
-        var addrDisp=shortAddr(item.addr);
-        var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
+        var clickAttr=item.key?'onclick="openModal(\''+escHtml(item.key)+'\')"':'';
 
-        html+='<div class="'+rowClass+'" id="row_'+safeId+'">';
-        html+='<div class="item-check"><input type="checkbox" '+(excluded[item.id]?'checked':'')+' data-id="'+escHtml(item.id)+'" onchange="toggleExclude(this)" onclick="event.stopPropagation()"></div>';
-        html+='<div class="'+timeClass+'">'+escHtml(item.time||'')+'</div>';
-        html+='<div class="item-type">'+typeIcon+'</div>';
-
-        if(item.key){
-          html+='<div class="item-body" data-key="'+escHtml(item.key)+'" onclick="openModal(this.dataset.key)">';
-        }else{
-          html+='<div class="item-body-plain">';
-        }
-
-        // 区分バッジ（ﾘ/新を明確に）
-        var kubunBadge='';
-        if(item.type==='reform')      kubunBadge='<span class="item-badge badge-reform">ﾘ リフォーム</span>';
-        else if(item.type==='newbuild')kubunBadge='<span class="item-badge badge-newbuild">新 新築</span>';
-        else if(item.type==='alert')  kubunBadge='<span class="item-badge badge-newbuild-alert">新 アラート</span>';
-        else if(item.type==='personal')kubunBadge='<span class="item-badge badge-personal">📅 個人</span>';
-
-        html+='<div class="item-title">'+kubunBadge+escHtml(item.title)+'</div>';
-        html+='<div class="item-sub">';
-        if(item.reason)html+='<span class="reason">'+escHtml(item.reason)+'</span>';
-        // 日時ソース表示
-        if(item.csvDate)html+='<span class="csv-fixed">📌CSV確定:'+escHtml(item.csvDate)+(item.csvTime?' '+escHtml(item.csvTime):'')+'</span>';
-        else if(item.fbDate)html+='<span class="fb-fixed">🔵アプリ:'+escHtml(item.fbDate)+(item.fbTime?' '+escHtml(item.fbTime):'')+'</span>';
-        if(addrDisp)html+='<span class="addr">📍'+escHtml(addrDisp)+'</span>';
-        if(item.company)html+='<span class="company">'+escHtml(item.company)+'</span>';
-        if(item.tel)html+='<span class="company">📞'+escHtml(item.tel)+'</span>';
+        html+='<div class="'+cardCls+'" '+clickAttr+'>';
+        html+='<span class="'+badgeCls+'">'+badgeTxt+'</span>';
+        if(item.time)html+='<div class="card-time">🕐 '+escHtml(item.time)+'</div>';
+        html+='<div class="card-title">'+escHtml(item.title)+'</div>';
+        html+='<div class="card-sub">';
+        if(item.origDate)html+='<span class="shift-note">元:'+escHtml(item.origDate.replace(/^\d{4}-/,''))+'→前倒</span><br>';
+        if(item.addr)html+='<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>';
         html+='</div>';
-        html+=(item.key?'</div>':'</div>');
         html+='</div>';
       });
     }
-
     html+='</div></div>';
   });
 
-  html+='</div>';
+  html+='</div></div>';
   document.getElementById('mainContent').innerHTML=html;
-  updateCounts();
-}
-
-function toggleExclude(cb){
-  var id=cb.dataset.id;
-  excluded[id]=cb.checked;
-  var safeId=id.replace(/[^a-zA-Z0-9_]/g,'_');
-  var row=document.getElementById('row_'+safeId);
-  if(row){
-    if(excluded[id])row.classList.add('excluded');
-    else row.classList.remove('excluded');
-  }
-  updateCounts();
 }
 
 function openModal(key){
@@ -405,31 +355,21 @@ function openModal(key){
 
 function saveToFirebase(){
   var btn=document.getElementById('saveBtn');
-  btn.disabled=true;
-  btn.textContent='保存中...';
-
-  var saveItems=allItems.filter(function(item){return !excluded[item.id];});
+  btn.disabled=true;btn.textContent='保存中...';
   var saveData={
     updated:new Date().toISOString(),
     range:{from:todayStr,to:endStr},
-    count:saveItems.length,
-    items:saveItems
+    count:allItems.length,
+    items:allItems
   };
-
   db.ref('app_action_7day').set(saveData).then(function(){
-    var now=new Date(new Date().getTime()+9*3600000);
-    var ts=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0');
-    document.getElementById('lastSavedWrap').style.display='';
-    document.getElementById('lastSavedTime').textContent=ts;
     var notice=document.getElementById('saveNotice');
     notice.classList.add('show');
     setTimeout(function(){notice.classList.remove('show');},2500);
-    btn.disabled=false;
-    btn.textContent='✓ Firebase保存';
+    btn.disabled=false;btn.textContent='✓ Firebase保存';
   }).catch(function(e){
     alert('保存失敗: '+e.message);
-    btn.disabled=false;
-    btn.textContent='✓ Firebase保存';
+    btn.disabled=false;btn.textContent='✓ Firebase保存';
   });
 }
 </script>
