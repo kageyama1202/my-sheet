@@ -11,23 +11,18 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f2e;color:#e0e6f0;min-height:100vh;}
-
-.header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+.header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;}
 .header a{color:#52b788;text-decoration:none;font-size:13px;font-weight:bold;}
 .header h2{font-size:16px;color:#d8f3dc;flex:1;}
-
 .week-nav{padding:8px 12px;background:#0d1117;border-bottom:1px solid #222;display:flex;align-items:center;gap:8px;position:sticky;top:45px;z-index:49;}
-.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
 .week-btn:hover{background:#374151;color:#e0e6f0;}
-.week-btn.active{background:#1b4332;color:#d8f3dc;border-color:#52b788;}
+.week-btn:disabled{opacity:0.3;cursor:not-allowed;}
 .week-label{font-size:12px;color:#74c69d;font-weight:bold;flex:1;text-align:center;}
 .week-count{font-size:11px;color:#6b7280;background:#1f2937;padding:2px 8px;border-radius:10px;}
-
 .cal-wrap{overflow-x:auto;padding:10px 10px 24px;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:560px;}
-
-.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;min-height:120px;}
-
+.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;min-height:100px;}
 .cal-col-header{padding:7px 6px 5px;text-align:center;font-size:12px;font-weight:bold;line-height:1.4;}
 .cal-col-header.today{background:#1b4332;color:#d8f3dc;border-bottom:2px solid #52b788;}
 .cal-col-header.weekday{background:#161f30;color:#a8c8f8;border-bottom:2px solid #2a3a5a;}
@@ -36,9 +31,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .cal-col-header .date-num{font-size:16px;font-weight:bold;display:block;}
 .cal-col-header .dow-label{font-size:10px;opacity:0.8;}
 .cal-col-header .count-badge{display:inline-block;font-size:9px;background:rgba(255,255,255,0.12);padding:0 5px;border-radius:8px;margin-top:2px;}
-
 .cal-col-body{flex:1;padding:4px;}
-
 .cal-card{background:#1a2232;border-radius:5px;padding:5px 6px;margin-bottom:4px;cursor:pointer;border-left:3px solid #52b788;transition:background 0.15s;}
 .cal-card:hover{background:#1f2d42;}
 .cal-card:last-child{margin-bottom:0;}
@@ -50,44 +43,35 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f
 .cal-card.type-personal:hover{background:#221540;}
 .cal-card.no-click{cursor:default;}
 .cal-card.past-card{opacity:0.5;}
-
 .card-badge{display:inline-block;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:bold;white-space:nowrap;margin-bottom:3px;}
 .badge-reform{background:#1e3a5f;color:#93c5fd;}
 .badge-newbuild{background:#2d2a1a;color:#fbbf24;}
 .badge-newbuild-alert{background:#7c2d12;color:#fed7aa;}
 .badge-personal{background:#2d1b4e;color:#c4b5fd;}
 .badge-sk-alert{background:#4c0519;color:#fda4af;}
-
 .card-time{font-size:10px;color:#ffd166;font-weight:bold;margin-bottom:2px;}
 .card-title{font-size:11px;font-weight:bold;color:#e0e6f0;line-height:1.3;word-break:break-all;}
 .card-sub{font-size:10px;color:#6b7280;margin-top:2px;line-height:1.4;}
 .card-sub .addr{color:#52b788;}
 .card-sub .reason{color:#fb923c;}
 .card-sub .sekou{color:#9ca3af;}
-
 .empty-col{color:#4b5563;font-size:11px;text-align:center;padding:16px 4px;font-style:italic;}
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
-.save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
-.save-notice.show{opacity:1;}
 </style>
 </head>
 <body>
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
-
 <div class="header">
   <a href="index.html">◀ トップ</a>
   <h2>📅 行動カレンダー</h2>
 </div>
-
 <div class="week-nav">
   <button class="week-btn" id="btnPrev" onclick="changeWeek(-1)">◀ 前週</button>
   <div class="week-label" id="weekLabel">-</div>
   <span class="week-count" id="weekCount">-</span>
   <button class="week-btn" id="btnNext" onclick="changeWeek(1)">次週 ▶</button>
 </div>
-
 <div id="mainContent"><div class="loading">読み込み中...</div></div>
-<div class="save-notice" id="saveNotice">✓ 保存完了</div>
 
 <script src="shared-modal.js"></script>
 <script>
@@ -117,11 +101,7 @@ var globalTasks={};
 var globalHeaders=[];
 var fullData=null;
 var personalEvents={};
-var allItems=[];
-
-// 週オフセット：-1=先週, 0=今週, 1=来週
-var weekOffset=0;
-// 週の開始日（月曜）
+var weekOffset=0; // -1=先週, 0=今週, 1=来週
 var baseMonday=getMondayOf(todayStr);
 
 function getWeekStart(){return addDays(baseMonday,weekOffset*7);}
@@ -139,11 +119,10 @@ try{
 db.ref('personal_calendar').once('value').then(function(snap){
   personalEvents=snap.val()||{};
   render();
-}).catch(function(e){
-  console.warn('personal_calendar取得失敗',e);
-  render();
-});
+}).catch(function(e){render();});
 
+// 全案件を日付付きで抽出（週フィルタなし）
+// アラート案件は逆算日をそのまま date に入れる
 function extractAllItems(){
   var items=[];
 
@@ -155,7 +134,6 @@ function extractAllItems(){
     var kubun=getSafeVal(c,3).replace(/\s+/g,'');
     var title=getSafeVal(c,4);
     var company=getSafeVal(c,5);
-    var tel=getSafeVal(c,6);
     var addr=getSafeVal(c,11);
     var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
 
@@ -180,7 +158,7 @@ function extractAllItems(){
     if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
     if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
 
-    // ① 下見日確定 → その日付に置く
+    // ① 下見日確定（CSV or Firebase）→ その日付に置く
     if(shitamiDate){
       var srcLabel=csvShitamiDate?'CSV確定':(fbShitamiDate?'アプリ入力':'');
       items.push({
@@ -188,7 +166,7 @@ function extractAllItems(){
         type:isReform?'reform':'newbuild',
         date:shitamiDate,
         time:shitamiTime,
-        title:title,company:company,addr:addr,tel:tel,
+        title:title,company:company,addr:addr,
         reason:'下見'+(srcLabel?'('+srcLabel+')':''),
         sekouDate:sekouDate,
         key:key
@@ -196,29 +174,31 @@ function extractAllItems(){
       return;
     }
 
-    // ② 新築のみ：施工日逆算 → その日付に置く
+    // ② 新築のみ：施工日から逆算した日付に置く（diffチェックなし）
     if(!isReform&&sekouDate){
-      var diff=Math.ceil((new Date(sekouDate+"T00:00:00+09:00")-new Date(todayStr+"T00:00:00+09:00"))/(1000*60*60*24));
-      if(diff<0)return;
+      // 施工日が過去なら除外
+      if(sekouDate<todayStr)return;
 
-      if(isSK&&diff<=10){
+      if(isSK){
+        // SK：施工10日前
+        var skAlertDate=addDays(sekouDate,-10);
         items.push({
           id:'alert_'+key,type:'alert',
-          date:addDays(sekouDate,-10),
+          date:skAlertDate,
           time:'',
-          title:title,company:company,addr:addr,tel:tel,
-          reason:'⚠ SK再訪問(施工'+diff+'日前)',
+          title:title,company:company,addr:addr,
+          reason:'⚠ SK再訪問',
           sekouDate:sekouDate,key:key
         });
-        return;
-      }
-      if(diff<=21){
+      }else{
+        // 新築：施工21日前
+        var alertDate=addDays(sekouDate,-21);
         items.push({
           id:'alert_'+key,type:'alert',
-          date:addDays(sekouDate,-21),
+          date:alertDate,
           time:'',
-          title:title,company:company,addr:addr,tel:tel,
-          reason:'⚠ 訪問必要(施工'+diff+'日前)',
+          title:title,company:company,addr:addr,
+          reason:'⚠ 訪問必要',
           sekouDate:sekouDate,key:key
         });
       }
@@ -236,31 +216,23 @@ function extractAllItems(){
       items.push({
         id:'cal_'+evId,type:'personal',date:dateKey,time:timeStr,
         title:ev.title||'(タイトルなし)',company:'',
-        addr:ev.location||'',tel:'',
+        addr:ev.location||'',
         reason:'マイカレンダー',sekouDate:'',key:null
       });
     });
-  });
-
-  items.sort(function(a,b){
-    var dc=a.date.localeCompare(b.date);
-    if(dc!==0)return dc;
-    if(!a.time&&!b.time)return 0;
-    if(!a.time)return 1;
-    if(!b.time)return -1;
-    return a.time.localeCompare(b.time);
   });
 
   return items;
 }
 
 function changeWeek(dir){
-  // 過去1週・今週・来週の範囲制限
   var newOffset=weekOffset+dir;
   if(newOffset<-1||newOffset>1)return;
   weekOffset=newOffset;
   render();
 }
+
+var allItems=[];
 
 function render(){
   if(Object.keys(globalTasks).length===0&&Object.keys(personalEvents).length===0){
@@ -268,6 +240,7 @@ function render(){
     return;
   }
 
+  // 全件抽出（毎回再計算）
   allItems=extractAllItems();
 
   var weekStart=getWeekStart();
@@ -281,13 +254,21 @@ function render(){
   document.getElementById('btnPrev').disabled=(weekOffset<=-1);
   document.getElementById('btnNext').disabled=(weekOffset>=1);
 
-  // この週の件数
+  // この週だけフィルタ
   var weekItems=allItems.filter(function(item){
     return item.date>=weekStart&&item.date<=weekEnd;
   });
+
+  // ソート
+  weekItems.sort(function(a,b){
+    if(!a.time&&!b.time)return 0;
+    if(!a.time)return 1;
+    if(!b.time)return -1;
+    return a.time.localeCompare(b.time);
+  });
+
   document.getElementById('weekCount').textContent=weekItems.length+'件';
 
-  // 日付→アイテム
   var byDate={};
   weekItems.forEach(function(item){
     if(!byDate[item.date])byDate[item.date]=[];
@@ -307,7 +288,6 @@ function render(){
     var isWkend=(dow===0||dow===6);
     var dayNum=dateStr.replace(/^\d{4}-\d{2}-/,'');
     var monthNum=dateStr.replace(/^\d{4}-/,'').replace(/-\d{2}$/,'');
-
     var headerCls=isPast?'past':isToday?'today':isWkend?'weekend':'weekday';
     var dowColor=dow===0?'color:#ef4444':dow===6?'color:#60a5fa':'';
 
