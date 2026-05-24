@@ -368,8 +368,8 @@ merged.forEach(function(item, idx){
     var sekouDateStr = formatToYMD(getSafeVal(cols,2));
     var isNoSekou = (sekouDateStr === '');
     if(isNoSekou) nosekouCount++;
-    var tr=document.createElement('tr');
-    if(isNoSekou) tr.className="nosekou-row"; else if(shitamiDateStr!=="") tr.className="shitami-done-row";
+    var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var tr=document.createElement("tr");
+    if(isNoSekou) tr.className="nosekou-row"; else if(statusStr2==="下見完了") tr.className="shitami-done-row";
     var today2=getTodayStr();
     var shitamiDateStr=formatToYMD(getSafeVal(cols,12));
     var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');
