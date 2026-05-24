@@ -64,6 +64,9 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .kubun-warn{background:#ffe0e0 !important;color:#c62828 !important;font-weight:700;}
 .yotei-past-nowarn{background:#fff3cd !important;color:#7b4f00 !important;font-weight:700;}
 /* 下見完了行 */
+tr.shitami-jisshi-row{background:#f7f7f7 !important;color:#aaa;}
+tr.shitami-jisshi-row td{color:#aaa;}
+tr.shitami-jisshi-row:hover{background:#efefef !important;}
 tr.shitami-done-row{background:#f0f0f0 !important;color:#888;}
 tr.shitami-done-row td{color:#888;}
 tr.shitami-done-row:hover{background:#e4e4e4 !important;}
@@ -369,7 +372,7 @@ merged.forEach(function(item, idx){
     var isNoSekou = (sekouDateStr === '');
     if(isNoSekou) nosekouCount++;
     var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var tr=document.createElement("tr");
-    if(isNoSekou) tr.className="nosekou-row"; else if(statusStr2==="下見完了") tr.className="shitami-done-row";
+    if(isNoSekou) tr.className="nosekou-row"; else if(statusStr2==="下見完了") tr.className="shitami-done-row"; else if(statusStr2==="下見実施中") tr.className="shitami-jisshi-row";
     var today2=getTodayStr();
     var shitamiDateStr=formatToYMD(getSafeVal(cols,12));
     var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');
