@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-20 -->
+<!-- VERSION: 2026-05-25 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -73,6 +73,17 @@ tr.personal-row:hover{background:#e1bee7 !important;}
 tr.personal-row td{border-color:#ce93d8;}
 .personal-badge{display:inline-block;background:#7b1fa2;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-right:4px;font-weight:bold;}
 .nosekou-badge{display:inline-block;background:#9e9e9e;color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-weight:bold;}
+/* ━━━ 締め切りボーダーライン ━━━ */
+/* 新築SK 10日前デッドライン（赤・太線） */
+tr.deadline-10day td{border-bottom:3px solid #d32f2f !important;}
+tr.deadline-10day-label td{background:#fff0f0 !important;border-bottom:none !important;padding:0 !important;}
+/* 新築 3週間前ボーダー（オレンジ・太線） */
+tr.deadline-21day td{border-bottom:3px solid #e65100 !important;}
+/* ラベル行（仕切り表示） */
+tr.deadline-label td{height:18px;padding:0 8px;font-size:10px;font-weight:bold;border-top:none;border-left:none;border-right:none;border-bottom:1px solid #ccc;cursor:default !important;}
+tr.deadline-label:hover{background:transparent !important;cursor:default !important;}
+tr.deadline-label-10 td{border-top:3px solid #d32f2f !important;color:#d32f2f;background:#fff0f0;}
+tr.deadline-label-21 td{border-top:3px solid #e65100 !important;color:#e65100;background:#fff8f0;}
 </style>
 </head>
 <body>
@@ -190,11 +201,35 @@ function fmtTime(s) {
   return t;
 }
 
+// ----------------------------------------------------------------
+// ラベル行挿入ヘルパー
+// ----------------------------------------------------------------
+function insertDeadlineLabelRow(tbody, type, dateStr, colCount) {
+  var tr = document.createElement('tr');
+  tr.className = 'deadline-label ' + (type === '10' ? 'deadline-label-10' : 'deadline-label-21');
+  tr.style.pointerEvents = 'none';
+  var td = document.createElement('td');
+  td.colSpan = colCount + 1;
+  if(type === '10') {
+    td.textContent = '▲ ここまでに下見完了必須（新築SK 施工10日前デッドライン: ' + dateStr + '以前の施工）';
+  } else {
+    td.textContent = '▲ ここまでに下見完了推奨（新築 施工3週間前ボーダー: ' + dateStr + '以前の施工）';
+  }
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
 function renderTable(){
 var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');thead.innerHTML="";tbody.innerHTML="";
 var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
 var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cAI=chkAiYotei.checked;
 var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
+
+// ━━━ 締め切りボーダー日付計算 ━━━
+// 新築SK 10日前デッドライン: 今日+10日以内に施工日がある案件 → deadline10
+// 新築 3週間前ボーダー: 今日+21日以内に施工日がある案件 → deadline21
+var deadline10Date = addDays(today, 10); // この日付以前の施工日 = 10日前デッドライン内
+var deadline21Date = addDays(today, 21); // この日付以前の施工日 = 3週間前ボーダー内
 
 // ヘッダー
 var trH=document.createElement('tr');
@@ -278,7 +313,7 @@ var taskItems = valid.map(function(key){
   else if(cAI&&aiD){effDate=aiD;}
   else if(cD&&sdD){effDate=sdD;}
   else{effDate=skD;}
-  return { _type:'task', key:key, effDate:effDate };
+  return { _type:'task', key:key, effDate:effDate, sekouDate:skD };
 });
 
 var personalItems = personalInRange.map(function(ev){
@@ -288,8 +323,33 @@ var personalItems = personalInRange.map(function(ev){
 var merged = taskItems.concat(personalItems);
 merged.sort(function(a,b){ return a.effDate.localeCompare(b.effDate); });
 
+// ━━━ 締め切りボーダー挿入フラグ管理 ━━━
+// 施工日ベースで判定: 新築SK=10日前、新築全体=21日前
+// それぞれ「deadline以内の最後の案件行の後」にラベル行を挿入する
+// ※ 施工日なし(effDate=9999-99-99)は除外
+var inserted10 = false; // 10日前ライン挿入済み
+var inserted21 = false; // 21日前ライン挿入済み
+
+// 先に「10日前ボーダーに該当する新築SK案件が存在するか」「21日前ボーダーに該当する新築案件が存在するか」確認
+var has10 = false, has21 = false;
+taskItems.forEach(function(item){
+  if(item.sekouDate==='' || item.sekouDate==='9999-99-99') return;
+  var obj = globalTasks[item.key];
+  var kubun = getSafeVal(obj.csvData, 3).replace(/\s+/g,'');
+  var title = getSafeVal(obj.csvData, 4);
+  var isNew = (kubun === '新');
+  var isSK = (title.indexOf('SK') !== -1);
+  if(isNew && isSK && item.sekouDate <= deadline10Date) has10 = true;
+  if(isNew && item.sekouDate <= deadline21Date) has21 = true;
+});
+
 var taskCount = 0, nosekouCount = 0;
-merged.forEach(function(item){
+merged.forEach(function(item, idx){
+
+  // ━━━ 締め切りボーダー: 次のアイテムと施工日グループが変わるタイミングで挿入 ━━━
+  // 現在の行を追加した後、次の行の施工日を見てボーダーを挿入するため
+  // → 各行追加後に判定
+
   if(item._type === 'personal'){
     // マイカレンダー行
     var ev = item.ev;
@@ -373,6 +433,72 @@ merged.forEach(function(item){
     }
     tr.addEventListener('click',function(k){ return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
     tbody.appendChild(tr);
+
+    // ━━━ 締め切りボーダーライン挿入判定 ━━━
+    // 現在の行を追加した後、次の案件行の施工日を確認して境界を判定
+    if(!isNoSekou && sekouDateStr !== ''){
+      var kubunStr = getSafeVal(cols,3).replace(/\s+/g,'');
+      var titleStr = getSafeVal(cols,4);
+      var isNew = (kubunStr === '新');
+      var isSK = (titleStr.indexOf('SK') !== -1);
+
+      // 次のtaskItemの施工日を取得（personalはスキップ）
+      var nextSekouDate = null;
+      for(var ni = idx+1; ni < merged.length; ni++){
+        if(merged[ni]._type === 'task'){
+          nextSekouDate = merged[ni].sekouDate || '';
+          break;
+        }
+      }
+      var isLastInGroup = (nextSekouDate === null || nextSekouDate !== sekouDateStr);
+      var isLast = (nextSekouDate === null);
+
+      // 10日前デッドライン: 新築SK、施工日がdeadline10Date以内、まだ挿入していない
+      // 次の行の施工日がdeadline10Dateを超えるタイミング or 該当する最後の行の後
+      if(has10 && !inserted10 && isNew && isSK && sekouDateStr <= deadline10Date){
+        var nextIsOver10 = (nextSekouDate === null || nextSekouDate > deadline10Date);
+        // 次の新築SK案件がdeadline10を超えるかどうかチェック
+        var nextNewSKOver10 = true;
+        for(var ni2 = idx+1; ni2 < merged.length; ni2++){
+          if(merged[ni2]._type === 'task'){
+            var nobj2 = globalTasks[merged[ni2].key];
+            var nkub2 = getSafeVal(nobj2.csvData,3).replace(/\s+/g,'');
+            var ntit2 = getSafeVal(nobj2.csvData,4);
+            var nsk2 = merged[ni2].sekouDate || '';
+            if(nsk2 === '' || nsk2 === '9999-99-99') continue;
+            if(nkub2==='新' && ntit2.indexOf('SK')!==-1 && nsk2 <= deadline10Date){
+              nextNewSKOver10 = false; break;
+            }
+            break;
+          }
+        }
+        if(nextNewSKOver10){
+          insertDeadlineLabelRow(tbody, '10', deadline10Date, displayCols.length);
+          inserted10 = true;
+        }
+      }
+
+      // 21日前ボーダー: 新築、施工日がdeadline21Date以内、まだ挿入していない
+      if(has21 && !inserted21 && isNew && sekouDateStr <= deadline21Date){
+        var nextNewOver21 = true;
+        for(var ni3 = idx+1; ni3 < merged.length; ni3++){
+          if(merged[ni3]._type === 'task'){
+            var nobj3 = globalTasks[merged[ni3].key];
+            var nkub3 = getSafeVal(nobj3.csvData,3).replace(/\s+/g,'');
+            var nsk3 = merged[ni3].sekouDate || '';
+            if(nsk3 === '' || nsk3 === '9999-99-99') continue;
+            if(nkub3==='新' && nsk3 <= deadline21Date){
+              nextNewOver21 = false; break;
+            }
+            break;
+          }
+        }
+        if(nextNewOver21){
+          insertDeadlineLabelRow(tbody, '21', deadline21Date, displayCols.length);
+          inserted21 = true;
+        }
+      }
+    }
   }
 });
 var countText='案件: '+taskCount+' 件　／　マイカレンダー: '+personalInRange.length+' 件';
