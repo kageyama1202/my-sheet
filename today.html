@@ -63,6 +63,10 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .date-future{background:#e3f2fd !important;color:#1565c0 !important;font-weight:700;}
 .kubun-warn{background:#ffe0e0 !important;color:#c62828 !important;font-weight:700;}
 .yotei-past-nowarn{background:#fff3cd !important;color:#7b4f00 !important;font-weight:700;}
+/* 下見完了行 */
+tr.shitami-done-row{background:#f0f0f0 !important;color:#888;}
+tr.shitami-done-row td{color:#888;}
+tr.shitami-done-row:hover{background:#e4e4e4 !important;}
 /* 施工日なし行 */
 tr.nosekou-row td .cell-inner,tr.nosekou-row td{color:#555;}
 tr.nosekou-row{background:#fafafa !important;}
@@ -365,7 +369,7 @@ merged.forEach(function(item, idx){
     var isNoSekou = (sekouDateStr === '');
     if(isNoSekou) nosekouCount++;
     var tr=document.createElement('tr');
-    if(isNoSekou) tr.className='nosekou-row';
+    if(isNoSekou) tr.className="nosekou-row"; else if(shitamiDateStr!=="") tr.className="shitami-done-row";
     var today2=getTodayStr();
     var shitamiDateStr=formatToYMD(getSafeVal(cols,12));
     var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');
