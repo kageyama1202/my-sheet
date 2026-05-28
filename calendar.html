@@ -153,8 +153,9 @@
         var csvShitamiDate=formatToYMD(getSafeVal(cols,12));var csvShitamiTime=getSafeVal(cols,13).trim();
         var fbDate=obj.date||"";var fbTime=obj.time||"";
         if(showS&&sekouDate){if(!dm[sekouDate])dm[sekouDate]=[];dm[sekouDate].push({key:key,obj:obj,cols:cols,type:'sekou',label:"施"+kubun+" "+shortType+" "+tei,timeStr:''});}
-        if(showD&&csvShitamiDate){if(!dm[csvShitamiDate])dm[csvShitamiDate]=[];var lbl="下"+kubun+" "+(csvShitamiTime?csvShitamiTime+" ":"")+shortType+" "+tei;dm[csvShitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:lbl,timeStr:csvShitamiTime});}
-        if(showY&&fbDate){var isSameAsCSV=(fbDate===csvShitamiDate)&&(fbTime===csvShitamiTime||(fbTime===''&&csvShitamiTime===''));if(!isSameAsCSV){if(!dm[fbDate])dm[fbDate]=[];var lbl="予"+kubun+" "+(fbTime?fbTime+" ":"")+shortType+" "+tei;dm[fbDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:lbl,timeStr:fbTime});}}
+        var orderStr=obj.order?obj.order+". ":"";
+        if(showD&&csvShitamiDate){if(!dm[csvShitamiDate])dm[csvShitamiDate]=[];var lbl="下"+kubun+" "+orderStr+(csvShitamiTime?csvShitamiTime+" ":"")+shortType+" "+tei;dm[csvShitamiDate].push({key:key,obj:obj,cols:cols,type:'shitami',label:lbl,timeStr:csvShitamiTime});}
+        if(showY&&fbDate){var isSameAsCSV=(fbDate===csvShitamiDate)&&(fbTime===csvShitamiTime||(fbTime===''&&csvShitamiTime===''));if(!isSameAsCSV){if(!dm[fbDate])dm[fbDate]=[];var lbl="予"+kubun+" "+orderStr+(fbTime?fbTime+" ":"")+shortType+" "+tei;dm[fbDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:lbl,timeStr:fbTime});}}
       });
       if(showP){Object.keys(personalCalCache).forEach(function(dateKey){var evs=personalCalCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(evId){var ev=evs[evId];if(!ev||!ev.title)return;var pTime=getPersonalTime(ev);var lbl="📅 "+(pTime&&pTime!=='終日'?pTime+" ":pTime==='終日'?'終日 ':'')+ev.title;if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:lbl,timeStr:pTime});});});}
       Object.keys(dm).forEach(function(dk){dm[dk].sort(function(a,b){var ta=a.timeStr==='終日'?'00:00':a.timeStr||'99:99';var tb=b.timeStr==='終日'?'00:00':b.timeStr||'99:99';return ta<tb?-1:ta>tb?1:0;});});
