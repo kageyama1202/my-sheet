@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-17 -->
+<!-- VERSION: 2026-05-29 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>案件管理 トップメニュー</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -35,7 +36,7 @@
     <h1>🏠 案件管理システム</h1>
 
     <div id="statusMsg" class="status loading">
-      ⏳ クラウドから最新データを取得中...<br>
+      ⏳ 認証中...<br>
       <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
     </div>
 
@@ -148,20 +149,16 @@
     // ----------------------------------------------------------------
     // Firebase データ取得 → localStorage 保存
     // ----------------------------------------------------------------
-    window.addEventListener('load', function() {
-      // GAS URL を入力欄に反映
-      var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
-      document.getElementById('gasUrlInput').value = savedUrl;
-      if (savedUrl) {
-        document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み';
-      }
+    function loadFirebaseData() {
+      var statusMsg = document.getElementById('statusMsg');
+      statusMsg.className = 'status loading';
+      statusMsg.innerHTML = '⏳ クラウドから最新データを取得中...<br><span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>';
 
       // キャッシュがあればすぐメニューを有効化
       var cached = null;
       try { cached = localStorage.getItem('appData'); } catch(e) {}
       if (cached) {
         enableMenu();
-        var statusMsg = document.getElementById('statusMsg');
         statusMsg.className = 'status success';
         statusMsg.innerHTML = '✅ キャッシュデータ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
       }
@@ -169,7 +166,6 @@
       // Firebase から最新データ取得
       database.ref().once('value').then(function(snapshot) {
         var dbData = snapshot.val();
-        var statusMsg = document.getElementById('statusMsg');
 
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
           statusMsg.className = 'status error';
@@ -210,7 +206,36 @@
         });
         dbData.app_tasks = filtered;
 
-        localStorage.setItem('appData', JSON.stringify(dbData));
+        // ★ try-catch で QuotaExceededError を捕捉。失敗しても動作継続
+        try {
+          localStorage.setItem('appData', JSON.stringify(dbData));
+        } catch(e) {
+          console.warn('localStorage容量超過のため保存スキップ（既存キャッシュで動作継続）:', e.message);
+          // キャッシュ容量不足の場合、古い完了案件をさらに絞り込んで再試行
+          var retryFiltered = {};
+          var cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30); // 30日以上前の完了案件も除外
+          var cutoffStr = cutoff.getFullYear() + '-' +
+            ('0' + (cutoff.getMonth() + 1)).slice(-2) + '-' +
+            ('0' + cutoff.getDate()).slice(-2);
+          Object.keys(filtered).forEach(function(key) {
+            var t = filtered[key];
+            var status = t.localStatus || '';
+            var sekoDate = (t.csvData && t.csvData[2]) ? t.csvData[2] : '';
+            var isDone = (status === '完了' || status === 'キャンセル');
+            var isOld = sekoDate && sekoDate < cutoffStr;
+            if (!(isDone && isOld)) {
+              retryFiltered[key] = t;
+            }
+          });
+          dbData.app_tasks = retryFiltered;
+          try {
+            localStorage.setItem('appData', JSON.stringify(dbData));
+            console.log('再試行（30日絞り込み）で保存成功');
+          } catch(e2) {
+            console.warn('再試行も失敗。既存キャッシュで動作継続:', e2.message);
+          }
+        }
 
         var now = new Date();
         var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
@@ -224,13 +249,63 @@
         syncMyCalendar(false);
 
       }).catch(function(error) {
-        var statusMsg = document.getElementById('statusMsg');
+        console.error('Firebase取得エラー:', error);
         if (!statusMsg.classList.contains('success')) {
           statusMsg.className = 'status error';
           statusMsg.innerHTML = '❌ 通信エラー<br><span style="font-size:12px; font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
         }
-        console.error(error);
+        // キャッシュがあればメニューは使える状態にする
+        var cached2 = null;
+        try { cached2 = localStorage.getItem('appData'); } catch(e) {}
+        if (cached2) {
+          enableMenu();
+          statusMsg.innerHTML += '<br><span style="font-size:11px; font-weight:normal; color:#856404;">※前回のキャッシュで動作中</span>';
+        }
       });
+    }
+
+    // ----------------------------------------------------------------
+    // 匿名認証 → 認証後にデータ取得
+    // ----------------------------------------------------------------
+    window.addEventListener('load', function() {
+      // GAS URL を入力欄に反映
+      var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
+      document.getElementById('gasUrlInput').value = savedUrl;
+      if (savedUrl) {
+        document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み';
+      }
+
+      // キャッシュがあれば認証前でもメニューを即時有効化（外出先での速度優先）
+      var cached = null;
+      try { cached = localStorage.getItem('appData'); } catch(e) {}
+      if (cached) {
+        enableMenu();
+        var statusMsg = document.getElementById('statusMsg');
+        statusMsg.className = 'status success';
+        statusMsg.innerHTML = '✅ キャッシュ読込済み（認証中...）<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
+      }
+
+      // 匿名認証
+      firebase.auth().signInAnonymously()
+        .then(function() {
+          // 認証成功 → データ取得
+          loadFirebaseData();
+        })
+        .catch(function(error) {
+          console.error('匿名認証失敗:', error);
+          var statusMsg = document.getElementById('statusMsg');
+          // 認証失敗でもキャッシュがあれば動作継続
+          var cached2 = null;
+          try { cached2 = localStorage.getItem('appData'); } catch(e) {}
+          if (cached2) {
+            enableMenu();
+            statusMsg.className = 'status success';
+            statusMsg.innerHTML = '⚠️ 認証失敗（キャッシュで動作中）<br><span style="font-size:11px;font-weight:normal;">電波状況をご確認ください</span>';
+          } else {
+            statusMsg.className = 'status error';
+            statusMsg.innerHTML = '❌ 認証エラー<br><span style="font-size:12px; font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
+          }
+        });
     });
   </script>
   <div id="modal-overlay"><div id="modal-content"></div></div>
