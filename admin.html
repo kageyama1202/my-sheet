@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>【管理者用】CSVデータ クラウド同期ツール</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;padding:30px;background-color:#1a1d27;text-align:center;color:#e0e0e0;}
@@ -20,11 +21,13 @@
     .log{text-align:left;background:#12141c;border-radius:8px;padding:12px;margin-top:16px;font-size:12px;color:#888;line-height:1.8;max-height:300px;overflow-y:auto;display:none;}
     .log .ok{color:#66bb6a;}.log .warn{color:#ffd54f;}.log .err{color:#ff6b6b;}.log .info{color:#64b5f6;}
     .divider{border:none;border-top:1px solid #2a2d3a;margin:20px 0;}
+    #authStatus{font-size:12px;color:#888;margin-bottom:12px;}
   </style>
 </head>
 <body>
   <div class="box">
     <a href="index.html" class="top-link">◀ トップメニュー</a>
+    <div id="authStatus">🔐 認証中...</div>
     <h2>👑 【管理者用】<br>クラウドへデータ一括保存</h2>
     <p>SalesforceからダウンロードしたCSVを選択し「クラウドへ保存」を押してください。<br>
     ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
@@ -33,12 +36,12 @@
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）</p>
 
     <input type="file" id="csvFile" accept=".csv" />
-    <button id="uploadBtn">☁️ 最新データをクラウドへ保存</button>
+    <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
 
     <hr class="divider">
 
     <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ Firebase上のステータス「完了」案件を一括削除します（「下見完了」は削除しません）</p>
-    <button id="cleanBtn" class="danger">🗑 Firebase上の「完了」案件を一括削除</button>
+    <button id="cleanBtn" class="danger" disabled>🗑 Firebase上の「完了」案件を一括削除</button>
 
     <div class="log" id="logArea"></div>
   </div>
@@ -48,10 +51,22 @@
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=firebase.database();
 
+    // 匿名認証
+    firebase.auth().signInAnonymously()
+      .then(function(){
+        document.getElementById('authStatus').textContent='✅ 認証済み';
+        document.getElementById('authStatus').style.color='#66bb6a';
+        document.getElementById('uploadBtn').disabled=false;
+        document.getElementById('cleanBtn').disabled=false;
+      })
+      .catch(function(err){
+        document.getElementById('authStatus').textContent='❌ 認証失敗: '+err.message;
+        document.getElementById('authStatus').style.color='#ff6b6b';
+      });
+
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
 
-    /* ステータス「完了」判定（「下見完了」は除く） */
     function isKanryo(cols){
       var status=String(cols[1]||'').trim();
       return status==='完了';
@@ -82,7 +97,6 @@
       return out;
     }
 
-    /* ========== CSVアップロード ========== */
     document.getElementById('uploadBtn').addEventListener('click',function(){
       var fileInput=document.getElementById('csvFile');
       if(fileInput.files.length===0){alert('CSVファイルを選択してください');return;}
@@ -101,7 +115,6 @@
         var headers=validLines.shift();
         log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
 
-        /* 新CSV → IDベースのマップ作成（「完了」はスキップ） */
         var newMap={};
         var skipped=0,kanryoSkipped=0;
         validLines.forEach(function(cols){
@@ -115,7 +128,6 @@
         var newKeys=Object.keys(newMap);
         log('有効案件（保存対象）: '+newKeys.length+'件');
 
-        /* Firebase既存データ取得 */
         database.ref('app_tasks').once('value',function(sn){
           var existing=sn.val()||{};
           var existingKeys=Object.keys(existing);
@@ -221,7 +233,6 @@
       reader.readAsText(file,'UTF-8');
     });
 
-    /* ========== Firebase上の「完了」案件を一括削除 ========== */
     document.getElementById('cleanBtn').addEventListener('click',function(){
       if(!confirm('Firebase上のステータス「完了」案件を削除します。\n（「下見完了」は削除しません）\n\nよろしいですか？'))return;
       var btn=this;btn.disabled=true;btn.textContent='削除中...';
