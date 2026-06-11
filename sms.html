@@ -55,6 +55,12 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .btn-add-tpl{width:100%;padding:12px;border:1px dashed #c0c0c0;border-radius:12px;background:#fff;color:#888;font-size:13px;cursor:pointer;margin-top:4px;-webkit-tap-highlight-color:transparent;}
 .btn-add-tpl:active{background:#f5f5f5;}
 .no-tpl{font-size:12px;color:#aaa;padding:4px 0;}
+.info-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;}
+.info-item:last-child{border-bottom:none;}
+.info-key{font-size:11px;font-weight:600;color:#aaa;min-width:42px;letter-spacing:0.04em;}
+.info-val{font-size:13px;color:#1a1a1a;flex:1;}
+.btn-copy{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:4px 8px;cursor:pointer;color:#888;-webkit-tap-highlight-color:transparent;}
+.btn-copy:active{background:#f5f5f5;}
 </style>
 </head>
 <body>
@@ -66,6 +72,8 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <!-- 作成タブ -->
+<div id="info-bar" style="display:none;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin:12px 12px 0;"></div>
+
 <div id="tab-compose" class="section active">
   <div class="section-label">雛形を選ぶ</div>
   <div class="tpl-pick" id="tpl-pick"></div>
@@ -275,11 +283,32 @@ function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // URLパラメータから自動セット
 (function() {
   var params = new URLSearchParams(window.location.search);
-  var tel = params.get('tel') || '';
-  var label = params.get('label') || '';
-  if (tel || label) {
+  var tel      = params.get('tel') || '';
+  var label    = params.get('label') || '';
+  var casename = params.get('casename') || '';
+  if (tel || label || casename) {
     if (tel)   document.getElementById('tel-input').value = tel;
     if (label) document.getElementById('label-input').value = decodeURIComponent(label);
+    // 情報バーを表示
+    var bar = document.getElementById('info-bar');
+    if (bar) {
+      var items = [];
+      if (casename) items.push({ key:'案件名', val: decodeURIComponent(casename) });
+      if (label)    items.push({ key:'担当者', val: decodeURIComponent(label) });
+      if (tel)      items.push({ key:'TEL',    val: tel });
+      var html = '';
+      items.forEach(function(item) {
+        html += '<div class="info-item">'
+          + '<span class="info-key">' + item.key + '</span>'
+          + '<span class="info-val">' + item.val + '</span>'
+          + '<button class="btn-copy" onclick="copyText(this, '' + item.val.replace(/'/g,"\'") + '')">'
+          + '<i class="ti ti-copy" style="font-size:13px"></i>'
+          + '</button>'
+          + '</div>';
+      });
+      bar.innerHTML = html;
+      bar.style.display = 'block';
+    }
     // 最初の雛形を自動選択
     var tl = loadTpls();
     if (tl.length) {
@@ -289,6 +318,15 @@ function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
     }
   }
 })();
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.innerHTML;
+    btn.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i>';
+    btn.style.color = '#4caf50';
+    setTimeout(function() { btn.innerHTML = orig; btn.style.color = ''; }, 1500);
+  });
+}
 
 renderPick();
 updateBadge();
