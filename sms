@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMS送信</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #e0e0e0;position:sticky;top:0;z-index:10;}
+.tab{flex:1;padding:12px;text-align:center;font-size:14px;font-weight:500;color:#888;cursor:pointer;border-bottom:2px solid transparent;}
+.tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a;}
+.section{display:none;padding:12px;padding-bottom:3rem;}
+.section.active{display:block;}
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
+.tpl-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.tpl-btn{font-size:13px;padding:7px 14px;border:1px solid #d0d0d0;border-radius:20px;background:#fff;color:#1a1a1a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.tpl-btn.selected{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.field-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.field-label{font-size:12px;color:#888;min-width:38px;}
+input[type=tel]{flex:1;font-size:15px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;color:#1a1a1a;font-family:inherit;-webkit-appearance:none;}
+input[type=tel]:focus{outline:none;border-color:#aaa;background:#fff;}
+textarea{width:100%;font-size:13px;border:1px solid #e0e0e0;border-radius:8px;padding:10px;resize:vertical;background:#fafafa;color:#1a1a1a;font-family:inherit;line-height:1.7;-webkit-appearance:none;}
+textarea:focus{outline:none;border-color:#aaa;background:#fff;}
+.char-count{font-size:11px;color:#aaa;text-align:right;margin-top:4px;}
+.section-label{font-size:11px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;}
+.btn-sms{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:#1a1a1a;border:none;border-radius:10px;font-size:15px;font-weight:500;color:#fff;cursor:pointer;text-decoration:none;margin-top:12px;-webkit-tap-highlight-color:transparent;}
+.btn-sms:active{opacity:0.85;}
+.tpl-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.tpl-name-input{font-size:13px;font-weight:500;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;flex:1;background:#fafafa;color:#1a1a1a;font-family:inherit;}
+.tpl-name-input:focus{outline:none;border-color:#aaa;background:#fff;}
+.btn-icon{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;cursor:pointer;color:#888;font-size:13px;-webkit-tap-highlight-color:transparent;}
+.btn-icon:active{background:#f5f5f5;}
+.btn-save{font-size:13px;padding:7px 16px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer;margin-top:10px;-webkit-tap-highlight-color:transparent;}
+.btn-save:active{background:#f5f5f5;}
+.saved-msg{font-size:11px;color:#4caf50;margin-left:10px;}
+.btn-add{width:100%;padding:12px;border:1px dashed #c0c0c0;border-radius:12px;background:#fff;color:#888;font-size:13px;cursor:pointer;margin-top:4px;-webkit-tap-highlight-color:transparent;}
+.btn-add:active{background:#f5f5f5;}
+.empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2rem 0;line-height:1.8;}
+.no-tpl{font-size:12px;color:#aaa;padding:4px 0;}
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <div class="tab active" id="tab-btn-send" onclick="showTab('send')">
+    <i class="ti ti-send"></i> 送信準備
+  </div>
+  <div class="tab" id="tab-btn-tpl" onclick="showTab('tpl')">
+    <i class="ti ti-template"></i> 雛形管理
+  </div>
+</div>
+
+<div id="tab-send" class="section active">
+  <div class="section-label">雛形を選ぶ</div>
+  <div class="tpl-pick" id="tpl-pick"></div>
+
+  <div class="card">
+    <div class="field-row">
+      <span class="field-label"><i class="ti ti-phone"></i></span>
+      <input type="tel" id="tel-input" placeholder="送信先電話番号">
+    </div>
+    <div class="section-label" style="margin-top:4px;">文章（自由に編集）</div>
+    <textarea id="compose-area" rows="8" placeholder="雛形を選ぶか、ここに直接入力"></textarea>
+    <div class="char-count"><span id="char-count">0</span> 文字</div>
+    <a href="#" class="btn-sms" onclick="return launchSms()">
+      <i class="ti ti-message" style="font-size:18px"></i>SMSアプリで開く
+    </a>
+  </div>
+</div>
+
+<div id="tab-tpl" class="section">
+  <div id="tpl-list"></div>
+  <button class="btn-add" id="add-btn" onclick="addTpl()">
+    <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>雛形を追加（最大5件）
+  </button>
+</div>
+
+<script>
+var STORAGE_KEY = 'sms_templates_v1';
+
+function loadTpls() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveTpls(t) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)); } catch(e) {}
+}
+function defaultTpls() {
+  return [
+    { id: '1', name: '下見依頼', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
+    { id: '2', name: '施工前確認', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
+    { id: '3', name: '日程調整', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
+  ];
+}
+
+var tpls = loadTpls();
+if (!tpls.length) { tpls = defaultTpls(); saveTpls(tpls); }
+
+var selectedTplId = null;
+var pendingChanges = {};
+
+function showTab(t) {
+  document.getElementById('tab-btn-send').classList.toggle('active', t === 'send');
+  document.getElementById('tab-btn-tpl').classList.toggle('active', t === 'tpl');
+  document.getElementById('tab-send').classList.toggle('active', t === 'send');
+  document.getElementById('tab-tpl').classList.toggle('active', t === 'tpl');
+  if (t === 'tpl') renderTpls();
+  if (t === 'send') renderPick();
+}
+
+function renderPick() {
+  tpls = loadTpls();
+  var pick = document.getElementById('tpl-pick');
+  if (!tpls.length) {
+    pick.innerHTML = '<span class="no-tpl">雛形なし — 「雛形管理」タブで作成してください</span>';
+    return;
+  }
+  pick.innerHTML = '';
+  tpls.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'tpl-btn' + (selectedTplId === t.id ? ' selected' : '');
+    btn.textContent = t.name || '無題';
+    btn.onclick = function() {
+      selectedTplId = t.id;
+      document.getElementById('compose-area').value = t.body || '';
+      updateCount();
+      document.querySelectorAll('.tpl-btn').forEach(function(b) { b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    };
+    pick.appendChild(btn);
+  });
+}
+
+function updateCount() {
+  var v = document.getElementById('compose-area').value;
+  document.getElementById('char-count').textContent = v.length;
+}
+document.getElementById('compose-area').addEventListener('input', updateCount);
+
+function launchSms() {
+  var tel = document.getElementById('tel-input').value.trim().replace(/[^\d+]/g, '');
+  var body = document.getElementById('compose-area').value.trim();
+  if (!tel) { alert('電話番号を入力してください'); return false; }
+  if (!body) { alert('文章を入力してください'); return false; }
+  window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent(body);
+  return false;
+}
+
+function renderTpls() {
+  tpls = loadTpls();
+  var list = document.getElementById('tpl-list');
+  list.innerHTML = '';
+  document.getElementById('add-btn').style.display = tpls.length >= 5 ? 'none' : '';
+  if (!tpls.length) {
+    list.innerHTML = '<div class="empty-hint">雛形がありません<br>下の「＋追加」から作成してください</div>';
+    return;
+  }
+  tpls.forEach(function(t) {
+    var div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML =
+      '<div class="tpl-header">' +
+        '<input class="tpl-name-input" value="' + escHtml(t.name || '') + '" placeholder="雛形名（例：下見依頼）" oninput="updateName(\'' + t.id + '\',this.value)">' +
+        '<button class="btn-icon" onclick="deleteTpl(\'' + t.id + '\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>' +
+      '</div>' +
+      '<textarea rows="7" placeholder="文章を入力..." oninput="updateBody(\'' + t.id + '\',this.value)">' + escHtml(t.body || '') + '</textarea>' +
+      '<div style="display:flex;align-items:center;">' +
+        '<button class="btn-save" onclick="saveTpl(\'' + t.id + '\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>' +
+        '<span class="saved-msg" id="saved-' + t.id + '" style="display:none"><i class="ti ti-check"></i> 保存しました</span>' +
+      '</div>';
+    list.appendChild(div);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateName(id, val) {
+  pendingChanges[id] = pendingChanges[id] || {};
+  pendingChanges[id].name = val;
+}
+function updateBody(id, val) {
+  pendingChanges[id] = pendingChanges[id] || {};
+  pendingChanges[id].body = val;
+}
+function saveTpl(id) {
+  var changes = pendingChanges[id] || {};
+  tpls = loadTpls().map(function(t) { return t.id === id ? Object.assign({}, t, changes) : t; });
+  saveTpls(tpls);
+  pendingChanges[id] = {};
+  var el = document.getElementById('saved-' + id);
+  el.style.display = '';
+  setTimeout(function() { el.style.display = 'none'; }, 2000);
+}
+function deleteTpl(id) {
+  if (!confirm('この雛形を削除しますか？')) return;
+  saveTpls(loadTpls().filter(function(t) { return t.id !== id; }));
+  renderTpls();
+}
+function addTpl() {
+  tpls = loadTpls();
+  if (tpls.length >= 5) return;
+  tpls.push({ id: Date.now() + '', name: '', body: '' });
+  saveTpls(tpls);
+  renderTpls();
+}
+
+renderPick();
+</script>
+</body>
+</html>
