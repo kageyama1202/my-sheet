@@ -275,3 +275,19 @@
   vertical-align: middle;
 }
 .modal-mailer-btn:hover { background: #004d40; }
+
+.modal-sms-btn {
+  display: inline-block;
+  margin-left: 10px;
+  background: #1a1a1a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.modal-sms-btn:hover { background: #444; }
