@@ -272,6 +272,24 @@ function addTpl() {
 
 function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// URLパラメータから自動セット
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var tel = params.get('tel') || '';
+  var label = params.get('label') || '';
+  if (tel || label) {
+    if (tel)   document.getElementById('tel-input').value = tel;
+    if (label) document.getElementById('label-input').value = decodeURIComponent(label);
+    // 最初の雛形を自動選択
+    var tl = loadTpls();
+    if (tl.length) {
+      selectedTplId = tl[0].id;
+      document.getElementById('compose-area').value = tl[0].body || '';
+      updateCount();
+    }
+  }
+})();
+
 renderPick();
 updateBadge();
 </script>
