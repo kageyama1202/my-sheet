@@ -158,8 +158,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
   html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
   var _smsTel = normalizePhoneModal(getSafeValModal(cols,6));
-  var _smsLabel = encodeURIComponent(getSafeValModal(cols,5).trim()||getSafeValModal(cols,4).trim()||key);
-  html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'" class="modal-sms-btn">💬 SMS作成</a>';
+  var _smsLabel = encodeURIComponent(getSafeValModal(cols,5).trim()||key);
+  var _smsCase = encodeURIComponent(getSafeValModal(cols,4).trim()||key);
+  html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'&casename='+_smsCase+'" class="modal-sms-btn">💬 SMS作成</a>';
   html += '</div>';
 
   document.getElementById('modal-body').innerHTML = html;
