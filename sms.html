@@ -14,118 +14,142 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .section{display:none;padding:12px;padding-bottom:3rem;}
 .section.active{display:block;}
 .card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
-.tpl-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.section-label{font-size:11px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;}
+.tpl-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
 .tpl-btn{font-size:13px;padding:7px 14px;border:1px solid #d0d0d0;border-radius:20px;background:#fff;color:#1a1a1a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .tpl-btn.selected{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
 .field-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .field-label{font-size:12px;color:#888;min-width:38px;}
-input[type=tel]{flex:1;font-size:15px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;color:#1a1a1a;font-family:inherit;-webkit-appearance:none;}
-input[type=tel]:focus{outline:none;border-color:#aaa;background:#fff;}
+input[type=tel],input[type=text]{flex:1;font-size:15px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;color:#1a1a1a;font-family:inherit;-webkit-appearance:none;}
+input[type=tel]:focus,input[type=text]:focus{outline:none;border-color:#aaa;background:#fff;}
 textarea{width:100%;font-size:13px;border:1px solid #e0e0e0;border-radius:8px;padding:10px;resize:vertical;background:#fafafa;color:#1a1a1a;font-family:inherit;line-height:1.7;-webkit-appearance:none;}
 textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .char-count{font-size:11px;color:#aaa;text-align:right;margin-top:4px;}
-.section-label{font-size:11px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;}
-.btn-sms{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:#1a1a1a;border:none;border-radius:10px;font-size:15px;font-weight:500;color:#fff;cursor:pointer;text-decoration:none;margin-top:12px;-webkit-tap-highlight-color:transparent;}
+.btn-add-list{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;background:#1a1a1a;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;margin-top:12px;-webkit-tap-highlight-color:transparent;}
+.btn-add-list:active{opacity:0.85;}
+.send-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
+.send-card.done{opacity:0.4;}
+.send-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;}
+.send-label{font-size:14px;font-weight:500;flex:1;}
+.send-tel{font-size:12px;color:#888;margin-bottom:6px;}
+.send-body{font-size:12px;color:#555;line-height:1.6;white-space:pre-wrap;margin-bottom:10px;background:#fafafa;border-radius:8px;padding:8px;}
+.btn-sms{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px;background:#1a1a1a;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;text-decoration:none;-webkit-tap-highlight-color:transparent;}
 .btn-sms:active{opacity:0.85;}
+.done-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.btn-sm{font-size:12px;padding:6px 14px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#555;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.btn-sm:active{background:#f5f5f5;}
+.done-hint{font-size:11px;color:#aaa;}
+.counter-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.counter{font-size:12px;color:#888;}
+.btn-clear{font-size:11px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;}
+.empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2.5rem 0;line-height:1.9;}
+.done-badge{font-size:11px;color:#4caf50;white-space:nowrap;}
 .tpl-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .tpl-name-input{font-size:13px;font-weight:500;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;flex:1;background:#fafafa;color:#1a1a1a;font-family:inherit;}
 .tpl-name-input:focus{outline:none;border-color:#aaa;background:#fff;}
-.btn-icon{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;cursor:pointer;color:#888;font-size:13px;-webkit-tap-highlight-color:transparent;}
+.btn-icon{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;cursor:pointer;color:#888;-webkit-tap-highlight-color:transparent;}
 .btn-icon:active{background:#f5f5f5;}
 .btn-save{font-size:13px;padding:7px 16px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer;margin-top:10px;-webkit-tap-highlight-color:transparent;}
 .btn-save:active{background:#f5f5f5;}
 .saved-msg{font-size:11px;color:#4caf50;margin-left:10px;}
-.btn-add{width:100%;padding:12px;border:1px dashed #c0c0c0;border-radius:12px;background:#fff;color:#888;font-size:13px;cursor:pointer;margin-top:4px;-webkit-tap-highlight-color:transparent;}
-.btn-add:active{background:#f5f5f5;}
-.empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2rem 0;line-height:1.8;}
+.btn-add-tpl{width:100%;padding:12px;border:1px dashed #c0c0c0;border-radius:12px;background:#fff;color:#888;font-size:13px;cursor:pointer;margin-top:4px;-webkit-tap-highlight-color:transparent;}
+.btn-add-tpl:active{background:#f5f5f5;}
 .no-tpl{font-size:12px;color:#aaa;padding:4px 0;}
 </style>
 </head>
 <body>
 
 <div class="tabs">
-  <div class="tab active" id="tab-btn-send" onclick="showTab('send')">
-    <i class="ti ti-send"></i> 送信準備
-  </div>
-  <div class="tab" id="tab-btn-tpl" onclick="showTab('tpl')">
-    <i class="ti ti-template"></i> 雛形管理
-  </div>
+  <div class="tab active" id="tab-btn-compose" onclick="showTab('compose')"><i class="ti ti-edit"></i> 作成</div>
+  <div class="tab" id="tab-btn-list" onclick="showTab('list')"><i class="ti ti-send"></i> 送信 <span id="list-badge"></span></div>
+  <div class="tab" id="tab-btn-tpl" onclick="showTab('tpl')"><i class="ti ti-template"></i> 雛形</div>
 </div>
 
-<div id="tab-send" class="section active">
+<!-- 作成タブ -->
+<div id="tab-compose" class="section active">
   <div class="section-label">雛形を選ぶ</div>
   <div class="tpl-pick" id="tpl-pick"></div>
-
   <div class="card">
     <div class="field-row">
-      <span class="field-label"><i class="ti ti-phone"></i></span>
+      <span class="field-label"><i class="ti ti-user" style="font-size:14px"></i></span>
+      <input type="text" id="label-input" placeholder="メモ（名前・案件名など）">
+    </div>
+    <div class="field-row">
+      <span class="field-label"><i class="ti ti-phone" style="font-size:14px"></i></span>
       <input type="tel" id="tel-input" placeholder="送信先電話番号">
     </div>
     <div class="section-label" style="margin-top:4px;">文章（自由に編集）</div>
     <textarea id="compose-area" rows="8" placeholder="雛形を選ぶか、ここに直接入力"></textarea>
     <div class="char-count"><span id="char-count">0</span> 文字</div>
-    <a href="#" class="btn-sms" onclick="return launchSms()">
-      <i class="ti ti-message" style="font-size:18px"></i>SMSアプリで開く
-    </a>
+    <button class="btn-add-list" onclick="addToList()">
+      <i class="ti ti-circle-plus" style="font-size:17px"></i>送信リストに追加
+    </button>
   </div>
 </div>
 
+<!-- 送信リストタブ -->
+<div id="tab-list" class="section">
+  <div class="counter-row">
+    <span class="counter" id="list-counter"></span>
+    <button class="btn-clear" onclick="clearDone()">完了分を消去</button>
+  </div>
+  <div id="send-list"></div>
+</div>
+
+<!-- 雛形タブ -->
 <div id="tab-tpl" class="section">
   <div id="tpl-list"></div>
-  <button class="btn-add" id="add-btn" onclick="addTpl()">
+  <button class="btn-add-tpl" id="add-tpl-btn" onclick="addTpl()">
     <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>雛形を追加（最大5件）
   </button>
 </div>
 
 <script>
-var STORAGE_KEY = 'sms_templates_v1';
+var TPL_KEY  = 'sms_templates_v1';
+var LIST_KEY = 'sms_send_list_v1';
+var selectedTplId = null;
+var pendingTplChanges = {};
 
-function loadTpls() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
-}
-function saveTpls(t) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)); } catch(e) {}
-}
+function loadTpls() { try { return JSON.parse(localStorage.getItem(TPL_KEY)||'[]'); } catch(e){ return []; } }
+function saveTpls(t) { try { localStorage.setItem(TPL_KEY, JSON.stringify(t)); } catch(e){} }
+function loadList() { try { return JSON.parse(localStorage.getItem(LIST_KEY)||'[]'); } catch(e){ return []; } }
+function saveList(l) { try { localStorage.setItem(LIST_KEY, JSON.stringify(l)); } catch(e){} }
+
 function defaultTpls() {
   return [
-    { id: '1', name: '下見依頼', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
-    { id: '2', name: '施工前確認', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
-    { id: '3', name: '日程調整', body: '突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
+    { id:'t1', name:'下見依頼',   body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
+    { id:'t2', name:'施工前確認', body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
+    { id:'t3', name:'日程調整',   body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
   ];
 }
 
 var tpls = loadTpls();
 if (!tpls.length) { tpls = defaultTpls(); saveTpls(tpls); }
 
-var selectedTplId = null;
-var pendingChanges = {};
-
 function showTab(t) {
-  document.getElementById('tab-btn-send').classList.toggle('active', t === 'send');
-  document.getElementById('tab-btn-tpl').classList.toggle('active', t === 'tpl');
-  document.getElementById('tab-send').classList.toggle('active', t === 'send');
-  document.getElementById('tab-tpl').classList.toggle('active', t === 'tpl');
-  if (t === 'tpl') renderTpls();
-  if (t === 'send') renderPick();
+  ['compose','list','tpl'].forEach(function(n){
+    document.getElementById('tab-btn-'+n).classList.toggle('active', n===t);
+    document.getElementById('tab-'+n).classList.toggle('active', n===t);
+  });
+  if (t==='compose') renderPick();
+  if (t==='list')    renderList();
+  if (t==='tpl')     renderTpls();
 }
 
 function renderPick() {
   tpls = loadTpls();
   var pick = document.getElementById('tpl-pick');
-  if (!tpls.length) {
-    pick.innerHTML = '<span class="no-tpl">雛形なし — 「雛形管理」タブで作成してください</span>';
-    return;
-  }
-  pick.innerHTML = '';
-  tpls.forEach(function(t) {
+  if (!tpls.length) { pick.innerHTML='<span class="no-tpl">雛形なし — 「雛形」タブで作成してください</span>'; return; }
+  pick.innerHTML='';
+  tpls.forEach(function(t){
     var btn = document.createElement('button');
-    btn.className = 'tpl-btn' + (selectedTplId === t.id ? ' selected' : '');
+    btn.className = 'tpl-btn' + (selectedTplId===t.id ? ' selected' : '');
     btn.textContent = t.name || '無題';
-    btn.onclick = function() {
+    btn.onclick = function(){
       selectedTplId = t.id;
       document.getElementById('compose-area').value = t.body || '';
       updateCount();
-      document.querySelectorAll('.tpl-btn').forEach(function(b) { b.classList.remove('selected'); });
+      document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
       btn.classList.add('selected');
     };
     pick.appendChild(btn);
@@ -133,81 +157,123 @@ function renderPick() {
 }
 
 function updateCount() {
-  var v = document.getElementById('compose-area').value;
-  document.getElementById('char-count').textContent = v.length;
+  document.getElementById('char-count').textContent = document.getElementById('compose-area').value.length;
 }
 document.getElementById('compose-area').addEventListener('input', updateCount);
 
-function launchSms() {
-  var tel = document.getElementById('tel-input').value.trim().replace(/[^\d+]/g, '');
-  var body = document.getElementById('compose-area').value.trim();
-  if (!tel) { alert('電話番号を入力してください'); return false; }
-  if (!body) { alert('文章を入力してください'); return false; }
-  window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent(body);
-  return false;
+function addToList() {
+  var tel   = document.getElementById('tel-input').value.trim().replace(/[^\d+]/g,'');
+  var body  = document.getElementById('compose-area').value.trim();
+  var label = document.getElementById('label-input').value.trim();
+  if (!tel)  { alert('電話番号を入力してください'); return; }
+  if (!body) { alert('文章を入力してください'); return; }
+  var list = loadList();
+  list.push({ id: Date.now()+'', label:label, tel:tel, body:body, done:false });
+  saveList(list);
+  updateBadge();
+  document.getElementById('tel-input').value = '';
+  document.getElementById('label-input').value = '';
+  document.getElementById('compose-area').value = '';
+  document.getElementById('char-count').textContent = '0';
+  selectedTplId = null;
+  document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
+  showTab('list');
+}
+
+function renderList() {
+  var list = loadList();
+  var el = document.getElementById('send-list');
+  var pending = list.filter(function(i){ return !i.done; });
+  var done    = list.filter(function(i){ return  i.done; });
+  document.getElementById('list-counter').textContent = '未送信 '+pending.length+'件 / 完了 '+done.length+'件';
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-hint">送信待ちがありません<br>「作成」タブで追加してください</div>';
+    return;
+  }
+  el.innerHTML = '';
+  pending.concat(done).forEach(function(item){
+    var div = document.createElement('div');
+    div.className = 'send-card' + (item.done ? ' done' : '');
+    var smsUrl = 'sms:'+item.tel+'?body='+encodeURIComponent(item.body);
+    div.innerHTML =
+      '<div class="send-header">'+
+        '<span class="send-label">'+(item.label||'（メモなし）')+'</span>'+
+        (item.done ? '<span class="done-badge"><i class="ti ti-check"></i> 送信済</span>' : '')+
+        '<button class="btn-icon" onclick="removeItem(\''+item.id+'\')" aria-label="削除"><i class="ti ti-x" style="font-size:13px"></i></button>'+
+      '</div>'+
+      '<div class="send-tel"><i class="ti ti-phone" style="font-size:12px;vertical-align:-1px;margin-right:3px"></i>'+item.tel+'</div>'+
+      '<div class="send-body">'+escHtml(item.body)+'</div>'+
+      (!item.done ?
+        '<a href="'+smsUrl+'" class="btn-sms" onclick="return openSms(\''+smsUrl+'\')">'+
+          '<i class="ti ti-message" style="font-size:17px"></i>SMSアプリで開く'+
+        '</a>'+
+        '<div class="done-row">'+
+          '<button class="btn-sm" onclick="markDone(\''+item.id+'\')"><i class="ti ti-check" style="font-size:13px;vertical-align:-1px;margin-right:3px"></i>送信した</button>'+
+          '<span class="done-hint">← 送信後にタップ</span>'+
+        '</div>'
+      :
+        '<button class="btn-sm" onclick="markUndone(\''+item.id+'\')">送信取消</button>'
+      );
+    el.appendChild(div);
+  });
+}
+
+function openSms(url) { window.location.href = url; return false; }
+function markDone(id) { saveList(loadList().map(function(i){ return i.id===id?Object.assign({},i,{done:true}):i; })); updateBadge(); renderList(); }
+function markUndone(id) { saveList(loadList().map(function(i){ return i.id===id?Object.assign({},i,{done:false}):i; })); updateBadge(); renderList(); }
+function removeItem(id) { saveList(loadList().filter(function(i){ return i.id!==id; })); updateBadge(); renderList(); }
+function clearDone() { saveList(loadList().filter(function(i){ return !i.done; })); updateBadge(); renderList(); }
+function updateBadge() {
+  var n = loadList().filter(function(i){ return !i.done; }).length;
+  document.getElementById('list-badge').textContent = n ? '('+n+')' : '';
 }
 
 function renderTpls() {
   tpls = loadTpls();
   var list = document.getElementById('tpl-list');
   list.innerHTML = '';
-  document.getElementById('add-btn').style.display = tpls.length >= 5 ? 'none' : '';
-  if (!tpls.length) {
-    list.innerHTML = '<div class="empty-hint">雛形がありません<br>下の「＋追加」から作成してください</div>';
-    return;
-  }
-  tpls.forEach(function(t) {
+  document.getElementById('add-tpl-btn').style.display = tpls.length >= 5 ? 'none' : '';
+  if (!tpls.length) { list.innerHTML='<div class="empty-hint">雛形がありません<br>下の「＋追加」から作成してください</div>'; return; }
+  tpls.forEach(function(t){
     var div = document.createElement('div');
     div.className = 'card';
     div.innerHTML =
-      '<div class="tpl-header">' +
-        '<input class="tpl-name-input" value="' + escHtml(t.name || '') + '" placeholder="雛形名（例：下見依頼）" oninput="updateName(\'' + t.id + '\',this.value)">' +
-        '<button class="btn-icon" onclick="deleteTpl(\'' + t.id + '\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>' +
-      '</div>' +
-      '<textarea rows="7" placeholder="文章を入力..." oninput="updateBody(\'' + t.id + '\',this.value)">' + escHtml(t.body || '') + '</textarea>' +
-      '<div style="display:flex;align-items:center;">' +
-        '<button class="btn-save" onclick="saveTpl(\'' + t.id + '\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>' +
-        '<span class="saved-msg" id="saved-' + t.id + '" style="display:none"><i class="ti ti-check"></i> 保存しました</span>' +
+      '<div class="tpl-header">'+
+        '<input class="tpl-name-input" value="'+escHtml(t.name||'')+'" placeholder="雛形名（例：下見依頼）" oninput="updateTplName(\''+t.id+'\',this.value)">'+
+        '<button class="btn-icon" onclick="deleteTpl(\''+t.id+'\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>'+
+      '</div>'+
+      '<textarea rows="7" placeholder="文章を入力..." oninput="updateTplBody(\''+t.id+'\',this.value)">'+escHtml(t.body||'')+'</textarea>'+
+      '<div style="display:flex;align-items:center;">'+
+        '<button class="btn-save" onclick="saveTpl(\''+t.id+'\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>'+
+        '<span class="saved-msg" id="saved-'+t.id+'" style="display:none"><i class="ti ti-check"></i> 保存しました</span>'+
       '</div>';
     list.appendChild(div);
   });
 }
 
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function updateName(id, val) {
-  pendingChanges[id] = pendingChanges[id] || {};
-  pendingChanges[id].name = val;
-}
-function updateBody(id, val) {
-  pendingChanges[id] = pendingChanges[id] || {};
-  pendingChanges[id].body = val;
-}
+function updateTplName(id,val){ pendingTplChanges[id]=pendingTplChanges[id]||{}; pendingTplChanges[id].name=val; }
+function updateTplBody(id,val){ pendingTplChanges[id]=pendingTplChanges[id]||{}; pendingTplChanges[id].body=val; }
 function saveTpl(id) {
-  var changes = pendingChanges[id] || {};
-  tpls = loadTpls().map(function(t) { return t.id === id ? Object.assign({}, t, changes) : t; });
-  saveTpls(tpls);
-  pendingChanges[id] = {};
-  var el = document.getElementById('saved-' + id);
-  el.style.display = '';
-  setTimeout(function() { el.style.display = 'none'; }, 2000);
+  var c = pendingTplChanges[id]||{};
+  saveTpls(loadTpls().map(function(t){ return t.id===id?Object.assign({},t,c):t; }));
+  pendingTplChanges[id]={};
+  var el=document.getElementById('saved-'+id);
+  el.style.display=''; setTimeout(function(){ el.style.display='none'; },2000);
 }
 function deleteTpl(id) {
   if (!confirm('この雛形を削除しますか？')) return;
-  saveTpls(loadTpls().filter(function(t) { return t.id !== id; }));
+  saveTpls(loadTpls().filter(function(t){ return t.id!==id; }));
   renderTpls();
 }
 function addTpl() {
-  tpls = loadTpls();
-  if (tpls.length >= 5) return;
-  tpls.push({ id: Date.now() + '', name: '', body: '' });
-  saveTpls(tpls);
-  renderTpls();
+  var t=loadTpls(); if(t.length>=5) return;
+  t.push({id:Date.now()+'',name:'',body:''}); saveTpls(t); renderTpls();
 }
 
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 renderPick();
+updateBadge();
 </script>
 </body>
 </html>
