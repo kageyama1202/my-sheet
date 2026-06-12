@@ -10,6 +10,7 @@
   <meta name="theme-color" content="#ff6b00">
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
     body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f0f2f5;min-height:100vh;min-height:-webkit-fill-available;}
@@ -103,6 +104,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="firebase-auth.js"></script>
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
@@ -118,14 +120,23 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 var HISTORY_MAX = 10;
 
-// リアルタイム監視
-db.ref('app_clipboard').on('value', function(snap) {
-  var data = snap.val() || {};
-  document.getElementById('syncDot').className = 'sync-dot live';
-  setTimeout(function(){ document.getElementById('syncDot').className = 'sync-dot'; }, 1000);
-  renderCurrent(data.current);
-  renderHistory(data.history);
+// 匿名認証してからDB監視開始
+firebase.auth().signInAnonymously().then(function() {
+  startListening();
+}).catch(function(err) {
+  console.error('Auth error:', err);
+  showToast('認証エラー: ' + err.message);
 });
+
+function startListening() {
+  db.ref('app_clipboard').on('value', function(snap) {
+    var data = snap.val() || {};
+    document.getElementById('syncDot').className = 'sync-dot live';
+    setTimeout(function(){ document.getElementById('syncDot').className = 'sync-dot'; }, 1000);
+    renderCurrent(data.current);
+    renderHistory(data.history);
+  });
+}
 
 function renderCurrent(cur) {
   var card = document.getElementById('currentCard');
