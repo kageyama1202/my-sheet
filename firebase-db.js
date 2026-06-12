@@ -1,41 +1,597 @@
-// ① あなた専用の合言葉（キーを設定済み）
-const firebaseConfig = {
-  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>MyClip</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #4f8ef7;
+    --accent-dim: rgba(79,142,247,0.15);
+    --pin: #f0a500;
+    --pin-dim: rgba(240,165,0,0.15);
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --danger: #e05c5c;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  /* ヘッダー */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px 10px;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-icon {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .btn-icon:active { opacity: 0.7; }
+
+  /* 検索バー */
+  .search-wrap {
+    position: relative;
+  }
+
+  .search-wrap svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  #searchInput {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 8px 10px 8px 34px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  #searchInput:focus { border-color: var(--accent); }
+  #searchInput::placeholder { color: var(--text-dim); }
+
+  /* 追加フォーム */
+  .add-form {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .add-form.open { display: flex; }
+
+  .add-sheet {
+    background: var(--surface);
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px 36px;
+    width: 100%;
+  }
+
+  .add-sheet h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  #newText {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 16px;
+    padding: 12px;
+    outline: none;
+    resize: none;
+    min-height: 80px;
+    -webkit-appearance: none;
+    margin-bottom: 10px;
+  }
+
+  #newText:focus { border-color: var(--accent); }
+
+  .add-options {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .pin-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    user-select: none;
+  }
+
+  .pin-toggle.active {
+    color: var(--pin);
+    border-color: var(--pin);
+    background: var(--pin-dim);
+  }
+
+  .add-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    flex: 1;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-cancel {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* リスト */
+  .main {
+    padding: 0 16px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 16px 0 8px;
+  }
+
+  .clip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .clip-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .clip-item:active { background: var(--surface2); }
+
+  .clip-item.pinned {
+    border-color: rgba(240,165,0,0.3);
+    background: rgba(240,165,0,0.05);
+  }
+
+  .clip-text {
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.4;
+    word-break: break-all;
+    color: var(--text);
+  }
+
+  .clip-item.pinned .clip-text {
+    color: #f5d080;
+  }
+
+  .clip-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .btn-small {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-small:active { opacity: 0.6; }
+
+  .btn-small.copy-btn {
+    color: var(--accent);
+    border-color: rgba(79,142,247,0.3);
+  }
+
+  .btn-small.pin-btn.active {
+    color: var(--pin);
+    border-color: rgba(240,165,0,0.3);
+  }
+
+  .btn-small.del-btn { color: var(--danger); }
+
+  /* コピー完了トースト */
+  .toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 300;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 24px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(79,142,247,0.4);
+    z-index: 100;
+  }
+
+  .fab:active { transform: scale(0.93); }
+
+  /* 空表示 */
+  .empty {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+    padding: 32px 0;
+  }
+
+  /* スワイプ削除ヒント */
+  .swipe-hint {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 8px 0 0;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">📋 MyClip</div>
+    <div class="header-actions">
+      <button class="btn-icon" onclick="clearHistory()">🗑 履歴クリア</button>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input type="search" id="searchInput" placeholder="検索..." oninput="renderList()" autocomplete="off">
+  </div>
+</div>
+
+<div class="main">
+  <div class="section-label">📌 ピン留め</div>
+  <div class="clip-list" id="pinnedList"></div>
+
+  <div class="section-label">🕐 最近使った</div>
+  <div class="clip-list" id="historyList"></div>
+</div>
+
+<!-- 追加フォーム -->
+<div class="add-form" id="addForm" onclick="closeForm(event)">
+  <div class="add-sheet">
+    <h3>テキストを追加</h3>
+    <textarea id="newText" placeholder="単語、数字、定型文..." rows="3"></textarea>
+    <div class="add-options">
+      <div class="pin-toggle" id="pinToggle" onclick="togglePin()">
+        📌 ピン留め
+      </div>
+    </div>
+    <div class="add-btns">
+      <button class="btn-cancel" onclick="closeForm()">キャンセル</button>
+      <button class="btn-primary" onclick="addItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<button class="fab" onclick="openForm()">＋</button>
+<div class="toast" id="toast"></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+<script>
+PLACEHOLDER
+  apiKey: "AIzaSyDummyKeyReplaceThis",
   authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
   projectId: "project-6745138395263517914",
-  storageBucket: "project-6745138395263517914.firebasestorage.app",
-  messagingSenderId: "1054295910908",
-  appId: "1:1054295910908:web:4072df05bd90bbdc896a79",
-  measurementId: "G-S7B2K9G2SK",
-  // 念のため、データベースの通信URLも指定しておきます
-  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com"
+  storageBucket: "project-6745138395263517914.appspot.com",
+  messagingSenderId: "674513839526",
+  appId: "1:674513839526:web:dummy"
 };
 
-// ② Firebase（神様）を起動して接続
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+var db = firebase.database();
+var auth = firebase.auth();
 
-// ③ 【送信】「保存」ボタンを押したときの全自動処理
-document.getElementById('send').addEventListener('click', function() {
-  const name = document.getElementById('name').value;
-  const text = document.getElementById('text').value;
-  
-  if (name === "" || text === "") return; // 空欄の場合は何もしない
-  
-  // データベース（chatという階層）に自動でデータを送る
-  db.ref('chat').push().set({
-    name: name,
-    text: text
+var pinned = [];
+var history = [];
+var isPinned = false;
+
+// 認証
+auth.signInAnonymously().then(function() {
+  // ピン留め購読
+  db.ref('app_clipboard/pinned').on('value', function(snap) {
+    pinned = [];
+    var val = snap.val();
+    if (val) {
+      Object.keys(val).forEach(function(k) {
+        pinned.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
+      });
+      pinned.sort(function(a,b){ return b.ts - a.ts; });
+    }
+    renderList();
   });
-  
-  // 送信後に枠の中の文字を消す
-  document.getElementById('text').value = '';
-});
 
-// ④ 【受信】データが追加されたら、全自動で画面に表示する処理
-db.ref('chat').on('child_added', function(data) {
-  const msg = data.val();
-  const output = document.getElementById('output');
-  // 集まったデータの下に、新しいデータを自動で書き足す
-  output.innerHTML += '<p><strong>' + msg.name + '</strong>: ' + msg.text + '</p>';
-});
+  // 履歴購読
+  db.ref('app_clipboard/history').on('value', function(snap) {
+    history = [];
+    var val = snap.val();
+    if (val) {
+      Object.keys(val).forEach(function(k) {
+        history.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
+      });
+      history.sort(function(a,b){ return b.ts - a.ts; });
+    }
+    renderList();
+  });
+}).catch(function(e){ console.error(e); });
+
+function renderList() {
+  var q = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  // ピン留め
+  var pFiltered = pinned.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
+  var pEl = document.getElementById('pinnedList');
+  if (pFiltered.length === 0) {
+    pEl.innerHTML = '<div class="empty">ピン留めなし</div>';
+  } else {
+    pEl.innerHTML = pFiltered.map(function(item) {
+      return buildItem(item, true);
+    }).join('');
+  }
+
+  // 履歴
+  var hFiltered = history.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
+  var hEl = document.getElementById('historyList');
+  if (hFiltered.length === 0) {
+    hEl.innerHTML = '<div class="empty">履歴なし</div>';
+  } else {
+    hEl.innerHTML = hFiltered.map(function(item) {
+      return buildItem(item, false);
+    }).join('');
+  }
+}
+
+function buildItem(item, isPin) {
+  var esc = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return '<div class="clip-item' + (isPin ? ' pinned' : '') + '" onclick="copyItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">'
+    + '<div class="clip-text">' + esc + '</div>'
+    + '<div class="clip-actions">'
+    + '<button class="btn-small copy-btn" onclick="event.stopPropagation();copyItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">コピー</button>'
+    + (isPin
+        ? '<button class="btn-small pin-btn active" onclick="event.stopPropagation();unpin(\'' + item.key + '\')">📌</button>'
+        : '<button class="btn-small pin-btn" onclick="event.stopPropagation();pinItem(\'' + item.key + '\')">📌</button>')
+    + '<button class="btn-small del-btn" onclick="event.stopPropagation();deleteItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">✕</button>'
+    + '</div>'
+    + '</div>';
+}
+
+function copyItem(key, type) {
+  var list = type === 'pinned' ? pinned : history;
+  var item = list.find(function(i){ return i.key === key; });
+  if (!item) return;
+  navigator.clipboard.writeText(item.text).then(function() {
+    showToast('コピーしました');
+    // 履歴に追加（ピン留め以外）
+    if (type === 'history') {
+      // 使用時刻を更新
+      db.ref('app_clipboard/history/' + key + '/ts').set(Date.now());
+    }
+    // current も更新
+    db.ref('app_clipboard/current').set({ text: item.text, ts: Date.now() });
+  });
+}
+
+function pinItem(key) {
+  var item = history.find(function(i){ return i.key === key; });
+  if (!item) return;
+  db.ref('app_clipboard/pinned').push({ text: item.text, ts: Date.now() });
+  showToast('ピン留めしました');
+}
+
+function unpin(key) {
+  db.ref('app_clipboard/pinned/' + key).remove();
+  showToast('ピン解除しました');
+}
+
+function deleteItem(key, type) {
+  db.ref('app_clipboard/' + type + '/' + key).remove();
+}
+
+function addItem() {
+  var text = document.getElementById('newText').value.trim();
+  if (!text) return;
+  var node = isPinned ? 'app_clipboard/pinned' : 'app_clipboard/history';
+  db.ref(node).push({ text: text, ts: Date.now() });
+  // current も更新
+  db.ref('app_clipboard/current').set({ text: text, ts: Date.now() });
+  document.getElementById('newText').value = '';
+  isPinned = false;
+  document.getElementById('pinToggle').classList.remove('active');
+  closeForm();
+  showToast('保存しました');
+
+  // 履歴は50件上限
+  if (!isPinned) trimHistory();
+}
+
+function trimHistory() {
+  db.ref('app_clipboard/history').once('value', function(snap) {
+    var val = snap.val();
+    if (!val) return;
+    var keys = Object.keys(val);
+    if (keys.length > 50) {
+      var sorted = keys.map(function(k){ return { key: k, ts: val[k].ts || 0 }; });
+      sorted.sort(function(a,b){ return a.ts - b.ts; });
+      var toDelete = sorted.slice(0, sorted.length - 50);
+      toDelete.forEach(function(i){ db.ref('app_clipboard/history/' + i.key).remove(); });
+    }
+  });
+}
+
+function clearHistory() {
+  if (!confirm('履歴を全件削除しますか？\n（ピン留めは残ります）')) return;
+  db.ref('app_clipboard/history').remove();
+  showToast('履歴をクリアしました');
+}
+
+function openForm() {
+  document.getElementById('addForm').classList.add('open');
+  setTimeout(function(){ document.getElementById('newText').focus(); }, 100);
+}
+
+function closeForm(e) {
+  if (e && e.target !== document.getElementById('addForm')) return;
+  document.getElementById('addForm').classList.remove('open');
+  document.getElementById('newText').value = '';
+  isPinned = false;
+  document.getElementById('pinToggle').classList.remove('active');
+}
+
+function togglePin() {
+  isPinned = !isPinned;
+  document.getElementById('pinToggle').classList.toggle('active', isPinned);
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 1600);
+}
+
+// 外部からテキストを追加する関数（Chrome拡張から利用）
+window.addClipText = function(text, pin) {
+  if (!text) return;
+  var node = pin ? 'app_clipboard/pinned' : 'app_clipboard/history';
+  db.ref(node).push({ text: text, ts: Date.now() });
+  db.ref('app_clipboard/current').set({ text: text, ts: Date.now() });
+};
+</script>
+</body>
+</html>
