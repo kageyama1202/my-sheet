@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-12 -->
+<!-- VERSION: 2026-06-14 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -36,7 +36,7 @@
     <h1>🏠 案件管理システム</h1>
 
     <div id="statusMsg" class="status loading">
-      ⏳ 認証中...<br>
+      ⏳ 読込中...<br>
       <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
     </div>
 
@@ -105,7 +105,10 @@
         return;
       }
       calDiv.style.display = 'block';
-      calDiv.textContent = '📅 マイカレンダー同期中...';
+      calDiv.style.background = '#e8eaf6';
+      calDiv.style.color = '#3949ab';
+      calDiv.style.border = '1px solid #c5cae9';
+      calDiv.textContent = '📅 マイカレンダー同期中...（バックグラウンド）';
       fetch(url)
         .then(function(res) { return res.json(); })
         .then(function(data) {
@@ -132,22 +135,17 @@
 
     function loadFirebaseData() {
       var statusMsg = document.getElementById('statusMsg');
-      statusMsg.className = 'status loading';
-      statusMsg.innerHTML = '⏳ クラウドから最新データを取得中...<br><span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>';
-
-      var cached = null;
-      try { cached = localStorage.getItem('appData'); } catch(e) {}
-      if (cached) {
-        enableMenu();
-        statusMsg.className = 'status success';
-        statusMsg.innerHTML = '✅ キャッシュデータ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
-      }
 
       database.ref().once('value').then(function(snapshot) {
         var dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-          statusMsg.className = 'status error';
-          statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">管理画面からCSVをアップロードしてください。</span>';
+          // キャッシュがあればそちらで動作継続
+          var cached = null;
+          try { cached = localStorage.getItem('appData'); } catch(e) {}
+          if (!cached) {
+            statusMsg.className = 'status error';
+            statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">管理画面からCSVをアップロードしてください。</span>';
+          }
           return;
         }
 
@@ -208,39 +206,43 @@
         var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
           now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
         statusMsg.className = 'status success';
-        statusMsg.innerHTML = '✅ 最新データ取得完了！<br><span style="font-size:12px; font-weight:normal;">（' + timeStr + '）</span>';
+        statusMsg.innerHTML = '✅ 最新データ取得完了（' + timeStr + '）';
         enableMenu();
-        syncMyCalendar(false);
 
       }).catch(function(error) {
         console.error('Firebase取得エラー:', error);
-        if (!statusMsg.classList.contains('success')) {
+        var cached = null;
+        try { cached = localStorage.getItem('appData'); } catch(e) {}
+        if (cached) {
+          statusMsg.className = 'status success';
+          statusMsg.innerHTML = '⚠️ 通信エラー（前回キャッシュで動作中）';
+        } else {
           statusMsg.className = 'status error';
           statusMsg.innerHTML = '❌ 通信エラー<br><span style="font-size:12px; font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
-        }
-        var cached2 = null;
-        try { cached2 = localStorage.getItem('appData'); } catch(e) {}
-        if (cached2) {
-          enableMenu();
-          statusMsg.innerHTML += '<br><span style="font-size:11px; font-weight:normal; color:#856404;">※前回のキャッシュで動作中</span>';
         }
       });
     }
 
     window.addEventListener('load', function() {
+      // URL設定の復元
       var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
       document.getElementById('gasUrlInput').value = savedUrl;
       if (savedUrl) { document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み'; }
 
+      // ① GAS同期を最初に即発火（結果を待たない）
+      syncMyCalendar(false);
+
+      // ② キャッシュがあれば即メニュー有効化
       var cached = null;
       try { cached = localStorage.getItem('appData'); } catch(e) {}
       if (cached) {
         enableMenu();
         var statusMsg = document.getElementById('statusMsg');
         statusMsg.className = 'status success';
-        statusMsg.innerHTML = '✅ キャッシュ読込済み（認証中...）<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
+        statusMsg.innerHTML = '✅ キャッシュ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
       }
 
+      // ③ 認証→Firebase取得はバックグラウンドで
       firebase.auth().signInAnonymously()
         .then(function() { loadFirebaseData(); })
         .catch(function(error) {
@@ -249,7 +251,6 @@
           var cached2 = null;
           try { cached2 = localStorage.getItem('appData'); } catch(e) {}
           if (cached2) {
-            enableMenu();
             statusMsg.className = 'status success';
             statusMsg.innerHTML = '⚠️ 認証失敗（キャッシュで動作中）<br><span style="font-size:11px;font-weight:normal;">電波状況をご確認ください</span>';
           } else {
