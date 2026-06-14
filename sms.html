@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SMS送信</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="firebase-auth.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
@@ -38,6 +42,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .char-count{font-size:11px;color:#aaa;text-align:right;margin-top:4px;}
 .btn-add-list{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;background:#1a1a1a;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;margin-top:12px;-webkit-tap-highlight-color:transparent;}
 .btn-add-list:active{opacity:0.85;}
+.btn-add-list:disabled{opacity:0.4;cursor:not-allowed;}
 
 /* 送信リスト */
 .send-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
@@ -57,6 +62,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .btn-clear{font-size:11px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;}
 .empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2.5rem 0;line-height:1.9;}
 .done-badge{font-size:11px;color:#4caf50;white-space:nowrap;}
+.loading-hint{text-align:center;color:#aaa;font-size:13px;padding:2rem 0;}
 
 /* 雛形タブ */
 .tpl-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
@@ -83,10 +89,8 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 <!-- 作成タブ -->
 <div id="tab-compose" class="section active">
   <div class="info-bar" id="info-bar"></div>
-
   <div class="section-label">雛形を選ぶ</div>
-  <div class="tpl-pick" id="tpl-pick"></div>
-
+  <div class="tpl-pick" id="tpl-pick"><span class="no-tpl">読み込み中...</span></div>
   <div class="card">
     <div class="field-row">
       <span class="field-label"><i class="ti ti-user" style="font-size:14px"></i></span>
@@ -99,7 +103,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
     <div class="section-label" style="margin-top:4px;">文章（自由に編集）</div>
     <textarea id="compose-area" rows="8" placeholder="雛形を選ぶか、ここに直接入力"></textarea>
     <div class="char-count"><span id="char-count">0</span> 文字</div>
-    <button class="btn-add-list" onclick="addToList()">
+    <button class="btn-add-list" id="btn-add-list" onclick="addToList()">
       <i class="ti ti-circle-plus" style="font-size:17px"></i>送信リストに追加
     </button>
   </div>
@@ -111,7 +115,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
     <span class="counter" id="list-counter"></span>
     <button class="btn-clear" onclick="clearDone()">完了分を消去</button>
   </div>
-  <div id="send-list"></div>
+  <div id="send-list"><div class="loading-hint">読み込み中...</div></div>
 </div>
 
 <!-- 雛形タブ -->
@@ -123,28 +127,81 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <script>
-var TPL_KEY  = 'sms_templates_v1';
-var LIST_KEY = 'sms_send_list_v1';
+// ===== Firebase 初期化 =====
+// firebase-auth.js の firebaseConfig を流用
+// （firebase-auth.js が window.firebaseConfig をセットしている前提）
+// もし firebase-auth.js で firebase.initializeApp() まで完了している場合はそのまま使う
+
+var DB_TPL  = 'app_sms_templates';
+var DB_LIST = 'app_sms_list';
+
+var db = null;
+var tpls = [];
+var sendList = [];
 var selectedTplId = null;
 var pendingTplChanges = {};
+var isReady = false;
 
-function loadTpls() { try { return JSON.parse(localStorage.getItem(TPL_KEY)||'[]'); } catch(e){ return []; } }
-function saveTpls(t) { try { localStorage.setItem(TPL_KEY, JSON.stringify(t)); } catch(e){} }
-function loadList() { try { return JSON.parse(localStorage.getItem(LIST_KEY)||'[]'); } catch(e){ return []; } }
-function saveList(l) { try { localStorage.setItem(LIST_KEY, JSON.stringify(l)); } catch(e){} }
+// Firebase 認証完了後に初期化
+document.addEventListener('DOMContentLoaded', function() {
+  // firebase-auth.js が signInAnonymously を呼ぶ想定
+  // auth state が確定したら DB 接続
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (!user) return;
+    db = firebase.database();
+    isReady = true;
+    loadAllData();
+    initFromUrl();
+  });
+});
 
-function defaultTpls() {
-  return [
-    { id:'t1', name:'下見依頼',   body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
-    { id:'t2', name:'施工前確認', body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
-    { id:'t3', name:'日程調整',   body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
-  ];
+// ===== データ読み込み =====
+function loadAllData() {
+  // 雛形
+  db.ref(DB_TPL).on('value', function(snap) {
+    var val = snap.val();
+    if (val) {
+      // object → array (キー順)
+      tpls = Object.keys(val).map(function(k){ return Object.assign({fbKey:k}, val[k]); });
+      tpls.sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    } else {
+      // デフォルト雛形を書き込む
+      tpls = [];
+      writeDefaultTpls();
+    }
+    renderPick();
+    if (currentTab === 'tpl') renderTpls();
+  });
+
+  // 送信リスト
+  db.ref(DB_LIST).on('value', function(snap) {
+    var val = snap.val();
+    if (val) {
+      sendList = Object.keys(val).map(function(k){ return Object.assign({fbKey:k}, val[k]); });
+      sendList.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    } else {
+      sendList = [];
+    }
+    updateBadge();
+    if (currentTab === 'list') renderList();
+  });
 }
 
-var tpls = loadTpls();
-if (!tpls.length) { tpls = defaultTpls(); saveTpls(tpls); }
+function writeDefaultTpls() {
+  var defaults = [
+    { name:'下見依頼',   order:0, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
+    { name:'施工前確認', order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
+    { name:'日程調整',   order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
+  ];
+  defaults.forEach(function(t) {
+    db.ref(DB_TPL).push(t);
+  });
+}
 
+// ===== タブ管理 =====
+var currentTab = 'compose';
 function showTab(t) {
+  currentTab = t;
   ['compose','list','tpl'].forEach(function(n){
     document.getElementById('tab-btn-'+n).classList.toggle('active', n===t);
     document.getElementById('tab-'+n).classList.toggle('active', n===t);
@@ -154,17 +211,17 @@ function showTab(t) {
   if (t==='tpl')     renderTpls();
 }
 
+// ===== 雛形ピッカー（作成タブ） =====
 function renderPick() {
-  tpls = loadTpls();
   var pick = document.getElementById('tpl-pick');
   if (!tpls.length) { pick.innerHTML='<span class="no-tpl">雛形なし — 「雛形」タブで作成してください</span>'; return; }
   pick.innerHTML='';
   tpls.forEach(function(t){
     var btn = document.createElement('button');
-    btn.className = 'tpl-btn' + (selectedTplId===t.id ? ' selected' : '');
+    btn.className = 'tpl-btn' + (selectedTplId===t.fbKey ? ' selected' : '');
     btn.textContent = t.name || '無題';
     btn.onclick = function(){
-      selectedTplId = t.id;
+      selectedTplId = t.fbKey;
       document.getElementById('compose-area').value = t.body || '';
       updateCount();
       document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
@@ -177,34 +234,41 @@ function renderPick() {
 function updateCount() {
   document.getElementById('char-count').textContent = document.getElementById('compose-area').value.length;
 }
-document.getElementById('compose-area').addEventListener('input', updateCount);
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('compose-area').addEventListener('input', updateCount);
+});
 
+// ===== 送信リスト追加 =====
 function addToList() {
+  if (!isReady) return;
   var tel   = document.getElementById('tel-input').value.trim().replace(/[^\d+]/g,'');
   var body  = document.getElementById('compose-area').value.trim();
   var label = document.getElementById('label-input').value.trim();
   if (!tel)  { alert('電話番号を入力してください'); return; }
   if (!body) { alert('文章を入力してください'); return; }
-  var list = loadList();
-  list.push({ id: Date.now()+'', label:label, tel:tel, body:body, done:false });
-  saveList(list);
-  updateBadge();
-  document.getElementById('tel-input').value = '';
-  document.getElementById('label-input').value = '';
-  document.getElementById('compose-area').value = '';
-  document.getElementById('char-count').textContent = '0';
-  selectedTplId = null;
-  document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
-  showTab('list');
+  var btn = document.getElementById('btn-add-list');
+  btn.disabled = true;
+  db.ref(DB_LIST).push({ label:label, tel:tel, body:body, done:false, createdAt: Date.now() })
+    .then(function(){
+      btn.disabled = false;
+      document.getElementById('tel-input').value = '';
+      document.getElementById('label-input').value = '';
+      document.getElementById('compose-area').value = '';
+      document.getElementById('char-count').textContent = '0';
+      selectedTplId = null;
+      document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
+      showTab('list');
+    })
+    .catch(function(e){ btn.disabled=false; alert('保存エラー: '+e.message); });
 }
 
+// ===== 送信リスト描画 =====
 function renderList() {
-  var list = loadList();
   var el = document.getElementById('send-list');
-  var pending = list.filter(function(i){ return !i.done; });
-  var done    = list.filter(function(i){ return  i.done; });
+  var pending = sendList.filter(function(i){ return !i.done; });
+  var done    = sendList.filter(function(i){ return  i.done; });
   document.getElementById('list-counter').textContent = '未送信 '+pending.length+'件 / 完了 '+done.length+'件';
-  if (!list.length) {
+  if (!sendList.length) {
     el.innerHTML = '<div class="empty-hint">送信待ちがありません<br>「作成」タブで追加してください</div>';
     return;
   }
@@ -217,7 +281,7 @@ function renderList() {
       '<div class="send-header">'+
         '<span class="send-label">'+(item.label||'（メモなし）')+'</span>'+
         (item.done ? '<span class="done-badge"><i class="ti ti-check"></i> 送信済</span>' : '')+
-        '<button class="btn-icon" onclick="removeItem(\''+item.id+'\')" aria-label="削除"><i class="ti ti-x" style="font-size:13px"></i></button>'+
+        '<button class="btn-icon" onclick="removeItem(\''+item.fbKey+'\')" aria-label="削除"><i class="ti ti-x" style="font-size:13px"></i></button>'+
       '</div>'+
       '<div class="send-tel"><i class="ti ti-phone" style="font-size:12px;vertical-align:-1px;margin-right:3px"></i>'+item.tel+'</div>'+
       '<div class="send-body">'+escHtml(item.body)+'</div>'+
@@ -226,28 +290,33 @@ function renderList() {
           '<i class="ti ti-message" style="font-size:17px"></i>SMSアプリで開く'+
         '</a>'+
         '<div class="done-row">'+
-          '<button class="btn-sm" onclick="markDone(\''+item.id+'\')"><i class="ti ti-check" style="font-size:13px;vertical-align:-1px;margin-right:3px"></i>送信した</button>'+
+          '<button class="btn-sm" onclick="markDone(\''+item.fbKey+'\')"><i class="ti ti-check" style="font-size:13px;vertical-align:-1px;margin-right:3px"></i>送信した</button>'+
           '<span class="done-hint">← 送信後にタップ</span>'+
         '</div>'
       :
-        '<button class="btn-sm" onclick="markUndone(\''+item.id+'\')">送信取消</button>'
+        '<button class="btn-sm" onclick="markUndone(\''+item.fbKey+'\')">送信取消</button>'
       );
     el.appendChild(div);
   });
 }
 
 function openSms(url) { window.location.href = url; return false; }
-function markDone(id) { saveList(loadList().map(function(i){ return i.id===id?Object.assign({},i,{done:true}):i; })); updateBadge(); renderList(); }
-function markUndone(id) { saveList(loadList().map(function(i){ return i.id===id?Object.assign({},i,{done:false}):i; })); updateBadge(); renderList(); }
-function removeItem(id) { saveList(loadList().filter(function(i){ return i.id!==id; })); updateBadge(); renderList(); }
-function clearDone() { saveList(loadList().filter(function(i){ return !i.done; })); updateBadge(); renderList(); }
+function markDone(fbKey)  { db.ref(DB_LIST+'/'+fbKey).update({done:true}); }
+function markUndone(fbKey){ db.ref(DB_LIST+'/'+fbKey).update({done:false}); }
+function removeItem(fbKey){ db.ref(DB_LIST+'/'+fbKey).remove(); }
+function clearDone() {
+  sendList.filter(function(i){ return i.done; }).forEach(function(i){
+    db.ref(DB_LIST+'/'+i.fbKey).remove();
+  });
+}
+
 function updateBadge() {
-  var n = loadList().filter(function(i){ return !i.done; }).length;
+  var n = sendList.filter(function(i){ return !i.done; }).length;
   document.getElementById('list-badge').textContent = n ? '('+n+')' : '';
 }
 
+// ===== 雛形タブ =====
 function renderTpls() {
-  tpls = loadTpls();
   var list = document.getElementById('tpl-list');
   list.innerHTML = '';
   document.getElementById('add-tpl-btn').style.display = tpls.length >= 5 ? 'none' : '';
@@ -257,40 +326,47 @@ function renderTpls() {
     div.className = 'card';
     div.innerHTML =
       '<div class="tpl-header">'+
-        '<input class="tpl-name-input" value="'+escHtml(t.name||'')+'" placeholder="雛形名（例：下見依頼）" oninput="updateTplName(\''+t.id+'\',this.value)">'+
-        '<button class="btn-icon" onclick="deleteTpl(\''+t.id+'\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>'+
+        '<input class="tpl-name-input" value="'+escHtml(t.name||'')+'" placeholder="雛形名（例：下見依頼）" oninput="pendingTplChange(\''+t.fbKey+'\',\'name\',this.value)">'+
+        '<button class="btn-icon" onclick="deleteTpl(\''+t.fbKey+'\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>'+
       '</div>'+
-      '<textarea rows="7" placeholder="文章を入力..." oninput="updateTplBody(\''+t.id+'\',this.value)">'+escHtml(t.body||'')+'</textarea>'+
+      '<textarea rows="7" placeholder="文章を入力..." oninput="pendingTplChange(\''+t.fbKey+'\',\'body\',this.value)">'+escHtml(t.body||'')+'</textarea>'+
       '<div style="display:flex;align-items:center;">'+
-        '<button class="btn-save" onclick="saveTpl(\''+t.id+'\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>'+
-        '<span class="saved-msg" id="saved-'+t.id+'" style="display:none"><i class="ti ti-check"></i> 保存しました</span>'+
+        '<button class="btn-save" onclick="saveTpl(\''+t.fbKey+'\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>'+
+        '<span class="saved-msg" id="saved-'+t.fbKey+'" style="display:none"><i class="ti ti-check"></i> 保存しました</span>'+
       '</div>';
     list.appendChild(div);
   });
 }
 
-function updateTplName(id,val){ pendingTplChanges[id]=pendingTplChanges[id]||{}; pendingTplChanges[id].name=val; }
-function updateTplBody(id,val){ pendingTplChanges[id]=pendingTplChanges[id]||{}; pendingTplChanges[id].body=val; }
-function saveTpl(id) {
-  var c = pendingTplChanges[id]||{};
-  saveTpls(loadTpls().map(function(t){ return t.id===id?Object.assign({},t,c):t; }));
-  pendingTplChanges[id]={};
-  var el=document.getElementById('saved-'+id);
-  el.style.display=''; setTimeout(function(){ el.style.display='none'; },2000);
+function pendingTplChange(fbKey, field, val) {
+  pendingTplChanges[fbKey] = pendingTplChanges[fbKey] || {};
+  pendingTplChanges[fbKey][field] = val;
 }
-function deleteTpl(id) {
+
+function saveTpl(fbKey) {
+  var c = pendingTplChanges[fbKey] || {};
+  if (!Object.keys(c).length) return;
+  db.ref(DB_TPL+'/'+fbKey).update(c).then(function(){
+    pendingTplChanges[fbKey] = {};
+    var el = document.getElementById('saved-'+fbKey);
+    if (el) { el.style.display=''; setTimeout(function(){ el.style.display='none'; }, 2000); }
+  });
+}
+
+function deleteTpl(fbKey) {
   if (!confirm('この雛形を削除しますか？')) return;
-  saveTpls(loadTpls().filter(function(t){ return t.id!==id; }));
-  renderTpls();
+  db.ref(DB_TPL+'/'+fbKey).remove();
 }
+
 function addTpl() {
-  var t=loadTpls(); if(t.length>=5) return;
-  t.push({id:Date.now()+'',name:'',body:''}); saveTpls(t); renderTpls();
+  if (tpls.length >= 5) return;
+  db.ref(DB_TPL).push({ name:'', body:'', order: Date.now() });
 }
 
-function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// ===== ユーティリティ =====
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// コピーボタン（data属性経由で安全に）
+// コピーボタン
 document.addEventListener('click', function(e) {
   var btn = e.target.closest('.btn-copy');
   if (!btn) return;
@@ -304,50 +380,38 @@ document.addEventListener('click', function(e) {
   });
 });
 
-// URLパラメータから自動セット
-(function() {
+// ===== URLパラメータ =====
+function initFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var tel      = params.get('tel')      || '';
   var label    = params.get('label')    || '';
   var casename = params.get('casename') || '';
+  if (!tel && !label && !casename) return;
 
-  if (tel || label || casename) {
-    if (tel)   document.getElementById('tel-input').value = tel;
-    if (label) document.getElementById('label-input').value = decodeURIComponent(label);
+  if (tel)   document.getElementById('tel-input').value = tel;
+  if (label) document.getElementById('label-input').value = decodeURIComponent(label);
 
-    var bar = document.getElementById('info-bar');
-    var items = [];
-    if (casename) items.push({ key:'案件名', val: decodeURIComponent(casename) });
-    if (label)    items.push({ key:'担当者', val: decodeURIComponent(label) });
-    if (tel)      items.push({ key:'TEL',    val: tel });
+  var bar = document.getElementById('info-bar');
+  var items = [];
+  if (casename) items.push({ key:'案件名', val: decodeURIComponent(casename) });
+  if (label)    items.push({ key:'担当者', val: decodeURIComponent(label) });
+  if (tel)      items.push({ key:'TEL',    val: tel });
 
-    if (items.length) {
-      var html = '';
-      items.forEach(function(item) {
-        html += '<div class="info-item">'
-          + '<span class="info-key">' + item.key + '</span>'
-          + '<span class="info-val">' + escHtml(item.val) + '</span>'
-          + '<button class="btn-copy" data-copy="' + escHtml(item.val) + '">'
-          + '<i class="ti ti-copy" style="font-size:13px"></i>'
-          + '</button>'
-          + '</div>';
-      });
-      bar.innerHTML = html;
-      bar.style.display = 'block';
-    }
-
-    // 最初の雛形を自動選択
-    var tl = loadTpls();
-    if (tl.length) {
-      selectedTplId = tl[0].id;
-      document.getElementById('compose-area').value = tl[0].body || '';
-      updateCount();
-    }
+  if (items.length) {
+    var html = '';
+    items.forEach(function(item) {
+      html += '<div class="info-item">'
+        + '<span class="info-key">'+item.key+'</span>'
+        + '<span class="info-val">'+escHtml(item.val)+'</span>'
+        + '<button class="btn-copy" data-copy="'+escHtml(item.val)+'">'
+        + '<i class="ti ti-copy" style="font-size:13px"></i>'
+        + '</button>'
+        + '</div>';
+    });
+    bar.innerHTML = html;
+    bar.style.display = 'block';
   }
-})();
-
-renderPick();
-updateBadge();
+}
 </script>
 </body>
 </html>
