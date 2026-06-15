@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>MyClip</title>
 <style>
@@ -33,7 +33,6 @@
     padding-bottom: 40px;
   }
 
-  /* ヘッダー */
   .header {
     position: sticky;
     top: 0;
@@ -77,7 +76,6 @@
 
   .btn-icon:active { opacity: 0.7; }
 
-  /* 検索バー */
   .search-wrap {
     position: relative;
   }
@@ -106,7 +104,6 @@
   #searchInput:focus { border-color: var(--accent); }
   #searchInput::placeholder { color: var(--text-dim); }
 
-  /* 追加フォーム */
   .add-form {
     display: none;
     position: fixed;
@@ -206,7 +203,6 @@
     cursor: pointer;
   }
 
-  /* リスト */
   .main {
     padding: 0 16px;
   }
@@ -289,7 +285,6 @@
 
   .btn-small.del-btn { color: var(--danger); }
 
-  /* コピー完了トースト */
   .toast {
     position: fixed;
     bottom: 80px;
@@ -313,7 +308,6 @@
     transform: translateX(-50%) translateY(0);
   }
 
-  /* FAB */
   .fab {
     position: fixed;
     bottom: 24px;
@@ -335,21 +329,11 @@
 
   .fab:active { transform: scale(0.93); }
 
-  /* 空表示 */
   .empty {
     text-align: center;
     color: var(--text-dim);
     font-size: 14px;
     padding: 32px 0;
-  }
-
-  /* スワイプ削除ヒント */
-  .swipe-hint {
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-dim);
-    padding: 8px 0 0;
-    opacity: 0.6;
   }
 </style>
 </head>
@@ -378,7 +362,6 @@
   <div class="clip-list" id="historyList"></div>
 </div>
 
-<!-- 追加フォーム -->
 <div class="add-form" id="addForm" onclick="closeForm(event)">
   <div class="add-sheet">
     <h3>テキストを追加</h3>
@@ -398,14 +381,13 @@
 <button class="fab" onclick="openForm()">＋</button>
 <div class="toast" id="toast"></div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
 <script>
 var firebaseConfig = {
-  apiKey: "AIzaSyDummyKeyReplaceThis",
+  apiKey: "ここに実際のAPIキーを入れる",  // ← 他のHTMLファイルからコピー
   authDomain: "project-6745138395263517914.firebaseapp.com",
   databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
   projectId: "project-6745138395263517914",
@@ -418,34 +400,31 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 var auth = firebase.auth();
 
-var pinned = [];
-var history = [];
+var pinnedList = [];
+var clipHistory = [];  // 修正: historyはブラウザ予約語のため変更
 var isPinned = false;
 
-// 認証
 auth.signInAnonymously().then(function() {
-  // ピン留め購読
   db.ref('app_clipboard/pinned').on('value', function(snap) {
-    pinned = [];
+    pinnedList = [];
     var val = snap.val();
     if (val) {
       Object.keys(val).forEach(function(k) {
-        pinned.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
+        pinnedList.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
       });
-      pinned.sort(function(a,b){ return b.ts - a.ts; });
+      pinnedList.sort(function(a,b){ return b.ts - a.ts; });
     }
     renderList();
   });
 
-  // 履歴購読
   db.ref('app_clipboard/history').on('value', function(snap) {
-    history = [];
+    clipHistory = [];
     var val = snap.val();
     if (val) {
       Object.keys(val).forEach(function(k) {
-        history.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
+        clipHistory.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
       });
-      history.sort(function(a,b){ return b.ts - a.ts; });
+      clipHistory.sort(function(a,b){ return b.ts - a.ts; });
     }
     renderList();
   });
@@ -454,27 +433,17 @@ auth.signInAnonymously().then(function() {
 function renderList() {
   var q = document.getElementById('searchInput').value.trim().toLowerCase();
 
-  // ピン留め
-  var pFiltered = pinned.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
+  var pFiltered = pinnedList.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
   var pEl = document.getElementById('pinnedList');
-  if (pFiltered.length === 0) {
-    pEl.innerHTML = '<div class="empty">ピン留めなし</div>';
-  } else {
-    pEl.innerHTML = pFiltered.map(function(item) {
-      return buildItem(item, true);
-    }).join('');
-  }
+  pEl.innerHTML = pFiltered.length === 0
+    ? '<div class="empty">ピン留めなし</div>'
+    : pFiltered.map(function(item){ return buildItem(item, true); }).join('');
 
-  // 履歴
-  var hFiltered = history.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
+  var hFiltered = clipHistory.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
   var hEl = document.getElementById('historyList');
-  if (hFiltered.length === 0) {
-    hEl.innerHTML = '<div class="empty">履歴なし</div>';
-  } else {
-    hEl.innerHTML = hFiltered.map(function(item) {
-      return buildItem(item, false);
-    }).join('');
-  }
+  hEl.innerHTML = hFiltered.length === 0
+    ? '<div class="empty">履歴なし</div>'
+    : hFiltered.map(function(item){ return buildItem(item, false); }).join('');
 }
 
 function buildItem(item, isPin) {
@@ -492,23 +461,20 @@ function buildItem(item, isPin) {
 }
 
 function copyItem(key, type) {
-  var list = type === 'pinned' ? pinned : history;
+  var list = type === 'pinned' ? pinnedList : clipHistory;
   var item = list.find(function(i){ return i.key === key; });
   if (!item) return;
   navigator.clipboard.writeText(item.text).then(function() {
     showToast('コピーしました');
-    // 履歴に追加（ピン留め以外）
     if (type === 'history') {
-      // 使用時刻を更新
       db.ref('app_clipboard/history/' + key + '/ts').set(Date.now());
     }
-    // current も更新
     db.ref('app_clipboard/current').set({ text: item.text, ts: Date.now() });
   });
 }
 
 function pinItem(key) {
-  var item = history.find(function(i){ return i.key === key; });
+  var item = clipHistory.find(function(i){ return i.key === key; });
   if (!item) return;
   db.ref('app_clipboard/pinned').push({ text: item.text, ts: Date.now() });
   showToast('ピン留めしました');
@@ -528,16 +494,13 @@ function addItem() {
   if (!text) return;
   var node = isPinned ? 'app_clipboard/pinned' : 'app_clipboard/history';
   db.ref(node).push({ text: text, ts: Date.now() });
-  // current も更新
   db.ref('app_clipboard/current').set({ text: text, ts: Date.now() });
   document.getElementById('newText').value = '';
   isPinned = false;
   document.getElementById('pinToggle').classList.remove('active');
   closeForm();
   showToast('保存しました');
-
-  // 履歴は50件上限
-  if (!isPinned) trimHistory();
+  trimHistory();
 }
 
 function trimHistory() {
@@ -548,8 +511,9 @@ function trimHistory() {
     if (keys.length > 50) {
       var sorted = keys.map(function(k){ return { key: k, ts: val[k].ts || 0 }; });
       sorted.sort(function(a,b){ return a.ts - b.ts; });
-      var toDelete = sorted.slice(0, sorted.length - 50);
-      toDelete.forEach(function(i){ db.ref('app_clipboard/history/' + i.key).remove(); });
+      sorted.slice(0, sorted.length - 50).forEach(function(i){
+        db.ref('app_clipboard/history/' + i.key).remove();
+      });
     }
   });
 }
@@ -585,7 +549,6 @@ function showToast(msg) {
   setTimeout(function(){ t.classList.remove('show'); }, 1600);
 }
 
-// 外部からテキストを追加する関数（Chrome拡張から利用）
 window.addClipText = function(text, pin) {
   if (!text) return;
   var node = pin ? 'app_clipboard/pinned' : 'app_clipboard/history';
