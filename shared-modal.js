@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全張り替え版】 */
+/* shared-modal.js — 共通モーダル【全張り替え版】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
@@ -103,6 +103,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var yoteiStr = obj.date||"未定";
   var ankenText = getSafeValModal(cols,4).trim()||"名称未設定";
   var timeOpts = generateTimeOptions();
+  var isFlagged = obj.flagged || false;
 
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
@@ -154,6 +155,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div></div>';
 
   html += '<div style="margin-top:18px;text-align:center;">';
+  html += '<button class="modal-flag-btn'+(isFlagged?' flagged':'')+'" id="modal-flag-btn">'+(isFlagged?'⚑ 注目中':'⚐ 注目')+'</button>';
   html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
   html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
@@ -190,6 +192,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
+  // ⚑ 注目ボタン（保存不要・即時Firebase反映）
+  document.getElementById('modal-flag-btn').addEventListener('click', function(){
+    isFlagged = !isFlagged;
+    this.classList.toggle('flagged', isFlagged);
+    this.textContent = isFlagged ? '⚑ 注目中' : '⚐ 注目';
+    firebaseDB.ref('app_tasks/' + key).update({flagged: isFlagged});
+    globalTasks[key].flagged = isFlagged;
+    if(fullData){fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData));}
+    if(typeof onSaveCallback === 'function') onSaveCallback();
+  });
+
   document.getElementById('modal-save-btn').addEventListener('click',function(){
     var nd=document.getElementById('modal-date').value;
     var nt=document.getElementById('modal-time').value;
@@ -205,7 +218,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
 
-    // GASに案件IDを渡して即時同期（スプシ+カレンダー1件のみ）
     fetch(GAS_WEBHOOK_URL + "?id=" + encodeURIComponent(key), {method:"GET", mode:"no-cors"}).catch(function(){});
 
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
