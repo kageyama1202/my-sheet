@@ -65,8 +65,9 @@
     .settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9998;}
     .settings-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:24px;border-radius:8px;width:90%;max-width:400px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,0.3);}
     .settings-modal h3{margin:0 0 15px 0;font-size:16px;}
-    .settings-modal input{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;margin-bottom:10px;}
-    .settings-modal .btns{display:flex;gap:8px;}
+    .settings-modal label{font-size:12px;color:#555;display:block;margin-bottom:4px;margin-top:10px;}
+    .settings-modal input{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;margin-bottom:4px;}
+    .settings-modal .btns{display:flex;gap:8px;margin-top:14px;}
     .settings-modal .btns button{flex:1;padding:8px;border:none;border-radius:4px;font-weight:bold;cursor:pointer;}
   </style>
 </head>
@@ -106,14 +107,18 @@
   <button class="btn-reset" onclick="resetAll()">🔄 やり直し</button>
 </div>
 
+<!-- API設定モーダル -->
 <div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="settings-modal">
-    <h3>⚙️ Gemini API設定</h3>
-    <input type="password" id="apiKeyInput" placeholder="AIza..." />
-    <div style="font-size:11px;color:#888;margin-bottom:10px;">localStorageに保存。サーバー送信なし。</div>
+    <h3>⚙️ API設定</h3>
+    <label>Claude APIキー（agenda.html用）</label>
+    <input type="password" id="claudeKeyInput" placeholder="sk-ant-..." />
+    <div style="font-size:11px;color:#888;margin-bottom:4px;">localStorageに保存。サーバー送信なし。</div>
+    <div style="display:flex;gap:8px;">
+      <button style="padding:6px 10px;background:#6c757d;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;" onclick="testClaudeKey()">🧪 テスト</button>
+      <button style="padding:6px 10px;background:#007bff;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;" onclick="saveClaudeKey()">💾 保存</button>
+    </div>
     <div class="btns">
-      <button style="background:#28a745;color:#fff;" onclick="testKey()">🧪 テスト</button>
-      <button style="background:#007bff;color:#fff;" onclick="saveKey()">💾 保存</button>
       <button style="background:#6c757d;color:#fff;" onclick="document.getElementById('settingsOverlay').style.display='none'">閉じる</button>
     </div>
   </div>
@@ -139,7 +144,6 @@ var finalSelection={};
 // --- 日付ユーティリティ ---
 function getDateStr(offset){
   var d=new Date();
-  // JSTで計算
   var jst=new Date(d.getTime()+9*3600000);
   jst.setUTCDate(jst.getUTCDate()+offset);
   return jst.getUTCFullYear()+'-'+String(jst.getUTCMonth()+1).padStart(2,'0')+'-'+String(jst.getUTCDate()).padStart(2,'0');
@@ -147,7 +151,6 @@ function getDateStr(offset){
 function formatDateLabel(ds){var p=ds.split('-');var d=new Date(ds+'T00:00:00+09:00');var dow=['日','月','火','水','木','金','土'];return parseInt(p[1])+'/'+parseInt(p[2])+'('+dow[d.getDay()]+')';}
 function simplifyRegion(addr){if(!addr)return'??';var s=String(addr).replace(/北海道|東京都|大阪府|京都府|[一-龠]{2,3}県/g,'').trim();if(s.startsWith('札幌市'))s=s.replace(/^札幌市/,'');s=s.replace(/^.+?郡(?=.*?[町村])/,'');return s.substring(0,12);}
 
-// ★ 施工完了判定（agenda.htmlと同じロジック）
 function isKoujiCompleted(task, koujiDate){
   var today=getDateStr(0);
   if(koujiDate>=today)return false;
@@ -157,7 +160,6 @@ function isKoujiCompleted(task, koujiDate){
   for(var i=0;i<completedPatterns.length;i++){
     if(sfStatus===completedPatterns[i]||localStatus===completedPatterns[i])return true;
   }
-  // 60日以上過去は除外
   var diffDays=(new Date(today)-new Date(koujiDate))/86400000;
   if(diffDays>60)return true;
   return false;
@@ -197,22 +199,17 @@ function extractAllVisits(){
     var c16=cols[16]?String(cols[16]).trim():'';
     var reformDate=task.date||'';
 
-    // ★ 施工完了済みは除外
     if(isKoujiCompleted(task, c2))return;
 
-    // リフォーム → 確定済み（日時固定）
     if((c3==='ﾘ'||c3==='ﾊﾘ')&&reformDate!==''){
-      // ★ 施工日が過去なら除外
       if(c2&&c2<getDateStr(0))return;
       if(targetDates.indexOf(reformDate)!==-1){
         allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,visit_time:c16,detail:'リフォーム（確定: '+reformDate+(c16?' '+c16:'')+' ）',type:'reform',fixed:true});
       }
     }
 
-    // 新築 → ★ 施工日が過去なら除外
     if(c3==='新'&&c2!==''){
       if(c2<getDateStr(0))return;
-
       var sekouLabel=c2.replace(/-/g,'/');
       var sekou=new Date(c2+'T00:00:00+09:00');
 
@@ -358,10 +355,10 @@ function updateCount(){
   document.getElementById('btnAI').disabled=(activeFixed.length+activeNew.length)===0;
 }
 
-// --- AI提案 ---
+// --- Claude API呼び出し ---
 function runAI(){
-  var apiKey=localStorage.getItem('geminiApiKey');
-  if(!apiKey){openSettings();return;}
+  var claudeKey=localStorage.getItem('claudeApiKey');
+  if(!claudeKey){openSettings();return;}
 
   var active=allVisits.filter(function(v){return!v.fixed&&!excludedKeys[v.key];});
   var fixed=allVisits.filter(function(v){return v.fixed&&!excludedKeys[v.key];});
@@ -410,24 +407,34 @@ function runAI(){
     '5. 同じ日の中では移動距離が最小になるルート順を決める。リフォームの時間を考慮して前後に新築を配置する。\n'+
     '6. 新築の算出日は目安。地域をまとめるためにずらしてよい。\n\n'+
     '【出力】新築案件のみJSON出力。リフォームは含めない。reasonは5文字以内。keyはoriginalKeyがあればそれを使う。\n'+
+    'JSONのみ返すこと。前置き・後置き・コードブロック不要。\n'+
     '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"FBキー","order":1,"reason":"5文字"}]}],"summary":"一行"}';
 
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(apiKey),{
+  fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': claudeKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
     body:JSON.stringify({
-      contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.1,maxOutputTokens:16384}
+      model:'claude-sonnet-4-6',
+      max_tokens:8000,
+      system:'あなたはスケジュール最適化AIです。JSONのみ出力。前置き・後置き・コードブロック不要。',
+      messages:[{role:'user',content:prompt}]
     })
   })
   .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
   .then(function(data){
     var text='';
-    try{text=data.candidates[0].content.parts[0].text;}catch(e){
-      if(data.error)throw new Error(data.error.message);
+    try{
+      if(!data.content||!data.content[0])throw new Error('レスポンス異常');
+      text=data.content[0].text;
+    }catch(e){
+      if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
       throw new Error('レスポンス解析エラー');
     }
-    // JSON抽出：コードブロック→波括弧範囲の順で試みる
     var jsonStr='';
     var fenceMatch=text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if(fenceMatch){
@@ -595,25 +602,36 @@ function resetAll(){
   renderCaseList();updateCount();
 }
 
+// --- API設定 ---
 function openSettings(){
-  document.getElementById('apiKeyInput').value=localStorage.getItem('geminiApiKey')||'';
+  document.getElementById('claudeKeyInput').value=localStorage.getItem('claudeApiKey')||'';
   document.getElementById('settingsOverlay').style.display='block';
 }
-function saveKey(){
-  var k=document.getElementById('apiKeyInput').value.trim();
+function saveClaudeKey(){
+  var k=document.getElementById('claudeKeyInput').value.trim();
   if(!k){alert('キーを入力してください');return;}
-  localStorage.setItem('geminiApiKey',k);
-  alert('保存しました');
+  localStorage.setItem('claudeApiKey',k);
+  alert('Claude APIキーを保存しました');
   document.getElementById('settingsOverlay').style.display='none';
 }
-function testKey(){
-  var k=document.getElementById('apiKeyInput').value.trim();
+function testClaudeKey(){
+  var k=document.getElementById('claudeKeyInput').value.trim();
   if(!k){alert('キーを入力してください');return;}
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(k),{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contents:[{parts:[{text:'テスト。OKとだけ返して。'}]}]})
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':k,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:10,
+      messages:[{role:'user',content:'テスト。OKとだけ返して。'}]
+    })
   }).then(function(r){return r.json();}).then(function(d){
-    if(d.candidates&&d.candidates[0])alert('✅ 有効！');
+    if(d.content&&d.content[0])alert('✅ 有効！ レスポンス: '+d.content[0].text);
     else if(d.error)alert('❌ '+d.error.message);
     else alert('⚠️ 不明: '+JSON.stringify(d));
   }).catch(function(e){alert('❌ '+e.message);});
@@ -624,17 +642,13 @@ function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textCon
 function repairJson(str){
   try{JSON.parse(str);return str;}catch(e){}
   var s=str;
-  // 末尾カンマ除去
   s=s.replace(/,\s*([\]\}])/g,'$1');
   s=s.replace(/,\s*$/,'');
-  // 開いたままの文字列を閉じる（奇数クォート）
   var q=0;
   for(var qi=0;qi<s.length;qi++){if(s[qi]==='"'&&(qi===0||s[qi-1]!=='\\'))q++;}
   if(q%2!==0)s+='"';
-  // 末尾カンマ再除去（クォート追加後）
   s=s.replace(/,\s*([\]\}])/g,'$1');
   s=s.replace(/,\s*$/,'');
-  // 括弧を閉じる
   var opens=0,closes=0,braces=0,braceC=0;
   for(var i=0;i<s.length;i++){
     if(s[i]==='[')opens++;
