@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SMS送信</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-<script src="firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
@@ -19,8 +22,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .section.active{display:block;}
 .card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
 .section-label{font-size:11px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;}
-
-/* 情報バー */
 .info-bar{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;}
 .info-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;}
 .info-item:last-child{border-bottom:none;}
@@ -28,8 +29,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .info-val{font-size:13px;color:#1a1a1a;flex:1;word-break:break-all;}
 .btn-copy{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:5px 10px;cursor:pointer;color:#888;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .btn-copy:active{background:#f5f5f5;}
-
-/* 作成タブ */
 .tpl-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
 .tpl-btn{font-size:13px;padding:7px 14px;border:1px solid #d0d0d0;border-radius:20px;background:#fff;color:#1a1a1a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .tpl-btn.selected{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
@@ -43,8 +42,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .btn-add-list{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;background:#1a1a1a;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;margin-top:12px;-webkit-tap-highlight-color:transparent;}
 .btn-add-list:active{opacity:0.85;}
 .btn-add-list:disabled{opacity:0.4;cursor:not-allowed;}
-
-/* 送信リスト */
 .send-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
 .send-card.done{opacity:0.4;}
 .send-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;}
@@ -63,8 +60,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2.5rem 0;line-height:1.9;}
 .done-badge{font-size:11px;color:#4caf50;white-space:nowrap;}
 .loading-hint{text-align:center;color:#aaa;font-size:13px;padding:2rem 0;}
-
-/* 雛形タブ */
 .tpl-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .tpl-name-input{font-size:13px;font-weight:500;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;flex:1;background:#fafafa;color:#1a1a1a;font-family:inherit;}
 .tpl-name-input:focus{outline:none;border-color:#aaa;background:#fff;}
@@ -86,7 +81,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
   <div class="tab" id="tab-btn-tpl" onclick="showTab('tpl')"><i class="ti ti-template"></i> 雛形</div>
 </div>
 
-<!-- 作成タブ -->
 <div id="tab-compose" class="section active">
   <div class="info-bar" id="info-bar"></div>
   <div class="section-label">雛形を選ぶ</div>
@@ -109,7 +103,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
   </div>
 </div>
 
-<!-- 送信リストタブ -->
 <div id="tab-list" class="section">
   <div class="counter-row">
     <span class="counter" id="list-counter"></span>
@@ -118,7 +111,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
   <div id="send-list"><div class="loading-hint">読み込み中...</div></div>
 </div>
 
-<!-- 雛形タブ -->
 <div id="tab-tpl" class="section">
   <div id="tpl-list"></div>
   <button class="btn-add-tpl" id="add-tpl-btn" onclick="addTpl()">
@@ -129,27 +121,22 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 <script>
 var DB_TPL  = 'app_sms_templates';
 var DB_LIST = 'app_sms_list';
-
 var db = null;
 var tpls = [];
 var sendList = [];
 var selectedTplId = null;
 var pendingTplChanges = {};
-var isReady = false;
+var currentTab = 'compose';
 
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('compose-area').addEventListener('input', updateCount);
+// Firebase 匿名ログイン → データ読み込み
+firebase.auth().signInAnonymously().then(function() {
+  db = firebase.database();
+  loadAllData();
+  initFromUrl();
+}).catch(function(e){ console.error('auth error', e); });
 
-  firebase.auth().onAuthStateChanged(function(user) {
-    if (!user) return;
-    db = firebase.database();
-    isReady = true;
-    loadAllData();
-    initFromUrl(); // URLパラメータ適用（DOMは確実に存在）
-  });
-});
+document.getElementById('compose-area').addEventListener('input', updateCount);
 
-// ===== データ読み込み =====
 function loadAllData() {
   db.ref(DB_TPL).on('value', function(snap) {
     var val = snap.val();
@@ -186,8 +173,6 @@ function writeDefaultTpls() {
   defaults.forEach(function(t) { db.ref(DB_TPL).push(t); });
 }
 
-// ===== タブ管理 =====
-var currentTab = 'compose';
 function showTab(t) {
   currentTab = t;
   ['compose','list','tpl'].forEach(function(n){
@@ -199,7 +184,6 @@ function showTab(t) {
   if (t==='tpl')     renderTpls();
 }
 
-// ===== 雛形ピッカー =====
 function renderPick() {
   var pick = document.getElementById('tpl-pick');
   if (!tpls.length) { pick.innerHTML='<span class="no-tpl">雛形なし — 「雛形」タブで作成してください</span>'; return; }
@@ -223,9 +207,8 @@ function updateCount() {
   document.getElementById('char-count').textContent = document.getElementById('compose-area').value.length;
 }
 
-// ===== 送信リスト追加 =====
 function addToList() {
-  if (!isReady) return;
+  if (!db) return;
   var tel   = document.getElementById('tel-input').value.trim().replace(/[^\d+]/g,'');
   var body  = document.getElementById('compose-area').value.trim();
   var label = document.getElementById('label-input').value.trim();
@@ -247,7 +230,6 @@ function addToList() {
     .catch(function(e){ btn.disabled=false; alert('保存エラー: '+e.message); });
 }
 
-// ===== 送信リスト描画 =====
 function renderList() {
   var el = document.getElementById('send-list');
   var pending = sendList.filter(function(i){ return !i.done; });
@@ -300,7 +282,6 @@ function updateBadge() {
   document.getElementById('list-badge').textContent = n ? '('+n+')' : '';
 }
 
-// ===== 雛形タブ =====
 function renderTpls() {
   var list = document.getElementById('tpl-list');
   list.innerHTML = '';
@@ -348,10 +329,8 @@ function addTpl() {
   db.ref(DB_TPL).push({ name:'', body:'', order: Date.now() });
 }
 
-// ===== ユーティリティ =====
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// コピーボタン
 document.addEventListener('click', function(e) {
   var btn = e.target.closest('.btn-copy');
   if (!btn) return;
@@ -365,7 +344,7 @@ document.addEventListener('click', function(e) {
   });
 });
 
-// ===== URLパラメータ（二重デコード修正済み）=====
+// URLパラメータ（二重デコードなし）
 function initFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var tel      = params.get('tel')      || '';
@@ -374,12 +353,12 @@ function initFromUrl() {
   if (!tel && !label && !casename) return;
 
   if (tel)   document.getElementById('tel-input').value = tel;
-  if (label) document.getElementById('label-input').value = label; // ← 修正：二重デコード除去
+  if (label) document.getElementById('label-input').value = label;
 
   var bar = document.getElementById('info-bar');
   var items = [];
-  if (casename) items.push({ key:'案件名', val: casename }); // ← 修正
-  if (label)    items.push({ key:'担当者', val: label });    // ← 修正
+  if (casename) items.push({ key:'案件名', val: casename });
+  if (label)    items.push({ key:'担当者', val: label });
   if (tel)      items.push({ key:'TEL',    val: tel });
 
   if (items.length) {
