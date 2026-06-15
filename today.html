@@ -90,29 +90,29 @@ tr.deadline-label:hover{background:transparent !important;cursor:default !import
 tr.deadline-label-10 td{border-top:3px solid #d32f2f !important;color:#d32f2f;background:#fff0f0;}
 tr.deadline-label-21 td{border-top:3px solid #e65100 !important;color:#e65100;background:#fff8f0;}
 
-/* ⚑ 注目フラグ行の点滅（ピンク） */
+/* ⚑ 注目フラグ行の点滅（薄ピンク） */
 @keyframes flagBlink {
-  0%   { background-color: #f48fb1; box-shadow: inset 3px 0 0 #880e4f; }
-  50%  { background-color: #e91e63; box-shadow: inset 3px 0 0 #880e4f; }
-  100% { background-color: #f48fb1; box-shadow: inset 3px 0 0 #880e4f; }
+  0%   { background-color: #fff0f5; box-shadow: inset 3px 0 0 #f48fb1; }
+  50%  { background-color: #fce4ec; box-shadow: inset 3px 0 0 #f06292; }
+  100% { background-color: #fff0f5; box-shadow: inset 3px 0 0 #f48fb1; }
 }
 tr.flagged-row {
   animation: flagBlink 2.5s ease-in-out infinite;
 }
-tr.flagged-row td { color: #fff !important; }
-tr.flagged-row:hover { background-color: #e91e63 !important; animation: none; box-shadow: none; }
+tr.flagged-row td { color: #880e4f !important; }
+tr.flagged-row:hover { background-color: #fce4ec !important; animation: none; box-shadow: none; }
 
-/* 📞 連絡必要行の点滅（青緑） */
+/* 📞 連絡必要行の点滅（薄青緑） */
 @keyframes contactBlink {
-  0%   { background-color: #e0f7fa; box-shadow: inset 3px 0 0 #00838f; }
-  50%  { background-color: #00bcd4; box-shadow: inset 3px 0 0 #006064; }
-  100% { background-color: #e0f7fa; box-shadow: inset 3px 0 0 #00838f; }
+  0%   { background-color: #f0fdfd; box-shadow: inset 3px 0 0 #80deea; }
+  50%  { background-color: #e0f7fa; box-shadow: inset 3px 0 0 #4dd0e1; }
+  100% { background-color: #f0fdfd; box-shadow: inset 3px 0 0 #80deea; }
 }
 tr.needs-contact-row {
   animation: contactBlink 2s ease-in-out infinite;
 }
-tr.needs-contact-row td { color: #006064 !important; font-weight: bold; }
-tr.needs-contact-row:hover { background-color: #00bcd4 !important; animation: none; box-shadow: none; }
+tr.needs-contact-row td { color: #00695c !important; }
+tr.needs-contact-row:hover { background-color: #e0f7fa !important; animation: none; box-shadow: none; }
 </style>
 </head>
 <body>
