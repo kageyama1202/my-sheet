@@ -127,11 +127,6 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <script>
-// ===== Firebase 初期化 =====
-// firebase-auth.js の firebaseConfig を流用
-// （firebase-auth.js が window.firebaseConfig をセットしている前提）
-// もし firebase-auth.js で firebase.initializeApp() まで完了している場合はそのまま使う
-
 var DB_TPL  = 'app_sms_templates';
 var DB_LIST = 'app_sms_list';
 
@@ -142,30 +137,26 @@ var selectedTplId = null;
 var pendingTplChanges = {};
 var isReady = false;
 
-// Firebase 認証完了後に初期化
 document.addEventListener('DOMContentLoaded', function() {
-  // firebase-auth.js が signInAnonymously を呼ぶ想定
-  // auth state が確定したら DB 接続
+  document.getElementById('compose-area').addEventListener('input', updateCount);
+
   firebase.auth().onAuthStateChanged(function(user) {
     if (!user) return;
     db = firebase.database();
     isReady = true;
     loadAllData();
-    initFromUrl();
+    initFromUrl(); // URLパラメータ適用（DOMは確実に存在）
   });
 });
 
 // ===== データ読み込み =====
 function loadAllData() {
-  // 雛形
   db.ref(DB_TPL).on('value', function(snap) {
     var val = snap.val();
     if (val) {
-      // object → array (キー順)
       tpls = Object.keys(val).map(function(k){ return Object.assign({fbKey:k}, val[k]); });
       tpls.sort(function(a,b){ return (a.order||0)-(b.order||0); });
     } else {
-      // デフォルト雛形を書き込む
       tpls = [];
       writeDefaultTpls();
     }
@@ -173,7 +164,6 @@ function loadAllData() {
     if (currentTab === 'tpl') renderTpls();
   });
 
-  // 送信リスト
   db.ref(DB_LIST).on('value', function(snap) {
     var val = snap.val();
     if (val) {
@@ -193,9 +183,7 @@ function writeDefaultTpls() {
     { name:'施工前確認', order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
     { name:'日程調整',   order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
   ];
-  defaults.forEach(function(t) {
-    db.ref(DB_TPL).push(t);
-  });
+  defaults.forEach(function(t) { db.ref(DB_TPL).push(t); });
 }
 
 // ===== タブ管理 =====
@@ -211,7 +199,7 @@ function showTab(t) {
   if (t==='tpl')     renderTpls();
 }
 
-// ===== 雛形ピッカー（作成タブ） =====
+// ===== 雛形ピッカー =====
 function renderPick() {
   var pick = document.getElementById('tpl-pick');
   if (!tpls.length) { pick.innerHTML='<span class="no-tpl">雛形なし — 「雛形」タブで作成してください</span>'; return; }
@@ -234,9 +222,6 @@ function renderPick() {
 function updateCount() {
   document.getElementById('char-count').textContent = document.getElementById('compose-area').value.length;
 }
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('compose-area').addEventListener('input', updateCount);
-});
 
 // ===== 送信リスト追加 =====
 function addToList() {
@@ -380,7 +365,7 @@ document.addEventListener('click', function(e) {
   });
 });
 
-// ===== URLパラメータ =====
+// ===== URLパラメータ（二重デコード修正済み）=====
 function initFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var tel      = params.get('tel')      || '';
@@ -389,12 +374,12 @@ function initFromUrl() {
   if (!tel && !label && !casename) return;
 
   if (tel)   document.getElementById('tel-input').value = tel;
-  if (label) document.getElementById('label-input').value = decodeURIComponent(label);
+  if (label) document.getElementById('label-input').value = label; // ← 修正：二重デコード除去
 
   var bar = document.getElementById('info-bar');
   var items = [];
-  if (casename) items.push({ key:'案件名', val: decodeURIComponent(casename) });
-  if (label)    items.push({ key:'担当者', val: decodeURIComponent(label) });
+  if (casename) items.push({ key:'案件名', val: casename }); // ← 修正
+  if (label)    items.push({ key:'担当者', val: label });    // ← 修正
   if (tel)      items.push({ key:'TEL',    val: tel });
 
   if (items.length) {
