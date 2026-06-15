@@ -128,7 +128,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<label><input type="checkbox" id="modal-heardFromAccountant"'+(obj.heardFromAccountant?' checked':'')+'> 📊 帳場さん</label></div>';
   html += '<div class="modal-check-row">';
   html += '<label><input type="checkbox" id="modal-emailSent"'+(obj.emailSent?' checked':'')+'> ✉️ 施工日確認メール済</label>';
-  html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div></div>';
+  html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div>';
+  // 連絡必要チェック
+  html += '<div class="modal-check-row" style="margin-top:8px;border-top:1px solid #b2ebf2;padding-top:8px;">';
+  html += '<label style="color:#00695c;font-weight:bold;font-size:13px;"><input type="checkbox" id="modal-needsContact"'+(obj.needsContact?' checked':'')+'> 📞 連絡必要</label></div>';
+  html += '</div>';
 
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
@@ -212,10 +216,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var hfa=document.getElementById('modal-heardFromAccountant').checked;
     var es=document.getElementById('modal-emailSent').checked;
     var fr=document.getElementById('modal-finalReport').checked;
+    var nc=document.getElementById('modal-needsContact').checked;
     var memoEl=document.getElementById('modal-memo');
     var memo=memoEl ? memoEl.value : (obj.memo||'');
 
-    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,memo:memo};
+    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,needsContact:nc,memo:memo};
     firebaseDB.ref('app_tasks/'+key).update(updates);
 
     fetch(GAS_WEBHOOK_URL + "?id=" + encodeURIComponent(key), {method:"GET", mode:"no-cors"}).catch(function(){});
@@ -223,7 +228,8 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
     globalTasks[key].localStatus=selectedStatus;globalTasks[key].constructionDateConfirmed=cdc;
     globalTasks[key].heardFromCarpenter=hfc;globalTasks[key].heardFromAccountant=hfa;
-    globalTasks[key].emailSent=es;globalTasks[key].finalReport=fr;globalTasks[key].memo=memo;
+    globalTasks[key].emailSent=es;globalTasks[key].finalReport=fr;
+    globalTasks[key].needsContact=nc;globalTasks[key].memo=memo;
     if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
 
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
