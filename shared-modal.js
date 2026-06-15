@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全張り替え版】*/
+/* shared-modal.js — 共通モーダル【全即時保存版】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 var GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyiWM95gwpTGJLcfrLS0BH6fy_pboh_FZUUoVMnZStVI0cv5-lr4By8cG6_C5k-Vuub0Q/exec";
@@ -104,6 +104,23 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var ankenText = getSafeValModal(cols,4).trim()||"名称未設定";
   var timeOpts = generateTimeOptions();
   var isFlagged = obj.flagged || false;
+  var isNeedsContact = obj.needsContact || false;
+
+  // 即時保存用ヘルパー
+  function saveField(updates) {
+    firebaseDB.ref('app_tasks/'+key).update(updates);
+    for (var k in updates) { globalTasks[key][k] = updates[k]; }
+    if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+    showSavedMsg();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
+  }
+  function showSavedMsg() {
+    var msg = document.getElementById('modal-save-msg');
+    if (!msg) return;
+    msg.style.display = 'inline';
+    clearTimeout(msg._t);
+    msg._t = setTimeout(function(){ msg.style.display = 'none'; }, 1500);
+  }
 
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
@@ -129,9 +146,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-check-row">';
   html += '<label><input type="checkbox" id="modal-emailSent"'+(obj.emailSent?' checked':'')+'> ✉️ 施工日確認メール済</label>';
   html += '<label><input type="checkbox" id="modal-finalReport"'+(obj.finalReport?' checked':'')+'> 📋 最終報告完了</label></div>';
-  // 連絡必要チェック
-  html += '<div class="modal-check-row" style="margin-top:8px;border-top:1px solid #b2ebf2;padding-top:8px;">';
-  html += '<label style="color:#00695c;font-weight:bold;font-size:13px;"><input type="checkbox" id="modal-needsContact"'+(obj.needsContact?' checked':'')+'> 📞 連絡必要</label></div>';
   html += '</div>';
 
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
@@ -160,7 +174,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-flag-btn'+(isFlagged?' flagged':'')+'" id="modal-flag-btn">'+(isFlagged?'⚑ 注目中':'⚐ 注目')+'</button>';
-  html += '<button class="modal-save-btn" id="modal-save-btn">💾 保存</button>';
+  html += '<button class="modal-contact-btn'+(isNeedsContact?' active':'')+'" id="modal-contact-btn" style="margin:4px 6px;padding:5px 14px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;border:1px solid #00838f;background:'+(isNeedsContact?'#00bcd4':'#e0f7fa')+';color:'+(isNeedsContact?'#fff':'#006064')+';">'+(isNeedsContact?'📞 連絡必要中':'📞 連絡必要')+'</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
   html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
   var _smsTel = normalizePhoneModal(getSafeValModal(cols,6));
@@ -189,55 +203,71 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var btn=document.createElement('div');btn.className='kanban-step';
     var isActive=kanbanStatuses.indexOf(selectedStatus)>=i;
     btn.style.background=isActive?kanbanColors[i]:'#f5f5f5';btn.style.color=isActive?'#fff':'#999';btn.textContent=st;
-    btn.addEventListener('click',function(){selectedStatus=st;var bs=kanbanBar.children;for(var j=0;j<bs.length;j++){var a=kanbanStatuses.indexOf(st)>=j;bs[j].style.background=a?kanbanColors[j]:'#f5f5f5';bs[j].style.color=a?'#fff':'#999';}});
+    btn.addEventListener('click',function(){
+      selectedStatus=st;
+      var bs=kanbanBar.children;
+      for(var j=0;j<bs.length;j++){var a=kanbanStatuses.indexOf(st)>=j;bs[j].style.background=a?kanbanColors[j]:'#f5f5f5';bs[j].style.color=a?'#fff':'#999';}
+      saveField({localStatus:selectedStatus});
+    });
     kanbanBar.appendChild(btn);
   });
   document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+currentStatus;
 
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
-  // ⚑ 注目ボタン（保存不要・即時Firebase反映）
+  // ⚑ 注目ボタン（即時）
   document.getElementById('modal-flag-btn').addEventListener('click', function(){
     isFlagged = !isFlagged;
     this.classList.toggle('flagged', isFlagged);
     this.textContent = isFlagged ? '⚑ 注目中' : '⚐ 注目';
-    firebaseDB.ref('app_tasks/' + key).update({flagged: isFlagged});
-    globalTasks[key].flagged = isFlagged;
-    if(fullData){fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData));}
-    if(typeof onSaveCallback === 'function') onSaveCallback();
+    saveField({flagged: isFlagged});
   });
 
-  document.getElementById('modal-save-btn').addEventListener('click',function(){
-    var nd=document.getElementById('modal-date').value;
-    var nt=document.getElementById('modal-time').value;
-    var no=document.getElementById('modal-order').value;
-    var cdc=document.getElementById('modal-constructionDateConfirmed').checked;
-    var hfc=document.getElementById('modal-heardFromCarpenter').checked;
-    var hfa=document.getElementById('modal-heardFromAccountant').checked;
-    var es=document.getElementById('modal-emailSent').checked;
-    var fr=document.getElementById('modal-finalReport').checked;
-    var nc=document.getElementById('modal-needsContact').checked;
-    var memoEl=document.getElementById('modal-memo');
-    var memo=memoEl ? memoEl.value : (obj.memo||'');
+  // 📞 連絡必要ボタン（即時）
+  document.getElementById('modal-contact-btn').addEventListener('click', function(){
+    isNeedsContact = !isNeedsContact;
+    this.classList.toggle('active', isNeedsContact);
+    this.textContent = isNeedsContact ? '📞 連絡必要中' : '📞 連絡必要';
+    saveField({needsContact: isNeedsContact});
+  });
 
-    var updates={date:nd,time:nt,order:no,localStatus:selectedStatus,constructionDateConfirmed:cdc,heardFromCarpenter:hfc,heardFromAccountant:hfa,emailSent:es,finalReport:fr,needsContact:nc,memo:memo};
-    firebaseDB.ref('app_tasks/'+key).update(updates);
+  // チェックボックス類（即時）
+  function bindCheck(id, field) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', function(){ var upd={}; upd[field]=this.checked; saveField(upd); });
+  }
+  bindCheck('modal-constructionDateConfirmed','constructionDateConfirmed');
+  bindCheck('modal-heardFromCarpenter','heardFromCarpenter');
+  bindCheck('modal-heardFromAccountant','heardFromAccountant');
+  bindCheck('modal-emailSent','emailSent');
+  bindCheck('modal-finalReport','finalReport');
 
+  // 日付・時間・順番（change/blurで即時）
+  document.getElementById('modal-date').addEventListener('change', function(){
+    saveField({date: this.value});
+    document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(this.value||"未定");
+  });
+  document.getElementById('modal-time').addEventListener('change', function(){
+    saveField({time: this.value});
+  });
+  document.getElementById('modal-order').addEventListener('change', function(){
+    saveField({order: this.value});
+  });
+
+  // メモ（blurで即時）
+  var memoDebounce;
+  document.getElementById('modal-body').addEventListener('input', function(e){
+    if (e.target.id !== 'modal-memo') return;
+    clearTimeout(memoDebounce);
+    memoDebounce = setTimeout(function(){
+      saveField({memo: document.getElementById('modal-memo').value});
+    }, 1000);
+  });
+
+  // GAS webhook（日付変更時のみ）
+  document.getElementById('modal-date').addEventListener('change', function(){
     fetch(GAS_WEBHOOK_URL + "?id=" + encodeURIComponent(key), {method:"GET", mode:"no-cors"}).catch(function(){});
-
-    globalTasks[key].date=nd;globalTasks[key].time=nt;globalTasks[key].order=no;
-    globalTasks[key].localStatus=selectedStatus;globalTasks[key].constructionDateConfirmed=cdc;
-    globalTasks[key].heardFromCarpenter=hfc;globalTasks[key].heardFromAccountant=hfa;
-    globalTasks[key].emailSent=es;globalTasks[key].finalReport=fr;
-    globalTasks[key].needsContact=nc;globalTasks[key].memo=memo;
-    if(fullData){fullData.app_tasks=globalTasks;localStorage.setItem('appData',JSON.stringify(fullData));}
-
-    document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(nd||"未定");
-    document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+selectedStatus;
-
-    var msg=document.getElementById('modal-save-msg');
-    msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
-    if(typeof onSaveCallback==='function') onSaveCallback();
   });
 
   loadCommData(function(allComms){loadContactData(function(contacts){
