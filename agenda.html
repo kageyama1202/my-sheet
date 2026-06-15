@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-05-17-002 -->
+<!-- VERSION: 2026-06-16-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -112,7 +112,6 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .tl-day.active{display:block;}
 
 .tl-item{display:flex;gap:0;margin-bottom:0;position:relative;}
-/* タイムライン縦線 */
 .tl-item:not(:last-child) .tl-line::after{content:'';position:absolute;left:50%;top:28px;bottom:-8px;width:2px;background:#1e40af;transform:translateX(-50%);}
 .tl-line{width:40px;min-width:40px;display:flex;flex-direction:column;align-items:center;padding-top:6px;position:relative;}
 .tl-dot{width:14px;height:14px;border-radius:50%;border:2px solid #3b82f6;background:#0f1117;flex-shrink:0;}
@@ -153,7 +152,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 </div>
 
 <div class="gen-area">
-  <button class="btn-gen" id="btnGen" onclick="generatePlan()" disabled>🤖 Geminiでプラン生成</button>
+  <button class="btn-gen" id="btnGen" onclick="generatePlan()" disabled>🤖 Claudeでプラン生成</button>
   <button class="btn-save" id="btnSave" onclick="savePlan()" disabled>💾 プラン保存</button>
   <span class="gen-note" id="genNote">データ取得中...</span>
 </div>
@@ -207,8 +206,8 @@ var AREA_TABLE = [
   { keys: ['白石','厚別','豊平','東区','中央区','北区'], min: 15 }
 ];
 var DEFAULT_TRAVEL = 20;
-var STAY_MIN = 25;      // リフォーム・新築現場滞在
-var PERSONAL_MIN = 60;  // 個人予定デフォルト
+var STAY_MIN = 25;
+var PERSONAL_MIN = 60;
 
 function getTravelMin(addr) {
   if (!addr) return DEFAULT_TRAVEL;
@@ -220,7 +219,6 @@ function getTravelMin(addr) {
   return DEFAULT_TRAVEL;
 }
 
-// 住所を丁目まで切り詰め（割番除去）
 function trimAddr(addr) {
   if (!addr) return '';
   var a = addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');
@@ -284,7 +282,7 @@ function loadData() {
     }
     setHeader();
     document.getElementById('mainContent').innerHTML =
-      '<div class="empty-msg" style="color:#475569">「Geminiでプラン生成」を押してください。</div>';
+      '<div class="empty-msg" style="color:#475569">「Claudeでプラン生成」を押してください。</div>';
   }).catch(function(e) {
     document.getElementById('stMsg').innerHTML = '<span class="err">❌ ' + e.message + '</span>';
   });
@@ -302,7 +300,6 @@ function openModal(key) {
 }
 
 // ==================== プロンプト構築 ====================
-// 曜日種別判定
 function getDayType(s) {
   var HOLIDAYS = [
     '2025-01-01','2025-01-13','2025-02-11','2025-02-24','2025-03-21',
@@ -319,7 +316,6 @@ function getDayType(s) {
   return '平日（通常稼働）';
 }
 
-// Firebase task から下見日時情報を取得（CSV優先・Firebase補完）
 function getShitamiInfo(item) {
   var csvDate = '', csvTime = '', fbDate = '', fbTime = '';
   if (item.key && globalTasks[item.key]) {
@@ -333,7 +329,6 @@ function getShitamiInfo(item) {
   return {
     csvDate: csvDate, csvTime: csvTime,
     fbDate:  fbDate,  fbTime:  fbTime,
-    // 優先順位: CSV > Firebase
     fixedDate: csvDate || fbDate,
     fixedTime: csvTime || fbTime,
     isCSVFixed: !!(csvDate),
@@ -355,16 +350,13 @@ function buildPrompt() {
     var isPersonal = (it.type === 'personal');
     var isUrgent   = (it.type === 'alert');
     var isReform   = (it.type === 'reform');
-    var isNewbuild = (it.type === 'newbuild');
 
-    // 下見日時情報を取得（CSV優先・Firebase補完）
     var si = getShitamiInfo(it);
     var fixedDate = si.fixedDate || it.date || '';
     var fixedTime = si.fixedTime || it.time || '';
     var isTimeFixed = !!(fixedTime);
     var isDateFixed = !!(fixedDate);
 
-    // タグ生成
     var tag = '';
     if (isPersonal) {
       tag = '[個人予定・日時絶対固定]';
@@ -383,7 +375,6 @@ function buildPrompt() {
     line += ' id=' + (it.id || '');
     line += ' / 区分=' + (isReform ? 'ﾘ(リフォーム)' : isPersonal ? '個人' : '新(新築)');
     line += ' / ' + (it.title || '');
-    // 日時情報（優先順位を明記）
     if (si.csvDate) line += ' / CSV確定日=' + si.csvDate;
     if (si.csvTime) line += ' / CSV確定時間=' + si.csvTime + '【変更禁止】';
     if (si.fbDate && !si.csvDate) line += ' / アプリ入力日=' + si.fbDate + '(参考優先)';
@@ -414,7 +405,7 @@ function buildPrompt() {
 '1. CSV確定日時（[CSV確定日=][CSV確定時間=]）→ 最優先・絶対固定・変更禁止\n' +
 '2. アプリ入力日時（[アプリ入力日=][アプリ入力時間=]）→ 優先参考・基本その日その時間で組む\n' +
 '3. 抽出元日付（7日間抽出の元日付）→ 参考程度\n' +
-'4. 日時なし → Geminiが自由にエリア効率で提案\n\n' +
+'4. 日時なし → 自由にエリア効率で提案\n\n' +
 '## 移動時間の目安（白石区から片道）\n' +
 '白石・厚別・豊平・東区・中央区・北区: 15分\n' +
 '手稲・清田・南区・西区: 20分\n' +
@@ -470,12 +461,13 @@ lines.join('\n') + '\n\n' +
   );
 }
 
-// ==================== Gemini呼び出し ====================
+// ==================== Claude API呼び出し ====================
 function generatePlan() {
-  var geminiKey = localStorage.getItem('geminiApiKey');
-  if (!geminiKey) {
+  var claudeKey = localStorage.getItem('claudeApiKey');
+  if (!claudeKey) {
     document.getElementById('mainContent').innerHTML =
-      '<div class="error-msg">⚠ Gemini APIキー未設定。sogo.html のAPI設定から登録してください。</div>';
+      '<div class="error-msg">⚠ Claude APIキー未設定。sogo.html のAPI設定から登録してください。<br>' +
+      '<small style="color:#9ca3af">設定 → Claude APIキーを入力して保存</small></div>';
     return;
   }
   if (!raw7day || !raw7day.items || !raw7day.items.length) {
@@ -487,28 +479,36 @@ function generatePlan() {
   btn.disabled = true;
   btn.textContent = '⏳ 生成中...';
   document.getElementById('mainContent').innerHTML =
-    '<div class="loading-wrap"><span class="spin"></span><p>Geminiがエリア・時間を計算中...</p></div>';
+    '<div class="loading-wrap"><span class="spin"></span><p>Claudeがエリア・時間を計算中...</p></div>';
 
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+  fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': claudeKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
     body: JSON.stringify({
-      contents: [{parts: [{text: buildPrompt()}]}],
-      generationConfig: {temperature: 0.3, maxOutputTokens: 65536, responseMimeType: 'application/json'}
+      model: 'claude-sonnet-4-6',
+      max_tokens: 16000,
+      system: 'あなたは施工スケジューリングのエキスパートです。JSONのみ出力してください。前置き・後置き・マークダウンコードブロック不要。純粋なJSONのみ返してください。',
+      messages: [{ role: 'user', content: buildPrompt() }]
     })
-  }).then(function(r){return r.json();})
+  }).then(function(r){ return r.json(); })
   .then(function(data){
     btn.disabled = false;
     btn.textContent = '🔄 再生成';
-    if (!data.candidates || !data.candidates[0]) throw new Error('APIレスポンス異常: ' + JSON.stringify(data).slice(0,300));
-    var raw = data.candidates[0].content.parts[0].text;
-    var finishReason = data.candidates[0].finishReason || '';
-    if (finishReason !== 'STOP') {
+    if (!data.content || !data.content[0]) {
+      throw new Error('APIレスポンス異常: ' + JSON.stringify(data).slice(0,300));
+    }
+    var raw = data.content[0].text;
+    var stopReason = data.stop_reason || '';
+    if (stopReason !== 'end_turn') {
       document.getElementById('mainContent').innerHTML =
-        '<div class="error-msg">⚠ 生成途中で停止（' + esc(finishReason) + '）。再生成してください。</div>' +
-        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭600文字）:</b><br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,600)) + '</pre></div>';
-      btn.disabled = false;
-      btn.textContent = '🔄 再生成';
+        '<div class="error-msg">⚠ 生成途中で停止（' + esc(stopReason) + '）。再生成してください。</div>' +
+        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭600文字）:</b>' +
+        '<br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,600)) + '</pre></div>';
       return;
     }
     try {
@@ -516,11 +516,12 @@ function generatePlan() {
     } catch(pe) {
       document.getElementById('mainContent').innerHTML =
         '<div class="error-msg">❌ JSONパースエラー: ' + esc(pe.message) + '</div>' +
-        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭800文字）:</b><br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,800)) + '</pre></div>';
+        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭800文字）:</b>' +
+        '<br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,800)) + '</pre></div>';
     }
   }).catch(function(e){
     btn.disabled = false;
-    btn.textContent = '🤖 Geminiでプラン生成';
+    btn.textContent = '🤖 Claudeでプラン生成';
     document.getElementById('mainContent').innerHTML =
       '<div class="error-msg">❌ エラー: ' + esc(e.message) + '</div>';
   });
@@ -556,10 +557,9 @@ function renderPlan(plan) {
   var today = todayStr();
   var html = '';
 
-  // 全体サマリー
   if (plan.summary) {
     html += '<div class="summary-card">' +
-      '<div class="summary-header">🤖 Geminiプラン概要</div>' +
+      '<div class="summary-header">🤖 Claudeプラン概要</div>' +
       '<div class="summary-body">' + esc(plan.summary) + '</div></div>';
   }
 
@@ -629,20 +629,19 @@ function renderPlan(plan) {
         if (item.company) html += '<span>' + esc(item.company) + '</span>';
         if (cas.reason) html += '<span class="ai-r">' + esc(cas.reason) + '</span>';
         html += '</div>';
-        html += '</div>'; // case-body
+        html += '</div>';
 
         if (item.addr) {
           html += '<a class="btn-map" href="' + mapsUrl(item.addr) + '" target="_blank" rel="noopener">🗺 MAP</a>';
         }
-        html += '</div>'; // case-card
+        html += '</div>';
       }
     }
 
     if (day.notes) html += '<div class="day-notes">💡 ' + esc(day.notes) + '</div>';
-    html += '</div></div>'; // cases-wrap + day-block
+    html += '</div></div>';
   }
 
-  // 後回し案件
   if (plan.deferred && plan.deferred.length > 0) {
     html += '<div class="deferred-block">';
     html += '<div class="deferred-header">📋 3日間に入らなかった案件（' + plan.deferred.length + '件）</div>';
@@ -664,7 +663,6 @@ function renderPlan(plan) {
   html += '<div class="bottom-pad"></div>';
   document.getElementById('mainContent').innerHTML = html;
 
-  // 保存ボタン有効化・currentPlan保持
   currentPlan = plan;
   document.getElementById('btnSave').disabled = false;
 }
@@ -704,7 +702,6 @@ function renderTimeline(saveData) {
   var plan = saveData.plan;
   var items = saveData.items_snapshot || [];
 
-  // items をidでマップ
   var itemMap = {};
   for (var i = 0; i < items.length; i++) itemMap[items[i].id] = items[i];
 
@@ -724,7 +721,6 @@ function renderTimeline(saveData) {
     var dateStr = day.date || '';
     var tabLabel = (day.label || '') + ' ' + fmtMD(dateStr) + '(' + wday(dateStr) + ')';
 
-    // タブボタン
     var tabBtn = document.createElement('button');
     tabBtn.className = 'tl-tab' + (di === 0 ? ' active' : '');
     tabBtn.textContent = tabLabel;
@@ -741,7 +737,6 @@ function renderTimeline(saveData) {
     })(di);
     tlTabs.appendChild(tabBtn);
 
-    // 日別コンテンツ
     var dayDiv = document.createElement('div');
     dayDiv.className = 'tl-day' + (di === 0 ? ' active' : '');
     dayDiv.id = 'tl-day-' + di;
@@ -750,7 +745,6 @@ function renderTimeline(saveData) {
     if (cases.length === 0) {
       dayDiv.innerHTML = '<div class="tl-empty">この日の予定なし</div>';
     } else {
-      // サマリー
       var sumHtml = '<div class="tl-summary">' +
         '<div><label>合計 </label><span>' + (day.total_min || '-') + '分</span></div>' +
         '<div><label>終了予定 </label><span>' + esc(day.end_time || '-') + '</span></div>' +
