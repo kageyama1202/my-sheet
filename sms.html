@@ -97,7 +97,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
     <div class="section-label" style="margin-top:4px;">文章（自由に編集）</div>
     <textarea id="compose-area" rows="8" placeholder="雛形を選ぶか、ここに直接入力"></textarea>
     <div class="char-count"><span id="char-count">0</span> 文字</div>
-    <button class="btn-add-list" id="btn-add-list" onclick="addToList()">
+    <button class="btn-add-list" id="btn-add-list" onclick="addToList()" disabled>
       <i class="ti ti-circle-plus" style="font-size:17px"></i>送信リストに追加
     </button>
   </div>
@@ -131,9 +131,10 @@ var currentTab = 'compose';
 // Firebase 匿名ログイン → データ読み込み
 firebase.auth().signInAnonymously().then(function() {
   db = firebase.database();
+  document.getElementById('btn-add-list').disabled = false;
   loadAllData();
   initFromUrl();
-}).catch(function(e){ console.error('auth error', e); });
+}).catch(function(e){ console.error('auth error', e); alert('Firebase認証エラー: '+e.message); });
 
 document.getElementById('compose-area').addEventListener('input', updateCount);
 
