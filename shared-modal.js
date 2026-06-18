@@ -180,7 +180,8 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var _smsTel = normalizePhoneModal(getSafeValModal(cols,6));
   var _smsLabel = encodeURIComponent(getSafeValModal(cols,5).trim()||key);
   var _smsCase = encodeURIComponent(getSafeValModal(cols,4).trim()||key);
-  html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'&casename='+_smsCase+'" class="modal-sms-btn">💬 SMS作成</a>';
+  // ↓ casekey パラメータを追加
+  html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'&casename='+_smsCase+'&casekey='+encodeURIComponent(key)+'" class="modal-sms-btn">💬 SMS作成</a>';
   html += '</div>';
 
   document.getElementById('modal-body').innerHTML = html;
