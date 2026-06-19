@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-14 -->
+<!-- VERSION: 2026-06-19 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -22,6 +22,11 @@
     .menu-btn { display: block; text-decoration: none; padding: 18px; background-color: #007bff; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
     .menu-btn:hover { opacity: 0.85; }
     .menu-btn.disabled { background-color: #ccc !important; color: #888; pointer-events: none; box-shadow: none; }
+    @keyframes sms-blink {
+      0%,100% { background-color: #1a1a1a; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      50% { background-color: #e53935; box-shadow: 0 0 14px rgba(229,57,53,0.85); }
+    }
+    .sms-blink { animation: sms-blink 1s ease-in-out infinite !important; }
     .gas-url-section { margin-top: 18px; padding: 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; }
     .gas-url-section label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
     .gas-url-section input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; margin-bottom: 6px; }
@@ -48,7 +53,7 @@
       <a href="today.html"    class="menu-btn disabled">📋 案件リスト</a>
       <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
       <a href="sogo.html"     class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
-      <a href="sms.html"      class="menu-btn disabled" style="background-color:#1a1a1a;">💬 SMS送信</a>
+      <a id="smsBtn" href="sms.html" class="menu-btn disabled" style="background-color:#1a1a1a;">💬 SMS送信</a>
       <a href="admin.html"    class="menu-btn disabled" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
     </div>
 
@@ -133,13 +138,36 @@
         });
     }
 
+    // app_sms_list を監視して未送信があればSMSボタンを点滅
+    function checkSmsPending() {
+      database.ref('app_sms_list').on('value', function(snapshot) {
+        var smsBtn = document.getElementById('smsBtn');
+        if (!smsBtn) return;
+        var data = snapshot.val();
+        var hasPending = false;
+        if (data) {
+          Object.keys(data).forEach(function(key) {
+            if (data[key].done === false || data[key].done === undefined) {
+              hasPending = true;
+            }
+          });
+        }
+        if (hasPending) {
+          smsBtn.classList.add('sms-blink');
+          smsBtn.title = '未送信のSMSがあります';
+        } else {
+          smsBtn.classList.remove('sms-blink');
+          smsBtn.title = '';
+        }
+      });
+    }
+
     function loadFirebaseData() {
       var statusMsg = document.getElementById('statusMsg');
 
       database.ref().once('value').then(function(snapshot) {
         var dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
-          // キャッシュがあればそちらで動作継続
           var cached = null;
           try { cached = localStorage.getItem('appData'); } catch(e) {}
           if (!cached) {
@@ -209,6 +237,9 @@
         statusMsg.innerHTML = '✅ 最新データ取得完了（' + timeStr + '）';
         enableMenu();
 
+        // SMS未送信チェック（認証後に監視開始）
+        checkSmsPending();
+
       }).catch(function(error) {
         console.error('Firebase取得エラー:', error);
         var cached = null;
@@ -224,7 +255,6 @@
     }
 
     window.addEventListener('load', function() {
-      // URL設定の復元
       var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
       document.getElementById('gasUrlInput').value = savedUrl;
       if (savedUrl) { document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み'; }
