@@ -25,7 +25,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .info-bar{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;}
 .info-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;}
 .info-item:last-child{border-bottom:none;}
-.info-key{font-size:11px;font-weight:600;color:#aaa;min-width:44px;letter-spacing:0.04em;}
+.info-key{font-size:11px;font-weight:600;color:#aaa;min-width:52px;letter-spacing:0.04em;}
 .info-val{font-size:13px;color:#1a1a1a;flex:1;word-break:break-all;}
 .btn-copy{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:5px 10px;cursor:pointer;color:#888;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .btn-copy:active{background:#f5f5f5;}
@@ -72,6 +72,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .btn-add-tpl:active{background:#f5f5f5;}
 .no-tpl{font-size:12px;color:#aaa;padding:4px 0;}
 .casekey-badge{display:inline-block;font-size:10px;color:#5d4037;background:#efebe9;border:1px solid #bcaaa4;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
+.info-loading{font-size:11px;color:#aaa;padding:6px 0;}
 </style>
 </head>
 <body>
@@ -83,7 +84,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <div id="tab-compose" class="section active">
-  <div class="info-bar" id="info-bar"></div>
+  <div class="info-bar" id="info-bar"><div class="info-loading">読み込み中...</div></div>
   <div class="section-label">雛形を選ぶ</div>
   <div class="tpl-pick" id="tpl-pick"><span class="no-tpl">読み込み中...</span></div>
   <div class="card">
@@ -128,7 +129,7 @@ var sendList = [];
 var selectedTplId = null;
 var pendingTplChanges = {};
 var currentTab = 'compose';
-var currentCaseKey = '';  // URLから受け取った案件キー
+var currentCaseKey = '';
 
 firebase.auth().signInAnonymously().then(function() {
   db = firebase.database();
@@ -219,7 +220,6 @@ function addToList() {
   var btn = document.getElementById('btn-add-list');
   btn.disabled = true;
 
-  // caseKeyが取れていれば一緒に保存
   var record = { label:label, tel:tel, body:body, done:false, createdAt: Date.now() };
   if (currentCaseKey) record.caseKey = currentCaseKey;
 
@@ -353,41 +353,60 @@ document.addEventListener('click', function(e) {
   });
 });
 
-// URLパラメータ（casekeyを追加）
+// URLパラメータ取得 → Firebase補完
 function initFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var tel      = params.get('tel')      || '';
   var label    = params.get('label')    || '';
   var casename = params.get('casename') || '';
-  var casekey  = params.get('casekey')  || '';  // ← 案件キー
+  var casekey  = params.get('casekey')  || '';
 
-  if (!tel && !label && !casename && !casekey) return;
+  if (!tel && !label && !casename && !casekey) {
+    document.getElementById('info-bar').style.display = 'none';
+    return;
+  }
 
   if (tel)     document.getElementById('tel-input').value = tel;
   if (label)   document.getElementById('label-input').value = label;
-  if (casekey) currentCaseKey = casekey;  // ← グローバル変数に保持
+  if (casekey) currentCaseKey = casekey;
 
-  var bar = document.getElementById('info-bar');
-  var items = [];
-  if (casename) items.push({ key:'案件名', val: casename });
-  if (label)    items.push({ key:'担当者', val: label });
-  if (tel)      items.push({ key:'TEL',    val: tel });
-  if (casekey)  items.push({ key:'案件KEY', val: casekey });
+  var baseItems = [];
+  if (casename) baseItems.push({ key:'案件名', val: casename });
+  if (label)    baseItems.push({ key:'担当者', val: label });
+  if (tel)      baseItems.push({ key:'TEL',    val: tel });
 
-  if (items.length) {
-    var html = '';
-    items.forEach(function(item) {
-      html += '<div class="info-item">'
-        + '<span class="info-key">'+item.key+'</span>'
-        + '<span class="info-val">'+escHtml(item.val)+'</span>'
-        + '<button class="btn-copy" data-copy="'+escHtml(item.val)+'">'
-        + '<i class="ti ti-copy" style="font-size:13px"></i>'
-        + '</button>'
-        + '</div>';
+  if (casekey) {
+    // Firebaseから施工日・備考を補完
+    db.ref('app_tasks/' + casekey).once('value', function(snap) {
+      var task = snap.val() || {};
+      var csv  = task.csvData || [];
+      var sekoDate = csv[2] ? String(csv[2]) : '';
+      var memo     = task.memo || '';
+      if (sekoDate) baseItems.push({ key:'施工日', val: sekoDate });
+      if (memo)     baseItems.push({ key:'備考',   val: memo });
+      baseItems.push({ key:'案件KEY', val: casekey });
+      renderInfoBar(baseItems);
     });
-    bar.innerHTML = html;
-    bar.style.display = 'block';
+  } else {
+    renderInfoBar(baseItems);
   }
+}
+
+function renderInfoBar(items) {
+  var bar = document.getElementById('info-bar');
+  if (!items.length) { bar.style.display='none'; return; }
+  var html = '';
+  items.forEach(function(item) {
+    html += '<div class="info-item">'
+      + '<span class="info-key">' + escHtml(item.key) + '</span>'
+      + '<span class="info-val">' + escHtml(item.val) + '</span>'
+      + '<button class="btn-copy" data-copy="' + escHtml(item.val) + '">'
+      + '<i class="ti ti-copy" style="font-size:13px"></i>'
+      + '</button>'
+      + '</div>';
+  });
+  bar.innerHTML = html;
+  bar.style.display = 'block';
 }
 </script>
 </body>
