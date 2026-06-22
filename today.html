@@ -53,9 +53,9 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .col-ai-yotei{width:92px;min-width:92px;max-width:92px;}
 .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
 .link-geo{color:#2e7d32;text-decoration:underline;font-weight:bold;}
-.chiban-btn{font-size:10px;padding:1px 4px;cursor:pointer;border:1px solid #2e7d32;border-radius:3px;background:#f1f8e9;color:#2e7d32;font-weight:bold;margin-left:3px;white-space:nowrap;}
-.chiban-btn:hover{background:#c8e6c9;}
-.chiban-btn.loading{opacity:0.5;cursor:not-allowed;}
+.map-popup{position:fixed;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;padding:4px;display:flex;flex-direction:column;gap:3px;}
+.map-popup button{font-size:12px;padding:5px 12px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#f8f8f8;text-align:left;white-space:nowrap;}
+.map-popup button:hover{background:#e8f4ff;}
 #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
 .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
 #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
@@ -139,6 +139,53 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
 <div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
 <script>
+// ===== 住所ポップアップ =====
+var mapPopup = null;
+function showMapPopup(e, normalUrl, addr){
+  e.preventDefault();
+  e.stopPropagation();
+  if(mapPopup){ mapPopup.remove(); mapPopup=null; return; }
+  var pop = document.createElement('div');
+  pop.className = 'map-popup';
+  var btn1 = document.createElement('button');
+  btn1.textContent = '📍 通常検索';
+  btn1.addEventListener('click', function(){ window.open(normalUrl,'_blank'); pop.remove(); mapPopup=null; });
+  var btn2 = document.createElement('button');
+  btn2.textContent = '🗺 地番検索';
+  btn2.addEventListener('click', function(){
+    pop.remove(); mapPopup=null;
+    chibanSearch(addr, btn2);
+  });
+  pop.appendChild(btn1);
+  pop.appendChild(btn2);
+  pop.style.left = (e.clientX+5)+'px';
+  pop.style.top = (e.clientY+5)+'px';
+  document.body.appendChild(pop);
+  mapPopup = pop;
+  setTimeout(function(){
+    document.addEventListener('click', function handler(){
+      if(mapPopup){mapPopup.remove();mapPopup=null;}
+      document.removeEventListener('click', handler);
+    });
+  }, 0);
+}
+function chibanSearch(addr, btn){
+  var key = parseAddressToKey2(addr);
+  if(!key){ alert('住所を解析できませんでした'); return; }
+  var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
+  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません（割番形式のみ対応）'); return; }
+  if(btn){ btn.textContent='⏳'; }
+  loadChibanDataOnce(function(data){
+    if(btn){ btn.textContent='🗺 地番検索'; }
+    var v = data[key];
+    if(!v){ alert('地番データが見つかりませんでした: '+key); return; }
+    var lat=v[0], lng=v[1];
+    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）'); return; }
+    window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+  });
+}
+// ===== 住所ポップアップここまで =====
+
 // ===== 地番検索ロジック =====
 var chibanData = null;
 var chibanLoading = false;
@@ -370,10 +417,8 @@ merged.forEach(function(item,idx){
           }
           var aLink=document.createElement('a');
           aLink.href=mapUrl;aLink.target='_blank';aLink.className=linkClass;aLink.textContent=short;
-          var addrBtn=document.createElement('button');
-          addrBtn.className='chiban-btn';addrBtn.textContent='📍';addrBtn.dataset.addr=clean;
-          addrBtn.addEventListener('click',function(e){e.stopPropagation();searchChibanAndOpen(this.dataset.addr,this);});
-          inner.appendChild(aLink);inner.appendChild(addrBtn);
+          aLink.addEventListener('click',function(e){ showMapPopup(e, mapUrl, clean); });
+          inner.appendChild(aLink);
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
