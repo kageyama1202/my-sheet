@@ -53,6 +53,9 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .col-ai-yotei{width:92px;min-width:92px;max-width:92px;}
 .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
 .link-geo{color:#2e7d32;text-decoration:underline;font-weight:bold;}
+.chiban-btn{font-size:10px;padding:1px 4px;cursor:pointer;border:1px solid #2e7d32;border-radius:3px;background:#f1f8e9;color:#2e7d32;font-weight:bold;margin-left:3px;white-space:nowrap;}
+.chiban-btn:hover{background:#c8e6c9;}
+.chiban-btn.loading{opacity:0.5;cursor:not-allowed;}
 #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
 .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
 #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
@@ -136,6 +139,87 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
 <div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
 <script>
+// ===== 地番検索ロジック =====
+var chibanData = null;
+var chibanLoading = false;
+var chibanCallbacks = [];
+
+var KANJI_MAP2 = {'1':'一','2':'二','3':'三','4':'四','5':'五',
+  '6':'六','7':'七','8':'八','9':'九','10':'十',
+  '11':'十一','12':'十二','13':'十三','14':'十四','15':'十五',
+  '16':'十六','17':'十七','18':'十八','19':'十九','20':'二十',
+  '21':'二十一','22':'二十二','23':'二十三','24':'二十四','25':'二十五'};
+function numToKanji2(n){ return KANJI_MAP2[String(n)] || String(n); }
+
+function parseAddressToKey2(addr){
+  if(!addr) return null;
+  addr = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
+  addr = addr.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
+  addr = addr.replace(/^北海道札幌市\S+区/,'');
+  addr = addr.replace(/(\d+[-]\d+)[^丁目条\d].+$/,'$1');
+  var mb = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+)番(\d+)/);
+  if(mb){ return mb[1]+numToKanji2(parseInt(mb[2]))+'条'+mb[3]+'_'+mb[4]+'_'+mb[5]+'-'+mb[6]; }
+  var m = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
+  if(!m) return null;
+  return m[1]+numToKanji2(parseInt(m[2]))+'条'+m[3]+'_'+m[4]+'_'+m[5];
+}
+
+function loadChibanDataOnce(callback){
+  if(chibanData){ callback(chibanData); return; }
+  chibanCallbacks.push(callback);
+  if(chibanLoading) return;
+  chibanLoading = true;
+  fetch('https://kageyama1202.github.io/my-sheet/chiban.json.gz')
+    .then(function(res){ return res.arrayBuffer(); })
+    .then(function(buf){
+      var ds = new DecompressionStream('gzip');
+      var writer = ds.writable.getWriter();
+      var reader = ds.readable.getReader();
+      writer.write(new Uint8Array(buf));
+      writer.close();
+      var chunks=[], total=0;
+      function pump(){
+        return reader.read().then(function(r){
+          if(r.done){
+            var merged=new Uint8Array(total), offset=0;
+            chunks.forEach(function(c){merged.set(c,offset);offset+=c.length;});
+            chibanData=JSON.parse(new TextDecoder().decode(merged));
+            chibanLoading=false;
+            chibanCallbacks.forEach(function(cb){cb(chibanData);});
+            chibanCallbacks=[];
+            return;
+          }
+          chunks.push(r.value); total+=r.value.length;
+          return pump();
+        });
+      }
+      return pump();
+    })
+    .catch(function(e){ chibanLoading=false; alert('地番データ読み込み失敗: '+e); });
+}
+
+function searchChibanAndOpen(addr, btn){
+  var key = parseAddressToKey2(addr);
+  if(!key){ alert('住所を解析できませんでした'); return; }
+  var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
+  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません
+（割番形式の住所のみ対応）'); return; }
+  btn.textContent='⏳';
+  btn.classList.add('loading');
+  loadChibanDataOnce(function(data){
+    btn.textContent='📍';
+    btn.classList.remove('loading');
+    var v = data[key];
+    if(!v){ alert('地番データが見つかりませんでした
+キー: '+key); return; }
+    var lat=v[0], lng=v[1];
+    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）
+キー: '+key); return; }
+    window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+  });
+}
+// ===== ここまで =====
+
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=firebase.database();
@@ -287,7 +371,8 @@ merged.forEach(function(item,idx){
             mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
             linkClass='link-text';
           }
-          inner.innerHTML='<a href="'+mapUrl+'" target="_blank" class="'+linkClass+'">'+short+'</a>';
+          var btnHtml='<button class="chiban-btn" onclick="(function(el){searchChibanAndOpen(\'' + clean.replace(/'/g,"\\'\\'") + '\',el);})(this);event.stopPropagation();">📍</button>';
+          inner.innerHTML='<a href="'+mapUrl+'" target="_blank" class="'+linkClass+'">'+short+'</a>'+btnHtml;
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
