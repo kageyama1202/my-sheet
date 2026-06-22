@@ -133,9 +133,15 @@
       if(!chibanData) return null;
       var key = parseAddressToKey(addr);
       if(!key) return null;
+      // 地番判定: 番号が100以上なら地番の可能性が高い、100未満は住居表示としてスキップ
+      var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
+      if(isNaN(chibanNum)||chibanNum < 100) return null;
       var v = chibanData[key];
-      if(v) return {lat: v[0], lng: v[1]};
-      return null;
+      if(!v) return null;
+      // 札幌市の範囲チェック（範囲外は任意座標系の変換ミスとして除外）
+      var lat=v[0], lng=v[1];
+      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7) return null;
+      return {lat: lat, lng: lng};
     }
     // ===== ここまで地番ロジック =====
 
