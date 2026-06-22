@@ -371,8 +371,9 @@ merged.forEach(function(item,idx){
             mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
             linkClass='link-text';
           }
-          var btnHtml='<button class="chiban-btn" onclick="(function(el){searchChibanAndOpen(\'' + clean.replace(/'/g,"\\'\\'") + '\',el);})(this);event.stopPropagation();">📍</button>';
-          inner.innerHTML='<a href="'+mapUrl+'" target="_blank" class="'+linkClass+'">'+short+'</a>'+btnHtml;
+          var safeAddr = clean.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          inner.innerHTML='<a href="'+mapUrl+'" target="_blank" class="'+linkClass+'">'+short+'</a>'
+            +'<button class="chiban-btn" onclick="searchChibanAndOpen(\''+safeAddr+'\',this);event.stopPropagation();">📍</button>';
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
