@@ -202,19 +202,16 @@ function searchChibanAndOpen(addr, btn){
   var key = parseAddressToKey2(addr);
   if(!key){ alert('住所を解析できませんでした'); return; }
   var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
-  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません
-（割番形式の住所のみ対応）'); return; }
+  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません（割番形式のみ対応）'); return; }
   btn.textContent='⏳';
   btn.classList.add('loading');
   loadChibanDataOnce(function(data){
     btn.textContent='📍';
     btn.classList.remove('loading');
     var v = data[key];
-    if(!v){ alert('地番データが見つかりませんでした
-キー: '+key); return; }
+    if(!v){ alert('地番データが見つかりませんでした: '+key); return; }
     var lat=v[0], lng=v[1];
-    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）
-キー: '+key); return; }
+    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）: '+key); return; }
     window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
   });
 }
