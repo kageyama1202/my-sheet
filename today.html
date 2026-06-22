@@ -149,25 +149,30 @@ function showMapPopup(e, normalUrl, addr){
   pop.className = 'map-popup';
   var btn1 = document.createElement('button');
   btn1.textContent = '📍 通常検索';
-  btn1.addEventListener('click', function(){ window.open(normalUrl,'_blank'); pop.remove(); mapPopup=null; });
+  btn1.addEventListener('click', function(e2){ e2.stopPropagation(); window.open(normalUrl,'_blank'); pop.remove(); mapPopup=null; });
   var btn2 = document.createElement('button');
   btn2.textContent = '🗺 地番検索';
-  btn2.addEventListener('click', function(){
+  btn2.addEventListener('click', function(e2){
+    e2.stopPropagation();
     pop.remove(); mapPopup=null;
-    chibanSearch(addr, btn2);
+    chibanSearch(addr, null);
   });
   pop.appendChild(btn1);
   pop.appendChild(btn2);
-  pop.style.left = (e.clientX+5)+'px';
-  pop.style.top = (e.clientY+5)+'px';
+  // 画面端に出ないよう位置調整
+  var x = e.clientX+5, y = e.clientY+5;
+  if(x+160 > window.innerWidth) x = e.clientX-165;
+  if(y+80 > window.innerHeight) y = e.clientY-85;
+  pop.style.left = x+'px';
+  pop.style.top = y+'px';
   document.body.appendChild(pop);
   mapPopup = pop;
   setTimeout(function(){
-    document.addEventListener('click', function handler(){
-      if(mapPopup){mapPopup.remove();mapPopup=null;}
+    document.addEventListener('click', function handler(ev){
+      if(mapPopup&&!mapPopup.contains(ev.target)){mapPopup.remove();mapPopup=null;}
       document.removeEventListener('click', handler);
     });
-  }, 0);
+  }, 10);
 }
 function chibanSearch(addr, btn){
   var key = parseAddressToKey2(addr);
@@ -417,7 +422,7 @@ merged.forEach(function(item,idx){
           }
           var aLink=document.createElement('a');
           aLink.href=mapUrl;aLink.target='_blank';aLink.className=linkClass;aLink.textContent=short;
-          aLink.addEventListener('click',function(e){ showMapPopup(e, mapUrl, clean); });
+          aLink.addEventListener('click',function(e){ e.stopPropagation(); showMapPopup(e, mapUrl, clean); });
           inner.appendChild(aLink);
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
