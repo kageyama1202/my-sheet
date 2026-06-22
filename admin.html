@@ -33,7 +33,8 @@
     ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件は自動削除されます<br>
-    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）</p>
+    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）<br>
+    ・住所から地番を検索し、緯度経度を自動設定します（割番形式のみ）</p>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -51,7 +52,6 @@
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=firebase.database();
 
-    // 匿名認証
     firebase.auth().signInAnonymously()
       .then(function(){
         document.getElementById('authStatus').textContent='✅ 認証済み';
@@ -66,6 +66,78 @@
 
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
+
+    // ===== 地番→座標変換ロジック =====
+    var chibanData = null;
+
+    var KANJI_MAP = {'1':'一','2':'二','3':'三','4':'四','5':'五',
+      '6':'六','7':'七','8':'八','9':'九','10':'十',
+      '11':'十一','12':'十二','13':'十三','14':'十四','15':'十五',
+      '16':'十六','17':'十七','18':'十八','19':'十九','20':'二十',
+      '21':'二十一','22':'二十二','23':'二十三','24':'二十四','25':'二十五'};
+
+    function numToKanji(n){ return KANJI_MAP[String(n)] || String(n); }
+
+    function parseAddressToKey(addr){
+      if(!addr) return null;
+      addr = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
+      addr = addr.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
+      addr = addr.replace(/^北海道札幌市\S+区/,'');
+      // マンション名除去
+      addr = addr.replace(/(\d+[-－]\d+)[^丁目条\d].+$/,'$1');
+
+      // 「番」形式を先にチェック: 大字名+数字+条+方角+丁目+数字番数字
+      var mb = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+)番(\d+)/);
+      if(mb){
+        var daiji = mb[1]+numToKanji(parseInt(mb[2]))+'条'+mb[3];
+        return daiji+'_'+mb[4]+'_'+mb[5]+'-'+mb[6];
+      }
+
+      // 通常パターン: 数字-数字
+      var m = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
+      if(!m) return null;
+      var daiji = m[1]+numToKanji(parseInt(m[2]))+'条'+m[3];
+      return daiji+'_'+m[4]+'_'+m[5];
+    }
+
+    async function loadChibanData(){
+      if(chibanData) return chibanData;
+      try {
+        log('📍 地番データ読み込み中...');
+        var res = await fetch('https://kageyama1202.github.io/my-sheet/chiban.json.gz');
+        var buf = await res.arrayBuffer();
+        var ds = new DecompressionStream('gzip');
+        var writer = ds.writable.getWriter();
+        var reader = ds.readable.getReader();
+        writer.write(new Uint8Array(buf));
+        writer.close();
+        var chunks = [], total = 0;
+        while(true){
+          var r = await reader.read();
+          if(r.done) break;
+          chunks.push(r.value);
+          total += r.value.length;
+        }
+        var merged = new Uint8Array(total), offset = 0;
+        chunks.forEach(function(c){merged.set(c,offset);offset+=c.length;});
+        chibanData = JSON.parse(new TextDecoder().decode(merged));
+        log('✅ 地番データ読み込み完了 (' + Object.keys(chibanData).length + '件)', 'ok');
+        return chibanData;
+      } catch(e) {
+        log('⚠️ 地番データ読み込み失敗: ' + e, 'warn');
+        return null;
+      }
+    }
+
+    function lookupChiban(addr){
+      if(!chibanData) return null;
+      var key = parseAddressToKey(addr);
+      if(!key) return null;
+      var v = chibanData[key];
+      if(v) return {lat: v[0], lng: v[1]};
+      return null;
+    }
+    // ===== ここまで地番ロジック =====
 
     function isKanryo(cols){
       var status=String(cols[1]||'').trim();
@@ -97,11 +169,14 @@
       return out;
     }
 
-    document.getElementById('uploadBtn').addEventListener('click',function(){
+    document.getElementById('uploadBtn').addEventListener('click', async function(){
       var fileInput=document.getElementById('csvFile');
       if(fileInput.files.length===0){alert('CSVファイルを選択してください');return;}
       var btn=this;btn.disabled=true;btn.textContent='保存中...';
       logEl.innerHTML='';logEl.style.display='block';
+
+      // 地番データ先読み
+      await loadChibanData();
 
       var file=fileInput.files.item(0);
       var reader=new FileReader();
@@ -127,6 +202,24 @@
         if(kanryoSkipped>0)log('✅ 「完了」ステータスをスキップ: '+kanryoSkipped+'件','ok');
         var newKeys=Object.keys(newMap);
         log('有効案件（保存対象）: '+newKeys.length+'件');
+
+        // 地番→座標変換
+        var geoHit=0, geoMiss=0;
+        var geoMap={};
+        if(chibanData){
+          newKeys.forEach(function(nk){
+            var cols=newMap[nk];
+            var addr=String(cols[11]||'').trim(); // C11=住所
+            var geo=lookupChiban(addr);
+            if(geo){
+              geoMap[nk]=geo;
+              geoHit++;
+            } else {
+              geoMiss++;
+            }
+          });
+          log('📍 座標取得: ヒット '+geoHit+'件 / スキップ '+geoMiss+'件', geoHit>0?'ok':'warn');
+        }
 
         database.ref('app_tasks').once('value',function(sn){
           var existing=sn.val()||{};
@@ -165,8 +258,18 @@
             updates[path]=newMap[nk];
             if(localDataByNewKey[nk]){
               LOCAL_FIELDS.forEach(function(f){
+                // lat/lngは地番データで上書きするので除外
+                if(f==='lat'||f==='lng') return;
                 if(localDataByNewKey[nk][f]!==undefined)updates['app_tasks/'+nk+'/'+f]=localDataByNewKey[nk][f];
               });
+            }
+            // 地番ヒットした案件はlat/lngをセット（既存のlat/lngがない場合のみ）
+            if(geoMap[nk]){
+              var existLat = existing[nk] && existing[nk].lat;
+              if(!existLat){
+                updates['app_tasks/'+nk+'/lat']=geoMap[nk].lat;
+                updates['app_tasks/'+nk+'/lng']=geoMap[nk].lng;
+              }
             }
             if(existing[nk])updateCount++;else addCount++;
           });
@@ -219,7 +322,7 @@
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
-                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件\n座標取得: '+geoHit+'件'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
