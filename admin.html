@@ -41,6 +41,11 @@
 
     <hr class="divider">
 
+    <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ 全案件のlat/lngをクリアします（座標再取込前に使用）</p>
+    <button id="clearGeoBtn" class="danger" disabled>🗑 全案件の座標（lat/lng）を一括クリア</button>
+
+    <hr class="divider">
+
     <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ Firebase上のステータス「完了」案件を一括削除します（「下見完了」は削除しません）</p>
     <button id="cleanBtn" class="danger" disabled>🗑 Firebase上の「完了」案件を一括削除</button>
 
@@ -58,6 +63,7 @@
         document.getElementById('authStatus').style.color='#66bb6a';
         document.getElementById('uploadBtn').disabled=false;
         document.getElementById('cleanBtn').disabled=false;
+        document.getElementById('clearGeoBtn').disabled=false;
       })
       .catch(function(err){
         document.getElementById('authStatus').textContent='❌ 認証失敗: '+err.message;
@@ -340,6 +346,35 @@
         });
       };
       reader.readAsText(file,'UTF-8');
+    });
+
+    document.getElementById('clearGeoBtn').addEventListener('click',function(){
+      if(!confirm('全案件のlat/lngをクリアします。\nよろしいですか？'))return;
+      var btn=this;btn.disabled=true;btn.textContent='クリア中...';
+      logEl.innerHTML='';logEl.style.display='block';
+      log('🔍 全案件をスキャン中...');
+      database.ref('app_tasks').once('value',function(sn){
+        var existing=sn.val()||{};
+        var keys=Object.keys(existing);
+        var updates={};
+        var count=0;
+        keys.forEach(function(k){
+          var obj=existing[k];
+          if(!obj)return;
+          if(obj.lat!==undefined){updates['app_tasks/'+k+'/lat']=null;count++;}
+          if(obj.lng!==undefined){updates['app_tasks/'+k+'/lng']=null;}
+        });
+        if(count===0){log('座標データはありませんでした','warn');btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';return;}
+        log('🗑 クリア対象: '+count+'件');
+        database.ref().update(updates).then(function(){
+          log('✅ クリア完了！ '+count+'件','ok');
+          alert('✅ クリア完了！\n\n'+count+'件の座標をクリアしました');
+          btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';
+        }).catch(function(err){
+          log('❌ エラー: '+err,'err');
+          btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';
+        });
+      });
     });
 
     document.getElementById('cleanBtn').addEventListener('click',function(){
