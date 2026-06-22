@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-18 -->
+<!-- VERSION: 2026-06-22 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -52,6 +52,7 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .col-order{width:40px;min-width:40px;max-width:40px;text-align:center;}
 .col-ai-yotei{width:92px;min-width:92px;max-width:92px;}
 .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
+.link-geo{color:#2e7d32;text-decoration:underline;font-weight:bold;}
 #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
 .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
 #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
@@ -90,40 +91,28 @@ tr.deadline-label td{height:18px;padding:0 8px;font-size:10px;font-weight:bold;b
 tr.deadline-label:hover{background:transparent !important;cursor:default !important;}
 tr.deadline-label-10 td{border-top:3px solid #d32f2f !important;color:#d32f2f;background:#fff0f0;}
 tr.deadline-label-21 td{border-top:3px solid #e65100 !important;color:#e65100;background:#fff8f0;}
-
-/* ⚑ 注目フラグ行の点滅（薄ピンク） */
 @keyframes flagBlink {
   0%   { background-color: #fff0f5; box-shadow: inset 3px 0 0 #f48fb1; }
   50%  { background-color: #fce4ec; box-shadow: inset 3px 0 0 #f06292; }
   100% { background-color: #fff0f5; box-shadow: inset 3px 0 0 #f48fb1; }
 }
-tr.flagged-row {
-  animation: flagBlink 2.5s ease-in-out infinite;
-}
+tr.flagged-row { animation: flagBlink 2.5s ease-in-out infinite; }
 tr.flagged-row td { color: #880e4f !important; }
 tr.flagged-row:hover { background-color: #fce4ec !important; animation: none; box-shadow: none; }
-
-/* 📞 連絡必要行の点滅（薄青緑） */
 @keyframes contactBlink {
   0%   { background-color: #f0fdfd; box-shadow: inset 3px 0 0 #80deea; }
   50%  { background-color: #e0f7fa; box-shadow: inset 3px 0 0 #4dd0e1; }
   100% { background-color: #f0fdfd; box-shadow: inset 3px 0 0 #80deea; }
 }
-tr.needs-contact-row {
-  animation: contactBlink 2s ease-in-out infinite;
-}
+tr.needs-contact-row { animation: contactBlink 2s ease-in-out infinite; }
 tr.needs-contact-row td { color: #00695c !important; }
 tr.needs-contact-row:hover { background-color: #e0f7fa !important; animation: none; box-shadow: none; }
-
-/* 💬 SMS未送信行の点滅（薄ブラウン） */
 @keyframes smsBlink {
   0%   { background-color: #fbe9e7; box-shadow: inset 3px 0 0 #a1887f; }
   50%  { background-color: #f5cfc9; box-shadow: inset 3px 0 0 #6d4c41; }
   100% { background-color: #fbe9e7; box-shadow: inset 3px 0 0 #a1887f; }
 }
-tr.sms-pending-row {
-  animation: smsBlink 2.2s ease-in-out infinite;
-}
+tr.sms-pending-row { animation: smsBlink 2.2s ease-in-out infinite; }
 tr.sms-pending-row td { color: #3e2723 !important; font-weight: 600; }
 tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none; box-shadow: none; }
 </style>
@@ -182,12 +171,9 @@ document.getElementById('nosekouToggle').addEventListener('click',function(){sho
 var showContactOnly=false;
 document.getElementById('contactToggle').addEventListener('click',function(){showContactOnly=!showContactOnly;this.classList.toggle('active',showContactOnly);this.textContent=showContactOnly?'📞 連絡必要表示中':'📞 連絡必要のみ';renderTable();});
 
-/* ===== personal calendar ===== */
 var personalEvents={};
 database.ref('personal_calendar').once('value').then(function(snap){personalEvents=snap.val()||{};renderTable();}).catch(function(e){console.warn('personal_calendar取得失敗',e);});
 
-/* ===== SMS未送信データ ===== */
-/* smsPendingKeys: C4案件名 or C6電話番号（正規化）でマッチしたtaskキーのセット */
 var smsPendingKeys={};
 function loadSmsData(){
   database.ref('app_sms_list').once('value').then(function(snap){
@@ -199,11 +185,7 @@ function loadSmsData(){
       if(item&&item.done===false){pendingItems.push(item);}
     });
     if(!pendingItems.length)return;
-    // globalTasksと突き合わせ
-    // 優先①: caseKey完全一致（sms.htmlから案件キー付きで登録した場合）
-    // フォールバック②: C6電話番号一致
     var newKeys={};
-    // caseKeyセットを先に作る
     var pendingCaseKeys={};
     var pendingTels={};
     pendingItems.forEach(function(item){
@@ -213,13 +195,9 @@ function loadSmsData(){
     Object.keys(globalTasks).forEach(function(taskKey){
       var obj=globalTasks[taskKey];
       var cols=obj.csvData;if(!cols)return;
-      // ① caseKey完全一致
       if(pendingCaseKeys[taskKey]){newKeys[taskKey]=true;return;}
-      // ② 電話番号一致（フォールバック：caseKeyなし旧データ向け）
       var c6=normalizePhone(getSafeVal(cols,6));
       if(c6&&pendingTels[c6]){
-        // caseKeyを持つアイテムに同じtelがあっても別案件の可能性があるので
-        // caseKeyなしのアイテムにtelが一致する場合のみ適用
         for(var i=0;i<pendingItems.length;i++){
           if(!pendingItems[i].caseKey&&normalizePhone(pendingItems[i].tel||'')===c6){
             newKeys[taskKey]=true;break;
@@ -276,57 +254,41 @@ merged.forEach(function(item,idx){
   else{
     taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var tr=document.createElement("tr");
     var isSmsPending=!!smsPendingKeys[key];
-
-    // 行クラス優先順位: flagged > needsContact > smsPending > その他
-    if(obj.flagged){
-      tr.classList.add('flagged-row');
-    } else if(obj.needsContact){
-      tr.classList.add('needs-contact-row');
-    } else if(isSmsPending){
-      tr.classList.add('sms-pending-row');
-    } else if(isNoSekou){
-      tr.className='nosekou-row';
-    } else if(statusStr2==='下見完了'){
-      tr.className='shitami-done-row';
-    } else if(statusStr2==='下見実施中'){
-      tr.className='shitami-jisshi-row';
-    }
-
+    if(obj.flagged){tr.classList.add('flagged-row');}else if(obj.needsContact){tr.classList.add('needs-contact-row');}else if(isSmsPending){tr.classList.add('sms-pending-row');}else if(isNoSekou){tr.className='nosekou-row';}else if(statusStr2==='下見完了'){tr.className='shitami-done-row';}else if(statusStr2==='下見実施中'){tr.className='shitami-jisshi-row';}
     var today2=getTodayStr();var shitamiDateStr=formatToYMD(getSafeVal(cols,12));var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');var isKubunWarn=(getSafeVal(cols,3).replace(/\s+/g,'')==='ﾘ'&&shitamiDateStr==='');var isReportMissing=(shitamiDateStr!==''&&shitamiDateStr<today2&&(statusStr==='依頼'||statusStr==='下見日程確定'));var yoteiStr=formatToYMD(obj.date||'');var isYoteiPastNoShitami=(yoteiStr!==''&&yoteiStr<today2&&shitamiDateStr==='');
     var tdNo=document.createElement('td');tdNo.className='col-no';
-    if(obj.flagged){
-      tdNo.innerHTML='<span style="color:#f9a825;font-size:14px;">⚑</span>';
-    } else if(obj.needsContact){
-      tdNo.innerHTML='<span style="color:#006064;font-size:13px;">📞</span>';
-    } else if(isSmsPending){
-      tdNo.innerHTML='<span style="color:#5d4037;font-size:13px;">💬</span>';
-    } else if(isNoSekou){
-      tdNo.innerHTML='<span class="nosekou-badge">未</span>';
-    } else {
-      tdNo.textContent=obj.seqNo||(taskCount);tdNo.style.color='#888';
-    }
+    if(obj.flagged){tdNo.innerHTML='<span style="color:#f9a825;font-size:14px;">⚑</span>';}else if(obj.needsContact){tdNo.innerHTML='<span style="color:#006064;font-size:13px;">📞</span>';}else if(isSmsPending){tdNo.innerHTML='<span style="color:#5d4037;font-size:13px;">💬</span>';}else if(isNoSekou){tdNo.innerHTML='<span class="nosekou-badge">未</span>';}else{tdNo.textContent=obj.seqNo||(taskCount);tdNo.style.color='#888';}
     tr.appendChild(tdNo);
     for(var ci2=0;ci2<displayCols.length;ci2++){var colIdx=displayCols[ci2];var td=document.createElement('td');td.className=colClasses[ci2+1]||'';var inner=document.createElement('div');inner.className='cell-inner';if(colIdx===-1){
-        /* 下見予定日（日付のみ） */
         var yotei=obj.date||'';
         inner.textContent=yotei;
         if(yotei){if(isYoteiPastNoShitami){inner.classList.add('yotei-past-nowarn');}else if(yotei<today2){inner.classList.add('date-past');}else{inner.classList.add('yotei-cell');}}
       }else if(colIdx===-4){
-        /* 下見予定日 時間（obj.time） */
         var yoteiTime=obj.time||'';
         inner.textContent=yoteiTime;
         if(yoteiTime){inner.style.color='#6a1b9a';inner.style.fontWeight='600';inner.style.textAlign='center';}
       }else if(colIdx===-5){
-        /* 下見日 時間（C16） */
         var shitamiTimeVal=getSafeVal(cols,16)||'';
         inner.textContent=shitamiTimeVal;
         if(shitamiTimeVal){inner.style.color='#2e7d32';inner.style.fontWeight='600';inner.style.textAlign='center';}
       }else if(colIdx===-3){var orderVal=obj.order||'';inner.textContent=orderVal;if(orderVal!==''){inner.classList.add('order-cell');}inner.style.textAlign='center';}else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){if(aiYotei<today2){inner.classList.add('date-past');}else{inner.classList.add('ai-yotei-cell');}}}else{var cv=getSafeVal(cols,colIdx);var disp=cv.replace(/\n|\r/g,' '),clean=cv.replace(/\s+/g,'');if(colIdx===3&&isKubunWarn){inner.classList.add('kubun-warn');}if(colIdx===2&&isKubunWarn){inner.classList.add('kubun-warn');}
         if(colIdx===12&&clean!==''){
-          /* 下見日（日付のみ、時間は-5列） */
           if(isReportMissing){inner.classList.add('date-warn');}else if(shitamiDateStr<today2){inner.classList.add('date-past');}else{inner.classList.add('date-future');}
           inner.textContent=disp;
-        }else if(colIdx===11&&clean!==''){var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');inner.innerHTML='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean)+'" target="_blank" class="link-text">'+short+'</a>';}else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
+        }else if(colIdx===11&&clean!==''){
+          /* 住所リンク: 座標があれば座標URL、なければ住所テキストURL */
+          var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
+          if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
+          var mapUrl,linkClass;
+          if(obj.lat&&obj.lng){
+            mapUrl='https://www.google.com/maps?q='+obj.lat+','+obj.lng;
+            linkClass='link-geo';
+          }else{
+            mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
+            linkClass='link-text';
+          }
+          inner.innerHTML='<a href="'+mapUrl+'" target="_blank" class="'+linkClass+'">'+short+'</a>';
+        }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
     tbody.appendChild(tr);
