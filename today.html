@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-22 -->
+<!-- VERSION: 2026-06-22-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -207,7 +207,7 @@ function parseAddressToKey2(addr){
   if(!addr) return null;
   addr = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
   addr = addr.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
-  addr = addr.replace(/^北海道札幌市\S+区/,'');
+  addr = addr.replace(/^北海道札幌市.+?区/,'').replace(/^北海道.+?市/,'').replace(/^北海道.+?郡.+?[町村]/,'');
   addr = addr.replace(/(\d+[-]\d+)[^丁目条\d].+$/,'$1');
   var mb = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+)番(\d+)/);
   if(mb){ return mb[1]+numToKanji2(parseInt(mb[2]))+'条'+mb[3]+'_'+mb[4]+'_'+mb[5]+'-'+mb[6]; }
