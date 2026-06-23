@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-23-001 -->
+<!-- VERSION: 2026-06-23-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -478,7 +478,7 @@ merged.forEach(function(item,idx){
           }
           var aLink=document.createElement('a');
           aLink.href=mapUrl;aLink.target='_blank';aLink.className=linkClass;aLink.textContent=short;
-          aLink.addEventListener('click',function(e){ e.stopPropagation(); showMapPopup(e, mapUrl, clean); });
+          aLink.addEventListener('click',(function(u,a){return function(e){ e.stopPropagation(); showMapPopup(e, u, a); };})(mapUrl, clean));
           inner.appendChild(aLink);
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
