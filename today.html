@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-23-002 -->
+<!-- VERSION: 2026-06-23-003 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -155,10 +155,18 @@ function showMapPopup(e, normalUrl, addr){
   btn2.addEventListener('click', function(e2){
     e2.stopPropagation();
     pop.remove(); mapPopup=null;
-    chibanSearch(addr, null);
+    chibanSearch(addr, null, false);
+  });
+  var btn3 = document.createElement('button');
+  btn3.textContent = '🏛 公図で見る';
+  btn3.addEventListener('click', function(e2){
+    e2.stopPropagation();
+    pop.remove(); mapPopup=null;
+    chibanSearch(addr, null, true);
   });
   pop.appendChild(btn1);
   pop.appendChild(btn2);
+  pop.appendChild(btn3);
   // 画面端に出ないよう位置調整
   var x = e.clientX+5, y = e.clientY+5;
   if(x+160 > window.innerWidth) x = e.clientX-165;
@@ -174,7 +182,7 @@ function showMapPopup(e, normalUrl, addr){
     });
   }, 10);
 }
-function chibanSearch(addr, btn){
+function chibanSearch(addr, btn, useMAPPLE){
   var origLabel = btn ? btn.textContent : '';
   if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
 
@@ -224,15 +232,29 @@ function chibanSearch(addr, btn){
       if(btn){ btn.textContent=origLabel; btn.disabled=false; }
       var v = chibanData[key];
       if(!v){
-        // ハイフン後を省いて再検索
         var keyShort = key.replace(/-\d+$/, '');
         v = chibanData[keyShort];
-        if(!v){ alert('地番データが見つかりませんでした\nキー: '+key+'\nAI理由: '+result.reason); return; }
+        if(!v){
+          // 座標なし → MAPPLEトップへフォールバック
+          if(confirm('地番データが見つかりませんでした。\nMAPPLE法務局地図ビューアで手動検索しますか？')){
+            window.open('https://labs.mapple.com/mapplexml.html', '_blank');
+          }
+          return;
+        }
         key = keyShort;
       }
       var lat=v[0], lng=v[1];
-      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）\nキー: '+key); return; }
-      window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){
+        if(confirm('座標が札幌市範囲外です（任意座標系エリア）。\nMAPPLE法務局地図ビューアで手動検索しますか？')){
+          window.open('https://labs.mapple.com/mapplexml.html', '_blank');
+        }
+        return;
+      }
+      if(useMAPPLE){
+        window.open('https://labs.mapple.com/mapplexml.html#16.00/'+lat+'/'+lng, '_blank');
+      } else {
+        window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+      }
     });
   })
   .catch(function(e){
