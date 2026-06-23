@@ -175,8 +175,6 @@ function showMapPopup(e, normalUrl, addr){
   }, 10);
 }
 function chibanSearch(addr, btn){
-  var apiKey = localStorage.getItem('claudeApiKey');
-  if(!apiKey){ alert('Claude APIキーが設定されていません（設定画面⚙️から入力してください）'); return; }
   var origLabel = btn ? btn.textContent : '';
   if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
 
@@ -194,7 +192,7 @@ function chibanSearch(addr, btn){
     'または\n' +
     '{"is_chiban": false, "key": null, "reason": "番地が12-3で住居表示と判定"}';
 
-  fetch('https://api.anthropic.com/v1/messages', {
+  fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
