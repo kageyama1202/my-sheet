@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-23-005 -->
+<!-- VERSION: 2026-06-23-006 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -301,10 +301,10 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
   modal.style.display = 'block';
 
   // 公図ビューアのAPIをCloud Run経由で叩く
-  fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app/kouzu', {
+  fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({city_id: cityCode, chiban_area: chibanArea, data_year: '2026'})
+    body: JSON.stringify({action: 'kouzu', city_id: cityCode, chiban_area: chibanArea, data_year: '2026'})
   })
   .then(function(res){ return res.json(); })
   .then(function(data){
