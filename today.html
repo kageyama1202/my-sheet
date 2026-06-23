@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-22-002 -->
+<!-- VERSION: 2026-06-23-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -175,18 +175,71 @@ function showMapPopup(e, normalUrl, addr){
   }, 10);
 }
 function chibanSearch(addr, btn){
-  var key = parseAddressToKey2(addr);
-  if(!key){ alert('住所を解析できませんでした'); return; }
-  var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
-  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません（割番形式のみ対応）'); return; }
-  if(btn){ btn.textContent='⏳'; }
-  loadChibanDataOnce(function(data){
-    if(btn){ btn.textContent='🗺 地番検索'; }
-    var v = data[key];
-    if(!v){ alert('地番データが見つかりませんでした: '+key); return; }
-    var lat=v[0], lng=v[1];
-    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）'); return; }
-    window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+  var apiKey = localStorage.getItem('claudeApiKey');
+  if(!apiKey){ alert('Claude APIキーが設定されていません（設定画面⚙️から入力してください）'); return; }
+  var origLabel = btn ? btn.textContent : '';
+  if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
+
+  var prompt = '以下の住所が「割番（地番）」かどうかを判定し、割番であればチバンJSONのキー形式に変換してください。\n\n' +
+    '住所: ' + addr + '\n\n' +
+    '【判定ルール】\n' +
+    '- 割番（地番）: 番地が100以上、または「番」が明示、または「地番」記載あり\n' +
+    '- 住居表示: 番地が1〜99程度で「号」がある、または通常の住居表示形式\n\n' +
+    '【キー形式】大字名+条名_丁目番号_地番番号\n' +
+    '例: 「南26条西5丁目123-4」→ 南二十六条西_5_123-4\n' +
+    '例: 「北3条東10丁目456」→ 北三条東_10_456\n' +
+    '例: 「豊平区月寒東1条5丁目789-1」→ 月寒東一条_5_789-1\n\n' +
+    '【出力形式】JSONのみ、他のテキスト不要\n' +
+    '{"is_chiban": true, "key": "南二十六条西_5_123-4", "reason": "番地が123で100以上のため割番と判定"}\n' +
+    'または\n' +
+    '{"is_chiban": false, "key": null, "reason": "番地が12-3で住居表示と判定"}';
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  .then(function(res){ return res.json(); })
+  .then(function(data){
+    if(btn){ btn.textContent=origLabel; btn.disabled=false; }
+    var text = (data.content&&data.content[0]&&data.content[0].text)||'';
+    var clean = text.replace(/```json|```/g,'').trim();
+    var result;
+    try{ result = JSON.parse(clean); } catch(e){ alert('AI応答の解析に失敗:\n'+text); return; }
+
+    if(!result.is_chiban){
+      if(confirm('AIが住居表示と判定しました。\n理由: '+result.reason+'\n\nそれでも地番検索しますか？')){
+        // 強制続行
+      } else {
+        return;
+      }
+    }
+    var key = result.key;
+    if(!key){ alert('AIがキーを生成できませんでした: '+result.reason); return; }
+
+    if(btn){ btn.textContent='⏳ データ検索中'; btn.disabled=true; }
+    loadChibanDataOnce(function(chibanData){
+      if(btn){ btn.textContent=origLabel; btn.disabled=false; }
+      var v = chibanData[key];
+      if(!v){
+        // ハイフン後を省いて再検索
+        var keyShort = key.replace(/-\d+$/, '');
+        v = chibanData[keyShort];
+        if(!v){ alert('地番データが見つかりませんでした\nキー: '+key+'\nAI理由: '+result.reason); return; }
+        key = keyShort;
+      }
+      var lat=v[0], lng=v[1];
+      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）\nキー: '+key); return; }
+      window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+    });
+  })
+  .catch(function(e){
+    if(btn){ btn.textContent=origLabel; btn.disabled=false; }
+    alert('Claude API エラー: '+e);
   });
 }
 // ===== 住所ポップアップここまで =====
