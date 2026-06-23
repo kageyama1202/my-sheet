@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-23-003 -->
+<!-- VERSION: 2026-06-23-004 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -186,19 +186,21 @@ function chibanSearch(addr, btn, useMAPPLE){
   var origLabel = btn ? btn.textContent : '';
   if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
 
-  var prompt = '以下の住所が「割番（地番）」かどうかを判定し、割番であればチバンJSONのキー形式に変換してください。\n\n' +
+  var prompt = '以下の住所が「割番（地番）」かどうかを判定し、情報を抽出してください。\n\n' +
     '住所: ' + addr + '\n\n' +
     '【判定ルール】\n' +
     '- 割番（地番）: 番地が100以上、または「番」が明示、または「地番」記載あり\n' +
     '- 住居表示: 番地が1〜99程度で「号」がある、または通常の住居表示形式\n\n' +
     '【キー形式】大字名+条名_丁目番号_地番番号\n' +
-    '例: 「南26条西5丁目123-4」→ 南二十六条西_5_123-4\n' +
-    '例: 「北3条東10丁目456」→ 北三条東_10_456\n' +
-    '例: 「豊平区月寒東1条5丁目789-1」→ 月寒東一条_5_789-1\n\n' +
+    '例: 「南26条西5丁目123-4」→ key: 南二十六条西_5_123-4\n' +
+    '例: 「北3条東10丁目456」→ key: 北三条東_10_456\n' +
+    '例: 「西区西野三条9丁目126-93」→ key: 西野三条_9_126-93, chiban_area: 西野三条９丁目, chiban_num: 126-93\n\n' +
+    '【chiban_areaの形式】公図ビューアの地番区域名（全角数字・丁目表記）\n' +
+    '例: 「西野三条９丁目」「発寒八条１０丁目」「宮の沢一条３丁目」\n\n' +
     '【出力形式】JSONのみ、他のテキスト不要\n' +
-    '{"is_chiban": true, "key": "南二十六条西_5_123-4", "reason": "番地が123で100以上のため割番と判定"}\n' +
+    '{"is_chiban": true, "key": "西野三条_9_126-93", "chiban_area": "西野三条９丁目", "chiban_num": "126-93", "reason": "番地が126で100以上のため割番と判定"}\n' +
     'または\n' +
-    '{"is_chiban": false, "key": null, "reason": "番地が12-3で住居表示と判定"}';
+    '{"is_chiban": false, "key": null, "chiban_area": null, "chiban_num": null, "reason": "番地が12-3で住居表示と判定"}';
 
   fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app', {
     method: 'POST',
@@ -235,9 +237,14 @@ function chibanSearch(addr, btn, useMAPPLE){
         var keyShort = key.replace(/-\d+$/, '');
         v = chibanData[keyShort];
         if(!v){
-          // 座標なし → MAPPLEトップへフォールバック
-          if(confirm('地番データが見つかりませんでした。\nMAPPLE法務局地図ビューアで手動検索しますか？')){
-            window.open('https://labs.mapple.com/mapplexml.html', '_blank');
+          if(useMAPPLE && result.chiban_area){
+            navigator.clipboard.writeText(result.chiban_area).catch(function(){});
+            window.open('https://kouzuviewer.com/chiban/', '_blank');
+            alert('📋 地番区域名をコピーしました\n\n①「01 北海道」→「01107 札幌市西区」を選択\n②地番区域に「'+result.chiban_area+'」を貼り付け\n③地番「'+result.chiban_num+'」をクリック');
+          } else if(confirm('地番データが見つかりませんでした。\n公図ビューアで検索しますか？')){
+            if(result.chiban_area) navigator.clipboard.writeText(result.chiban_area).catch(function(){});
+            window.open('https://kouzuviewer.com/chiban/', '_blank');
+            if(result.chiban_area) alert('📋「'+result.chiban_area+'」をコピーしました\n地番区域に貼り付けて「'+result.chiban_num+'」を選んでください');
           }
           return;
         }
@@ -245,13 +252,26 @@ function chibanSearch(addr, btn, useMAPPLE){
       }
       var lat=v[0], lng=v[1];
       if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){
-        if(confirm('座標が札幌市範囲外です（任意座標系エリア）。\nMAPPLE法務局地図ビューアで手動検索しますか？')){
-          window.open('https://labs.mapple.com/mapplexml.html', '_blank');
+        if(useMAPPLE && result.chiban_area){
+          navigator.clipboard.writeText(result.chiban_area).catch(function(){});
+          window.open('https://kouzuviewer.com/chiban/', '_blank');
+          alert('📋 地番区域名をコピーしました\n\n①「01 北海道」→「01107 札幌市西区」を選択\n②地番区域に「'+result.chiban_area+'」を貼り付け\n③地番「'+result.chiban_num+'」をクリック');
+        } else if(confirm('座標が札幌市範囲外です（任意座標系エリア）。\n公図ビューアで検索しますか？')){
+          if(result.chiban_area) navigator.clipboard.writeText(result.chiban_area).catch(function(){});
+          window.open('https://kouzuviewer.com/chiban/', '_blank');
+          if(result.chiban_area) alert('📋「'+result.chiban_area+'」をコピーしました\n地番区域に貼り付けて「'+result.chiban_num+'」を選んでください');
         }
         return;
       }
       if(useMAPPLE){
-        window.open('https://labs.mapple.com/mapplexml.html#16.00/'+lat+'/'+lng, '_blank');
+        // 座標あり→公図ビューアに地番区域コピー＆飛ぶ
+        if(result.chiban_area){
+          navigator.clipboard.writeText(result.chiban_area).catch(function(){});
+          window.open('https://kouzuviewer.com/chiban/', '_blank');
+          alert('📋 地番区域名をコピーしました\n\n①「01 北海道」→「01107 札幌市西区」を選択\n②地番区域に「'+result.chiban_area+'」を貼り付け\n③地番「'+result.chiban_num+'」をクリック');
+        } else {
+          window.open('https://kouzuviewer.com/chiban/', '_blank');
+        }
       } else {
         window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
       }
