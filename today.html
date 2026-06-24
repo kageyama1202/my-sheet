@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-24-001 -->
+<!-- VERSION: 2026-06-24-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -420,44 +420,7 @@ function searchChibanAndOpen(addr, btn){
   });
 }
 
-// ===== バックグラウンド自動ジオコーディング =====
-function autoChibanGeocode(){
-  loadChibanDataOnce(function(data){
-    var updated = false;
-    Object.keys(globalTasks).forEach(function(key){
-      var obj = globalTasks[key];
-      if(obj.lat && obj.lng) return; // 既に座標あり→スキップ
-      var cols = obj.csvData;
-      if(!cols) return;
-      var addr = getSafeVal(cols, 11);
-      if(!addr) return;
-      var chibanKey = parseAddressToKey2(addr);
-      if(!chibanKey) return;
-      // 割番チェック（番地100以上のみ）
-      var parts = chibanKey.split('_');
-      var banchi = parseInt((parts[2]||'').split('-')[0]);
-      if(isNaN(banchi) || banchi < 100) return;
-      // 完全一致優先
-      var v = data[chibanKey];
-      // なければ親番（枝番なし）で試みる
-      if(!v && parts[2] && parts[2].indexOf('-') !== -1){
-        var parentKey = parts[0]+'_'+parts[1]+'_'+parts[2].split('-')[0];
-        v = data[parentKey];
-      }
-      if(!v) return;
-      var lat=v[0], lng=v[1];
-      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7) return;
-      obj.lat = lat;
-      obj.lng = lng;
-      updated = true;
-    });
-    if(updated){
-      console.log('[chiban] バックグラウンドジオコーディング完了→再描画');
-      renderTable();
-    }
-  });
-}
-// ===== ここまで =====
+
 
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
@@ -541,8 +504,6 @@ if(fullData&&fullData.app_meta&&fullData.app_tasks){
   initFilters();
   renderTable();
   loadSmsData();
-  // バックグラウンドでchiban.jsonを先読みして割番を自動ジオコーディング
-  setTimeout(autoChibanGeocode, 500);
 }else{document.getElementById('noDataMsg').style.display='block';}
 
 function initFilters(){
