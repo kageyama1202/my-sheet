@@ -135,7 +135,10 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
   <div id="kouzu-panel">
     <div id="kouzu-header">
       <span id="kouzu-title">🏛 公図で見る</span>
-      <button onclick="document.getElementById('kouzu-modal').style.display='none'">✕</button>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button id="kouzu-map-btn" style="background:#1565c0;border:none;color:#fff;font-size:11px;padding:4px 8px;border-radius:4px;cursor:pointer;">📍 Gマップ</button>
+        <button onclick="document.getElementById('kouzu-modal').style.display='none'">✕</button>
+      </div>
     </div>
     <div id="kouzu-info"></div>
     <div id="kouzu-list"><div id="kouzu-loading">読み込み中...</div></div>
@@ -223,7 +226,7 @@ function chibanSearch(addr, btn, useMAPPLE){
     'または\n' +
     '{"is_chiban": false, "key": null, "city_code": null, "chiban_area": null, "chiban_num": null, "reason": "住居表示と判定"}';
 
-  fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app', {
+  fetch('https://claudeproxy-1054295910908.us-central1.run.app', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -302,11 +305,17 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
   var info = document.getElementById('kouzu-info');
   var list = document.getElementById('kouzu-list');
   info.textContent = '地番区域: '+chibanArea+'　地番: '+chibanNum;
+  // Googleマップボタン設定
+  var mapBtn = document.getElementById('kouzu-map-btn');
+  if(mapBtn){
+    var mapQuery = '札幌市 '+chibanArea+' '+chibanNum;
+    mapBtn.onclick = function(){ window.open('https://www.google.com/maps/search/'+encodeURIComponent(mapQuery), '_blank'); };
+  }
   list.innerHTML = '<div id="kouzu-loading">⏳ 地番リスト取得中...</div>';
   modal.style.display = 'block';
 
   // 公図ビューアのAPIをCloud Run経由で叩く
-  fetch('https://claudeproxy-ubob5avuoa-uc.a.run.app', {
+  fetch('https://claudeproxy-1054295910908.us-central1.run.app', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({action: 'kouzu', city_id: cityCode, chiban_area: chibanArea, data_year: '2026'})
