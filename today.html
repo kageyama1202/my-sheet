@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-24-002 -->
+<!-- VERSION: 2026-06-25-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -186,9 +186,21 @@ function showMapPopup(e, normalUrl, addr){
     pop.remove(); mapPopup=null;
     chibanSearch(addr, null, true);
   });
+  var btn4 = document.createElement('button');
+  btn4.textContent = '🗾 MAPPLEで地番確認';
+  btn4.style.background = '#e8f5e9';
+  btn4.style.borderColor = '#2e7d32';
+  btn4.style.color = '#1b5e20';
+  btn4.style.fontWeight = 'bold';
+  btn4.addEventListener('click', function(e2){
+    e2.stopPropagation();
+    window.open('https://labs.mapple.com/mapplexml.html', '_blank');
+    showMapplePath(pop, addr);
+  });
   pop.appendChild(btn1);
   pop.appendChild(btn2);
   pop.appendChild(btn3);
+  pop.appendChild(btn4);
   var x = e.clientX+5, y = e.clientY+5;
   if(x+160 > window.innerWidth) x = e.clientX-165;
   if(y+80 > window.innerHeight) y = e.clientY-85;
@@ -203,6 +215,106 @@ function showMapPopup(e, normalUrl, addr){
     });
   }, 10);
 }
+
+// ===== MAPPLEパス表示 =====
+function parseMapplePath(addr){
+  if(!addr) return null;
+  // 全角→半角
+  var a = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
+  a = a.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
+
+  // 区を取り出す
+  var ward = '';
+  var wm = a.match(/札幌市(.+?区)/);
+  if(wm) ward = '札幌市'+wm[1];
+
+  // 区以降
+  var rest = a.replace(/^.*?区/,'');
+
+  // 条+方角+丁目+地番
+  var m = rest.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
+  if(!m) return null;
+
+  var oaza = m[1]; // 大字（篠路、月寒東など）
+  var joNum = parseInt(m[2]);
+  var dir = m[3]; // 方角（東西南北）
+  var chome = m[4];
+  var chiban = m[5];
+
+  // 漢数字変換
+  var joKanji = KANJI_MAP2[String(joNum)] || String(joNum);
+  // 条名: 大字+漢数字条+方角 例: 篠路二条、月寒東一条
+  var joName = oaza + joKanji + '条' + dir;
+
+  return {
+    ward: ward,       // 札幌市北区
+    jo: joName,       // 篠路二条
+    chome: chome+'丁目', // 7丁目
+    chiban: chiban    // 93-51
+  };
+}
+
+function showMapplePath(pop, addr){
+  var path = parseMapplePath(addr);
+  // ポップアップ内容を丸ごと入れ替え
+  pop.innerHTML = '';
+  pop.style.padding = '8px';
+  pop.style.minWidth = '200px';
+
+  var title = document.createElement('div');
+  title.textContent = '🗾 MAPPLE 地番検索パス';
+  title.style.cssText = 'font-weight:bold;font-size:11px;color:#1b5e20;margin-bottom:6px;border-bottom:1px solid #c8e6c9;padding-bottom:4px;';
+  pop.appendChild(title);
+
+  if(!path){
+    var err = document.createElement('div');
+    err.textContent = '住所を解析できませんでした';
+    err.style.cssText = 'font-size:11px;color:#c62828;padding:4px;';
+    pop.appendChild(err);
+  } else {
+    var steps = [
+      {label:'① 都道府県', value:'北海道', fixed:true},
+      {label:'② 市区町村', value:path.ward},
+      {label:'③ 条名',    value:path.jo},
+      {label:'④ 丁目',    value:path.chome},
+      {label:'⑤ 地番',    value:path.chiban}
+    ];
+    steps.forEach(function(s){
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;';
+      var lbl = document.createElement('span');
+      lbl.style.cssText = 'font-size:10px;color:#888;min-width:60px;';
+      lbl.textContent = s.label;
+      var val = document.createElement('span');
+      val.style.cssText = 'font-size:12px;font-weight:bold;color:#1b5e20;flex:1;';
+      val.textContent = s.value;
+      row.appendChild(lbl);
+      row.appendChild(val);
+      if(!s.fixed){
+        var cp = document.createElement('button');
+        cp.textContent = 'コピー';
+        cp.style.cssText = 'font-size:10px;padding:1px 6px;border:1px solid #aaa;border-radius:3px;background:#f8f8f8;cursor:pointer;white-space:nowrap;';
+        cp.addEventListener('click', function(v){ return function(e2){
+          e2.stopPropagation();
+          navigator.clipboard.writeText(v).then(function(){
+            cp.textContent = '✓';
+            cp.style.background = '#c8e6c9';
+            setTimeout(function(){ cp.textContent = 'コピー'; cp.style.background = '#f8f8f8'; }, 1000);
+          });
+        };}(s.value));
+        row.appendChild(cp);
+      }
+      pop.appendChild(row);
+    });
+  }
+
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕ 閉じる';
+  closeBtn.style.cssText = 'margin-top:6px;width:100%;font-size:11px;padding:3px;border:1px solid #ccc;border-radius:3px;background:#f0f0f0;cursor:pointer;';
+  closeBtn.addEventListener('click', function(e2){ e2.stopPropagation(); pop.remove(); mapPopup=null; });
+  pop.appendChild(closeBtn);
+}
+// ===== MAPPLEパス表示ここまで =====
 function chibanSearch(addr, btn, useMAPPLE){
   var origLabel = btn ? btn.textContent : '';
   if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
