@@ -221,6 +221,9 @@
               hit++;
             }
           });
+          parsed.forEach(function(item){
+            log('  ['+item.idx+'] is_chiban:'+item.is_chiban+' key:'+item.key, item.is_chiban?'ok':'warn');
+          });
           log('✅ AI補完バッチ結果: '+hit+'/'+batch.length+'件ヒット', hit>0?'ok':'warn');
         }catch(e){
           log('⚠️ AI補完バッチ失敗: '+e, 'warn');
