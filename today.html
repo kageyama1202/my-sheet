@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-23-007 -->
+<!-- VERSION: 2026-06-24-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -189,7 +189,6 @@ function showMapPopup(e, normalUrl, addr){
   pop.appendChild(btn1);
   pop.appendChild(btn2);
   pop.appendChild(btn3);
-  // 画面端に出ないよう位置調整
   var x = e.clientX+5, y = e.clientY+5;
   if(x+160 > window.innerWidth) x = e.clientX-165;
   if(y+80 > window.innerHeight) y = e.clientY-85;
@@ -245,7 +244,6 @@ function chibanSearch(addr, btn, useMAPPLE){
 
     if(!result.is_chiban){
       if(confirm('AIが住居表示と判定しました。\n理由: '+result.reason+'\n\nそれでも地番検索しますか？')){
-        // 強制続行
       } else {
         return;
       }
@@ -297,7 +295,6 @@ function chibanSearch(addr, btn, useMAPPLE){
     alert('Claude API エラー: '+e);
   });
 }
-// ===== 住所ポップアップここまで =====
 
 // ===== 公図ビューアモーダル =====
 function showKouzuModal(cityCode, chibanArea, chibanNum){
@@ -305,7 +302,6 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
   var info = document.getElementById('kouzu-info');
   var list = document.getElementById('kouzu-list');
   info.textContent = '地番区域: '+chibanArea+'　地番: '+chibanNum;
-  // Googleマップボタン設定
   var mapBtn = document.getElementById('kouzu-map-btn');
   if(mapBtn){
     var mapQuery = '札幌市 '+chibanArea+' '+chibanNum;
@@ -314,7 +310,6 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
   list.innerHTML = '<div id="kouzu-loading">⏳ 地番リスト取得中...</div>';
   modal.style.display = 'block';
 
-  // 公図ビューアのAPIをCloud Run経由で叩く
   fetch('https://claudeproxy-1054295910908.us-central1.run.app', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -335,7 +330,6 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
       html += '<a href="'+url+'" target="_blank" style="'+style+'" onclick="document.getElementById(\'kouzu-modal\').style.display=\'none\'">'+c+'</a>';
     });
     list.innerHTML = html;
-    // 対象地番にスクロール
     var target = list.querySelector('a[style*="fff9c4"]');
     if(target) setTimeout(function(){ target.scrollIntoView({block:'center'}); }, 100);
   })
@@ -343,7 +337,6 @@ function showKouzuModal(cityCode, chibanArea, chibanNum){
     list.innerHTML = '<div style="padding:16px;color:#c62828;">エラー: '+e+'</div>';
   });
 }
-// ===== 公図ビューアモーダルここまで =====
 
 // ===== 地番検索ロジック =====
 var chibanData = null;
@@ -406,7 +399,7 @@ function loadChibanDataOnce(callback){
       }
       return pump();
     })
-    .catch(function(e){ chibanLoading=false; alert('地番データ読み込み失敗: '+e); });
+    .catch(function(e){ chibanLoading=false; console.warn('地番データ読み込み失敗:', e); });
 }
 
 function searchChibanAndOpen(addr, btn){
@@ -424,6 +417,44 @@ function searchChibanAndOpen(addr, btn){
     var lat=v[0], lng=v[1];
     if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）: '+key); return; }
     window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
+  });
+}
+
+// ===== バックグラウンド自動ジオコーディング =====
+function autoChibanGeocode(){
+  loadChibanDataOnce(function(data){
+    var updated = false;
+    Object.keys(globalTasks).forEach(function(key){
+      var obj = globalTasks[key];
+      if(obj.lat && obj.lng) return; // 既に座標あり→スキップ
+      var cols = obj.csvData;
+      if(!cols) return;
+      var addr = getSafeVal(cols, 11);
+      if(!addr) return;
+      var chibanKey = parseAddressToKey2(addr);
+      if(!chibanKey) return;
+      // 割番チェック（番地100以上のみ）
+      var parts = chibanKey.split('_');
+      var banchi = parseInt((parts[2]||'').split('-')[0]);
+      if(isNaN(banchi) || banchi < 100) return;
+      // 完全一致優先
+      var v = data[chibanKey];
+      // なければ親番（枝番なし）で試みる
+      if(!v && parts[2] && parts[2].indexOf('-') !== -1){
+        var parentKey = parts[0]+'_'+parts[1]+'_'+parts[2].split('-')[0];
+        v = data[parentKey];
+      }
+      if(!v) return;
+      var lat=v[0], lng=v[1];
+      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7) return;
+      obj.lat = lat;
+      obj.lng = lng;
+      updated = true;
+    });
+    if(updated){
+      console.log('[chiban] バックグラウンドジオコーディング完了→再描画');
+      renderTable();
+    }
   });
 }
 // ===== ここまで =====
@@ -504,7 +535,15 @@ function loadSmsData(){
 
 var globalHeaders=[],globalTasks={},fullData=null;
 try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
-if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;initFilters();renderTable();loadSmsData();}else{document.getElementById('noDataMsg').style.display='block';}
+if(fullData&&fullData.app_meta&&fullData.app_tasks){
+  globalHeaders=fullData.app_meta.headers;
+  globalTasks=fullData.app_tasks;
+  initFilters();
+  renderTable();
+  loadSmsData();
+  // バックグラウンドでchiban.jsonを先読みして割番を自動ジオコーディング
+  setTimeout(autoChibanGeocode, 500);
+}else{document.getElementById('noDataMsg').style.display='block';}
 
 function initFilters(){
 var stMap={},kbMap={},cpMap={},arMap={};
@@ -568,7 +607,6 @@ merged.forEach(function(item,idx){
           if(isReportMissing){inner.classList.add('date-warn');}else if(shitamiDateStr<today2){inner.classList.add('date-past');}else{inner.classList.add('date-future');}
           inner.textContent=disp;
         }else if(colIdx===11&&clean!==''){
-          /* 住所リンク: 座標があれば座標URL、なければ住所テキストURL */
           var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
           if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
           var mapUrl,linkClass;
