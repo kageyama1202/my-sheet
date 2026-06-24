@@ -165,7 +165,7 @@
       // addrListは [{taskKey, addr}, ...]
       if(!addrList.length) return {};
 
-      var BATCH = 25; // 1回のAPI呼び出しあたり件数
+      var BATCH = 5; // 1回のAPI呼び出しあたり件数
       var resultMap = {}; // taskKey -> {lat,lng}
 
       for(var i=0; i<addrList.length; i+=BATCH){
@@ -193,13 +193,13 @@
           '[{"idx":1,"is_chiban":true,"key":"屯田四条_8_199-135"},{"idx":2,"is_chiban":false,"key":null},...]';
 
         try{
-          log('🤖 AI補完 '+(i+1)+'〜'+(i+batch.length)+'件目送信中...');
+          log('🤖 AI補完 '+(i+1)+'〜'+(i+batch.length)+'件目 住所: '+batch.map(function(x){return x.addr;}).join(' / '), 'info');
           var res = await fetch('https://claudeproxy-1054295910908.us-central1.run.app',{
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
               model:'claude-sonnet-4-6',
-              max_tokens:1500,
+              max_tokens:2000,
               messages:[{role:'user',content:prompt}]
             })
           });
@@ -227,7 +227,7 @@
           });
           log('✅ AI補完バッチ結果: '+hit+'/'+batch.length+'件ヒット', hit>0?'ok':'warn');
         }catch(e){
-          log('⚠️ AI補完バッチ失敗: '+e, 'warn');
+          log('⚠️ AI補完バッチ失敗: '+e+' / stack: '+(e.stack||''), 'err');
         }
       }
       return resultMap;
