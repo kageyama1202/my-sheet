@@ -205,6 +205,7 @@
           });
           var data = await res.json();
           var text = (data.content&&data.content[0]&&data.content[0].text)||'';
+          log('🔍 AI生レスポンス: '+text.substring(0,300), 'info');
           var clean = text.replace(/```json|```/g,'').trim();
           // JSON配列部分だけ抽出
           var jsonMatch = clean.match(/\[[\s\S]*\]/);
