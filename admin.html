@@ -206,7 +206,10 @@
           var data = await res.json();
           var text = (data.content&&data.content[0]&&data.content[0].text)||'';
           var clean = text.replace(/```json|```/g,'').trim();
-          var parsed = JSON.parse(clean);
+          // JSON配列部分だけ抽出
+          var jsonMatch = clean.match(/\[[\s\S]*\]/);
+          if(!jsonMatch){ log('⚠️ AI応答にJSON配列なし: '+text.substring(0,100), 'warn'); continue; }
+          var parsed = JSON.parse(jsonMatch[0]);
           var hit=0;
           parsed.forEach(function(item){
             if(!item.is_chiban||!item.key) return;
