@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-06-29-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -33,16 +34,10 @@
     ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件は自動削除されます<br>
-    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）<br>
-    ・住所から地番を検索し、緯度経度を自動設定します（割番形式のみ・AI補完あり）</p>
+    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）</p>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
-
-    <hr class="divider">
-
-    <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ 全案件のlat/lngをクリアします（座標再取込前に使用）</p>
-    <button id="clearGeoBtn" class="danger" disabled>🗑 全案件の座標（lat/lng）を一括クリア</button>
 
     <hr class="divider">
 
@@ -63,7 +58,6 @@
         document.getElementById('authStatus').style.color='#66bb6a';
         document.getElementById('uploadBtn').disabled=false;
         document.getElementById('cleanBtn').disabled=false;
-        document.getElementById('clearGeoBtn').disabled=false;
       })
       .catch(function(err){
         document.getElementById('authStatus').textContent='❌ 認証失敗: '+err.message;
@@ -72,167 +66,6 @@
 
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
-
-    // ===== 地番→座標変換ロジック（最新版） =====
-    var chibanData = null;
-
-    var KANJI_MAP = {'1':'一','2':'二','3':'三','4':'四','5':'五',
-      '6':'六','7':'七','8':'八','9':'九','10':'十',
-      '11':'十一','12':'十二','13':'十三','14':'十四','15':'十五',
-      '16':'十六','17':'十七','18':'十八','19':'十九','20':'二十',
-      '21':'二十一','22':'二十二','23':'二十三','24':'二十四','25':'二十五',
-      '26':'二十六','27':'二十七','28':'二十八','29':'二十九','30':'三十',
-      '31':'三十一','32':'三十二','33':'三十三','34':'三十四','35':'三十五',
-      '36':'三十六','37':'三十七','38':'三十八','39':'三十九','40':'四十',
-      '41':'四十一','42':'四十二','43':'四十三','44':'四十四','45':'四十五',
-      '46':'四十六','47':'四十七','48':'四十八'};
-
-    function numToKanji(n){ return KANJI_MAP[String(n)] || String(n); }
-
-    function parseAddressToKey(addr){
-      if(!addr) return null;
-      addr = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
-      addr = addr.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
-      // 区名以降を取り出す
-      addr = addr.replace(/^北海道札幌市.+?区/,'').replace(/^北海道.+?市/,'').replace(/^北海道.+?郡.+?[町村]/,'');
-      // マンション名除去
-      addr = addr.replace(/(\d+[-]\d+)[^丁目条\d].+$/,'$1');
-      // 「番」形式: 条+方角+丁目+番+号
-      var mb = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+)番(\d+)/);
-      if(mb){ return mb[1]+numToKanji(parseInt(mb[2]))+'条'+mb[3]+'_'+mb[4]+'_'+mb[5]+'-'+mb[6]; }
-      // 通常パターン
-      var m = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
-      if(!m) return null;
-      return m[1]+numToKanji(parseInt(m[2]))+'条'+m[3]+'_'+m[4]+'_'+m[5];
-    }
-
-    function lookupChibanByKey(key){
-      if(!chibanData||!key) return null;
-      // 完全一致
-      var v = chibanData[key];
-      // 枝番なしでフォールバック
-      if(!v && key.indexOf('-') !== -1){
-        var parts = key.split('_');
-        var parentKey = parts[0]+'_'+parts[1]+'_'+parts[2].split('-')[0];
-        v = chibanData[parentKey];
-      }
-      if(!v) return null;
-      var lat=v[0], lng=v[1];
-      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7) return null;
-      return {lat:lat, lng:lng};
-    }
-
-    function lookupChiban(addr){
-      var key = parseAddressToKey(addr);
-      if(!key) return null;
-      var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
-      if(isNaN(chibanNum)||chibanNum < 100) return null;
-      return lookupChibanByKey(key);
-    }
-
-    async function loadChibanData(){
-      if(chibanData) return chibanData;
-      try {
-        log('📍 地番データ読み込み中...');
-        var res = await fetch('https://kageyama1202.github.io/my-sheet/chiban.json.gz');
-        var buf = await res.arrayBuffer();
-        var ds = new DecompressionStream('gzip');
-        var writer = ds.writable.getWriter();
-        var reader = ds.readable.getReader();
-        writer.write(new Uint8Array(buf));
-        writer.close();
-        var chunks = [], total = 0;
-        while(true){
-          var r = await reader.read();
-          if(r.done) break;
-          chunks.push(r.value);
-          total += r.value.length;
-        }
-        var merged = new Uint8Array(total), offset = 0;
-        chunks.forEach(function(c){merged.set(c,offset);offset+=c.length;});
-        chibanData = JSON.parse(new TextDecoder().decode(merged));
-        log('✅ 地番データ読み込み完了 (' + Object.keys(chibanData).length + '件)', 'ok');
-        return chibanData;
-      } catch(e) {
-        log('⚠️ 地番データ読み込み失敗: ' + e, 'warn');
-        return null;
-      }
-    }
-
-    // ===== AI補完バッチ処理 =====
-    // ローカル変換失敗した住所をまとめてAIに送りキーを生成してもらう
-    async function aiGeocodeBatch(addrList){
-      // addrListは [{taskKey, addr}, ...]
-      if(!addrList.length) return {};
-
-      var BATCH = 5; // 1回のAPI呼び出しあたり件数
-      var resultMap = {}; // taskKey -> {lat,lng}
-
-      for(var i=0; i<addrList.length; i+=BATCH){
-        var batch = addrList.slice(i, i+BATCH);
-        var listText = batch.map(function(item, idx){
-          return (idx+1)+'. '+item.addr;
-        }).join('\n');
-
-        var prompt =
-          '以下の札幌市の住所リストについて、各住所のchiban.jsonキーを生成してください。\n\n' +
-          '【キー形式】大字名+漢数字条+方角_丁目番号_地番\n' +
-          '【ルール】\n' +
-          '- 条名は漢数字（一二三...四十八まで対応）\n' +
-          '- 丁目番号はアラビア数字\n' +
-          '- 地番は番地そのまま（例: 126-93）\n' +
-          '- 番地100未満は住居表示なのでis_chiban:false\n' +
-          '- 任意座標系エリア（西区西野・発寒の一部等）は変換不可でもキーは生成する\n' +
-          '【例】\n' +
-          '「北区屯田4条8丁目199-135」→ "屯田四条_8_199-135"\n' +
-          '「豊平区月寒東1条5丁目203-4」→ "月寒東一条_5_203-4"\n' +
-          '「清田区美しが丘2条7丁目156」→ "美しが丘二条_7_156"\n' +
-          '「白石区菊水4条3丁目2-5」→ is_chiban:false（番地5は住居表示）\n\n' +
-          '住所リスト:\n'+listText+'\n\n' +
-          '【出力形式】JSONのみ。配列で返す。\n' +
-          '[{"idx":1,"is_chiban":true,"key":"屯田四条_8_199-135"},{"idx":2,"is_chiban":false,"key":null},...]';
-
-        try{
-          log('🤖 AI補完 '+(i+1)+'〜'+(i+batch.length)+'件目 住所: '+batch.map(function(x){return x.addr;}).join(' / '), 'info');
-          var res = await fetch('https://claudeproxy-1054295910908.us-central1.run.app',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-              model:'claude-sonnet-4-6',
-              max_tokens:2000,
-              messages:[{role:'user',content:prompt}]
-            })
-          });
-          var data = await res.json();
-          var text = (data.content&&data.content[0]&&data.content[0].text)||'';
-          log('🔍 AI生レスポンス: '+text.substring(0,300), 'info');
-          var clean = text.replace(/```json|```/g,'').trim();
-          // JSON配列部分だけ抽出
-          var jsonMatch = clean.match(/\[[\s\S]*\]/);
-          if(!jsonMatch){ log('⚠️ AI応答にJSON配列なし: '+text.substring(0,100), 'warn'); continue; }
-          var parsed = JSON.parse(jsonMatch[0]);
-          var hit=0;
-          parsed.forEach(function(item){
-            if(!item.is_chiban||!item.key) return;
-            var taskItem = batch[item.idx-1];
-            if(!taskItem) return;
-            var geo = lookupChibanByKey(item.key);
-            if(geo){
-              resultMap[taskItem.taskKey] = geo;
-              hit++;
-            }
-          });
-          parsed.forEach(function(item){
-            log('  ['+item.idx+'] is_chiban:'+item.is_chiban+' key:'+item.key, item.is_chiban?'ok':'warn');
-          });
-          log('✅ AI補完バッチ結果: '+hit+'/'+batch.length+'件ヒット', hit>0?'ok':'warn');
-        }catch(e){
-          log('⚠️ AI補完バッチ失敗: '+e+' / stack: '+(e.stack||''), 'err');
-        }
-      }
-      return resultMap;
-    }
-    // ===== ここまでAI補完 =====
 
     function isKanryo(cols){
       var status=String(cols[1]||'').trim();
@@ -256,7 +89,7 @@
     var invalidChars=/[.#$\[\]\/]/g;
     function safeKey(id){return String(id).replace(/\s+/g,'').replace(invalidChars,'_');}
 
-    var LOCAL_FIELDS=['localStatus','date','time','order','emailSent','finalReport','memo','seqNo','lat','lng'];
+    var LOCAL_FIELDS=['localStatus','date','time','order','emailSent','finalReport','memo','seqNo'];
 
     function extractLocal(obj){
       var out={};
@@ -269,9 +102,6 @@
       if(fileInput.files.length===0){alert('CSVファイルを選択してください');return;}
       var btn=this;btn.disabled=true;btn.textContent='保存中...';
       logEl.innerHTML='';logEl.style.display='block';
-
-      // 地番データ先読み
-      await loadChibanData();
 
       var file=fileInput.files.item(0);
       var fr=new FileReader();
@@ -298,46 +128,6 @@
         var newKeys=Object.keys(newMap);
         log('有効案件（保存対象）: '+newKeys.length+'件');
 
-        // === Step1: ローカル変換 ===
-        var geoMap={};
-        var aiQueue=[]; // ローカル失敗分
-        var localHit=0, localMiss=0;
-
-        if(chibanData){
-          newKeys.forEach(function(nk){
-            var cols=newMap[nk];
-            var addr=String(cols[11]||'').trim();
-            if(!addr){localMiss++;return;}
-            var geo=lookupChiban(addr);
-            if(geo){
-              geoMap[nk]=geo;
-              localHit++;
-            } else {
-              // 割番っぽい（数字大きい）ものだけAIキューへ
-              var key=parseAddressToKey(addr);
-              var bn=key?parseInt((key.split('_')[2]||'').split('-')[0]):0;
-              if(!isNaN(bn)&&bn>=100){
-                aiQueue.push({taskKey:nk, addr:addr});
-              }
-              localMiss++;
-            }
-          });
-          log('📍 ローカル変換: ヒット '+localHit+'件 / AI補完対象 '+aiQueue.length+'件', 'ok');
-        }
-
-        // === Step2: AI補完 ===
-        if(aiQueue.length>0){
-          log('🤖 AI補完開始（'+aiQueue.length+'件）...');
-          var aiResult = await aiGeocodeBatch(aiQueue);
-          var aiHit=Object.keys(aiResult).length;
-          Object.keys(aiResult).forEach(function(k){ geoMap[k]=aiResult[k]; });
-          log('🤖 AI補完合計: '+aiHit+'/'+aiQueue.length+'件ヒット', aiHit>0?'ok':'warn');
-        }
-
-        var totalGeoHit=Object.keys(geoMap).length;
-        log('📍 座標取得合計: '+totalGeoHit+'/'+newKeys.length+'件', totalGeoHit>0?'ok':'warn');
-
-        // === Step3: Firebase書き込み ===
         database.ref('app_tasks').once('value',function(sn){
           var existing=sn.val()||{};
           var existingKeys=Object.keys(existing);
@@ -373,18 +163,8 @@
             updates['app_tasks/'+nk+'/csvData']=newMap[nk];
             if(localDataByNewKey[nk]){
               LOCAL_FIELDS.forEach(function(f){
-                if(f==='lat'||f==='lng') return; // 座標は地番データ優先
                 if(localDataByNewKey[nk][f]!==undefined)updates['app_tasks/'+nk+'/'+f]=localDataByNewKey[nk][f];
               });
-            }
-            // 座標セット（既存なし or 今回ヒットした場合に上書き）
-            if(geoMap[nk]){
-              updates['app_tasks/'+nk+'/lat']=geoMap[nk].lat;
-              updates['app_tasks/'+nk+'/lng']=geoMap[nk].lng;
-            } else if(!existing[nk]||!existing[nk].lat){
-              // 座標なし→nullで明示クリア（古い誤データ防止）
-              updates['app_tasks/'+nk+'/lat']=null;
-              updates['app_tasks/'+nk+'/lng']=null;
             }
             if(existing[nk])updateCount++;else addCount++;
           });
@@ -428,7 +208,7 @@
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
-                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件\n座標取得: '+totalGeoHit+'件（ローカル: '+localHit+' / AI: '+(totalGeoHit-localHit)+'）'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
@@ -440,35 +220,6 @@
         });
       };
       fr.readAsText(file,'UTF-8');
-    });
-
-    document.getElementById('clearGeoBtn').addEventListener('click',function(){
-      if(!confirm('全案件のlat/lngをクリアします。\nよろしいですか？'))return;
-      var btn=this;btn.disabled=true;btn.textContent='クリア中...';
-      logEl.innerHTML='';logEl.style.display='block';
-      log('🔍 全案件をスキャン中...');
-      database.ref('app_tasks').once('value',function(sn){
-        var existing=sn.val()||{};
-        var keys=Object.keys(existing);
-        var updates={};
-        var count=0;
-        keys.forEach(function(k){
-          var obj=existing[k];
-          if(!obj)return;
-          if(obj.lat!==undefined){updates['app_tasks/'+k+'/lat']=null;count++;}
-          if(obj.lng!==undefined){updates['app_tasks/'+k+'/lng']=null;}
-        });
-        if(count===0){log('座標データはありませんでした','warn');btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';return;}
-        log('🗑 クリア対象: '+count+'件');
-        database.ref().update(updates).then(function(){
-          log('✅ クリア完了！ '+count+'件','ok');
-          alert('✅ クリア完了！\n\n'+count+'件の座標をクリアしました');
-          btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';
-        }).catch(function(err){
-          log('❌ エラー: '+err,'err');
-          btn.disabled=false;btn.textContent='🗑 全案件の座標（lat/lng）を一括クリア';
-        });
-      });
     });
 
     document.getElementById('cleanBtn').addEventListener('click',function(){
