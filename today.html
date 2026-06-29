@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-25-001 -->
+<!-- VERSION: 2026-06-29-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -53,19 +53,7 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .col-ai-yotei{width:92px;min-width:92px;max-width:92px;}
 .link-text{color:#0056b3;text-decoration:underline;font-weight:bold;}
 .link-geo{color:#2e7d32;text-decoration:underline;font-weight:bold;}
-.map-popup{position:fixed;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;padding:4px;display:flex;flex-direction:column;gap:3px;}
-.map-popup button{font-size:12px;padding:5px 12px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#f8f8f8;text-align:left;white-space:nowrap;}
-.map-popup button:hover{background:#e8f4ff;}
 #tooltip{display:none;position:fixed;background:#fff;border:2px solid #28a745;padding:8px;border-radius:4px;z-index:2147483647;white-space:pre-wrap;word-wrap:break-word;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);line-height:1.4;color:#333;pointer-events:none;font-size:12px;}
-#kouzu-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999999;}
-#kouzu-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:8px;width:90%;max-width:400px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
-#kouzu-header{background:#2e7d32;color:#fff;padding:10px 14px;font-weight:bold;font-size:14px;display:flex;justify-content:space-between;align-items:center;}
-#kouzu-header button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px;}
-#kouzu-info{padding:8px 14px;font-size:12px;color:#555;background:#f5f5f5;border-bottom:1px solid #ddd;}
-#kouzu-list{overflow-y:auto;flex:1;padding:8px;}
-#kouzu-list a{display:block;padding:8px 12px;border-bottom:1px solid #eee;color:#1565c0;text-decoration:none;font-size:14px;font-weight:bold;}
-#kouzu-list a:hover{background:#e8f4ff;}
-#kouzu-loading{padding:20px;text-align:center;color:#888;font-size:13px;}
 .count-display{font-size:12px;font-weight:bold;color:#333;padding:3px 10px;background:#e8f5e9;border-bottom:1px solid #ccc;}
 #noDataMsg{display:none;padding:20px;font-weight:bold;color:#d32f2f;}
 .kanryo-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #999;background:#fff;font-weight:bold;}
@@ -131,19 +119,6 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
 </head>
 <body>
 <div id="tooltip"></div>
-<div id="kouzu-modal">
-  <div id="kouzu-panel">
-    <div id="kouzu-header">
-      <span id="kouzu-title">🏛 公図で見る</span>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <button id="kouzu-map-btn" style="background:#1565c0;border:none;color:#fff;font-size:11px;padding:4px 8px;border-radius:4px;cursor:pointer;">📍 Gマップ</button>
-        <button onclick="document.getElementById('kouzu-modal').style.display='none'">✕</button>
-      </div>
-    </div>
-    <div id="kouzu-info"></div>
-    <div id="kouzu-list"><div id="kouzu-loading">読み込み中...</div></div>
-  </div>
-</div>
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
 <div class="header-bar">
 <a href="index.html" class="top-link">◀ トップ</a>
@@ -161,7 +136,7 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
 <div class="table-wrapper"><div id="noDataMsg">⚠️ トップメニューに戻って「最新データを取得」してください。</div><table id="mainTable"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
 <script src="shared-modal.js"></script>
 <script>
-// ===== 住所ポップアップ =====
+// ===== 住所ポップアップ（地番機能削除済 2026-06-29-002）=====
 var mapPopup = null;
 function showMapPopup(e, normalUrl, addr){
   e.preventDefault();
@@ -169,41 +144,15 @@ function showMapPopup(e, normalUrl, addr){
   if(mapPopup){ mapPopup.remove(); mapPopup=null; return; }
   var pop = document.createElement('div');
   pop.className = 'map-popup';
+  pop.style.cssText = 'position:fixed;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;padding:4px;display:flex;flex-direction:column;gap:3px;';
   var btn1 = document.createElement('button');
-  btn1.textContent = '📍 通常検索';
+  btn1.textContent = '📍 Googleマップで開く';
+  btn1.style.cssText = 'font-size:12px;padding:5px 12px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#f8f8f8;text-align:left;white-space:nowrap;';
   btn1.addEventListener('click', function(e2){ e2.stopPropagation(); window.open(normalUrl,'_blank'); pop.remove(); mapPopup=null; });
-  var btn2 = document.createElement('button');
-  btn2.textContent = '🗺 地番検索';
-  btn2.addEventListener('click', function(e2){
-    e2.stopPropagation();
-    pop.remove(); mapPopup=null;
-    chibanSearch(addr, null, false);
-  });
-  var btn3 = document.createElement('button');
-  btn3.textContent = '🏛 公図で見る';
-  btn3.addEventListener('click', function(e2){
-    e2.stopPropagation();
-    pop.remove(); mapPopup=null;
-    chibanSearch(addr, null, true);
-  });
-  var btn4 = document.createElement('button');
-  btn4.textContent = '🗾 MAPPLEで地番確認';
-  btn4.style.background = '#e8f5e9';
-  btn4.style.borderColor = '#2e7d32';
-  btn4.style.color = '#1b5e20';
-  btn4.style.fontWeight = 'bold';
-  btn4.addEventListener('click', function(e2){
-    e2.stopPropagation();
-    window.open('https://labs.mapple.com/mapplexml.html', '_blank');
-    showMapplePath(pop, addr);
-  });
   pop.appendChild(btn1);
-  pop.appendChild(btn2);
-  pop.appendChild(btn3);
-  pop.appendChild(btn4);
   var x = e.clientX+5, y = e.clientY+5;
-  if(x+160 > window.innerWidth) x = e.clientX-165;
-  if(y+80 > window.innerHeight) y = e.clientY-85;
+  if(x+180 > window.innerWidth) x = e.clientX-185;
+  if(y+50 > window.innerHeight) y = e.clientY-55;
   pop.style.left = x+'px';
   pop.style.top = y+'px';
   document.body.appendChild(pop);
@@ -215,324 +164,6 @@ function showMapPopup(e, normalUrl, addr){
     });
   }, 10);
 }
-
-// ===== MAPPLEパス表示 =====
-function parseMapplePath(addr){
-  if(!addr) return null;
-  // 全角→半角
-  var a = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
-  a = a.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
-
-  // 区を取り出す
-  var ward = '';
-  var wm = a.match(/札幌市(.+?区)/);
-  if(wm) ward = '札幌市'+wm[1];
-
-  // 区以降
-  var rest = a.replace(/^.*?区/,'');
-
-  // 条+方角+丁目+地番
-  var m = rest.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
-  if(!m) return null;
-
-  var oaza = m[1]; // 大字（篠路、月寒東など）
-  var joNum = parseInt(m[2]);
-  var dir = m[3]; // 方角（東西南北）
-  var chome = m[4];
-  var chiban = m[5];
-
-  // 漢数字変換
-  var joKanji = KANJI_MAP2[String(joNum)] || String(joNum);
-  // 条名: 大字+漢数字条+方角 例: 篠路二条、月寒東一条
-  var joName = oaza + joKanji + '条' + dir;
-
-  return {
-    ward: ward,       // 札幌市北区
-    jo: joName,       // 篠路二条
-    chome: chome+'丁目', // 7丁目
-    chiban: chiban    // 93-51
-  };
-}
-
-function showMapplePath(pop, addr){
-  var path = parseMapplePath(addr);
-  // ポップアップ内容を丸ごと入れ替え
-  pop.innerHTML = '';
-  pop.style.padding = '8px';
-  pop.style.minWidth = '200px';
-
-  var title = document.createElement('div');
-  title.textContent = '🗾 MAPPLE 地番検索パス';
-  title.style.cssText = 'font-weight:bold;font-size:11px;color:#1b5e20;margin-bottom:6px;border-bottom:1px solid #c8e6c9;padding-bottom:4px;';
-  pop.appendChild(title);
-
-  if(!path){
-    var err = document.createElement('div');
-    err.textContent = '住所を解析できませんでした';
-    err.style.cssText = 'font-size:11px;color:#c62828;padding:4px;';
-    pop.appendChild(err);
-  } else {
-    var steps = [
-      {label:'① 都道府県', value:'北海道', fixed:true},
-      {label:'② 市区町村', value:path.ward},
-      {label:'③ 条名',    value:path.jo},
-      {label:'④ 丁目',    value:path.chome},
-      {label:'⑤ 地番',    value:path.chiban}
-    ];
-    steps.forEach(function(s){
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;';
-      var lbl = document.createElement('span');
-      lbl.style.cssText = 'font-size:10px;color:#888;min-width:60px;';
-      lbl.textContent = s.label;
-      var val = document.createElement('span');
-      val.style.cssText = 'font-size:12px;font-weight:bold;color:#1b5e20;flex:1;';
-      val.textContent = s.value;
-      row.appendChild(lbl);
-      row.appendChild(val);
-      if(!s.fixed){
-        var cp = document.createElement('button');
-        cp.textContent = 'コピー';
-        cp.style.cssText = 'font-size:10px;padding:1px 6px;border:1px solid #aaa;border-radius:3px;background:#f8f8f8;cursor:pointer;white-space:nowrap;';
-        cp.addEventListener('click', function(v){ return function(e2){
-          e2.stopPropagation();
-          navigator.clipboard.writeText(v).then(function(){
-            cp.textContent = '✓';
-            cp.style.background = '#c8e6c9';
-            setTimeout(function(){ cp.textContent = 'コピー'; cp.style.background = '#f8f8f8'; }, 1000);
-          });
-        };}(s.value));
-        row.appendChild(cp);
-      }
-      pop.appendChild(row);
-    });
-  }
-
-  var closeBtn = document.createElement('button');
-  closeBtn.textContent = '✕ 閉じる';
-  closeBtn.style.cssText = 'margin-top:6px;width:100%;font-size:11px;padding:3px;border:1px solid #ccc;border-radius:3px;background:#f0f0f0;cursor:pointer;';
-  closeBtn.addEventListener('click', function(e2){ e2.stopPropagation(); pop.remove(); mapPopup=null; });
-  pop.appendChild(closeBtn);
-}
-// ===== MAPPLEパス表示ここまで =====
-function chibanSearch(addr, btn, useMAPPLE){
-  var origLabel = btn ? btn.textContent : '';
-  if(btn){ btn.textContent='🤖 AI判定中...'; btn.disabled=true; }
-
-  var prompt = '以下の住所が「割番（地番）」かどうかを判定し、情報を抽出してください。\n\n' +
-    '住所: ' + addr + '\n\n' +
-    '【判定ルール】\n' +
-    '- 割番（地番）: 番地が100以上、または「番」が明示、または「地番」記載あり\n' +
-    '- 住居表示: 番地が1〜99程度で「号」がある、または通常の住居表示形式\n\n' +
-    '【札幌市区コード】01101=中央区,01102=北区,01103=東区,01104=白石区,01105=豊平区,01106=南区,01107=西区,01108=厚別区,01109=手稲区,01110=清田区\n\n' +
-    '【chiban_areaの形式】公図ビューアの地番区域名\n' +
-    '- 条名・丁目名は漢数字（一二三四五六七八九十）\n' +
-    '- 例: 「西区西野三条9丁目」→「西野三条９丁目」\n' +
-    '- 例: 「清田区美しが丘2条7丁目」→「美しが丘二条７丁目」\n' +
-    '- 例: 「豊平区月寒東1条5丁目」→「月寒東一条５丁目」\n' +
-    '- 例: 「発寒八条10丁目」→「発寒八条１０丁目」\n' +
-    '- 丁目番号は全角数字（１２３４５６７８９０）\n\n' +
-    '【出力形式】JSONのみ\n' +
-    '{"is_chiban": true, "key": "西野三条_9_126-93", "city_code": "01107", "chiban_area": "西野三条９丁目", "chiban_num": "126-93", "reason": "割番と判定"}\n' +
-    'または\n' +
-    '{"is_chiban": false, "key": null, "city_code": null, "chiban_area": null, "chiban_num": null, "reason": "住居表示と判定"}';
-
-  fetch('https://claudeproxy-1054295910908.us-central1.run.app', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  })
-  .then(function(res){ return res.json(); })
-  .then(function(data){
-    if(btn){ btn.textContent=origLabel; btn.disabled=false; }
-    var text = (data.content&&data.content[0]&&data.content[0].text)||'';
-    var clean = text.replace(/```json|```/g,'').trim();
-    var result;
-    try{ result = JSON.parse(clean); } catch(e){ alert('AI応答の解析に失敗:\n'+text); return; }
-
-    if(!result.is_chiban){
-      if(confirm('AIが住居表示と判定しました。\n理由: '+result.reason+'\n\nそれでも地番検索しますか？')){
-      } else {
-        return;
-      }
-    }
-    var key = result.key;
-    if(!key){ alert('AIがキーを生成できませんでした: '+result.reason); return; }
-
-    if(btn){ btn.textContent='⏳ データ検索中'; btn.disabled=true; }
-    loadChibanDataOnce(function(chibanData){
-      if(btn){ btn.textContent=origLabel; btn.disabled=false; }
-      var v = chibanData[key];
-      if(!v){
-        var keyShort = key.replace(/-\d+$/, '');
-        v = chibanData[keyShort];
-        if(!v){
-          if(useMAPPLE && result.chiban_area && result.city_code){
-            showKouzuModal(result.city_code, result.chiban_area, result.chiban_num);
-          } else if(useMAPPLE){
-            window.open('https://kouzuviewer.com/chiban/', '_blank');
-          } else {
-            alert('地番データが見つかりませんでした');
-          }
-          return;
-        }
-        key = keyShort;
-      }
-      var lat=v[0], lng=v[1];
-      if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){
-        if(useMAPPLE && result.chiban_area && result.city_code){
-          showKouzuModal(result.city_code, result.chiban_area, result.chiban_num);
-        } else {
-          alert('座標が札幌市範囲外です（任意座標系エリア）');
-        }
-        return;
-      }
-      if(useMAPPLE){
-        if(result.chiban_area && result.city_code){
-          showKouzuModal(result.city_code, result.chiban_area, result.chiban_num);
-        } else {
-          window.open('https://kouzuviewer.com/chiban/', '_blank');
-        }
-      } else {
-        window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
-      }
-    });
-  })
-  .catch(function(e){
-    if(btn){ btn.textContent=origLabel; btn.disabled=false; }
-    alert('Claude API エラー: '+e);
-  });
-}
-
-// ===== 公図ビューアモーダル =====
-function showKouzuModal(cityCode, chibanArea, chibanNum){
-  var modal = document.getElementById('kouzu-modal');
-  var info = document.getElementById('kouzu-info');
-  var list = document.getElementById('kouzu-list');
-  info.textContent = '地番区域: '+chibanArea+'　地番: '+chibanNum;
-  var mapBtn = document.getElementById('kouzu-map-btn');
-  if(mapBtn){
-    var mapQuery = '札幌市 '+chibanArea+' '+chibanNum;
-    mapBtn.onclick = function(){ window.open('https://www.google.com/maps/search/'+encodeURIComponent(mapQuery), '_blank'); };
-  }
-  list.innerHTML = '<div id="kouzu-loading">⏳ 地番リスト取得中...</div>';
-  modal.style.display = 'block';
-
-  fetch('https://claudeproxy-1054295910908.us-central1.run.app', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({action: 'kouzu', city_id: cityCode, chiban_area: chibanArea, data_year: '2026'})
-  })
-  .then(function(res){ return res.json(); })
-  .then(function(data){
-    if(!data || !data.file || !data.chibans){
-      list.innerHTML = '<div style="padding:16px;color:#c62828;">データが取得できませんでした</div>';
-      return;
-    }
-    var fileId = data.file;
-    var chibans = data.chibans;
-    var html = '';
-    chibans.forEach(function(c){
-      var url = 'https://kouzuviewer.com/viewer/?file='+encodeURIComponent(fileId)+'&fude='+encodeURIComponent(chibanArea+c)+'&datayear=2026';
-      var style = c === chibanNum ? 'background:#fff9c4;font-weight:bold;' : '';
-      html += '<a href="'+url+'" target="_blank" style="'+style+'" onclick="document.getElementById(\'kouzu-modal\').style.display=\'none\'">'+c+'</a>';
-    });
-    list.innerHTML = html;
-    var target = list.querySelector('a[style*="fff9c4"]');
-    if(target) setTimeout(function(){ target.scrollIntoView({block:'center'}); }, 100);
-  })
-  .catch(function(e){
-    list.innerHTML = '<div style="padding:16px;color:#c62828;">エラー: '+e+'</div>';
-  });
-}
-
-// ===== 地番検索ロジック =====
-var chibanData = null;
-var chibanLoading = false;
-var chibanCallbacks = [];
-
-var KANJI_MAP2 = {'1':'一','2':'二','3':'三','4':'四','5':'五',
-  '6':'六','7':'七','8':'八','9':'九','10':'十',
-  '11':'十一','12':'十二','13':'十三','14':'十四','15':'十五',
-  '16':'十六','17':'十七','18':'十八','19':'十九','20':'二十',
-  '21':'二十一','22':'二十二','23':'二十三','24':'二十四','25':'二十五',
-  '26':'二十六','27':'二十七','28':'二十八','29':'二十九','30':'三十',
-  '31':'三十一','32':'三十二','33':'三十三','34':'三十四','35':'三十五',
-  '36':'三十六','37':'三十七','38':'三十八','39':'三十九','40':'四十',
-  '41':'四十一','42':'四十二','43':'四十三','44':'四十四','45':'四十五',
-  '46':'四十六','47':'四十七','48':'四十八'};
-function numToKanji2(n){ return KANJI_MAP2[String(n)] || String(n); }
-
-function parseAddressToKey2(addr){
-  if(!addr) return null;
-  addr = addr.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
-  addr = addr.replace(/\s+/g,'').replace(/[－ー―]/g,'-');
-  addr = addr.replace(/^北海道札幌市.+?区/,'').replace(/^北海道.+?市/,'').replace(/^北海道.+?郡.+?[町村]/,'');
-  addr = addr.replace(/(\d+[-]\d+)[^丁目条\d].+$/,'$1');
-  var mb = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+)番(\d+)/);
-  if(mb){ return mb[1]+numToKanji2(parseInt(mb[2]))+'条'+mb[3]+'_'+mb[4]+'_'+mb[5]+'-'+mb[6]; }
-  var m = addr.match(/^(.+?)(\d+)条([東西南北]?)(\d+)丁目(\d+(?:-\d+)?)/);
-  if(!m) return null;
-  return m[1]+numToKanji2(parseInt(m[2]))+'条'+m[3]+'_'+m[4]+'_'+m[5];
-}
-
-function loadChibanDataOnce(callback){
-  if(chibanData){ callback(chibanData); return; }
-  chibanCallbacks.push(callback);
-  if(chibanLoading) return;
-  chibanLoading = true;
-  fetch('https://kageyama1202.github.io/my-sheet/chiban.json.gz')
-    .then(function(res){ return res.arrayBuffer(); })
-    .then(function(buf){
-      var ds = new DecompressionStream('gzip');
-      var writer = ds.writable.getWriter();
-      var reader = ds.readable.getReader();
-      writer.write(new Uint8Array(buf));
-      writer.close();
-      var chunks=[], total=0;
-      function pump(){
-        return reader.read().then(function(r){
-          if(r.done){
-            var merged=new Uint8Array(total), offset=0;
-            chunks.forEach(function(c){merged.set(c,offset);offset+=c.length;});
-            chibanData=JSON.parse(new TextDecoder().decode(merged));
-            chibanLoading=false;
-            chibanCallbacks.forEach(function(cb){cb(chibanData);});
-            chibanCallbacks=[];
-            return;
-          }
-          chunks.push(r.value); total+=r.value.length;
-          return pump();
-        });
-      }
-      return pump();
-    })
-    .catch(function(e){ chibanLoading=false; console.warn('地番データ読み込み失敗:', e); });
-}
-
-function searchChibanAndOpen(addr, btn){
-  var key = parseAddressToKey2(addr);
-  if(!key){ alert('住所を解析できませんでした'); return; }
-  var chibanNum = parseInt((key.split('_')[2]||'').split('-')[0]);
-  if(isNaN(chibanNum)||chibanNum<100){ alert('住居表示の住所は地番検索できません（割番形式のみ対応）'); return; }
-  btn.textContent='⏳';
-  btn.classList.add('loading');
-  loadChibanDataOnce(function(data){
-    btn.textContent='📍';
-    btn.classList.remove('loading');
-    var v = data[key];
-    if(!v){ alert('地番データが見つかりませんでした: '+key); return; }
-    var lat=v[0], lng=v[1];
-    if(lat<42.8||lat>43.3||lng<140.9||lng>141.7){ alert('座標が札幌市範囲外です（任意座標系エリア）: '+key); return; }
-    window.open('https://www.google.com/maps?q='+lat+','+lng, '_blank');
-  });
-}
-
-
 
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
@@ -682,16 +313,9 @@ merged.forEach(function(item,idx){
         }else if(colIdx===11&&clean!==''){
           var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
           if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
-          var mapUrl,linkClass;
-          if(obj.lat&&obj.lng){
-            mapUrl='https://www.google.com/maps?q='+obj.lat+','+obj.lng;
-            linkClass='link-geo';
-          }else{
-            mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
-            linkClass='link-text';
-          }
+          var mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
           var aLink=document.createElement('a');
-          aLink.href=mapUrl;aLink.target='_blank';aLink.className=linkClass;aLink.textContent=short;
+          aLink.href=mapUrl;aLink.target='_blank';aLink.className='link-text';aLink.textContent=short;
           aLink.addEventListener('click',(function(u,a){return function(e){ e.stopPropagation(); showMapPopup(e, u, a); };})(mapUrl, clean));
           inner.appendChild(aLink);
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
