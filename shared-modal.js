@@ -1,8 +1,6 @@
-/* shared-modal.js — 共通モーダル【全即時保存版】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
-var modalCommData = null;
-var modalContactData = null;
 
 function normalizePhoneModal(raw) {
   if (!raw) return "";
@@ -10,17 +8,10 @@ function normalizePhoneModal(raw) {
   s = s.replace(/^\+81/, "0"); s = s.replace(/^81(?=\d{9,10})/, "0");
   s = s.replace(/[^0-9]/g, ""); return s;
 }
-function extractEmailModal(f) {
-  if (!f) return ""; var m = f.match(/<([^>]+)>/); if (m) return m[1].toLowerCase().trim();
-  if (f.indexOf("@") > -1) return f.toLowerCase().trim(); return "";
-}
 function generateTimeOptions() {
   var o = '<option value="">--:--</option>';
   for (var h = 8; h <= 20; h++) { var hh = ("0"+h).slice(-2); o += '<option value="'+hh+':00">'+hh+':00</option><option value="'+hh+':30">'+hh+':30</option>'; }
   return o;
-}
-function formatCommDate(dt) {
-  try { var d = new Date(dt); return (d.getMonth()+1)+"/"+d.getDate()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); } catch(e) { return dt; }
 }
 function getSafeValModal(c, i) {
   if (!c) return ""; if (Array.isArray(c)) return c.length > i && c[i] != null ? String(c[i]) : ""; if (typeof c === "object") return c[i] != null ? String(c[i]) : ""; return "";
@@ -28,71 +19,6 @@ function getSafeValModal(c, i) {
 function formatToYMDModal(ds) {
   if (!ds) return ""; var d = String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-"); var p = d.split("-");
   if (p.length === 3) return p[0]+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[2]).padStart(2,"0"); return d;
-}
-
-function extractCaseKeywords(csvData) {
-  var kw = [], cn = getSafeValModal(csvData, 4) || "";
-  var pts = cn.replace(/【[^】]*】/g," ").replace(/[（()）\[\]]/g," ").split(/[\s\u3000・]+/);
-  for (var i = 0; i < pts.length; i++) { var p = pts[i].trim(); if (p.length >= 2 && ["手配","新築","工事","リフォーム","様邸","Free"].indexOf(p) === -1) kw.push(p); }
-  var nm = cn.match(/([^\s【】（）]+?)様/); if (nm && nm[1].length >= 2) kw.push(nm[1]);
-  return kw;
-}
-function scoreMessageForCase(body, subj, kw) {
-  if (!kw || !kw.length) return 0; var t = ((body||"")+" "+(subj||"")).toLowerCase(); if (!t.trim()) return 0;
-  var s = 0; for (var i = 0; i < kw.length; i++) { if (t.indexOf(kw[i].toLowerCase()) !== -1) s += kw[i].length; } return s;
-}
-
-function loadCommData(cb) {
-  if (modalCommData !== null) { cb(modalCommData); return; }
-  fetch(FB_URL+"/app_communications.json").then(function(r){return r.json();}).then(function(d) {
-    if (!d) { modalCommData = []; cb([]); return; }
-    var a = Array.isArray(d) ? d : Object.values(d); modalCommData = a.filter(function(r){return r!=null;}); cb(modalCommData);
-  }).catch(function(){modalCommData=[];cb([]);});
-}
-function loadContactData(cb) {
-  if (modalContactData !== null) { cb(modalContactData); return; }
-  fetch(FB_URL+"/app_contacts.json").then(function(r){return r.json();}).then(function(d) {
-    if (!d) { modalContactData = {}; cb({}); return; }
-    var a = Array.isArray(d) ? d : Object.values(d), map = {};
-    for (var i = 0; i < a.length; i++) { if (!a[i]) continue; var e = (a[i].email||"").toLowerCase().trim(); if (e && !map[e]) map[e] = a[i]; }
-    modalContactData = map; cb(map);
-  }).catch(function(){modalContactData={};cb({});});
-}
-
-function findCaseComms(csvData, allComms, contacts, caseKey) {
-  var phone = normalizePhoneModal(getSafeValModal(csvData, 6));
-  var kw = extractCaseKeywords(csvData);
-  var result = [];
-  for (var i = 0; i < allComms.length; i++) {
-    var rec = allComms[i]; if (!rec) continue;
-    if (rec.assignedCase && rec.assignedCase === caseKey) { rec._matchScore = 100; result.push(rec); continue; }
-    if (rec.src === "imessage" && phone) {
-      if (normalizePhoneModal(rec.contact) === phone) { rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw); result.push(rec); continue; }
-    }
-    if (rec.src === "gmail" && contacts && phone) {
-      var re = extractEmailModal(rec.contact);
-      for (var em in contacts) { var ct = contacts[em]; if (ct.phone && normalizePhoneModal(ct.phone) === phone && em === re) { rec._matchScore = scoreMessageForCase(rec.body, rec.subject, kw); result.push(rec); break; } }
-    }
-  }
-  result.sort(function(a,b) { if (b._matchScore !== a._matchScore) return b._matchScore - a._matchScore; return (new Date(b.dt).getTime()||0) - (new Date(a.dt).getTime()||0); });
-  return result;
-}
-
-function renderCommTimeline(comms) {
-  if (!comms || !comms.length) return '<div class="comm-empty">📭 通信なし</div>';
-  var html = "", lim = Math.min(comms.length, 50);
-  for (var i = 0; i < lim; i++) {
-    var r = comms[i], sm = r.src === "imessage", dir = r.dir === "sent" ? "↑送信" : "↓受信";
-    var ind = r._matchScore >= 100 ? ' <span style="color:#64b5f6;font-size:9px;">✔ 手動</span>' : r._matchScore > 0 ? ' <span style="color:#ffab40;font-size:9px;">★ KW</span>' : '';
-    var bd = r._matchScore >= 100 ? 'border-left:3px solid #64b5f6;' : r._matchScore > 0 ? 'border-left:3px solid #ffab40;' : '';
-    html += '<div class="comm-item" style="'+bd+'"><div class="comm-meta"><div><span class="comm-badge '+(sm?"sms":"gmail")+'">'+(sm?"💬":"📧")+'</span> <span class="comm-dir">'+dir+'</span>'+ind+'</div>';
-    html += '<span class="comm-time">'+formatCommDate(r.dt)+'</span></div>';
-    if (r.subject) html += '<div class="comm-subject">'+r.subject+'</div>';
-    if (r.body) { var b = r.body.replace(/</g,"&lt;").replace(/>/g,"&gt;"); if (b.length > 200) b = b.substring(0,200)+"..."; html += '<div class="comm-body">'+b+'</div>'; }
-    html += '</div>';
-  }
-  if (comms.length > 50) html += '<div class="comm-empty">他 '+(comms.length-50)+'件</div>';
-  return html;
 }
 
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
@@ -168,9 +94,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</div>';
 
-  html += '<div class="modal-section"><h4 class="orange">📨 通信履歴 <span id="comm-count" class="comm-count">読込中...</span></h4>';
-  html += '<div class="comm-timeline" id="modal-comm-area"><div class="comm-empty">⏳ 読み込み中...</div></div></div>';
-
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-flag-btn'+(isFlagged?' flagged':'')+'" id="modal-flag-btn">'+(isFlagged?'⚑ 注目中':'⚐ 注目')+'</button>';
   html += '<button class="modal-contact-btn'+(isNeedsContact?' active':'')+'" id="modal-contact-btn" style="margin:4px 6px;padding:5px 14px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;border:1px solid #00838f;background:'+(isNeedsContact?'#00bcd4':'#e0f7fa')+';color:'+(isNeedsContact?'#fff':'#006064')+';">'+(isNeedsContact?'📞 連絡必要中':'📞 連絡必要')+'</button>';
@@ -179,7 +102,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var _smsTel = normalizePhoneModal(getSafeValModal(cols,6));
   var _smsLabel = encodeURIComponent(getSafeValModal(cols,5).trim()||key);
   var _smsCase = encodeURIComponent(getSafeValModal(cols,4).trim()||key);
-  // ↓ casekey パラメータを追加
   html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'&casename='+_smsCase+'&casekey='+encodeURIComponent(key)+'" class="modal-sms-btn">💬 SMS作成</a>';
   html += '</div>';
 
@@ -278,13 +200,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       saveField({memo: document.getElementById('modal-memo').value});
     }, 1000);
   });
-
-  loadCommData(function(allComms){loadContactData(function(contacts){
-    var cc=findCaseComms(cols,allComms,contacts,key);
-    var kwC=0,manC=0;for(var k=0;k<cc.length;k++){if(cc[k]._matchScore>=100)manC++;else if(cc[k]._matchScore>0)kwC++;}
-    document.getElementById('modal-comm-area').innerHTML=renderCommTimeline(cc);
-    document.getElementById('comm-count').textContent=cc.length+'件（手動:'+manC+' KW:'+kwC+'）';
-  });});
 
   document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
   document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
