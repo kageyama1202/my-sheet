@@ -76,7 +76,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
-  html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" placeholder="番号" value="'+(obj.order||'')+'" /></div></div>';
+  var orderValInt = parseInt(obj.order, 10);
+  var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
+  html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div></div>';
 
   var memoVal = obj.memo || '';
   var memoIsLong = memoVal.length > 300;
@@ -174,21 +176,54 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     saveField({time: this.value});
   });
   document.getElementById('modal-order').addEventListener('change', function(){
-    var no = this.value;
+    var inputEl = this;
     var nd = document.getElementById('modal-date').value;
-    // 同じ日の他案件と順番が被っていないかチェック
-    if (no && nd) {
-      var dup = Object.keys(globalTasks).filter(function(k){
-        return k !== key && globalTasks[k].date === nd && String(globalTasks[k].order) === String(no);
-      });
-      if (dup.length > 0) {
-        if (!confirm('この日の順番「'+no+'」は既に他の案件('+dup.length+'件)で使われています。このまま保存しますか？')) {
-          this.value = obj.order || '';
-          return;
-        }
-      }
+    var noRaw = parseInt(inputEl.value, 10);
+
+    // 日付未設定、または無効な数値なら単純保存（重複チェック不要）
+    if (!nd || isNaN(noRaw) || noRaw < 1) {
+      var safeVal = (!isNaN(noRaw) && noRaw >= 1) ? noRaw : '';
+      inputEl.value = safeVal;
+      saveField({order: safeVal});
+      return;
     }
-    saveField({order: this.value});
+
+    // 同じ日の他案件（自分以外）を現在の順番でソート
+    var sameDay = Object.keys(globalTasks).filter(function(k){
+      return k !== key && globalTasks[k].date === nd;
+    }).sort(function(a,b){
+      var oa = parseInt(globalTasks[a].order, 10); if (isNaN(oa)) oa = 9999;
+      var ob = parseInt(globalTasks[b].order, 10); if (isNaN(ob)) ob = 9999;
+      return oa - ob;
+    });
+
+    // 指定位置（1始まり）に自分を挿入。範囲外なら末尾/先頭に丸める
+    var insertIndex = Math.max(0, Math.min(noRaw - 1, sameDay.length));
+    var newOrderList = sameDay.slice();
+    newOrderList.splice(insertIndex, 0, key);
+
+    // 1から振り直し、値が変わったものだけ更新対象にする
+    var fbUpdates = {};
+    var changedCount = 0;
+    newOrderList.forEach(function(k, i){
+      var newNo = i + 1;
+      var curNo = parseInt(globalTasks[k].order, 10);
+      if (curNo !== newNo) {
+        fbUpdates['app_tasks/'+k+'/order'] = newNo;
+        globalTasks[k].order = newNo;
+        changedCount++;
+      }
+    });
+
+    inputEl.value = globalTasks[key].order;
+
+    if (changedCount === 0) { return; }
+
+    firebaseDB.ref().update(fbUpdates).then(function(){
+      if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+      showSavedMsg();
+      if (typeof onSaveCallback === 'function') onSaveCallback();
+    });
   });
 
   // メモ（blurで即時）
