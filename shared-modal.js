@@ -73,6 +73,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var geoMapUrlM = 'https://www.google.com/maps/search/?api=1&query='+geoM.lat+','+geoM.lng;
     var geoRowHtml = confLabelM + ' &nbsp; <a href="'+geoMapUrlM+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ <code>'+geoM.lat+', '+geoM.lng+'</code></a>';
     if (geoM.address) geoRowHtml += '<br><span style="color:#888;font-size:11px;">'+geoM.address+'</span>';
+    if (geoM.candidates && geoM.candidates.length > 0) {
+      geoRowHtml += '<br><span style="color:#c9721f;font-size:11px;">丁目省略のため他候補あり（要確認）:</span>';
+      geoM.candidates.forEach(function(c) {
+        var cUrl = 'https://www.google.com/maps/search/?api=1&query='+c.lat+','+c.lng;
+        geoRowHtml += '<br><span style="font-size:11px;color:#666;">'+c.key+' <a href="'+cUrl+'" target="_blank" style="color:#0056b3;">🗺️ 地図</a></span>';
+      });
+    }
     html += '<tr><th>📍座標(照合ツール)</th><td>'+geoRowHtml+'</td></tr>';
   }
   html += '</table></div>';
