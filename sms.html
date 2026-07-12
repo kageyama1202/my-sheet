@@ -73,6 +73,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .no-tpl{font-size:12px;color:#aaa;padding:4px 0;}
 .casekey-badge{display:inline-block;font-size:10px;color:#5d4037;background:#efebe9;border:1px solid #bcaaa4;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
 .info-loading{font-size:11px;color:#aaa;padding:6px 0;}
+.tpl-hint{font-size:11px;color:#aaa;padding:4px 2px 10px;line-height:1.6;}
 </style>
 </head>
 <body>
@@ -114,6 +115,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <div id="tab-tpl" class="section">
+  <div class="tpl-hint">文章内で <code>{邸名}</code> <code>{種目}</code> <code>{施工日}</code> と入力すると、案件情報から自動で置き換わります。</div>
   <div id="tpl-list"></div>
   <button class="btn-add-tpl" id="add-tpl-btn" onclick="addTpl()">
     <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>雛形を追加（最大5件）
@@ -130,6 +132,10 @@ var selectedTplId = null;
 var pendingTplChanges = {};
 var currentTab = 'compose';
 var currentCaseKey = '';
+var currentOyaName = '';
+var currentShumoku = '';
+var currentSekoDate = '';
+var defaultTplEnsured = false;
 
 firebase.auth().signInAnonymously().then(function() {
   db = firebase.database();
@@ -146,6 +152,7 @@ function loadAllData() {
     if (val) {
       tpls = Object.keys(val).map(function(k){ return Object.assign({fbKey:k}, val[k]); });
       tpls.sort(function(a,b){ return (a.order||0)-(b.order||0); });
+      ensureDefaultTemplate();
     } else {
       tpls = [];
       writeDefaultTpls();
@@ -167,11 +174,26 @@ function loadAllData() {
   });
 }
 
+// 既存の雛形リストに「下見連絡」が無ければ、先頭（order:-1）に1件だけ自動追加する
+function ensureDefaultTemplate() {
+  if (defaultTplEnsured) return;
+  defaultTplEnsured = true;
+  var exists = tpls.some(function(t){ return t.name === '下見連絡'; });
+  if (!exists) {
+    db.ref(DB_TPL).push({
+      name: '下見連絡',
+      order: -1,
+      body: 'お世話になっております、タカラ下見班影山です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします'
+    });
+  }
+}
+
 function writeDefaultTpls() {
   var defaults = [
-    { name:'下見依頼',   order:0, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
-    { name:'施工前確認', order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
-    { name:'日程調整',   order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
+    { name:'下見連絡',   order:0, body:'お世話になっております、タカラ下見班影山です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします' },
+    { name:'下見依頼',   order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
+    { name:'施工前確認', order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
+    { name:'日程調整',   order:3, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
   ];
   defaults.forEach(function(t) { db.ref(DB_TPL).push(t); });
 }
@@ -187,6 +209,14 @@ function showTab(t) {
   if (t==='tpl')     renderTpls();
 }
 
+// 雛形本文中の {邸名} {種目} {施工日} を実際の値に置き換える
+function applyPlaceholders(body) {
+  return String(body)
+    .replace(/{邸名}/g, currentOyaName || '')
+    .replace(/{種目}/g, currentShumoku || '')
+    .replace(/{施工日}/g, currentSekoDate || '');
+}
+
 function renderPick() {
   var pick = document.getElementById('tpl-pick');
   if (!tpls.length) { pick.innerHTML='<span class="no-tpl">雛形なし — 「雛形」タブで作成してください</span>'; return; }
@@ -197,7 +227,7 @@ function renderPick() {
     btn.textContent = t.name || '無題';
     btn.onclick = function(){
       selectedTplId = t.fbKey;
-      document.getElementById('compose-area').value = t.body || '';
+      document.getElementById('compose-area').value = applyPlaceholders(t.body || '');
       updateCount();
       document.querySelectorAll('.tpl-btn').forEach(function(b){ b.classList.remove('selected'); });
       btn.classList.add('selected');
@@ -304,11 +334,13 @@ function renderTpls() {
         '<input class="tpl-name-input" value="'+escHtml(t.name||'')+'" placeholder="雛形名（例：下見依頼）" oninput="pendingTplChange(\''+t.fbKey+'\',\'name\',this.value)">'+
         '<button class="btn-icon" onclick="deleteTpl(\''+t.fbKey+'\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>'+
       '</div>'+
-      '<textarea rows="7" placeholder="文章を入力..." oninput="pendingTplChange(\''+t.fbKey+'\',\'body\',this.value)">'+escHtml(t.body||'')+'</textarea>'+
+      '<textarea rows="7" placeholder="文章を入力...">'+escHtml(t.body||'')+'</textarea>'+
       '<div style="display:flex;align-items:center;">'+
         '<button class="btn-save" onclick="saveTpl(\''+t.fbKey+'\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>'+
         '<span class="saved-msg" id="saved-'+t.fbKey+'" style="display:none"><i class="ti ti-check"></i> 保存しました</span>'+
       '</div>';
+    var ta = div.querySelector('textarea');
+    ta.addEventListener('input', function(){ pendingTplChange(t.fbKey, 'body', ta.value); });
     list.appendChild(div);
   });
 }
@@ -370,6 +402,17 @@ function initFromUrl() {
   if (label)   document.getElementById('label-input').value = label;
   if (casekey) currentCaseKey = casekey;
 
+  // 案件名から邸名・種目を抽出（例：【SK手配】小杉様・澤田 様邸 → 邸名:小杉様・澤田 様邸／種目:キッチン）
+  if (casename) {
+    var m = casename.match(/^【(.*?)】\s*(.*)$/);
+    var code = m ? m[1] : '';
+    currentOyaName = m ? m[2] : casename;
+    if (code.indexOf('SK') > -1)      currentShumoku = 'キッチン';
+    else if (code.indexOf('SB') > -1) currentShumoku = 'お風呂';
+    else if (code.indexOf('SU') > -1) currentShumoku = '洗面';
+    else                               currentShumoku = 'その他';
+  }
+
   var baseItems = [];
   if (casename) baseItems.push({ key:'案件名', val: casename });
   if (label)    baseItems.push({ key:'担当者', val: label });
@@ -382,6 +425,7 @@ function initFromUrl() {
       var csv  = task.csvData || [];
       var sekoDate = csv[2] ? String(csv[2]) : '';
       var memo     = task.memo || '';
+      currentSekoDate = sekoDate;
       if (sekoDate) baseItems.push({ key:'施工日', val: sekoDate });
       if (memo)     baseItems.push({ key:'備考',   val: memo });
       baseItems.push({ key:'案件KEY', val: casekey });
