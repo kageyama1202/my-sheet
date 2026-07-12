@@ -313,11 +313,24 @@ merged.forEach(function(item,idx){
         }else if(colIdx===11&&clean!==''){
           var short=disp.replace(/^(北海道|東京都|大阪府|京都府|[一-龠]{2,3}県)/,'');
           if(short.startsWith('札幌市'))short=short.replace(/^札幌市/,'');else short=short.replace(/^.+?郡(?=.*?[町村])/,'');
-          var mapUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
+          var geo=obj.geocode||null;
+          var geoOk=geo&&(geo.confidence==='exact'||geo.confidence==='high')&&geo.lat&&geo.lng;
+          var mapUrl=geoOk
+            ? 'https://www.google.com/maps/search/?api=1&query='+geo.lat+','+geo.lng
+            : 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(clean);
           var aLink=document.createElement('a');
           aLink.href=mapUrl;aLink.target='_blank';aLink.className='link-text';aLink.textContent=short;
           aLink.addEventListener('click',(function(u,a){return function(e){ e.stopPropagation(); showMapPopup(e, u, a); };})(mapUrl, clean));
           inner.appendChild(aLink);
+          if(geo&&(geo.confidence==='low'||geo.confidence==='fail')){
+            var geoWarn=document.createElement('span');
+            geoWarn.textContent=' 📍要確認';
+            geoWarn.style.color='#c9721f';geoWarn.style.fontSize='10.5px';geoWarn.style.fontWeight='600';
+            geoWarn.title='住所照合ツールで座標を特定できませんでした。手動で確認してください。';
+            inner.appendChild(geoWarn);
+          }else if(!geo){
+            // 未照合（住所照合ツールをまだ実行していない案件）は特に何も表示しない
+          }
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
