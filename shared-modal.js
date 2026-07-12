@@ -70,7 +70,8 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   if (geoM) {
     var confLabelM = {exact:'🟡 地番一致', high:'🟢 高精度', mid:'🔵 中精度', low:'🟠 低精度', fail:'🔴 失敗'}[geoM.confidence] || geoM.confidence;
-    var geoRowHtml = confLabelM + ' &nbsp; <code>'+geoM.lat+', '+geoM.lng+'</code>';
+    var geoMapUrlM = 'https://www.google.com/maps/search/?api=1&query='+geoM.lat+','+geoM.lng;
+    var geoRowHtml = confLabelM + ' &nbsp; <a href="'+geoMapUrlM+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ <code>'+geoM.lat+', '+geoM.lng+'</code></a>';
     if (geoM.address) geoRowHtml += '<br><span style="color:#888;font-size:11px;">'+geoM.address+'</span>';
     html += '<tr><th>📍座標(照合ツール)</th><td>'+geoRowHtml+'</td></tr>';
   }
