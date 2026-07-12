@@ -51,10 +51,20 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
   html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>';
 
+  var geoM = obj.geocode || null;
+  var geoOkM = geoM && (geoM.confidence === 'exact' || geoM.confidence === 'high') && geoM.lat != null && geoM.lng != null;
+  var geoNeedsReviewM = geoM && (geoM.confidence === 'low' || geoM.confidence === 'fail');
+
   html += '<div class="modal-section"><h4>📄 CSVデータ</h4><table class="modal-table">';
   for (var idx = 0; idx < globalHeaders.length; idx++) {
     var val = getSafeValModal(cols,idx), dh = val.replace(/\n|\r/g,'<br>'), ct = val.replace(/\s+/g,'');
-    if (idx===11&&ct!=="") dh='<a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct)+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ '+val+'</a>';
+    if (idx===11&&ct!=="") {
+      var mapUrlM = geoOkM
+        ? 'https://www.google.com/maps/search/?api=1&query='+geoM.lat+','+geoM.lng
+        : 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct);
+      dh='<a href="'+mapUrlM+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ '+val+'</a>';
+      if (geoNeedsReviewM) dh += ' <span style="color:#c9721f;font-size:11px;font-weight:600;" title="住所照合ツールで座標を特定できませんでした">📍要確認</span>';
+    }
     else if (idx===6&&ct!=="") dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;">📞 '+val+'</a>';
     html += '<tr><th>'+(globalHeaders[idx]||'列'+(idx+1))+'</th><td>'+dh+'</td></tr>';
   }
