@@ -68,6 +68,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     else if (idx===6&&ct!=="") dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;">📞 '+val+'</a>';
     html += '<tr><th>'+(globalHeaders[idx]||'列'+(idx+1))+'</th><td>'+dh+'</td></tr>';
   }
+  if (geoM) {
+    var confLabelM = {exact:'🟡 地番一致', high:'🟢 高精度', mid:'🔵 中精度', low:'🟠 低精度', fail:'🔴 失敗'}[geoM.confidence] || geoM.confidence;
+    var geoRowHtml = confLabelM + ' &nbsp; <code>'+geoM.lat+', '+geoM.lng+'</code>';
+    if (geoM.address) geoRowHtml += '<br><span style="color:#888;font-size:11px;">'+geoM.address+'</span>';
+    html += '<tr><th>📍座標(照合ツール)</th><td>'+geoRowHtml+'</td></tr>';
+  }
   html += '</table></div>';
 
   html += '<div class="modal-section"><h4 class="green">📝 進捗管理</h4>';
