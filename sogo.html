@@ -1,670 +1,366 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-05-20 -->
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIスケジューラー</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <link rel="stylesheet" href="shared-modal.css">
-  <style>
-    *{box-sizing:border-box;}
-    body{font-family:sans-serif;background:#f0f2f5;margin:0;padding:0;font-size:13px;}
-    .header-bar{background:#ff6b00;color:#fff;padding:10px 14px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
-    .header-bar a{color:#fff;text-decoration:none;font-size:18px;}
-    .header-bar h2{margin:0;font-size:16px;flex:1;}
-    .header-bar button{background:rgba(255,255,255,0.2);color:#fff;border:none;padding:7px 12px;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;}
-    .header-bar button:disabled{opacity:0.5;cursor:default;}
-
-    .steps{display:flex;gap:0;margin:10px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);}
-    .step{flex:1;padding:8px;text-align:center;font-size:11px;font-weight:bold;color:#999;background:#f5f5f5;border-right:1px solid #e0e0e0;transition:0.2s;}
-    .step:last-child{border-right:none;}
-    .step.active{background:#ff6b00;color:#fff;}
-    .step.done{background:#4caf50;color:#fff;}
-
-    .period-bar{background:#fff;margin:0 10px;padding:10px 14px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-    .period-bar .dates{font-weight:bold;color:#333;font-size:14px;}
-    .period-bar .count{font-size:12px;color:#666;}
-
-    .case-list{margin:10px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;}
-    .case-group-title{font-size:11px;font-weight:bold;color:#0056b3;padding:8px 12px;background:#e7f3ff;border-bottom:1px solid #dee2e6;}
-    .case-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;}
-    .case-item:hover{background:#fafafa;}
-    .case-item.excluded{opacity:0.4;text-decoration:line-through;}
-    .case-item input[type="checkbox"]{width:16px;height:16px;cursor:pointer;flex-shrink:0;}
-    .case-info{flex:1;min-width:0;}
-    .case-title{font-weight:bold;color:#333;}
-    .case-detail{font-size:10px;color:#888;margin-top:1px;}
-    .case-region{font-size:10px;color:#0056b3;background:#e7f3ff;padding:1px 5px;border-radius:3px;white-space:nowrap;}
-
-    .ai-result-panel{margin:10px;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;display:none;}
-    .ai-result-panel.show{display:block;}
-    .ai-result-header{background:#ff6b00;color:#fff;padding:10px 14px;font-weight:bold;font-size:14px;}
-    .ai-summary{padding:10px 14px;font-size:12px;color:#666;background:#fff8e1;border-bottom:1px solid #f0f0f0;}
-    .ai-day{border-bottom:1px solid #e0e0e0;}
-    .ai-day-header{padding:8px 14px;font-weight:bold;font-size:13px;color:#0056b3;background:#f5f8ff;display:flex;justify-content:space-between;}
-    .ai-day-count{font-size:11px;color:#888;font-weight:normal;}
-    .ai-route-item{padding:6px 14px 6px 28px;border-bottom:1px solid #f8f8f8;font-size:12px;position:relative;}
-    .ai-route-item:last-child{border-bottom:none;}
-    .route-num{position:absolute;left:10px;top:7px;font-weight:bold;color:#ff6b00;font-size:11px;}
-    .route-title{font-weight:bold;color:#333;}
-    .route-detail{font-size:10px;color:#888;}
-    .route-reason{font-size:10px;color:#999;font-style:italic;margin-top:2px;}
-
-    .action-bar{margin:10px;display:flex;gap:8px;}
-    .action-bar button{flex:1;padding:12px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;}
-    .btn-ai{background:#ff6b00;color:#fff;}
-    .btn-ai:disabled{background:#ccc;color:#888;cursor:default;}
-    .btn-apply{background:#4caf50;color:#fff;}
-    .btn-reset{background:#f5f5f5;color:#666;border:1px solid #ccc!important;}
-
-    .loading-msg{text-align:center;padding:30px;color:#888;}
-    .spinner{display:inline-block;width:20px;height:20px;border:2px solid #ddd;border-top-color:#ff6b00;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;}
-    @keyframes spin{to{transform:rotate(360deg);}}
-
-    .settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9998;}
-    .settings-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:24px;border-radius:8px;width:90%;max-width:400px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,0.3);}
-    .settings-modal h3{margin:0 0 15px 0;font-size:16px;}
-    .settings-modal label{font-size:12px;color:#555;display:block;margin-bottom:4px;margin-top:10px;}
-    .settings-modal input{width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;margin-bottom:4px;}
-    .settings-modal .btns{display:flex;gap:8px;margin-top:14px;}
-    .settings-modal .btns button{flex:1;padding:8px;border:none;border-radius:4px;font-weight:bold;cursor:pointer;}
-  </style>
+<meta charset="UTF-8">
+<title>7日間 行動カレンダー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#1a1f2e;color:#e0e6f0;min-height:100vh;}
+.header{background:#111827;border-bottom:2px solid #2d6a4f;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;}
+.header a{color:#52b788;text-decoration:none;font-size:13px;font-weight:bold;}
+.header h2{font-size:16px;color:#d8f3dc;flex:1;}
+.week-nav{padding:8px 12px;background:#0d1117;border-bottom:1px solid #222;display:flex;align-items:center;gap:6px;position:sticky;top:45px;z-index:49;flex-wrap:wrap;}
+.week-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
+.week-btn:hover{background:#374151;color:#e0e6f0;}
+.week-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.week-btn.save-btn{background:#1b4332;color:#d8f3dc;border-color:#2d6a4f;}
+.week-btn.save-btn:hover{background:#2d6a4f;}
+.week-btn.all-btn{background:#2a1f3d;color:#c4b5fd;border-color:#4c1d95;}
+.week-btn.all-btn:hover{background:#3b2a5a;}
+.week-label{font-size:12px;color:#74c69d;font-weight:bold;flex:1;text-align:center;}
+.week-count{font-size:11px;color:#6b7280;background:#1f2937;padding:2px 8px;border-radius:10px;}
+.checked-count{font-size:11px;color:#52b788;background:#1b4332;padding:2px 8px;border-radius:10px;}
+.save-notice{position:fixed;bottom:16px;right:16px;background:#2d6a4f;color:#d8f3dc;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
+.save-notice.show{opacity:1;}
+.cal-wrap{overflow-x:auto;padding:10px 10px 24px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:560px;}
+.cal-col{background:#111827;border-radius:8px;overflow:hidden;border:1px solid #1f2937;display:flex;flex-direction:column;min-height:100px;}
+.cal-col-header{padding:7px 6px 5px;text-align:center;font-size:12px;font-weight:bold;line-height:1.4;}
+.cal-col-header.today{background:#1b4332;color:#d8f3dc;border-bottom:2px solid #52b788;}
+.cal-col-header.weekday{background:#161f30;color:#a8c8f8;border-bottom:2px solid #2a3a5a;}
+.cal-col-header.weekend{background:#1e1212;color:#9ca3af;border-bottom:2px solid #3a2020;}
+.cal-col-header.past{background:#111;color:#555;border-bottom:1px solid #222;}
+.cal-col-header .date-num{font-size:16px;font-weight:bold;display:block;}
+.cal-col-header .dow-label{font-size:10px;opacity:0.8;}
+.cal-col-header .count-badge{display:inline-block;font-size:9px;background:rgba(255,255,255,0.12);padding:0 5px;border-radius:8px;margin-top:2px;}
+.cal-col-body{flex:1;padding:4px;}
+.cal-card{background:#1a2232;border-radius:5px;padding:5px 6px;margin-bottom:4px;border-left:3px solid #52b788;transition:background 0.15s,opacity 0.2s;}
+.cal-card.type-reform{border-left-color:#4a90d9;}
+.cal-card.type-newbuild{border-left-color:#f59e0b;}
+.cal-card.type-alert{border-left-color:#ef4444;background:#1f1008;}
+.cal-card.type-personal{border-left-color:#a78bfa;background:#1a1230;}
+.cal-card.past-card{opacity:0.5;}
+.cal-card.unchecked{opacity:0.3;}
+/* チェックボックス行 */
+.card-top{display:flex;align-items:flex-start;gap:4px;}
+.card-cb{width:15px;height:15px;min-width:15px;margin-top:2px;cursor:pointer;accent-color:#52b788;}
+.card-main{flex:1;min-width:0;cursor:pointer;}
+.card-main:hover .card-title{color:#74c69d;text-decoration:underline;}
+.card-no-modal{flex:1;min-width:0;}
+.card-badge{display:inline-block;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:bold;white-space:nowrap;margin-bottom:3px;}
+.badge-reform{background:#1e3a5f;color:#93c5fd;}
+.badge-newbuild{background:#2d2a1a;color:#fbbf24;}
+.badge-newbuild-alert{background:#7c2d12;color:#fed7aa;}
+.badge-personal{background:#2d1b4e;color:#c4b5fd;}
+.badge-sk-alert{background:#4c0519;color:#fda4af;}
+.card-time{font-size:10px;color:#ffd166;font-weight:bold;margin-bottom:2px;}
+.card-title{font-size:11px;font-weight:bold;color:#e0e6f0;line-height:1.3;word-break:break-all;}
+.card-sub{font-size:10px;color:#6b7280;margin-top:2px;line-height:1.4;}
+.card-sub .addr{color:#52b788;}
+.card-sub .reason{color:#fb923c;}
+.card-sub .sekou{color:#9ca3af;}
+.empty-col{color:#4b5563;font-size:11px;text-align:center;padding:16px 4px;font-style:italic;}
+.loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
+</style>
 </head>
 <body>
-
-<div class="header-bar">
-  <a href="index.html">◀</a>
-  <h2>🤖 AIスケジューラー</h2>
-  <button onclick="openSettings()">⚙️ API設定</button>
-</div>
-
-<div class="steps">
-  <div class="step active" id="step1">① 案件選択</div>
-  <div class="step" id="step2">② AI提案</div>
-  <div class="step" id="step3">③ 適用</div>
-</div>
-
-<div class="period-bar">
-  <div class="dates" id="periodDates">-</div>
-  <div class="count" id="periodCount">-</div>
-</div>
-
-<div id="caseListArea"></div>
-
-<div class="action-bar" id="actionBar1">
-  <button class="btn-ai" id="btnAI" onclick="runAI()" disabled>🤖 AIスケジュール提案</button>
-</div>
-
-<div class="ai-result-panel" id="aiResultPanel">
-  <div class="ai-result-header">🤖 AIスケジュール提案</div>
-  <div class="ai-summary" id="aiSummary"></div>
-  <div id="aiResultBody"></div>
-</div>
-
-<div class="action-bar" id="actionBar2" style="display:none;">
-  <button class="btn-apply" onclick="applyToFirebase()">✅ action.htmlに適用</button>
-  <button class="btn-reset" onclick="resetAll()">🔄 やり直し</button>
-</div>
-
-<!-- API設定モーダル -->
-<div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)this.style.display='none'">
-  <div class="settings-modal">
-    <h3>⚙️ API設定</h3>
-    <label>Claude APIキー（agenda.html用）</label>
-    <input type="password" id="claudeKeyInput" placeholder="sk-ant-..." />
-    <div style="font-size:11px;color:#888;margin-bottom:4px;">localStorageに保存。サーバー送信なし。</div>
-    <div style="display:flex;gap:8px;">
-      <button style="padding:6px 10px;background:#6c757d;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;" onclick="testClaudeKey()">🧪 テスト</button>
-      <button style="padding:6px 10px;background:#007bff;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;" onclick="saveClaudeKey()">💾 保存</button>
-    </div>
-    <div class="btns">
-      <button style="background:#6c757d;color:#fff;" onclick="document.getElementById('settingsOverlay').style.display='none'">閉じる</button>
-    </div>
-  </div>
-</div>
-
 <div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
+<div class="header">
+  <a href="index.html">◀ トップ</a>
+  <h2>📅 行動カレンダー</h2>
+</div>
+<div class="week-nav">
+  <button class="week-btn" id="btnPrev" onclick="changeWeek(-1)">◀ 前週</button>
+  <div class="week-label" id="weekLabel">-</div>
+  <span class="week-count" id="weekCount">-</span>
+  <span class="checked-count" id="checkedCount">✓ 0件</span>
+  <button class="week-btn all-btn" id="allBtn" onclick="toggleAll()">全選択</button>
+  <button class="week-btn save-btn" id="saveBtn" onclick="saveToFirebase()">💾 保存</button>
+  <button class="week-btn" id="btnNext" onclick="changeWeek(1)">次週 ▶</button>
+</div>
+<div class="save-notice" id="saveNotice">✓ Firebase保存完了</div>
+<div id="mainContent"><div class="loading">読み込み中...</div></div>
 
 <script src="shared-modal.js"></script>
 <script>
-var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+var firebaseConfig={
+  apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain:"project-6745138395263517914.firebaseapp.com",
+  databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId:"project-6745138395263517914",
+  storageBucket:"project-6745138395263517914.firebasestorage.app",
+  messagingSenderId:"1054295910908",
+  appId:"1:1054295910908:web:4072df05bd90bbdc896a79"
+};
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-var database=firebase.database();
+var db=scopedDatabase(firebase.database());
 
-var globalHeaders=[];
+function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+function getTodayStr(){var t=new Date();return new Date(t.getTime()+9*3600000).toISOString().slice(0,10);}
+function addDays(s,n){var d=new Date(s+"T00:00:00+09:00");d.setDate(d.getDate()+n);return new Date(d.getTime()+9*3600000).toISOString().slice(0,10);}
+function getDow(ymd){return new Date(ymd+"T00:00:00+09:00").getDay();}
+function getMondayOf(ymd){var dow=getDow(ymd);var diff=dow===0?-6:1-dow;return addDays(ymd,diff);}
+function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,16);}
+function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+var todayStr=getTodayStr();
 var globalTasks={};
+var globalHeaders=[];
 var fullData=null;
-var allVisits=[];
-var excludedKeys={};
-var aiResult=null;
-var targetDates=[];
-var finalSelection={};
+var personalEvents={};
+var weekOffset=0;
+var baseMonday=getMondayOf(todayStr);
+var allItems=[];
+var checkedIds={}; // id→true/false
 
-// --- 日付ユーティリティ ---
-function getDateStr(offset){
-  var d=new Date();
-  var jst=new Date(d.getTime()+9*3600000);
-  jst.setUTCDate(jst.getUTCDate()+offset);
-  return jst.getUTCFullYear()+'-'+String(jst.getUTCMonth()+1).padStart(2,'0')+'-'+String(jst.getUTCDate()).padStart(2,'0');
-}
-function formatDateLabel(ds){var p=ds.split('-');var d=new Date(ds+'T00:00:00+09:00');var dow=['日','月','火','水','木','金','土'];return parseInt(p[1])+'/'+parseInt(p[2])+'('+dow[d.getDay()]+')';}
-function simplifyRegion(addr){if(!addr)return'??';var s=String(addr).replace(/北海道|東京都|大阪府|京都府|[一-龠]{2,3}県/g,'').trim();if(s.startsWith('札幌市'))s=s.replace(/^札幌市/,'');s=s.replace(/^.+?郡(?=.*?[町村])/,'');return s.substring(0,12);}
+function getWeekStart(){return addDays(baseMonday,weekOffset*7);}
+function getWeekEnd(){return addDays(getWeekStart(),6);}
 
-function isKoujiCompleted(task, koujiDate){
-  var today=getDateStr(0);
-  if(koujiDate>=today)return false;
-  var sfStatus=task.csvData&&task.csvData[1]?String(task.csvData[1]).trim():'';
-  var localStatus=task.local_status?String(task.local_status).trim():'';
-  var completedPatterns=['施工完了','報告書提出済','施工日連絡済'];
-  for(var i=0;i<completedPatterns.length;i++){
-    if(sfStatus===completedPatterns[i]||localStatus===completedPatterns[i])return true;
+try{
+  var ls=localStorage.getItem('appData');
+  if(ls){
+    fullData=JSON.parse(ls);
+    if(fullData&&fullData.app_tasks)globalTasks=fullData.app_tasks;
+    if(fullData&&fullData.app_meta)globalHeaders=fullData.app_meta.headers||[];
   }
-  var diffDays=(new Date(today)-new Date(koujiDate))/86400000;
-  if(diffDays>60)return true;
-  return false;
-}
+}catch(e){console.error(e);}
 
-// --- データ読み込み ---
-function loadData(){
-  database.ref().once('value').then(function(snap){
-    var dbData=snap.val();
-    if(!dbData||!dbData.app_tasks||!dbData.app_meta){
-      document.getElementById('periodCount').textContent='⚠️ データなし';
+db.ref('personal_calendar').once('value').then(function(snap){
+  personalEvents=snap.val()||{};
+  render();
+}).catch(function(e){render();});
+
+function extractAllItems(){
+  var items=[];
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key];
+    var c=obj.csvData;
+    if(!c)return;
+    var kubun=getSafeVal(c,3).replace(/\s+/g,'');
+    var title=getSafeVal(c,4);
+    var company=getSafeVal(c,5);
+    var addr=getSafeVal(c,11);
+    var sekouDate=formatYMD(getSafeVal(c,2))||formatYMD(getSafeVal(c,14));
+    var csvShitamiDate=formatYMD(getSafeVal(c,15));
+    var csvShitamiTime=getSafeVal(c,16);
+    var fbShitamiDate=obj.date?String(obj.date).replace(/\s+/g,''):'';
+    var fbShitamiTime=obj.time?String(obj.time).replace(/\s+/g,''):'';
+    var shitamiDate=csvShitamiDate||fbShitamiDate;
+    var shitamiTime=csvShitamiTime||fbShitamiTime;
+    var isReform=(kubun==='ﾘ');
+    var isSK=title&&title.indexOf('SK')!==-1;
+    var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
+    var localStatus=obj.local_status?String(obj.local_status).replace(/\s+/g,''):'';
+    var status=localStatus||sfStatus;
+    var SKIP=['施工完了','報告書提出済','施工日連絡済'];
+    for(var si=0;si<SKIP.length;si++){if(status===SKIP[si])return;}
+    if(status==='下見完了')return;
+    if(status==='下見実施中'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
+    if(status==='下見日程確定'&&csvShitamiDate&&csvShitamiDate<todayStr)return;
+
+    if(shitamiDate){
+      var srcLabel=csvShitamiDate?'CSV確定':(fbShitamiDate?'アプリ入力':'');
+      items.push({id:'task_'+key,type:isReform?'reform':'newbuild',date:shitamiDate,time:shitamiTime,title:title,company:company,addr:addr,reason:'下見'+(srcLabel?'('+srcLabel+')':''),sekouDate:sekouDate,key:key});
       return;
     }
-    globalHeaders=dbData.app_meta.headers||[];
-    globalTasks=dbData.app_tasks||{};
-    fullData=dbData;
-
-    targetDates=[getDateStr(0),getDateStr(1),getDateStr(2),getDateStr(3),getDateStr(4),getDateStr(5),getDateStr(6)];
-    document.getElementById('periodDates').textContent='📅 '+formatDateLabel(targetDates[0])+' 〜 '+formatDateLabel(targetDates[6]);
-
-    extractAllVisits();
-    renderCaseList();
-  });
-}
-
-function extractAllVisits(){
-  allVisits=[];
-  var keys=Object.keys(globalTasks);
-  keys.forEach(function(key){
-    var task=globalTasks[key];
-    var cols=task.csvData||[];
-    var c2=cols[2]?String(cols[2]).replace(/\s+/g,''):'';
-    var c3=cols[3]?String(cols[3]).replace(/\s+/g,''):'';
-    var c4=cols[4]?String(cols[4]).trim():'';
-    var c5=cols[5]?String(cols[5]).trim():'';
-    var c11=cols[11]?String(cols[11]).trim():'';
-    var c16=cols[16]?String(cols[16]).trim():'';
-    var reformDate=task.date||'';
-
-    if(isKoujiCompleted(task, c2))return;
-
-    if((c3==='ﾘ'||c3==='ﾊﾘ')&&reformDate!==''){
-      if(c2&&c2<getDateStr(0))return;
-      if(targetDates.indexOf(reformDate)!==-1){
-        allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:reformDate,visit_time:c16,detail:'リフォーム（確定: '+reformDate+(c16?' '+c16:'')+' ）',type:'reform',fixed:true});
-      }
-    }
-
-    if(c3==='新'&&c2!==''){
-      if(c2<getDateStr(0))return;
-      var sekouLabel=c2.replace(/-/g,'/');
-      var sekou=new Date(c2+'T00:00:00+09:00');
-
-      if(c4.indexOf('SK')!==-1){
-        var v1=new Date(sekou);v1.setDate(v1.getDate()-21);
-        var v1s=v1.getFullYear()+'-'+String(v1.getMonth()+1).padStart(2,'0')+'-'+String(v1.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v1s)!==-1){
-          allVisits.push({key:key+'_sk1',title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v1s,detail:'SK新築1回目（施工'+sekouLabel+'の21日前）',type:'sk1',fixed:false,originalKey:key});
-        }
-        var v2=new Date(sekou);v2.setDate(v2.getDate()-10);
-        var v2s=v2.getFullYear()+'-'+String(v2.getMonth()+1).padStart(2,'0')+'-'+String(v2.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v2s)!==-1){
-          allVisits.push({key:key+'_sk2',title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v2s,detail:'SK新築2回目（施工'+sekouLabel+'の10日前）',type:'sk2',fixed:false,originalKey:key});
-        }
+    if(!isReform&&sekouDate){
+      if(sekouDate<todayStr)return;
+      if(isSK){
+        items.push({id:'alert_'+key,type:'alert',date:addDays(sekouDate,-10),time:'',title:title,company:company,addr:addr,reason:'⚠ SK再訪問',sekouDate:sekouDate,key:key});
       }else{
-        var v3=new Date(sekou);v3.setDate(v3.getDate()-21);
-        var v3s=v3.getFullYear()+'-'+String(v3.getMonth()+1).padStart(2,'0')+'-'+String(v3.getDate()).padStart(2,'0');
-        if(targetDates.indexOf(v3s)!==-1){
-          allVisits.push({key:key,title:c4,client:c5,region:simplifyRegion(c11),address:c11,visit_date:v3s,detail:c4+'新築（施工'+sekouLabel+'の21日前）',type:'other',fixed:false,originalKey:key});
+        items.push({id:'alert_'+key,type:'alert',date:addDays(sekouDate,-21),time:'',title:title,company:company,addr:addr,reason:'⚠ 訪問必要',sekouDate:sekouDate,key:key});
+      }
+    }
+  });
+
+  Object.keys(personalEvents).forEach(function(dateKey){
+    var dayEvs=personalEvents[dateKey];
+    if(!dayEvs)return;
+    Object.keys(dayEvs).forEach(function(evId){
+      var ev=dayEvs[evId];
+      var timeStr='';
+      if(!ev.allDay&&ev.start&&ev.start.length>10)timeStr=ev.start.substring(11,16);
+      items.push({id:'cal_'+evId,type:'personal',date:dateKey,time:timeStr,title:ev.title||'(タイトルなし)',company:'',addr:ev.location||'',reason:'マイカレンダー',sekouDate:'',key:null});
+    });
+  });
+  return items;
+}
+
+function updateCheckedCount(){
+  var n=Object.keys(checkedIds).filter(function(k){return checkedIds[k];}).length;
+  document.getElementById('checkedCount').textContent='✓ '+n+'件';
+}
+
+function onCheck(id,checked){
+  checkedIds[id]=checked;
+  var safeId=id.replace(/[^a-zA-Z0-9_]/g,'_');
+  var card=document.getElementById('card_'+safeId);
+  if(card){
+    if(checked)card.classList.remove('unchecked');
+    else card.classList.add('unchecked');
+  }
+  updateCheckedCount();
+}
+
+var allChecked=false;
+function toggleAll(){
+  // 現在の週のアイテムだけ対象
+  var weekStart=getWeekStart();
+  var weekEnd=getWeekEnd();
+  var weekItems=allItems.filter(function(item){return item.date>=weekStart&&item.date<=weekEnd;});
+  allChecked=!allChecked;
+  weekItems.forEach(function(item){
+    checkedIds[item.id]=allChecked;
+    var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
+    var cb=document.getElementById('cb_'+safeId);
+    if(cb)cb.checked=allChecked;
+    var card=document.getElementById('card_'+safeId);
+    if(card){
+      if(allChecked)card.classList.remove('unchecked');
+      else card.classList.add('unchecked');
+    }
+  });
+  document.getElementById('allBtn').textContent=allChecked?'全解除':'全選択';
+  updateCheckedCount();
+}
+
+function changeWeek(dir){
+  var newOffset=weekOffset+dir;
+  if(newOffset<-1||newOffset>1)return;
+  weekOffset=newOffset;
+  allChecked=false;
+  document.getElementById('allBtn').textContent='全選択';
+  render();
+}
+
+function render(){
+  if(Object.keys(globalTasks).length===0&&Object.keys(personalEvents).length===0){
+    document.getElementById('mainContent').innerHTML='<div class="loading" style="color:#ef4444;">⚠ データなし。トップに戻って最新データを取得してください。</div>';
+    return;
+  }
+  allItems=extractAllItems();
+  var weekStart=getWeekStart();
+  var weekEnd=getWeekEnd();
+  var dowNames=['日','月','火','水','木','金','土'];
+  var wLabel=weekOffset===0?'今週':weekOffset===-1?'先週':'来週';
+  document.getElementById('weekLabel').textContent=wLabel+' '+weekStart.replace(/^\d{4}-/,'')+'〜'+weekEnd.replace(/^\d{4}-/,'');
+  document.getElementById('btnPrev').disabled=(weekOffset<=-1);
+  document.getElementById('btnNext').disabled=(weekOffset>=1);
+
+  var weekItems=allItems.filter(function(item){return item.date>=weekStart&&item.date<=weekEnd;});
+  weekItems.sort(function(a,b){
+    if(!a.time&&!b.time)return 0;
+    if(!a.time)return 1;
+    if(!b.time)return -1;
+    return a.time.localeCompare(b.time);
+  });
+  document.getElementById('weekCount').textContent=weekItems.length+'件';
+  updateCheckedCount();
+
+  var byDate={};
+  weekItems.forEach(function(item){
+    if(!byDate[item.date])byDate[item.date]=[];
+    byDate[item.date].push(item);
+  });
+
+  var days=[];
+  for(var i=0;i<7;i++)days.push(addDays(weekStart,i));
+
+  var html='<div class="cal-wrap"><div class="cal-grid">';
+  days.forEach(function(dateStr){
+    var dayItems=byDate[dateStr]||[];
+    var isToday=(dateStr===todayStr);
+    var isPast=(dateStr<todayStr);
+    var dow=getDow(dateStr);
+    var isWkend=(dow===0||dow===6);
+    var dayNum=dateStr.replace(/^\d{4}-\d{2}-/,'');
+    var monthNum=dateStr.replace(/^\d{4}-/,'').replace(/-\d{2}$/,'');
+    var headerCls=isPast?'past':isToday?'today':isWkend?'weekend':'weekday';
+    var dowColor=dow===0?'color:#ef4444':dow===6?'color:#60a5fa':'';
+
+    html+='<div class="cal-col">';
+    html+='<div class="cal-col-header '+headerCls+'">';
+    html+='<span class="date-num" style="'+dowColor+'">'+monthNum+'/'+dayNum+'</span>';
+    html+='<span class="dow-label" style="'+dowColor+'">'+dowNames[dow]+(isToday?' 今日':'')+'</span>';
+    if(dayItems.length>0)html+='<span class="count-badge">'+dayItems.length+'件</span>';
+    html+='</div>';
+    html+='<div class="cal-col-body">';
+    if(dayItems.length===0){
+      html+='<div class="empty-col">-</div>';
+    }else{
+      dayItems.forEach(function(item){
+        var isPastCard=(item.date<todayStr);
+        var isChecked=!!checkedIds[item.id];
+        var safeId=item.id.replace(/[^a-zA-Z0-9_]/g,'_');
+        var cardCls='cal-card type-'+item.type+(isPastCard?' past-card':'')+(isChecked?'':' unchecked');
+        var badgeCls='card-badge ';
+        var badgeTxt='';
+        if(item.type==='reform'){badgeCls+='badge-reform';badgeTxt='ﾘ 下見';}
+        else if(item.type==='newbuild'){badgeCls+='badge-newbuild';badgeTxt='新 下見';}
+        else if(item.type==='alert'&&item.title&&item.title.indexOf('SK')!==-1){badgeCls+='badge-sk-alert';badgeTxt='新SK ⚠';}
+        else if(item.type==='alert'){badgeCls+='badge-newbuild-alert';badgeTxt='新 ⚠';}
+        else{badgeCls+='badge-personal';badgeTxt='📅';}
+
+        html+='<div class="'+cardCls+'" id="card_'+safeId+'">';
+        html+='<div class="card-top">';
+        html+='<input type="checkbox" class="card-cb" id="cb_'+safeId+'"'+(isChecked?' checked':'')+' onchange="onCheck(\''+escHtml(item.id)+'\',this.checked)" onclick="event.stopPropagation()">';
+        if(item.key){
+          html+='<div class="card-main" onclick="openModal(\''+escHtml(item.key)+'\')">';
+        }else{
+          html+='<div class="card-no-modal">';
         }
-      }
-    }
-  });
-
-  var fixedCount=allVisits.filter(function(v){return v.fixed;}).length;
-  var newCount=allVisits.filter(function(v){return!v.fixed;}).length;
-  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒リフォーム確定: '+fixedCount+'件 / 🔧新築AI対象: '+newCount+'件）';
-  document.getElementById('btnAI').disabled=newCount===0;
-}
-
-// --- 案件リスト表示 ---
-function renderCaseList(){
-  var area=document.getElementById('caseListArea');
-  area.innerHTML='';
-  if(allVisits.length===0){
-    area.innerHTML='<div class="loading-msg">対象期間に案件がありません</div>';
-    return;
-  }
-
-  var fixedVisits=allVisits.filter(function(v){return v.fixed;});
-  var newVisits=allVisits.filter(function(v){return!v.fixed;});
-
-  var container=document.createElement('div');
-  container.className='case-list';
-
-  if(fixedVisits.length>0){
-    var fixedHeader=document.createElement('div');
-    fixedHeader.className='case-group-title';
-    fixedHeader.style.background='#fff3e0';
-    fixedHeader.style.color='#e65100';
-    fixedHeader.textContent='🔒 リフォーム確定（'+fixedVisits.length+'件）— チェックで除外可、AIのアンカーとして使用';
-    container.appendChild(fixedHeader);
-
-    fixedVisits.forEach(function(v){
-      var item=document.createElement('div');
-      item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-      item.style.background='#fff8e1';
-      item.id='case-'+v.key;
-
-      var cb=document.createElement('input');
-      cb.type='checkbox';
-      cb.checked=!!excludedKeys[v.key];
-      cb.addEventListener('change',function(){
-        if(this.checked){excludedKeys[v.key]=true;}else{delete excludedKeys[v.key];}
-        item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-        item.style.background='#fff8e1';
-        updateCount();
+        html+='<span class="'+badgeCls+'">'+badgeTxt+'</span>';
+        if(item.time)html+='<div class="card-time">🕐 '+escHtml(item.time)+'</div>';
+        html+='<div class="card-title">'+escHtml(item.title)+'</div>';
+        html+='<div class="card-sub">';
+        if(item.reason)html+='<span class="reason">'+escHtml(item.reason)+'</span><br>';
+        if(item.sekouDate)html+='<span class="sekou">施工:'+escHtml(item.sekouDate.replace(/^\d{4}-/,''))+'</span><br>';
+        if(item.addr)html+='<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>';
+        html+='</div>';
+        html+='</div>'; // card-main or card-no-modal
+        html+='</div>'; // card-top
+        html+='</div>'; // cal-card
       });
-
-      var info=document.createElement('div');
-      info.className='case-info';
-      info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div>'+
-        '<div class="case-detail">'+escHtml(v.detail)+'</div>';
-
-      var badge=document.createElement('span');
-      badge.className='case-region';
-      badge.style.background='#fff3e0';
-      badge.style.color='#e65100';
-      badge.textContent=v.visit_date+(v.visit_time?' '+v.visit_time:'');
-
-      item.appendChild(cb);item.appendChild(info);item.appendChild(badge);
-      container.appendChild(item);
-    });
-  }
-
-  if(newVisits.length>0){
-    var newHeader=document.createElement('div');
-    newHeader.className='case-group-title';
-    newHeader.style.background='#e8f5e9';
-    newHeader.style.color='#2e7d32';
-    newHeader.textContent='🔧 新築（'+newVisits.length+'件）— チェックで除外可、AIが最適日に配分';
-    container.appendChild(newHeader);
-
-    var regionMap={};
-    newVisits.forEach(function(v){
-      if(!regionMap[v.region])regionMap[v.region]=[];
-      regionMap[v.region].push(v);
-    });
-
-    Object.keys(regionMap).sort().forEach(function(region){
-      var title=document.createElement('div');
-      title.className='case-group-title';
-      title.textContent='📍 '+region+'（'+regionMap[region].length+'件）';
-      container.appendChild(title);
-
-      regionMap[region].forEach(function(v){
-        var item=document.createElement('div');
-        item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-        item.id='case-'+v.key;
-
-        var cb=document.createElement('input');
-        cb.type='checkbox';
-        cb.checked=!!excludedKeys[v.key];
-        cb.addEventListener('change',function(){
-          if(this.checked){excludedKeys[v.key]=true;}else{delete excludedKeys[v.key];}
-          item.className='case-item'+(excludedKeys[v.key]?' excluded':'');
-          updateCount();
-        });
-
-        var info=document.createElement('div');
-        info.className='case-info';
-        info.innerHTML='<div class="case-title">'+escHtml(v.title)+' / '+escHtml(v.client)+'</div><div class="case-detail">'+escHtml(v.detail)+' | 算出日: '+v.visit_date+'</div>';
-
-        var badge=document.createElement('span');
-        badge.className='case-region';
-        badge.textContent=v.region;
-
-        item.appendChild(cb);item.appendChild(info);item.appendChild(badge);
-        container.appendChild(item);
-      });
-    });
-  }
-
-  area.appendChild(container);
-}
-
-function updateCount(){
-  var fixedVisits=allVisits.filter(function(v){return v.fixed;});
-  var newVisits=allVisits.filter(function(v){return!v.fixed;});
-  var activeFixed=fixedVisits.filter(function(v){return!excludedKeys[v.key];});
-  var activeNew=newVisits.filter(function(v){return!excludedKeys[v.key];});
-  document.getElementById('periodCount').textContent='全'+allVisits.length+'件（🔒確定: '+activeFixed.length+' / 🔧新築: '+activeNew.length+' / 除外: '+Object.keys(excludedKeys).length+'）';
-  document.getElementById('btnAI').disabled=(activeFixed.length+activeNew.length)===0;
-}
-
-// --- Claude API呼び出し ---
-function runAI(){
-  var claudeKey=localStorage.getItem('claudeApiKey');
-  if(!claudeKey){openSettings();return;}
-
-  var active=allVisits.filter(function(v){return!v.fixed&&!excludedKeys[v.key];});
-  var fixed=allVisits.filter(function(v){return v.fixed&&!excludedKeys[v.key];});
-  if(active.length===0){alert('AI対象の新築案件がありません');return;}
-  if(active.length>80){
-    if(!confirm('⚠️ '+active.length+'件は多いです。ルート順の精度が落ちる可能性があります。\n続行しますか？'))return;
-  }
-
-  document.getElementById('step1').className='step done';
-  document.getElementById('step2').className='step active';
-  document.getElementById('btnAI').disabled=true;
-  document.getElementById('btnAI').innerHTML='<span class="spinner"></span>AI分析中...';
-
-  var fixedList='';
-  if(fixed.length>0){
-    fixedList='\n【🔒 確定済みリフォーム（日時固定・動かせない）】\n';
-    fixed.forEach(function(v,i){
-      fixedList+='  '+(i+1)+'. '+v.visit_date+(v.visit_time?' '+v.visit_time:'')+' | '+v.region+' | '+v.title+' / '+v.client+' | 住所:'+v.address+'\n';
-    });
-  }
-
-  var newList='\n【🔧 新築案件（AIが日付を決める対象）】\n';
-  var groupByRegion={};
-  active.forEach(function(v){
-    if(!groupByRegion[v.region])groupByRegion[v.region]=[];
-    groupByRegion[v.region].push(v);
-  });
-  Object.keys(groupByRegion).sort().forEach(function(region){
-    newList+=' ['+region+']\n';
-    groupByRegion[region].forEach(function(v,i){
-      var useKey=v.originalKey||v.key;
-      newList+='  '+(i+1)+'. key="'+useKey+'" | '+v.title+' / '+v.client+' | '+v.detail+' | 住所:'+v.address+'\n';
-    });
-  });
-
-  var dateLabels=targetDates.map(function(d){return d+'('+formatDateLabel(d)+')';}).join(', ');
-
-  var prompt='あなたは北海道のキッチン設備下見スケジュール最適化AIです。\n\n'+
-    '対象日: '+dateLabels+'\n'+
-    fixedList+newList+'\n'+
-    '【最適化ルール（優先度順）】\n'+
-    '1. リフォームは日時確定済み。絶対に動かさない。\n'+
-    '2. 新築案件をリフォームと同じ地域の日に合わせる（最重要）。例:中央区のリフォームが4/9確定→中央区の新築も4/9に入れる。\n'+
-    '3. リフォームがない地域の新築は、同じ地域同士で同じ日にまとめる。\n'+
-    '4. 各日の合計件数（リフォーム+新築）をできるだけ均等にする。\n'+
-    '5. 同じ日の中では移動距離が最小になるルート順を決める。リフォームの時間を考慮して前後に新築を配置する。\n'+
-    '6. 新築の算出日は目安。地域をまとめるためにずらしてよい。\n\n'+
-    '【出力】新築案件のみJSON出力。リフォームは含めない。reasonは5文字以内。keyはoriginalKeyがあればそれを使う。\n'+
-    'JSONのみ返すこと。前置き・後置き・コードブロック不要。\n'+
-    '{"days":[{"date":"YYYY-MM-DD","items":[{"key":"FBキー","order":1,"reason":"5文字"}]}],"summary":"一行"}';
-
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key': claudeKey,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-sonnet-4-6',
-      max_tokens:8000,
-      system:'あなたはスケジュール最適化AIです。JSONのみ出力。前置き・後置き・コードブロック不要。',
-      messages:[{role:'user',content:prompt}]
-    })
-  })
-  .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-  .then(function(data){
-    var text='';
-    try{
-      if(!data.content||!data.content[0])throw new Error('レスポンス異常');
-      text=data.content[0].text;
-    }catch(e){
-      if(data.error)throw new Error(data.error.message||JSON.stringify(data.error));
-      throw new Error('レスポンス解析エラー');
     }
-    var jsonStr='';
-    var fenceMatch=text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if(fenceMatch){
-      jsonStr=fenceMatch[1].trim();
-    } else {
-      var bs=text.indexOf('{');
-      var be=text.lastIndexOf('}');
-      if(bs!==-1&&be>bs)jsonStr=text.substring(bs,be+1);
-      else jsonStr=text.trim();
-    }
-    try{
-      aiResult=JSON.parse(repairJson(jsonStr));
-    }catch(e){
-      console.error('Parse failed. Raw text:',text);
-      throw new Error('JSON解析失敗。AIの応答形式が不正です。再試行してください。');
-    }
-    showAIResult();
-  })
-  .catch(function(err){
-    console.error('AI Error:',err);
-    alert('❌ AIエラー: '+err.message);
-    document.getElementById('btnAI').disabled=false;
-    document.getElementById('btnAI').textContent='🤖 AIスケジュール提案';
-    document.getElementById('step2').className='step';
-    document.getElementById('step1').className='step active';
+    html+='</div></div>';
+  });
+  html+='</div></div>';
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function openModal(key){
+  if(!key||!globalTasks[key])return;
+  openCaseModal(key,globalTasks[key],globalHeaders,globalTasks,fullData,db,function(){});
+}
+
+function saveToFirebase(){
+  var checkedItems=allItems.filter(function(item){return !!checkedIds[item.id];});
+  if(checkedItems.length===0){alert('チェックされた案件がありません');return;}
+  var btn=document.getElementById('saveBtn');
+  btn.disabled=true;btn.textContent='保存中...';
+  var saveData={
+    updated:new Date().toISOString(),
+    count:checkedItems.length,
+    items:checkedItems
+  };
+  db.ref('app_action_7day').set(saveData).then(function(){
+    var notice=document.getElementById('saveNotice');
+    notice.textContent='✓ '+checkedItems.length+'件 Firebase保存完了';
+    notice.classList.add('show');
+    setTimeout(function(){notice.classList.remove('show');},2500);
+    btn.disabled=false;btn.textContent='💾 保存';
+  }).catch(function(e){
+    alert('保存失敗: '+e.message);
+    btn.disabled=false;btn.textContent='💾 保存';
   });
 }
-
-function showAIResult(){
-  document.getElementById('btnAI').textContent='✅ 提案完了';
-  document.getElementById('step2').className='step done';
-  document.getElementById('step3').className='step active';
-
-  var panel=document.getElementById('aiResultPanel');
-  panel.className='ai-result-panel show';
-  if(aiResult.summary){document.getElementById('aiSummary').textContent='💡 '+aiResult.summary;}
-
-  var body=document.getElementById('aiResultBody');
-  body.innerHTML='';
-  finalSelection={};
-
-  if(aiResult.days){
-    aiResult.days.forEach(function(day){
-      var dayDiv=document.createElement('div');
-      dayDiv.className='ai-day';
-
-      var dayFixed=allVisits.filter(function(v){return v.fixed&&v.visit_date===day.date&&!excludedKeys[v.key];});
-      var totalCount=(day.items?day.items.length:0)+dayFixed.length;
-
-      var header=document.createElement('div');
-      header.className='ai-day-header';
-      header.innerHTML='<span>📅 '+escHtml(day.date)+' ('+formatDateLabel(day.date)+')</span><span class="ai-day-count">'+totalCount+'件（🔒'+dayFixed.length+' + 🔧'+(day.items?day.items.length:0)+'）</span>';
-      dayDiv.appendChild(header);
-
-      dayFixed.forEach(function(fv){
-        var rowId='final-'+day.date+'-'+fv.key;
-        if(!finalSelection[rowId])finalSelection[rowId]=true;
-        var row=document.createElement('div');
-        row.className='ai-route-item';
-        row.style.background='#fff8e1';
-        row.style.paddingLeft='10px';
-        var cb=document.createElement('input');
-        cb.type='checkbox';cb.checked=finalSelection[rowId];cb.style.marginRight='8px';
-        cb.addEventListener('change',function(){finalSelection[rowId]=this.checked;});
-        var content=document.createElement('span');
-        content.innerHTML='<span class="route-num" style="position:relative;left:0;">🔒</span>'+
-          '<div class="route-title" style="display:inline;">'+escHtml(fv.title)+' / '+escHtml(fv.client)+'</div>'+
-          '<div class="route-detail">📍'+escHtml(fv.region)+' | ⏰'+(fv.visit_time||'時間未定')+'</div>'+
-          '<div class="route-reason">→ 確定済み</div>';
-        row.appendChild(cb);row.appendChild(content);
-        dayDiv.appendChild(row);
-      });
-
-      if(day.items&&day.items.length>0){
-        day.items.sort(function(a,b){return(a.order||99)-(b.order||99);});
-        day.items.forEach(function(item){
-          var visit=null;
-          for(var vi=0;vi<allVisits.length;vi++){
-            if(allVisits[vi].key===item.key||allVisits[vi].originalKey===item.key){visit=allVisits[vi];break;}
-          }
-          var title=item.title||(visit?visit.title:'');
-          var client=item.client||(visit?visit.client:'');
-          var region=item.region||(visit?visit.region:'');
-          var rowId='final-'+day.date+'-'+item.key;
-          if(!finalSelection[rowId])finalSelection[rowId]=true;
-          var row=document.createElement('div');
-          row.className='ai-route-item';row.style.paddingLeft='10px';
-          var cb=document.createElement('input');
-          cb.type='checkbox';cb.checked=finalSelection[rowId];cb.style.marginRight='8px';
-          cb.addEventListener('change',function(){finalSelection[rowId]=this.checked;});
-          var content=document.createElement('span');
-          content.innerHTML='<span class="route-num" style="position:relative;left:0;">'+(item.order||'-')+'</span>'+
-            '<div class="route-title" style="display:inline;">'+escHtml(title)+' / '+escHtml(client)+'</div>'+
-            '<div class="route-detail">📍'+escHtml(region)+'</div>'+
-            (item.reason?'<div class="route-reason">→ '+escHtml(item.reason)+'</div>':'');
-          row.appendChild(cb);row.appendChild(content);
-          dayDiv.appendChild(row);
-        });
-      }
-      body.appendChild(dayDiv);
-    });
-  }
-  document.getElementById('actionBar2').style.display='flex';
-}
-
-// --- Firebase適用 ---
-function applyToFirebase(){
-  if(!aiResult||!aiResult.days){alert('提案データがありません');return;}
-  var updates={};
-  var count=0;
-  var skipped=0;
-  aiResult.days.forEach(function(day){
-    if(!day.items)return;
-    day.items.forEach(function(item){
-      var rowId='final-'+day.date+'-'+item.key;
-      if(finalSelection[rowId]===false){skipped++;return;}
-      if(item.key&&globalTasks[item.key]){
-        updates['app_tasks/'+item.key+'/ai_shitami_date']=day.date;
-        count++;
-      }
-    });
-  });
-  if(count===0){
-    if(skipped>0){alert('⚠️ すべての案件のチェックが外れています。');}
-    else{alert('適用する案件がありません');}
-    return;
-  }
-  var msg='✅ '+count+'件をFirebaseに保存します。';
-  if(skipped>0)msg+='\n⚠️ '+skipped+'件はチェックが外れているため保存しません。';
-  if(!confirm(msg+'\n\n続行しますか？'))return;
-
-  database.ref().update(updates).then(function(){
-    try{
-      var appData=JSON.parse(localStorage.getItem('appData')||'{}');
-      if(appData.app_tasks){
-        aiResult.days.forEach(function(day){
-          if(!day.items)return;
-          day.items.forEach(function(item){
-            var rowId='final-'+day.date+'-'+item.key;
-            if(finalSelection[rowId]===false)return;
-            if(item.key&&appData.app_tasks[item.key]){
-              appData.app_tasks[item.key].ai_shitami_date=day.date;
-            }
-          });
-        });
-        localStorage.setItem('appData',JSON.stringify(appData));
-      }
-    }catch(e){console.error(e);}
-    document.getElementById('step3').className='step done';
-    alert('✅ '+count+'件のAI下見予定をFirebaseに保存しました。'+(skipped>0?'\n⚠️ '+skipped+'件は除外されました。':'')+'\naction.htmlの「AI下見予定」列に反映されます。');
-  }).catch(function(err){
-    alert('❌ Firebase保存エラー: '+err.message);
-  });
-}
-
-function resetAll(){
-  aiResult=null;excludedKeys={};finalSelection={};
-  document.getElementById('aiResultPanel').className='ai-result-panel';
-  document.getElementById('actionBar2').style.display='none';
-  document.getElementById('btnAI').disabled=false;
-  document.getElementById('btnAI').textContent='🤖 AIスケジュール提案';
-  document.getElementById('step1').className='step active';
-  document.getElementById('step2').className='step';
-  document.getElementById('step3').className='step';
-  renderCaseList();updateCount();
-}
-
-// --- API設定 ---
-function openSettings(){
-  document.getElementById('claudeKeyInput').value=localStorage.getItem('claudeApiKey')||'';
-  document.getElementById('settingsOverlay').style.display='block';
-}
-function saveClaudeKey(){
-  var k=document.getElementById('claudeKeyInput').value.trim();
-  if(!k){alert('キーを入力してください');return;}
-  localStorage.setItem('claudeApiKey',k);
-  alert('Claude APIキーを保存しました');
-  document.getElementById('settingsOverlay').style.display='none';
-}
-function testClaudeKey(){
-  var k=document.getElementById('claudeKeyInput').value.trim();
-  if(!k){alert('キーを入力してください');return;}
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':k,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-sonnet-4-6',
-      max_tokens:10,
-      messages:[{role:'user',content:'テスト。OKとだけ返して。'}]
-    })
-  }).then(function(r){return r.json();}).then(function(d){
-    if(d.content&&d.content[0])alert('✅ 有効！ レスポンス: '+d.content[0].text);
-    else if(d.error)alert('❌ '+d.error.message);
-    else alert('⚠️ 不明: '+JSON.stringify(d));
-  }).catch(function(e){alert('❌ '+e.message);});
-}
-
-function escHtml(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
-
-function repairJson(str){
-  try{JSON.parse(str);return str;}catch(e){}
-  var s=str;
-  s=s.replace(/,\s*([\]\}])/g,'$1');
-  s=s.replace(/,\s*$/,'');
-  var q=0;
-  for(var qi=0;qi<s.length;qi++){if(s[qi]==='"'&&(qi===0||s[qi-1]!=='\\'))q++;}
-  if(q%2!==0)s+='"';
-  s=s.replace(/,\s*([\]\}])/g,'$1');
-  s=s.replace(/,\s*$/,'');
-  var opens=0,closes=0,braces=0,braceC=0;
-  for(var i=0;i<s.length;i++){
-    if(s[i]==='[')opens++;
-    if(s[i]===']')closes++;
-    if(s[i]==='{')braces++;
-    if(s[i]==='}')braceC++;
-  }
-  for(var k=0;k<(opens-closes);k++)s+=']';
-  for(var m=0;m<(braces-braceC);m++)s+='}';
-  try{JSON.parse(s);return s;}catch(e2){
-    console.error('JSON repair failed:',e2,'\nLast 200 chars:',s.slice(-200));
-    throw new Error('JSONの解析に失敗しました');
-  }
-}
-
-loadData();
 </script>
 </body>
 </html>
