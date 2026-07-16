@@ -7,6 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -98,7 +99,7 @@ var firebaseConfig={
   appId:"1:1054295910908:web:4072df05bd90bbdc896a79"
 };
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
-var db=firebase.database();
+var db=scopedDatabase(firebase.database());
 
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
