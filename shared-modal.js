@@ -199,55 +199,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('modal-time').addEventListener('change', function(){
     saveField({time: this.value});
   });
+  // 🔢 順：他案件の自動並べ替えは廃止。入力した数値をそのまま保存するだけ。
   document.getElementById('modal-order').addEventListener('change', function(){
-    var inputEl = this;
-    var nd = document.getElementById('modal-date').value;
-    var noRaw = parseInt(inputEl.value, 10);
-
-    // 日付未設定、または無効な数値なら単純保存（重複チェック不要）
-    if (!nd || isNaN(noRaw) || noRaw < 1) {
-      var safeVal = (!isNaN(noRaw) && noRaw >= 1) ? noRaw : '';
-      inputEl.value = safeVal;
-      saveField({order: safeVal});
-      return;
-    }
-
-    // 同じ日の他案件（自分以外）を現在の順番でソート
-    var sameDay = Object.keys(globalTasks).filter(function(k){
-      return k !== key && globalTasks[k].date === nd;
-    }).sort(function(a,b){
-      var oa = parseInt(globalTasks[a].order, 10); if (isNaN(oa)) oa = 9999;
-      var ob = parseInt(globalTasks[b].order, 10); if (isNaN(ob)) ob = 9999;
-      return oa - ob;
-    });
-
-    // 指定位置（1始まり）に自分を挿入。範囲外なら末尾/先頭に丸める
-    var insertIndex = Math.max(0, Math.min(noRaw - 1, sameDay.length));
-    var newOrderList = sameDay.slice();
-    newOrderList.splice(insertIndex, 0, key);
-
-    // 1から振り直し、値が変わったものだけ更新対象にする
-    var fbUpdates = {};
-    var changedCount = 0;
-    newOrderList.forEach(function(k, i){
-      var newNo = i + 1;
-      var curNo = parseInt(globalTasks[k].order, 10);
-      if (curNo !== newNo) {
-        fbUpdates['app_tasks/'+k+'/order'] = newNo;
-        globalTasks[k].order = newNo;
-        changedCount++;
-      }
-    });
-
-    inputEl.value = globalTasks[key].order;
-
-    if (changedCount === 0) { return; }
-
-    firebaseDB.ref().update(fbUpdates).then(function(){
-      if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
-      showSavedMsg();
-      if (typeof onSaveCallback === 'function') onSaveCallback();
-    });
+    var noRaw = parseInt(this.value, 10);
+    var safeVal = (!isNaN(noRaw) && noRaw >= 1) ? noRaw : '';
+    this.value = safeVal;
+    saveField({order: safeVal});
   });
 
   // メモ（blurで即時）
