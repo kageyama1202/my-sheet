@@ -8,6 +8,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; margin: 0; }
@@ -77,7 +78,7 @@
       appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
     };
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-    var database = firebase.database();
+    var database = scopedDatabase(firebase.database());
 
     function getTodayStr() {
       var d = new Date();
