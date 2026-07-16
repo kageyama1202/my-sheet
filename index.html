@@ -58,13 +58,6 @@
       <a href="admin.html"    class="menu-btn disabled" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
     </div>
 
-    <div class="gas-url-section">
-      <label>📅 GASカレンダー同期URL（calendar_sync.gs のデプロイURL）</label>
-      <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." />
-      <button onclick="saveGasUrl()">保存</button>
-      <button onclick="syncMyCalendar(true)">今すぐ同期</button>
-      <div id="gasUrlStatus"></div>
-    </div>
   </div>
 
   <script>
@@ -93,23 +86,11 @@
       });
     }
 
-    function saveGasUrl() {
-      var url = document.getElementById('gasUrlInput').value.trim();
-      if (!url) { alert('URLを入力してください'); return; }
-      localStorage.setItem('gasCalendarSyncUrl', url);
-      document.getElementById('gasUrlStatus').textContent = '✅ 保存しました';
-    }
+    var PERSONAL_CAL_SYNC_URL = 'https://us-central1-project-6745138395263517914.cloudfunctions.net/syncPersonalCalendar';
 
     function syncMyCalendar(manual) {
-      var url = localStorage.getItem('gasCalendarSyncUrl') || '';
       var calDiv = document.getElementById('calSyncStatus');
-      if (!url) {
-        if (manual) {
-          calDiv.style.display = 'block';
-          calDiv.textContent = '⚠️ GAS URLが未設定です。下のフォームに入力して保存してください。';
-        }
-        return;
-      }
+      var url = PERSONAL_CAL_SYNC_URL + '?userKey=' + encodeURIComponent(getUserKey());
       calDiv.style.display = 'block';
       calDiv.style.background = '#e8eaf6';
       calDiv.style.color = '#3949ab';
@@ -256,11 +237,7 @@
     }
 
     window.addEventListener('load', function() {
-      var savedUrl = localStorage.getItem('gasCalendarSyncUrl') || '';
-      document.getElementById('gasUrlInput').value = savedUrl;
-      if (savedUrl) { document.getElementById('gasUrlStatus').textContent = '✅ URL設定済み'; }
-
-      // ① GAS同期を最初に即発火（結果を待たない）
+      // ① 個人カレンダー同期を最初に即発火（結果を待たない）
       syncMyCalendar(false);
 
       // ② キャッシュがあれば即メニュー有効化
