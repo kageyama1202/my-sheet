@@ -7,6 +7,7 @@
 <title>3日間プラン</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -215,7 +216,7 @@ var firebaseConfig = {
   appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
 };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-var db = firebase.database();
+var db = scopedDatabase(firebase.database());
 
 // ==================== GLOBALS ====================
 var raw7day = null;
