@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ユーザー管理</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    background: #0f0f0f;
+    color: #e8e8e8;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+  .card {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+  input {
+    width: 100%;
+    background: #242424;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    color: #e8e8e8;
+    font-size: 15px;
+    padding: 10px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  input:focus { border-color: #4f8ef7; }
+  button {
+    width: 100%;
+    margin-top: 18px;
+    background: #4f8ef7;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:active { opacity: 0.75; }
+  button.secondary { background: #333; }
+  #msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  #msg.ok { color: #6fcf97; }
+  #msg.err { color: #e05c5c; }
+  .user-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #2e2e2e;
+  }
+  .user-item:last-child { border-bottom: none; }
+  .user-item .name { font-size: 15px; font-weight: 600; }
+  .user-item .meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .user-item .btns { display: flex; gap: 8px; margin-top: 8px; }
+  .user-item .btns button { margin-top: 0; padding: 6px 12px; font-size: 12px; width: auto; }
+  .user-item .del-btn { background: none; border: 1px solid #e05c5c; color: #e05c5c; }
+  .user-item .edit-btn { background: none; border: 1px solid #4f8ef7; color: #4f8ef7; }
+</style>
+</head>
+<body>
+<h1>👥 ユーザー管理</h1>
+<div class="sub">PIN・カレンダーID・スプレッドシートを一括登録</div>
+
+<div class="card">
+  <h2>ログイン情報</h2>
+  <label>PIN番号（数字、重複不可）</label>
+  <input type="tel" id="pin" inputmode="numeric" placeholder="例: 5678">
+
+  <label>userKey（英数字、データ置き場の名前・変更不可推奨）</label>
+  <input type="text" id="userKey" placeholder="例: senpai">
+
+  <label>表示名</label>
+  <input type="text" id="name" placeholder="例: 先輩">
+
+  <h2 style="margin-top:20px;">カレンダーID</h2>
+  <label>施工カレンダーID</label>
+  <input type="text" id="calSeko" placeholder="xxxx@group.calendar.google.com">
+
+  <label>下見カレンダーID</label>
+  <input type="text" id="calShitami" placeholder="xxxx@group.calendar.google.com">
+
+  <label>個人（プライベート/緊急下書き）カレンダーID</label>
+  <input type="text" id="calPersonal" placeholder="xxxx@group.calendar.google.com もしくは本人のGmailアドレス">
+
+  <h2 style="margin-top:20px;">スプレッドシート</h2>
+  <label>スプレッドシートID</label>
+  <input type="text" id="spreadsheetId" placeholder="URLの /d/ と /edit の間の文字列">
+
+  <label>シート名</label>
+  <input type="text" id="sheetName" placeholder="例: 管理表" value="管理表">
+
+  <button onclick="saveUser()">この内容で登録・更新</button>
+  <button class="secondary" onclick="clearForm()">フォームをクリア</button>
+  <div id="msg"></div>
+</div>
+
+<div class="card">
+  <h2>登録済みユーザー</h2>
+  <div id="list"></div>
+</div>
+
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+firebase.auth().signInAnonymously().catch(function (e) { console.warn('auth error', e); });
+
+var db = firebase.database();
+var editingOldPin = null; // 編集中に元のPINを覚えておく（PIN変更時に古い方を消すため）
+
+function showMsg(text, ok) {
+  var el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = ok ? 'ok' : 'err';
+}
+
+function clearForm() {
+  ['pin','userKey','name','calSeko','calShitami','calPersonal','spreadsheetId'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('sheetName').value = '管理表';
+  editingOldPin = null;
+}
+
+function saveUser() {
+  var pin = document.getElementById('pin').value.trim();
+  var userKey = document.getElementById('userKey').value.trim();
+  var name = document.getElementById('name').value.trim();
+  var calSeko = document.getElementById('calSeko').value.trim();
+  var calShitami = document.getElementById('calShitami').value.trim();
+  var calPersonal = document.getElementById('calPersonal').value.trim();
+  var spreadsheetId = document.getElementById('spreadsheetId').value.trim();
+  var sheetName = document.getElementById('sheetName').value.trim() || '管理表';
+
+  if (!pin || !userKey) {
+    showMsg('PINとuserKeyは必須です', false);
+    return;
+  }
+  if (!/^[0-9]+$/.test(pin)) {
+    showMsg('PINは数字のみにしてください', false);
+    return;
+  }
+
+  var checkPin = db.ref('config/authorized_pins/' + pin).once('value');
+
+  checkPin.then(function (snap) {
+    if (snap.exists() && snap.val().userKey !== userKey) {
+      throw new Error('そのPINは既に別の人（' + (snap.val().name || snap.val().userKey) + '）が使っています');
+    }
+
+    var updates = {};
+    updates['config/authorized_pins/' + pin] = { userKey: userKey, name: name || userKey };
+    updates['users/' + userKey + '/config'] = {
+      calendarSeko: calSeko,
+      calendarShitami: calShitami,
+      calendarPersonal: calPersonal,
+      spreadsheetId: spreadsheetId,
+      sheetName: sheetName
+    };
+    // PINを変更した場合は古いPINエントリを削除
+    if (editingOldPin && editingOldPin !== pin) {
+      updates['config/authorized_pins/' + editingOldPin] = null;
+    }
+
+    return db.ref().update(updates);
+  }).then(function () {
+    showMsg('登録しました：' + userKey, true);
+    clearForm();
+    loadList();
+  }).catch(function (e) {
+    console.error(e);
+    showMsg(e.message, false);
+  });
+}
+
+function loadList() {
+  db.ref('config/authorized_pins').once('value').then(function (pinSnap) {
+    var pins = pinSnap.val() || {};
+    var pinEntries = Object.keys(pins).map(function (pin) {
+      return { pin: pin, userKey: pins[pin].userKey, name: pins[pin].name || pins[pin].userKey };
+    });
+
+    db.ref('users').once('value').then(function (usersSnap) {
+      var users = usersSnap.val() || {};
+      var listEl = document.getElementById('list');
+
+      if (pinEntries.length === 0) {
+        listEl.innerHTML = '<div style="color:#888;font-size:13px;">まだ登録なし</div>';
+        return;
+      }
+
+      listEl.innerHTML = pinEntries.map(function (entry) {
+        var cfg = (users[entry.userKey] && users[entry.userKey].config) || {};
+        return '<div class="user-item">'
+          + '<div class="name">' + esc(entry.name) + '（' + esc(entry.userKey) + '）</div>'
+          + '<div class="meta">PIN: ' + esc(entry.pin) + '</div>'
+          + '<div class="meta">施工: ' + esc(cfg.calendarSeko || '未設定') + '</div>'
+          + '<div class="meta">下見: ' + esc(cfg.calendarShitami || '未設定') + '</div>'
+          + '<div class="meta">個人: ' + esc(cfg.calendarPersonal || '未設定') + '</div>'
+          + '<div class="meta">スプシ: ' + esc(cfg.spreadsheetId || '未設定') + ' / ' + esc(cfg.sheetName || '未設定') + '</div>'
+          + '<div class="btns">'
+          + '<button class="edit-btn" onclick="editUser(\'' + entry.pin + '\')">編集</button>'
+          + '<button class="del-btn" onclick="removeUser(\'' + entry.pin + '\', \'' + entry.userKey + '\')">削除</button>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    });
+  });
+}
+
+function editUser(pin) {
+  db.ref('config/authorized_pins/' + pin).once('value').then(function (pinSnap) {
+    var pinData = pinSnap.val();
+    if (!pinData) return;
+    db.ref('users/' + pinData.userKey + '/config').once('value').then(function (cfgSnap) {
+      var cfg = cfgSnap.val() || {};
+      document.getElementById('pin').value = pin;
+      document.getElementById('userKey').value = pinData.userKey;
+      document.getElementById('name').value = pinData.name || '';
+      document.getElementById('calSeko').value = cfg.calendarSeko || '';
+      document.getElementById('calShitami').value = cfg.calendarShitami || '';
+      document.getElementById('calPersonal').value = cfg.calendarPersonal || '';
+      document.getElementById('spreadsheetId').value = cfg.spreadsheetId || '';
+      document.getElementById('sheetName').value = cfg.sheetName || '管理表';
+      editingOldPin = pin;
+      window.scrollTo(0, 0);
+    });
+  });
+}
+
+function removeUser(pin, userKey) {
+  if (!confirm(userKey + ' を削除しますか？\n（PINログインとconfig設定を削除します。案件データ自体は消えません）')) return;
+  var updates = {};
+  updates['config/authorized_pins/' + pin] = null;
+  updates['users/' + userKey + '/config'] = null;
+  db.ref().update(updates).then(function () {
+    loadList();
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+loadList();
+</script>
+</body>
+</html>
