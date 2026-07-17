@@ -404,7 +404,7 @@ var pinnedList = [];
 var clipHistory = [];
 var isPinned = false;
 
-auth.signInAnonymously().then(function() {
+function startClipboard() {
   db.ref('app_clipboard/pinned').on('value', function(snap) {
     pinnedList = [];
     var val = snap.val();
@@ -428,7 +428,15 @@ auth.signInAnonymously().then(function() {
     }
     renderList();
   });
-}).catch(function(e){ console.error(e); });
+}
+
+// 既にstaff/viewerとしてログイン済みならそれを維持（clipboardのために上書きしない）。
+// 未ログイン時のみ匿名認証にフォールバックする。
+if (auth.currentUser) {
+  startClipboard();
+} else {
+  auth.signInAnonymously().then(startClipboard).catch(function(e){ console.error(e); });
+}
 
 function renderList() {
   var q = document.getElementById('searchInput').value.trim().toLowerCase();
