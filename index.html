@@ -254,22 +254,8 @@
         statusMsg.innerHTML = '✅ キャッシュ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
       }
 
-      // ③ 認証→Firebase取得はバックグラウンドで
-      firebase.auth().signInAnonymously()
-        .then(function() { loadFirebaseData(); })
-        .catch(function(error) {
-          console.error('匿名認証失敗:', error);
-          var statusMsg = document.getElementById('statusMsg');
-          var cached2 = null;
-          try { cached2 = localStorage.getItem('appData'); } catch(e) {}
-          if (cached2) {
-            statusMsg.className = 'status success';
-            statusMsg.innerHTML = '⚠️ 認証失敗（キャッシュで動作中）<br><span style="font-size:11px;font-weight:normal;">電波状況をご確認ください</span>';
-          } else {
-            statusMsg.className = 'status error';
-            statusMsg.innerHTML = '❌ 認証エラー<br><span style="font-size:12px; font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
-          }
-        });
+      // ③ 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
+      loadFirebaseData();
     });
   </script>
   <div id="modal-overlay"><div id="modal-content"></div></div>
