@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -115,7 +116,7 @@
 <script>
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-firebase.auth().signInAnonymously().catch(function (e) { console.warn('auth error', e); });
+// 認証はlogin.html（トークン方式）で完了済み。user-scope.jsが未ログイン時はlogin.htmlへ自動リダイレクトする。
 
 var db = firebase.database();
 var editingOldPin = null; // 編集中に元のPINを覚えておく（PIN変更時に古い方を消すため）
