@@ -28,7 +28,19 @@
   window.logoutUser = function () {
     localStorage.removeItem('userKey');
     localStorage.removeItem('userName');
+    localStorage.removeItem('viewerMode');
     location.href = LOGIN_PAGE;
+  };
+
+  window.isViewerMode = function () {
+    return localStorage.getItem('viewerMode') === '1';
+  };
+
+  window.exitViewerMode = function () {
+    localStorage.removeItem('userKey');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('viewerMode');
+    location.href = 'viewer.html';
   };
 
   // firebase.database() をそのまま渡すと、以後 database.ref('foo') は
@@ -47,12 +59,22 @@
   };
 
   window.addEventListener('DOMContentLoaded', function () {
+    var viewing = window.isViewerMode();
     var badge = document.createElement('div');
-    badge.textContent = '👤 ' + window.getUserName();
+    badge.textContent = (viewing ? '🔍 閲覧中: ' : '👤 ') + window.getUserName();
     badge.style.cssText = 'position:fixed;bottom:6px;right:6px;z-index:99999;'
-      + 'background:rgba(0,0,0,0.65);color:#fff;font-size:11px;padding:4px 9px;'
+      + (viewing
+          ? 'background:rgba(21,101,192,0.85);'
+          : 'background:rgba(0,0,0,0.65);')
+      + 'color:#fff;font-size:11px;padding:4px 9px;'
       + 'border-radius:6px;cursor:pointer;font-family:sans-serif;user-select:none;';
     badge.onclick = function () {
+      if (viewing) {
+        if (confirm('担当者選択に戻りますか？')) {
+          window.exitViewerMode();
+        }
+        return;
+      }
       if (confirm('別のユーザーに切り替えますか？\n（' + window.getUserName() + ' からログアウトします）')) {
         window.logoutUser();
       }
