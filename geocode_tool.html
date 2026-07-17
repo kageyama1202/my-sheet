@@ -153,7 +153,7 @@
   <section data-step="STEP 1">
     <h2>地番データ（自動取得・任意で手動読み込みも可）</h2>
     <div class="drop" id="chibanDropZone">
-      <strong>通常は自動取得されるので操作不要です。</strong>別のファイルを使いたい場合はここに chiban_json.gz をドラッグ＆ドロップ、またはクリックして選択<br>
+      <strong>通常は自動取得されるので操作不要です。</strong>別のファイルを使いたい場合はここに chiban.json.gz をドラッグ＆ドロップ、またはクリックして選択<br>
       <input type="file" id="chibanFileInput" accept=".gz,.json">
     </div>
     <div id="chibanStatus" style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:10px;">確認中…</div>
@@ -346,7 +346,7 @@ function clearChibanCache() {
   openChibanDB().then(function(db) {
     db.transaction(CHIBAN_STORE, "readwrite").objectStore(CHIBAN_STORE).delete("chibanData");
     chibanData = null;
-    document.getElementById("chibanStatus").innerHTML = "キャッシュを削除しました。もう一度 chiban_json.gz を読み込んでください。";
+    document.getElementById("chibanStatus").innerHTML = "キャッシュを削除しました。もう一度 chiban.json.gz を読み込んでください。";
   });
 }
 
@@ -368,11 +368,11 @@ function parseChibanBuffer(buf) {
   return JSON.parse(text);
 }
 
-// GitHub Pages上の同リポジトリに置いた chiban_json.gz を自動取得する（キャッシュが無い場合のみ）
+// GitHub Pages上の同リポジトリに置いた chiban.json.gz を自動取得する（キャッシュが無い場合のみ）
 function autoFetchChibanFromRepo() {
   var statusEl = document.getElementById("chibanStatus");
   statusEl.textContent = "初回のみ：リポジトリから地番データを取得中…（数MBあるため少し時間がかかります）";
-  fetch("chiban_json.gz")
+  fetch("chiban.json.gz")
     .then(function(resp) {
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       return resp.arrayBuffer();
@@ -382,8 +382,8 @@ function autoFetchChibanFromRepo() {
       applyChibanData(parsed, "リポジトリから自動取得");
     })
     .catch(function(e) {
-      console.warn("chiban_json.gzの自動取得に失敗（手動でドラッグ＆ドロップしてください）:", e);
-      statusEl.textContent = "自動取得に失敗しました。お手数ですが chiban_json.gz を手動で読み込んでください。";
+      console.warn("chiban.json.gzの自動取得に失敗（手動でドラッグ＆ドロップしてください）:", e);
+      statusEl.textContent = "自動取得に失敗しました。お手数ですが chiban.json.gz を手動で読み込んでください。";
     });
 }
 
