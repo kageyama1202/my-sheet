@@ -3,14 +3,19 @@
    全HTMLファイルで firebase-database.js の直後・自分のfirebaseConfigスクリプトより前に読み込むこと。
 
    やること：
-   1. localStorageにuserKeyが無ければ login.html にリダイレクト
-   2. scopedDatabase(firebase.database()) で users/{userKey}/ 配下だけを見るDBラッパーを提供
-   3. 画面右下に「誰としてログイン中か」バッジを表示（タップで切替）
+   1. スタッフは localStorage にuserKeyが無ければ login.html にリダイレクト
+   2. 閲覧者（viewerMode）は sessionStorage を使う → ブラウザ/タブを閉じると自動的にログアウト状態に戻る
+   3. scopedDatabase(firebase.database()) で users/{userKey}/ 配下だけを見るDBラッパーを提供
+   4. 画面右下に「誰としてログイン中か」バッジを表示（タップで切替）
 */
 (function () {
   var LOGIN_PAGE = 'login.html';
 
-  var key = localStorage.getItem('userKey');
+  function isViewing() {
+    return sessionStorage.getItem('viewerMode') === '1';
+  }
+
+  var key = isViewing() ? sessionStorage.getItem('userKey') : localStorage.getItem('userKey');
   if (!key) {
     var here = location.pathname.split('/').pop() || 'today.html';
     location.replace(LOGIN_PAGE + '?return=' + encodeURIComponent(here));
@@ -18,28 +23,29 @@
   }
 
   window.getUserKey = function () {
-    return localStorage.getItem('userKey') || '';
+    return isViewing() ? (sessionStorage.getItem('userKey') || '') : (localStorage.getItem('userKey') || '');
   };
 
   window.getUserName = function () {
+    if (isViewing()) return sessionStorage.getItem('userName') || window.getUserKey();
     return localStorage.getItem('userName') || window.getUserKey();
   };
 
   window.logoutUser = function () {
     localStorage.removeItem('userKey');
     localStorage.removeItem('userName');
-    localStorage.removeItem('viewerMode');
+    sessionStorage.removeItem('userKey');
+    sessionStorage.removeItem('userName');
+    sessionStorage.removeItem('viewerMode');
     location.href = LOGIN_PAGE;
   };
 
-  window.isViewerMode = function () {
-    return localStorage.getItem('viewerMode') === '1';
-  };
+  window.isViewerMode = isViewing;
 
   window.exitViewerMode = function () {
-    localStorage.removeItem('userKey');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('viewerMode');
+    sessionStorage.removeItem('userKey');
+    sessionStorage.removeItem('userName');
+    sessionStorage.removeItem('viewerMode');
     location.href = 'viewer.html';
   };
 
