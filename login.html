@@ -50,6 +50,7 @@
     cursor: pointer;
   }
   #go:active { opacity: 0.75; }
+  #go:disabled { opacity: 0.5; }
 </style>
 </head>
 <body>
@@ -64,12 +65,12 @@
 var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-// 既にログイン済みならPIN画面を出さず即遷移
+var ISSUE_TOKEN_URL = "https://us-central1-project-6745138395263517914.cloudfunctions.net/issueStaffToken";
+
+// 既にログイン済み（localStorageにuserKeyがある）なら即遷移
 if (localStorage.getItem('userKey')) {
   goNext();
 }
-
-firebase.auth().signInAnonymously().catch(function (e) { console.warn('auth error', e); });
 
 document.getElementById('pin').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') tryLogin();
@@ -78,25 +79,33 @@ document.getElementById('pin').addEventListener('keydown', function (e) {
 function tryLogin() {
   var pin = document.getElementById('pin').value.trim();
   var errEl = document.getElementById('err');
+  var btn = document.getElementById('go');
   errEl.textContent = '';
   if (!pin) { errEl.textContent = '暗証番号を入力してください'; return; }
 
-  // ここだけは全ユーザー共通の場所（config/authorized_pins）を直接参照する
-  firebase.database().ref('config/authorized_pins/' + pin).once('value').then(function (snap) {
-    var val = snap.val();
-    if (!val || !val.userKey) {
-      errEl.textContent = '暗証番号が違います';
-      document.getElementById('pin').value = '';
-      document.getElementById('pin').focus();
-      return;
-    }
-    localStorage.setItem('userKey', val.userKey);
-    localStorage.setItem('userName', val.name || val.userKey);
-    goNext();
-  }).catch(function (e) {
-    console.error(e);
-    errEl.textContent = '通信エラー、もう一度お試しください';
-  });
+  btn.disabled = true;
+
+  fetch(ISSUE_TOKEN_URL + '?pin=' + encodeURIComponent(pin))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.status !== 'ok') {
+        errEl.textContent = data.message || '暗証番号が違います';
+        document.getElementById('pin').value = '';
+        document.getElementById('pin').focus();
+        btn.disabled = false;
+        return;
+      }
+      return firebase.auth().signInWithCustomToken(data.token).then(function () {
+        localStorage.setItem('userKey', data.userKey);
+        localStorage.setItem('userName', data.name || data.userKey);
+        goNext();
+      });
+    })
+    .catch(function (e) {
+      console.error(e);
+      errEl.textContent = '通信エラー、もう一度お試しください';
+      btn.disabled = false;
+    });
 }
 
 function goNext() {
