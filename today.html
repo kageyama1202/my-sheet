@@ -170,7 +170,7 @@ var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 var database=scopedDatabase(firebase.database());
 
-firebase.auth().signInAnonymously().catch(function(e){console.warn('auth error',e);});
+// 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
 
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
 var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
