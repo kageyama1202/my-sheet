@@ -209,13 +209,16 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   // メモ（blurで即時）
   var memoDebounce;
-  document.getElementById('modal-body').addEventListener('input', function(e){
-    if (e.target.id !== 'modal-memo') return;
-    clearTimeout(memoDebounce);
-    memoDebounce = setTimeout(function(){
-      saveField({memo: document.getElementById('modal-memo').value});
-    }, 1000);
-  });
+  var modalMemoEl = document.getElementById('modal-memo');
+  if (modalMemoEl) {
+    modalMemoEl.addEventListener('input', function(){
+      clearTimeout(memoDebounce);
+      var memoElAtInput = this;
+      memoDebounce = setTimeout(function(){
+        saveField({memo: memoElAtInput.value});
+      }, 1000);
+    });
+  }
 
   document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
   document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
