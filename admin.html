@@ -53,17 +53,11 @@
     if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
     var database=scopedDatabase(firebase.database());
 
-    firebase.auth().signInAnonymously()
-      .then(function(){
-        document.getElementById('authStatus').textContent='✅ 認証済み';
-        document.getElementById('authStatus').style.color='#66bb6a';
-        document.getElementById('uploadBtn').disabled=false;
-        document.getElementById('cleanBtn').disabled=false;
-      })
-      .catch(function(err){
-        document.getElementById('authStatus').textContent='❌ 認証失敗: '+err.message;
-        document.getElementById('authStatus').style.color='#ff6b6b';
-      });
+    // 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
+    document.getElementById('authStatus').textContent='✅ 認証済み';
+    document.getElementById('authStatus').style.color='#66bb6a';
+    document.getElementById('uploadBtn').disabled=false;
+    document.getElementById('cleanBtn').disabled=false;
 
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
