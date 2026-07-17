@@ -138,12 +138,11 @@ var currentShumoku = '';
 var currentSekoDate = '';
 var defaultTplEnsured = false;
 
-firebase.auth().signInAnonymously().then(function() {
-  db = scopedDatabase(firebase.database());
-  document.getElementById('btn-add-list').disabled = false;
-  loadAllData();
-  initFromUrl();
-}).catch(function(e){ console.error('auth error', e); alert('Firebase認証エラー: '+e.message); });
+// 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
+db = scopedDatabase(firebase.database());
+document.getElementById('btn-add-list').disabled = false;
+loadAllData();
+initFromUrl();
 
 document.getElementById('compose-area').addEventListener('input', updateCount);
 
