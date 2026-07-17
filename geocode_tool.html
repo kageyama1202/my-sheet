@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>住所照合ツール | 札幌地番補正</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EEF1F0;
+    --paper-raised:#FFFFFF;
+    --ink:#1C2B33;
+    --ink-soft:#5B6B72;
+    --line:#D3DAD8;
+    --survey-blue:#2B5D8C;
+    --survey-blue-deep:#1E4467;
+    --flag-orange:#C9721F;
+    --grid-green:#3E7A57;
+    --danger:#B7492F;
+    --chiban-gold:#B38C14;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans JP', 'Hiragino Sans', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--paper) 1px, transparent 1px) 0 0/100% 28px,
+      linear-gradient(90deg, var(--paper) 1px, transparent 1px) 0 0/28px 100%,
+      var(--paper);
+    background-color:var(--paper);
+    background-image:
+      linear-gradient(rgba(43,93,140,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(43,93,140,0.05) 1px, transparent 1px);
+    background-size:24px 24px;
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.6;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+  header.hero{
+    display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
+    border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:28px;flex-wrap:wrap;
+  }
+  header.hero .titleblock{max-width:640px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--survey-blue);text-transform:uppercase;margin-bottom:6px;}
+  h1{font-size:28px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em;}
+  .lede{color:var(--ink-soft);font-size:14px;margin:0;}
+  .coords{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-align:right;line-height:1.9;white-space:nowrap;}
+  section{background:var(--paper-raised);border:1px solid var(--line);border-radius:3px;padding:22px 24px;margin-bottom:20px;position:relative;}
+  section::before{
+    content:attr(data-step);position:absolute;top:-11px;left:20px;background:var(--ink);color:var(--paper-raised);
+    font-family:var(--mono);font-size:11px;padding:2px 8px;letter-spacing:.06em;
+  }
+  h2{font-size:15px;font-weight:700;margin:4px 0 14px;}
+  .drop{
+    border:1.5px dashed var(--line);border-radius:3px;padding:26px;text-align:center;color:var(--ink-soft);
+    font-size:13px;cursor:pointer;transition:border-color .15s, background .15s;
+  }
+  .drop.dragover{border-color:var(--survey-blue);background:rgba(43,93,140,0.04);}
+  .drop strong{color:var(--ink);}
+  .drop input{display:none;}
+  textarea.raw{
+    width:100%;min-height:90px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+    border-radius:3px;padding:10px;resize:vertical;background:var(--paper);color:var(--ink);
+  }
+  .or-divider{text-align:center;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin:14px 0;letter-spacing:.1em;}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;}
+  .field label{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-family:var(--mono);}
+  select,input[type=text],input[type=password]{
+    font-family:var(--mono);font-size:12px;padding:7px 9px;border:1px solid var(--line);border-radius:2px;
+    background:var(--paper-raised);color:var(--ink);min-width:220px;
+  }
+  .btn{
+    font-family:var(--sans);font-weight:500;font-size:13px;padding:9px 18px;border-radius:2px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper-raised);cursor:pointer;transition:opacity .15s;
+  }
+  .btn:hover{opacity:.85;}
+  .btn:disabled{opacity:.35;cursor:not-allowed;}
+  .btn.secondary{background:transparent;color:var(--ink);}
+  .btn.accent{background:var(--survey-blue);border-color:var(--survey-blue-deep);}
+  .btn.sm{padding:4px 10px;font-size:11px;}
+  .meta-note{font-size:11.5px;color:var(--ink-soft);margin-top:10px;}
+  .meta-note code{background:var(--paper);padding:1px 5px;border-radius:2px;font-family:var(--mono);}
+  .progress-wrap{display:none;margin-top:16px;}
+  .progress-wrap.active{display:block;}
+  .progress-bar{height:6px;background:var(--paper);border:1px solid var(--line);border-radius:3px;overflow:hidden;}
+  .progress-fill{height:100%;width:0%;background:var(--survey-blue);transition:width .2s;}
+  .progress-label{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:6px;display:flex;justify-content:space-between;}
+  .summary-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .chip{
+    font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:20px;padding:5px 12px;
+    background:var(--paper-raised);cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;
+  }
+  .chip.active{border-color:var(--ink);background:var(--ink);color:var(--paper-raised);}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .dot.exact{background:var(--chiban-gold);}
+  .dot.high{background:var(--grid-green);}
+  .dot.mid{background:var(--survey-blue);}
+  .dot.low{background:var(--flag-orange);}
+  .dot.fail{background:var(--danger);}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--ink-soft);
+    text-transform:uppercase;border-bottom:1.5px solid var(--ink);padding:8px 8px;position:sticky;top:0;background:var(--paper-raised);
+  }
+  tbody td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:hover{background:rgba(43,93,140,0.03);}
+  .addr-orig{color:var(--ink-soft);font-size:11.5px;}
+  .addr-hit{font-family:var(--mono);font-size:12px;}
+  .badge{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .badge.exact{background:rgba(179,140,20,0.14);color:#8a6b10;}
+  .badge.high{background:rgba(62,122,87,0.12);color:var(--grid-green);}
+  .badge.mid{background:rgba(43,93,140,0.12);color:var(--survey-blue);}
+  .badge.low{background:rgba(201,114,31,0.12);color:var(--flag-orange);}
+  .badge.fail{background:rgba(183,73,47,0.12);color:var(--danger);}
+  .badge.pending{background:var(--paper);color:var(--ink-soft);}
+  .latlng{font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+  .latlng input{width:90px;min-width:0;padding:3px 5px;font-size:11px;}
+  .tries{font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+  .maplink{font-size:11px;color:var(--survey-blue);text-decoration:none;}
+  .maplink:hover{text-decoration:underline;}
+  .table-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:3px;}
+  .footer-actions{display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:12px;}
+  .write-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .write-controls label{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;}
+  #configWarn{
+    display:none;background:rgba(201,114,31,0.1);border:1px solid var(--flag-orange);color:#8a4e13;
+    padding:10px 14px;border-radius:3px;font-size:12.5px;margin-bottom:18px;
+  }
+  #configWarn.show{display:block;}
+  #configWarn code{font-family:var(--mono);background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:2px;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="titleblock">
+      <div class="eyebrow">Sapporo Field Ops / Address Reconciliation</div>
+      <h1>住所照合ツール</h1>
+      <p class="lede">法務省地番データ(chiban.json)を最優先で照合し、ヒットしなければGeocoding API→国土地理院APIの順にフォールバックします。表記ゆれ（漢数字・全角/半角・ハイフン種別）は複数パターンで正規化して吸収します。</p>
+    </div>
+    <div class="coords">43.0621°N, 141.3544°E<br>SAPPORO-SHI, HOKKAIDO</div>
+  </header>
+
+  <div id="configWarn"></div>
+
+  <section data-step="STEP 1">
+    <h2>地番データ（自動取得・任意で手動読み込みも可）</h2>
+    <div class="drop" id="chibanDropZone">
+      <strong>通常は自動取得されるので操作不要です。</strong>別のファイルを使いたい場合はここに chiban_json.gz をドラッグ＆ドロップ、またはクリックして選択<br>
+      <input type="file" id="chibanFileInput" accept=".gz,.json">
+    </div>
+    <div id="chibanStatus" style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:10px;">確認中…</div>
+  </section>
+
+  <section data-step="STEP 2">
+    <h2>CSVを読み込む</h2>
+    <div class="drop" id="dropZone">
+      <strong>ここにCSVファイルをドラッグ＆ドロップ</strong>、またはクリックして選択<br>
+      <input type="file" id="fileInput" accept=".csv">
+    </div>
+    <div class="or-divider">— または —</div>
+    <textarea class="raw" id="rawPaste" placeholder="CSVの中身をそのまま貼り付けてもOKです"></textarea>
+
+    <div class="row">
+      <div class="field">
+        <label>ID列</label>
+        <select id="colId"></select>
+      </div>
+      <div class="field">
+        <label>住所列</label>
+        <select id="colAddr"></select>
+      </div>
+      <div class="field">
+        <label>ステータス列（「完了」を除外）</label>
+        <select id="colStatus"></select>
+      </div>
+      <div class="field" style="flex:1;min-width:200px;">
+        <label>読み込み状況</label>
+        <div id="parseStatus" style="font-family:var(--mono);font-size:12px;color:var(--ink-soft);padding-top:6px;">未読み込み</div>
+      </div>
+    </div>
+  </section>
+
+  <section data-step="STEP 3">
+    <h2>照合を実行</h2>
+    <div class="row" style="margin-top:0;">
+      <button class="btn accent" id="startBtn" disabled>照合を開始</button>
+      <button class="btn secondary" id="stopBtn" disabled>停止</button>
+      <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <input type="checkbox" id="skipCached" checked> Firebaseに既に地番一致/高精度/中精度の結果がある案件はスキップする
+      </label>
+      <span class="meta-note" style="margin-top:0;">1件ごとに、まず<strong>地番データ(chiban.json)</strong>を複数キーで照合します。ヒットすれば地番の正確な座標で確定（<code>地番一致</code>）。ヒットしなければGeocoding APIを最大8パターンで試行し、<code>ROOFTOP</code> / <code>RANGE_INTERPOLATED</code>が出た時点で確定します。それでも低い精度の場合は国土地理院(GSI)住所検索でも照合し、2ソースが番地レベルで一致すれば「高精度」に格上げ、ズレていれば「低精度・要確認」として両方の座標を表示します。</span>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label"><span id="progressText">0 / 0</span><span id="progressCurrent"></span></div>
+    </div>
+  </section>
+
+  <section data-step="STEP 4" id="resultsSection" style="display:none;">
+    <h2>結果</h2>
+    <div class="summary-strip" id="summaryStrip"></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:20px;"></th>
+            <th>ID</th>
+            <th>元住所</th>
+            <th>ヒット住所 / 試行パターン</th>
+            <th>精度</th>
+            <th>緯度経度</th>
+            <th>地図</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+    <div class="footer-actions">
+      <div class="write-controls">
+        <label><input type="checkbox" id="incExact" checked> 地番一致</label>
+        <label><input type="checkbox" id="incHigh" checked> 高精度</label>
+        <label><input type="checkbox" id="incMid" checked> 中精度</label>
+        <label><input type="checkbox" id="incLow"> 低精度</label>
+        <button class="btn" id="writeBtn" disabled>Firebaseに書き込む</button>
+      </div>
+      <span class="meta-note" style="margin-top:0;" id="writeStatus"></span>
+    </div>
+  </section>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="user-scope.js"></script>
+<script>
+/* ======================================================================
+   GOOGLE_MAPS_API_KEY / FIREBASE_CONFIG は既存のまま
+   ====================================================================== */
+var GOOGLE_MAPS_API_KEY = "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs";
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914"
+};
+/* ====================================================================== */
+
+var configOk = GOOGLE_MAPS_API_KEY.indexOf("PUT_YOUR") === -1 &&
+               FIREBASE_CONFIG.apiKey.indexOf("PUT_YOUR") === -1 &&
+               FIREBASE_CONFIG.databaseURL.indexOf("PUT_YOUR") === -1;
+
+if (!configOk) {
+  var w = document.getElementById("configWarn");
+  w.className = "show";
+  w.innerHTML = "設定が未入力です。ファイル上部の <code>GOOGLE_MAPS_API_KEY</code> と <code>FIREBASE_CONFIG</code> を書き換えてから使ってください（照合はGeocoding APIキーだけあれば試せます。Firebase書き込みには両方必要です）。";
+}
+
+if (!firebase.apps.length) { firebase.initializeApp(FIREBASE_CONFIG); }
+// 認証はlogin.html（トークン方式）で完了済み。user-scope.jsが未ログイン時はlogin.htmlへ自動リダイレクトする。
+// scopedDb.ref('app_tasks/...') は実際には users/{ログイン中のuserKey}/app_tasks/... を指す。
+var scopedDb = scopedDatabase(firebase.database());
+
+/* ---------------------------------------------------------------------
+   住所正規化 / 候補生成ロジック
+   --------------------------------------------------------------------- */
+var KANJI_DIGITS = {0:"〇",1:"一",2:"二",3:"三",4:"四",5:"五",6:"六",7:"七",8:"八",9:"九"};
+
+function arabicToKanji(num) {
+  if (num === 0) return "〇";
+  if (num < 10) return KANJI_DIGITS[num];
+  if (num < 20) return "十" + (num % 10 === 0 ? "" : KANJI_DIGITS[num % 10]);
+  var tens = Math.floor(num / 10);
+  var ones = num % 10;
+  return (tens > 1 ? KANJI_DIGITS[tens] : "") + "十" + (ones === 0 ? "" : KANJI_DIGITS[ones]);
+}
+
+function toHalfWidth(str) {
+  return str.replace(/[０-９Ａ-Ｚａ-ｚ]/g, function(ch) {
+    return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+  });
+}
+function unifyHyphens(str) {
+  return str.replace(/[－ー−‐–—]/g, "-");
+}
+function unifySpaces(str) {
+  return str.replace(/[\u3000\s]+/g, " ").trim();
+}
+function baseNormalize(str) {
+  return unifySpaces(unifyHyphens(toHalfWidth(String(str || ""))));
+}
+function kanjiVariantOfHead(headStr) {
+  return headStr.replace(/(\d+)(条|丁目)/g, function(m, num, suf) {
+    return arabicToKanji(Number(num)) + suf;
+  });
+}
+
+/* ---------------------------------------------------------------------
+   地番データ(chiban.json) 読み込み・照合
+   --------------------------------------------------------------------- */
+var chibanData = null;
+var CHIBAN_DB_NAME = "geocode_tool_cache";
+var CHIBAN_STORE = "chiban";
+
+function openChibanDB() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(CHIBAN_DB_NAME, 1);
+    req.onupgradeneeded = function() {
+      req.result.createObjectStore(CHIBAN_STORE);
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+}
+
+function saveChibanToIndexedDB(data) {
+  openChibanDB().then(function(db) {
+    var tx = db.transaction(CHIBAN_STORE, "readwrite");
+    tx.objectStore(CHIBAN_STORE).put({ data: data, savedAt: new Date().toISOString(), count: Object.keys(data).length }, "chibanData");
+  }).catch(function(e) { console.warn("IndexedDBへの保存に失敗（次回また手動読み込みが必要です）:", e); });
+}
+
+function loadChibanFromIndexedDB() {
+  return openChibanDB().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(CHIBAN_STORE, "readonly");
+      var req = tx.objectStore(CHIBAN_STORE).get("chibanData");
+      req.onsuccess = function() { resolve(req.result || null); };
+      req.onerror = function() { reject(req.error); };
+    });
+  });
+}
+
+function clearChibanCache() {
+  openChibanDB().then(function(db) {
+    db.transaction(CHIBAN_STORE, "readwrite").objectStore(CHIBAN_STORE).delete("chibanData");
+    chibanData = null;
+    document.getElementById("chibanStatus").innerHTML = "キャッシュを削除しました。もう一度 chiban_json.gz を読み込んでください。";
+  });
+}
+
+function applyChibanData(chibanObj, sourceLabel) {
+  chibanData = chibanObj;
+  var count = Object.keys(chibanData).length;
+  var statusEl = document.getElementById("chibanStatus");
+  statusEl.textContent = count.toLocaleString() + "件 読み込み完了（" + sourceLabel + "、次回以降は自動復元されます）";
+  saveChibanToIndexedDB(chibanData);
+}
+
+function parseChibanBuffer(buf) {
+  var text;
+  if (buf[0] === 0x1f && buf[1] === 0x8b) {
+    text = pako.ungzip(buf, { to: "string" });
+  } else {
+    text = new TextDecoder("utf-8").decode(buf);
+  }
+  return JSON.parse(text);
+}
+
+// GitHub Pages上の同リポジトリに置いた chiban_json.gz を自動取得する（キャッシュが無い場合のみ）
+function autoFetchChibanFromRepo() {
+  var statusEl = document.getElementById("chibanStatus");
+  statusEl.textContent = "初回のみ：リポジトリから地番データを取得中…（数MBあるため少し時間がかかります）";
+  fetch("chiban_json.gz")
+    .then(function(resp) {
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return resp.arrayBuffer();
+    })
+    .then(function(buf) {
+      var parsed = parseChibanBuffer(new Uint8Array(buf));
+      applyChibanData(parsed, "リポジトリから自動取得");
+    })
+    .catch(function(e) {
+      console.warn("chiban_json.gzの自動取得に失敗（手動でドラッグ＆ドロップしてください）:", e);
+      statusEl.textContent = "自動取得に失敗しました。お手数ですが chiban_json.gz を手動で読み込んでください。";
+    });
+}
+
+(function tryAutoLoadChiban() {
+  loadChibanFromIndexedDB().then(function(cached) {
+    if (cached && cached.data) {
+      chibanData = cached.data;
+      var statusEl = document.getElementById("chibanStatus");
+      statusEl.innerHTML = cached.count.toLocaleString() + "件（前回読み込んだキャッシュを自動復元、" + cached.savedAt.slice(0,10) + "保存分） — <a href=\"#\" id=\"chibanClearLink\" style=\"color:var(--survey-blue);\">再読み込みする</a>";
+      var link = document.getElementById("chibanClearLink");
+      if (link) link.addEventListener("click", function(e){ e.preventDefault(); clearChibanCache(); });
+    } else {
+      autoFetchChibanFromRepo();
+    }
+  }).catch(function(e) {
+    console.warn("IndexedDBキャッシュの確認に失敗:", e);
+    autoFetchChibanFromRepo();
+  });
+})();
+
+function loadChibanFile(file) {
+  var statusEl = document.getElementById("chibanStatus");
+  statusEl.textContent = "読み込み中…";
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var parsed = parseChibanBuffer(new Uint8Array(ev.target.result));
+      applyChibanData(parsed, "手動読み込み");
+    } catch (e) {
+      chibanData = null;
+      statusEl.textContent = "読み込み失敗: " + e.message;
+      console.error(e);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+var chibanDz = document.getElementById("chibanDropZone");
+chibanDz.addEventListener("click", function(){ document.getElementById("chibanFileInput").click(); });
+chibanDz.addEventListener("dragover", function(e){ e.preventDefault(); chibanDz.classList.add("dragover"); });
+chibanDz.addEventListener("dragleave", function(){ chibanDz.classList.remove("dragover"); });
+chibanDz.addEventListener("drop", function(e){
+  e.preventDefault(); chibanDz.classList.remove("dragover");
+  var f = e.dataTransfer.files[0];
+  if (f) loadChibanFile(f);
+});
+document.getElementById("chibanFileInput").addEventListener("change", function(e){
+  var f = e.target.files[0];
+  if (f) loadChibanFile(f);
+});
+
+var KANJI_TO_NUM = {"〇":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+function kanjiSeqToArabic(str) {
+  if (!str) return null;
+  if (str.indexOf("十") === -1) {
+    if (str.length !== 1 || !(str in KANJI_TO_NUM)) return null;
+    return KANJI_TO_NUM[str];
+  }
+  var parts = str.split("十");
+  if (parts.length !== 2) return null;
+  var tensPart = parts[0], onesPart = parts[1];
+  var tens = tensPart === "" ? 1 : KANJI_TO_NUM[tensPart];
+  var ones = onesPart === "" ? 0 : KANJI_TO_NUM[onesPart];
+  if (tens === undefined || ones === undefined || tens === null) return null;
+  return tens * 10 + ones;
+}
+function normalizeKanjiChomeJo(str) {
+  return str.replace(/([〇一二三四五六七八九十]+)(条|丁目)/g, function(m, kanjiNum, suf) {
+    var n = kanjiSeqToArabic(kanjiNum);
+    return (n === null ? kanjiNum : n) + suf;
+  });
+}
+
+function parseAddressComponents(rawAddr) {
+  var norm = normalizeKanjiChomeJo(baseNormalize(rawAddr));
+  var wardMatch = norm.match(/(\S+?区)/);
+  var afterWard = wardMatch ? norm.slice(norm.indexOf(wardMatch[1]) + wardMatch[1].length) : norm;
+
+  var mA = afterWard.match(/^(\D+?)(\d+)条(東|西|南|北)?(\d+)丁目\s*(\d+)(?:[-番]\s*(\d+))?号?/);
+  if (mA) {
+    return { oazaBase: mA[1], jo: mA[2], dir: mA[3] || "", chome: mA[4], banchi: mA[5], edaban: mA[6] || "", hasChome: true };
+  }
+  var mB = afterWard.match(/^(\D+?)(\d+)丁目\s*(\d+)(?:[-番]\s*(\d+))?号?/);
+  if (mB) {
+    return { oazaBase: mB[1], jo: "", dir: "", chome: mB[2], banchi: mB[3], edaban: mB[4] || "", hasChome: true };
+  }
+  var mC = afterWard.match(/^(\D+?)(\d+)条(東|西|南|北)?\s*(\d+)(?:[-番]\s*(\d+))?号?/);
+  if (mC) {
+    return { oazaBase: mC[1], jo: mC[2], dir: mC[3] || "", chome: "", banchi: mC[4], edaban: mC[5] || "", hasChome: false };
+  }
+  return null;
+}
+
+function findAmbiguousChibanCandidates(comp) {
+  if (!chibanData) return [];
+  var joKanji = arabicToKanji(Number(comp.jo));
+  var prefixes = [
+    comp.oazaBase + joKanji + "条" + comp.dir + "_",
+    comp.oazaBase + joKanji + "条" + "_"
+  ];
+  var targetKeys = comp.edaban ? [comp.banchi + "-" + comp.edaban, comp.banchi] : [comp.banchi];
+  var found = [];
+  var seenKeys = {};
+  prefixes.forEach(function(prefix) {
+    Object.keys(chibanData).forEach(function(k) {
+      if (k.indexOf(prefix) !== 0) return;
+      var rest = k.slice(prefix.length);
+      var parts = rest.split("_");
+      if (parts.length !== 2) return;
+      var banchiKey = parts[1];
+      if (targetKeys.indexOf(banchiKey) === -1) return;
+      if (seenKeys[k]) return;
+      var coord = chibanData[k];
+      if (!withinSapporoBounds(coord[0], coord[1])) return;
+      seenKeys[k] = true;
+      found.push({ key: k, lat: coord[0], lng: coord[1] });
+    });
+  });
+  return found;
+}
+
+function generateChibanKeys(comp) {
+  var keys = [];
+  var seen = {};
+  function addKey(k) { if (!seen[k]) { seen[k] = true; keys.push(k); } }
+  function addBanchiVariants(prefix) {
+    var b1 = comp.edaban ? (prefix + comp.banchi + "-" + comp.edaban) : null;
+    var b2 = prefix + comp.banchi;
+    [b1, b2].forEach(function(b) {
+      if (!b) return;
+      addKey(b);
+      addKey(b + "W1"); addKey(b + "W2"); addKey(b + "W3");
+    });
+  }
+  if (comp.jo) {
+    var joKanji = arabicToKanji(Number(comp.jo));
+    addBanchiVariants(comp.oazaBase + joKanji + "条" + comp.dir + "_" + comp.chome + "_");
+    addBanchiVariants(comp.oazaBase + joKanji + "条" + "_" + comp.chome + comp.dir + "_");
+    addBanchiVariants(comp.oazaBase + joKanji + "条" + "_" + comp.chome + "_");
+  } else {
+    addBanchiVariants(comp.oazaBase + "_" + comp.chome + "_");
+  }
+  return keys;
+}
+
+var SAPPORO_LAT_MIN = 42.8, SAPPORO_LAT_MAX = 43.3, SAPPORO_LNG_MIN = 140.9, SAPPORO_LNG_MAX = 141.7;
+function withinSapporoBounds(lat, lng) {
+  return lat >= SAPPORO_LAT_MIN && lat <= SAPPORO_LAT_MAX && lng >= SAPPORO_LNG_MIN && lng <= SAPPORO_LNG_MAX;
+}
+
+function lookupChiban(rawAddr) {
+  if (!chibanData) return null;
+  var comp = parseAddressComponents(rawAddr);
+  if (!comp) return { lat: null, lng: null, key: null, triesUsed: 0, keysTotal: 0 };
+
+  if (comp.hasChome === false) {
+    var candidates = findAmbiguousChibanCandidates(comp);
+    if (candidates.length === 1) {
+      return { lat: candidates[0].lat, lng: candidates[0].lng, key: candidates[0].key, triesUsed: 1, keysTotal: 1, ambiguous: false };
+    }
+    if (candidates.length > 1) {
+      return { lat: null, lng: null, key: null, triesUsed: 0, keysTotal: 0, candidates: candidates };
+    }
+    return { lat: null, lng: null, key: null, triesUsed: 0, keysTotal: 0 };
+  }
+
+  var keys = generateChibanKeys(comp);
+  for (var i = 0; i < keys.length; i++) {
+    if (chibanData[keys[i]]) {
+      var coord = chibanData[keys[i]];
+      if (!withinSapporoBounds(coord[0], coord[1])) continue;
+      return { lat: coord[0], lng: coord[1], key: keys[i], triesUsed: i + 1, keysTotal: keys.length };
+    }
+  }
+  return { lat: null, lng: null, key: null, triesUsed: keys.length, keysTotal: keys.length };
+}
+
+function generateCandidates(rawAddr) {
+  var norm = normalizeKanjiChomeJo(baseNormalize(rawAddr));
+  var candidates = [];
+  var seen = {};
+  function push(s) {
+    var t = unifySpaces(s);
+    if (t && !seen[t]) { seen[t] = true; candidates.push(t); }
+  }
+
+  var m = norm.match(/^(.*?\d+丁目)(\d+)(?:[-番](\d+))?号?(.*)$/);
+
+  if (m) {
+    var head = m[1];
+    var banchiOnly = m[2];
+    var goOnly = m[3] || "";
+    var extra = m[4] || "";
+    var banchiGo = banchiOnly + (goOnly ? "-" + goOnly : "");
+    var headKanji = kanjiVariantOfHead(head);
+
+    push(head + banchiGo);
+    push(headKanji + banchiGo);
+    push(norm);
+    if (goOnly) push(head + banchiOnly + "番地" + goOnly + "号");
+    push(head + banchiOnly);
+    push(headKanji + banchiOnly);
+    push(head + banchiOnly + "番地");
+    push(head);
+  } else {
+    push(norm);
+    push(kanjiVariantOfHead(norm));
+  }
+
+  return candidates;
+}
+
+async function geocodeGSI(address) {
+  try {
+    var url = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(address);
+    var resp = await fetch(url);
+    var data = await resp.json();
+    if (!data || !data.length) return null;
+    var top = data[0];
+    return {
+      lat: top.geometry.coordinates[1],
+      lng: top.geometry.coordinates[0],
+      title: top.properties.title,
+      resolved: gsiResolvedToBanchi(top.properties.title)
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  var R = 6371000;
+  var toRad = function(d) { return d * Math.PI / 180; };
+  var dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+var GSI_AGREE_THRESHOLD_M = 80;
+
+function gsiResolvedToBanchi(title) {
+  if (!title) return false;
+  return /丁目\s*\d/.test(title) || /条\s*\d+\s*号/.test(title) || /\d+番地?\d*号?$/.test(title);
+}
+
+var PRECISION_RANK = { ROOFTOP: 4, RANGE_INTERPOLATED: 3, GEOMETRIC_CENTER: 2, APPROXIMATE: 1 };
+var SAPPORO_BOUNDS = "42.8,140.9|43.3,141.7";
+
+function sleep(ms) { return new Promise(function(res){ setTimeout(res, ms); }); }
+
+async function geocodeOne(address, attempt) {
+  attempt = attempt || 0;
+  var url = "https://maps.googleapis.com/maps/api/geocode/json"
+    + "?address=" + encodeURIComponent(address)
+    + "&region=jp&bounds=" + SAPPORO_BOUNDS
+    + "&components=country:JP"
+    + "&key=" + GOOGLE_MAPS_API_KEY;
+
+  var resp = await fetch(url);
+  var data = await resp.json();
+
+  if (data.status === "OVER_QUERY_LIMIT" && attempt < 4) {
+    await sleep(500 * Math.pow(2, attempt));
+    return geocodeOne(address, attempt + 1);
+  }
+  if (data.status !== "OK" || !data.results || !data.results.length) {
+    return null;
+  }
+  var r = data.results[0];
+  return {
+    formatted: r.formatted_address,
+    lat: r.geometry.location.lat,
+    lng: r.geometry.location.lng,
+    precision: r.geometry.location_type
+  };
+}
+
+async function geocodeWithRetries(rawAddr, onCandidateTried) {
+  var chibanHit = lookupChiban(rawAddr);
+  if (chibanHit && chibanHit.lat != null) {
+    var exactBest = {
+      matchedPattern: "地番: " + chibanHit.key,
+      lat: chibanHit.lat, lng: chibanHit.lng,
+      precision: "CHIBAN_EXACT", patternIndex: chibanHit.triesUsed
+    };
+    return {
+      best: exactBest, googleBest: null, gsi: null,
+      triesUsed: chibanHit.triesUsed, candidatesTotal: chibanHit.keysTotal, source: "chiban"
+    };
+  }
+
+  var candidates = generateCandidates(rawAddr);
+  var best = null;
+  var triesUsed = chibanHit ? chibanHit.triesUsed : 0;
+
+  for (var i = 0; i < candidates.length; i++) {
+    triesUsed++;
+    var result = await geocodeOne(candidates[i]);
+    if (onCandidateTried) onCandidateTried(candidates[i], result);
+    await sleep(200);
+
+    if (result) {
+      var rank = PRECISION_RANK[result.precision] || 0;
+      var bestRank = best ? (PRECISION_RANK[best.precision] || 0) : -1;
+      if (rank > bestRank) {
+        best = result;
+        best.matchedPattern = candidates[i];
+        best.patternIndex = i + 1;
+      }
+      if (rank >= PRECISION_RANK.RANGE_INTERPOLATED) break;
+    }
+  }
+
+  var gsi = null;
+  var googleBest = best;
+  var bestRankNow = googleBest ? (PRECISION_RANK[googleBest.precision] || 0) : 0;
+  if (bestRankNow < PRECISION_RANK.RANGE_INTERPOLATED) {
+    var gsiTarget = candidates[0] || baseNormalize(rawAddr);
+    gsi = await geocodeGSI(gsiTarget);
+    await sleep(150);
+  }
+
+  if (!best && gsi) {
+    best = { matchedPattern: "(GSIのみ: " + (gsi.title || "") + ")", precision: "GSI_ONLY", lat: gsi.lat, lng: gsi.lng, patternIndex: 0 };
+  }
+
+  return { best: best, googleBest: googleBest, gsi: gsi, triesUsed: triesUsed, candidatesTotal: candidates.length + (chibanHit ? chibanHit.keysTotal : 0), source: "api", chibanCandidates: (chibanHit && chibanHit.candidates) ? chibanHit.candidates : null };
+}
+
+function classify(outcome) {
+  if (outcome.best && outcome.best.precision === "CHIBAN_EXACT") return "exact";
+
+  var googleBest = outcome.googleBest, gsi = outcome.gsi;
+  if (!googleBest && !gsi) return "fail";
+
+  var rank = googleBest ? (PRECISION_RANK[googleBest.precision] || 0) : 0;
+  if (rank >= PRECISION_RANK.RANGE_INTERPOLATED) return "high";
+
+  if (googleBest && gsi) {
+    var dist = haversineMeters(googleBest.lat, googleBest.lng, gsi.lat, gsi.lng);
+    var reallyAgree = dist <= GSI_AGREE_THRESHOLD_M && gsi.resolved;
+    if (reallyAgree) return "high";
+    return "low";
+  }
+  if (!googleBest && gsi) return gsi.resolved ? "mid" : "low";
+  if (googleBest && !gsi) return rank === 2 ? "mid" : "low";
+  return "low";
+}
+var LABELS = { exact: "地番一致", high: "高精度", mid: "中精度", low: "低精度", fail: "失敗" };
+
+var parsedRows = [];
+var headers = [];
+
+function guessColumn(cands, keywords) {
+  for (var i = 0; i < cands.length; i++) {
+    for (var k = 0; k < keywords.length; k++) {
+      if (cands[i].indexOf(keywords[k]) !== -1) return cands[i];
+    }
+  }
+  return cands[0] || "";
+}
+
+function handleParsed(results) {
+  parsedRows = results.data;
+  headers = results.meta.fields || [];
+  var colId = document.getElementById("colId");
+  var colAddr = document.getElementById("colAddr");
+  var colStatus = document.getElementById("colStatus");
+  colId.innerHTML = ""; colAddr.innerHTML = ""; colStatus.innerHTML = "";
+  var noneOpt = document.createElement("option"); noneOpt.value = ""; noneOpt.textContent = "（指定なし）";
+  colStatus.appendChild(noneOpt);
+  headers.forEach(function(h) {
+    var o1 = document.createElement("option"); o1.value = h; o1.textContent = h; colId.appendChild(o1);
+    var o2 = document.createElement("option"); o2.value = h; o2.textContent = h; colAddr.appendChild(o2);
+    var o3 = document.createElement("option"); o3.value = h; o3.textContent = h; colStatus.appendChild(o3);
+  });
+  colId.value = guessColumn(headers, ["ID", "id"]);
+  colAddr.value = guessColumn(headers, ["住所"]);
+  var guessedStatus = guessColumn(headers, ["ステータス", "status"]);
+  colStatus.value = headers.indexOf(guessedStatus) !== -1 ? guessedStatus : "";
+  document.getElementById("parseStatus").textContent = parsedRows.length + "件 読み込み完了（" + headers.length + "列）";
+  document.getElementById("startBtn").disabled = parsedRows.length === 0;
+}
+
+function parseCsvText(text) {
+  Papa.parse(text, { header: true, skipEmptyLines: true, complete: handleParsed });
+}
+
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { parseCsvText(ev.target.result); };
+  reader.readAsText(f, "UTF-8");
+});
+
+var dz = document.getElementById("dropZone");
+dz.addEventListener("click", function(){ document.getElementById("fileInput").click(); });
+dz.addEventListener("dragover", function(e){ e.preventDefault(); dz.classList.add("dragover"); });
+dz.addEventListener("dragleave", function(){ dz.classList.remove("dragover"); });
+dz.addEventListener("drop", function(e){
+  e.preventDefault(); dz.classList.remove("dragover");
+  var f = e.dataTransfer.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { parseCsvText(ev.target.result); };
+  reader.readAsText(f, "UTF-8");
+});
+
+document.getElementById("rawPaste").addEventListener("input", function(e) {
+  var text = e.target.value.trim();
+  if (text.length > 20) parseCsvText(text);
+});
+
+var rowState = [];
+var stopRequested = false;
+
+document.getElementById("startBtn").addEventListener("click", runAll);
+document.getElementById("stopBtn").addEventListener("click", function(){ stopRequested = true; });
+
+async function runAll() {
+  var colId = document.getElementById("colId").value;
+  var colAddr = document.getElementById("colAddr").value;
+  var colStatus = document.getElementById("colStatus").value;
+  if (!colId || !colAddr) return;
+
+  stopRequested = false;
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("stopBtn").disabled = false;
+  document.getElementById("resultsSection").style.display = "block";
+  document.getElementById("progressWrap").classList.add("active");
+
+  var completedSkipped = 0;
+  rowState = parsedRows.map(function(r) {
+    return { id: r[colId], rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "", status: "pending", best: null, gsi: null, chibanCandidates: null, triesUsed: 0, candidatesTotal: 0 };
+  }).filter(function(r){
+    if (!r.id || !r.rawAddr) return false;
+    if (colStatus && r.statusVal === "完了") { completedSkipped++; return false; }
+    return true;
+  });
+
+  renderTable();
+  updateSummary();
+
+  var skipCached = document.getElementById("skipCached").checked;
+  var cachedGeocode = {};
+  if (skipCached && configOk) {
+    document.getElementById("progressCurrent").textContent = "Firebaseの既存データを確認中…";
+    try {
+      var snap = await scopedDb.ref("app_tasks").once("value");
+      var allTasks = snap.val() || {};
+      Object.keys(allTasks).forEach(function(id) {
+        var g = allTasks[id] && allTasks[id].geocode;
+        if (g && (g.confidence === "exact" || g.confidence === "high" || g.confidence === "mid")) {
+          cachedGeocode[id] = g;
+        }
+      });
+    } catch (e) {
+      console.warn("Firebase既存データの取得に失敗（通常通り全件照合します）:", e);
+    }
+  }
+
+  var total = rowState.length;
+  var skippedCount = 0;
+  for (var i = 0; i < total; i++) {
+    if (stopRequested) break;
+    var row = rowState[i];
+    document.getElementById("progressCurrent").textContent = row.id;
+
+    var cached = cachedGeocode[row.id];
+    if (cached) {
+      row.best = { matchedPattern: "(Firebase保存済み: " + (cached.address || "") + ")", lat: cached.lat, lng: cached.lng, precision: cached.precision || "CACHED", patternIndex: 0 };
+      row.googleBest = null; row.gsi = null;
+      row.triesUsed = 0; row.candidatesTotal = 0;
+      row.status = cached.confidence;
+      skippedCount++;
+    } else {
+      var outcome = await geocodeWithRetries(row.rawAddr);
+      row.best = outcome.best;
+      row.googleBest = outcome.googleBest;
+      row.gsi = outcome.gsi;
+      row.chibanCandidates = outcome.chibanCandidates;
+      row.triesUsed = outcome.triesUsed;
+      row.candidatesTotal = outcome.candidatesTotal;
+      row.status = classify(outcome);
+    }
+
+    updateProgress(i + 1, total);
+    updateRowInTable(row, i);
+    updateSummary();
+  }
+
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("stopBtn").disabled = true;
+  document.getElementById("progressCurrent").textContent = stopRequested ? "停止しました" : ("完了（手配完了で除外: " + completedSkipped + "件 / Firebaseキャッシュでスキップ: " + skippedCount + "件）");
+  refreshWriteButton();
+}
+
+function updateProgress(done, total) {
+  document.getElementById("progressFill").style.width = (done / total * 100) + "%";
+  document.getElementById("progressText").textContent = done + " / " + total;
+}
+
+function renderTable() {
+  var tbody = document.getElementById("resultsBody");
+  tbody.innerHTML = "";
+  rowState.forEach(function(row, idx) {
+    var tr = document.createElement("tr");
+    tr.id = "row-" + idx;
+    tr.innerHTML = rowHtml(row, idx);
+    tbody.appendChild(tr);
+  });
+  attachRowHandlers();
+}
+
+function rowHtml(row, idx) {
+  var badge = row.status === "pending"
+    ? '<span class="badge pending">待機中</span>'
+    : '<span class="badge ' + row.status + '"><span class="dot ' + row.status + '"></span>' + LABELS[row.status] + '</span>';
+
+  var hitAddr = row.best ? row.best.matchedPattern : (row.gsi ? "(Google失敗 / GSIのみヒット)" : "—");
+  var patternInfo;
+  if (row.best && row.best.precision === "CACHED") {
+    patternInfo = "(Firebaseのキャッシュを使用、API呼び出しなし)";
+  } else if (row.best && row.best.precision === "CHIBAN_EXACT") {
+    patternInfo = "(地番キー" + row.best.patternIndex + "/" + row.candidatesTotal + "件目で完全一致)";
+  } else {
+    patternInfo = row.best ? ("(候補" + row.best.patternIndex + "/" + row.candidatesTotal + "件目でヒット / " + row.best.precision + ")") : (row.candidatesTotal ? ("全" + row.candidatesTotal + "候補失敗（地番データ含む）") : "");
+  }
+
+  var useLat = row.best ? row.best.lat : (row.gsi ? row.gsi.lat : null);
+  var useLng = row.best ? row.best.lng : (row.gsi ? row.gsi.lng : null);
+  var lat = useLat != null ? useLat.toFixed(6) : "";
+  var lng = useLng != null ? useLng.toFixed(6) : "";
+  var mapLink = (useLat != null)
+    ? '<a class="maplink" target="_blank" href="https://www.google.com/maps?q=' + lat + ',' + lng + '">地図</a>'
+    : "";
+
+  var gsiLine = "";
+  if (row.gsi) {
+    var gb = row.googleBest;
+    var distM = gb ? Math.round(haversineMeters(gb.lat, gb.lng, row.gsi.lat, row.gsi.lng)) : null;
+    var reallyAgree = gb && distM <= GSI_AGREE_THRESHOLD_M && row.gsi.resolved;
+    var gsiNote;
+    if (!row.gsi.resolved) {
+      gsiNote = " (丁目止まり・番地未解決)";
+    } else if (!gb) {
+      gsiNote = " (Google候補なし)";
+    } else if (reallyAgree) {
+      gsiNote = " (番地レベルで一致)";
+    } else {
+      gsiNote = " (不一致 " + distM + "m)";
+    }
+    gsiLine = '<div class="tries">GSI: ' + escapeHtml(row.gsi.title || "") + gsiNote
+      + (gb && !reallyAgree ? ' <button class="btn sm secondary gsiAdoptBtn" data-idx="' + idx + '">GSI採用</button>' : "") + '</div>';
+  }
+
+  var chibanCandLine = "";
+  if (row.chibanCandidates && row.chibanCandidates.length > 0) {
+    chibanCandLine = '<div class="tries">丁目省略のため地番候補' + row.chibanCandidates.length + '件（要目視選択）:<br>'
+      + row.chibanCandidates.map(function(c, ci) {
+          var cMapUrl = 'https://www.google.com/maps?q=' + c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+          return escapeHtml(c.key) + ' <a class="maplink" target="_blank" href="' + cMapUrl + '">地図</a> '
+            + '<button class="btn sm secondary chibanCandAdoptBtn" data-idx="' + idx + '" data-ci="' + ci + '">採用</button>';
+        }).join('<br>')
+      + '</div>';
+  }
+
+  return ''
+    + '<td class="tries">' + (idx + 1) + '</td>'
+    + '<td><code>' + escapeHtml(row.id) + '</code></td>'
+    + '<td class="addr-orig">' + escapeHtml(row.rawAddr) + '</td>'
+    + '<td class="addr-hit">' + escapeHtml(hitAddr) + '<div class="tries">' + patternInfo + '</div>' + gsiLine + chibanCandLine + '</td>'
+    + '<td>' + badge + '</td>'
+    + '<td class="latlng">'
+      + '<input type="text" class="latInput" data-idx="' + idx + '" value="' + lat + '" placeholder="lat"> '
+      + '<input type="text" class="lngInput" data-idx="' + idx + '" value="' + lng + '" placeholder="lng">'
+    + '</td>'
+    + '<td>' + mapLink + '</td>'
+    + '<td><button class="btn sm secondary retryBtn" data-idx="' + idx + '">再試行</button></td>';
+}
+
+function updateRowInTable(row, idx) {
+  var tr = document.getElementById("row-" + idx);
+  if (tr) { tr.innerHTML = rowHtml(row, idx); attachRowHandlers(); }
+}
+
+function attachRowHandlers() {
+  document.querySelectorAll(".retryBtn").forEach(function(btn) {
+    btn.onclick = async function() {
+      var idx = Number(btn.dataset.idx);
+      var row = rowState[idx];
+      btn.disabled = true; btn.textContent = "実行中…";
+      var outcome = await geocodeWithRetries(row.rawAddr);
+      row.best = outcome.best;
+      row.googleBest = outcome.googleBest;
+      row.gsi = outcome.gsi;
+      row.chibanCandidates = outcome.chibanCandidates;
+      row.triesUsed = outcome.triesUsed;
+      row.candidatesTotal = outcome.candidatesTotal;
+      row.status = classify(outcome);
+      updateRowInTable(row, idx);
+      updateSummary();
+      refreshWriteButton();
+    };
+  });
+  document.querySelectorAll(".gsiAdoptBtn").forEach(function(btn) {
+    btn.onclick = function() {
+      var idx = Number(btn.dataset.idx);
+      var row = rowState[idx];
+      if (!row.gsi) return;
+      row.best = { matchedPattern: "(GSI採用: " + (row.gsi.title || "") + ")", precision: "GSI_MANUAL", lat: row.gsi.lat, lng: row.gsi.lng, patternIndex: 0 };
+      row.status = "mid";
+      updateRowInTable(row, idx);
+      updateSummary();
+      refreshWriteButton();
+    };
+  });
+  document.querySelectorAll(".chibanCandAdoptBtn").forEach(function(btn) {
+    btn.onclick = function() {
+      var idx = Number(btn.dataset.idx);
+      var ci = Number(btn.dataset.ci);
+      var row = rowState[idx];
+      var cand = row.chibanCandidates && row.chibanCandidates[ci];
+      if (!cand) return;
+      row.best = { matchedPattern: "地番(候補採用): " + cand.key, precision: "CHIBAN_EXACT", lat: cand.lat, lng: cand.lng, patternIndex: 0 };
+      row.status = "exact";
+      updateRowInTable(row, idx);
+      updateSummary();
+      refreshWriteButton();
+    };
+  });
+  document.querySelectorAll(".latInput, .lngInput").forEach(function(inp) {
+    inp.onchange = function() {
+      var idx = Number(inp.dataset.idx);
+      var row = rowState[idx];
+      if (!row.best) row.best = { matchedPattern: "(手動修正)", precision: "MANUAL", patternIndex: 0 };
+      if (inp.classList.contains("latInput")) row.best.lat = parseFloat(inp.value);
+      else row.best.lng = parseFloat(inp.value);
+      row.status = "mid";
+      updateSummary();
+      refreshWriteButton();
+    };
+  });
+}
+
+var currentFilter = null;
+function updateSummary() {
+  var counts = { exact: 0, high: 0, mid: 0, low: 0, fail: 0, pending: 0 };
+  rowState.forEach(function(r){ counts[r.status] = (counts[r.status] || 0) + 1; });
+
+  var strip = document.getElementById("summaryStrip");
+  strip.innerHTML = "";
+  [["exact","地番一致"],["high","高精度"],["mid","中精度"],["low","低精度"],["fail","失敗"],["pending","待機中"]].forEach(function(pair){
+    var key = pair[0], label = pair[1];
+    if (counts[key] === 0 && key === "pending") return;
+    var chip = document.createElement("div");
+    chip.className = "chip" + (currentFilter === key ? " active" : "");
+    chip.innerHTML = (key !== "pending" ? '<span class="dot ' + key + '"></span>' : '') + label + ' ' + counts[key] + '件';
+    chip.onclick = function() {
+      currentFilter = currentFilter === key ? null : key;
+      applyFilter();
+      updateSummary();
+    };
+    strip.appendChild(chip);
+  });
+}
+
+function applyFilter() {
+  rowState.forEach(function(row, idx) {
+    var tr = document.getElementById("row-" + idx);
+    if (!tr) return;
+    tr.style.display = (!currentFilter || row.status === currentFilter) ? "" : "none";
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c) {
+    return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c];
+  });
+}
+
+function refreshWriteButton() {
+  document.getElementById("writeBtn").disabled = !configOk || rowState.every(function(r){ return r.status === "pending" || r.status === "fail"; });
+}
+["incExact","incHigh","incMid","incLow"].forEach(function(id){
+  document.getElementById(id).addEventListener("change", refreshWriteButton);
+});
+
+document.getElementById("writeBtn").addEventListener("click", async function() {
+  var include = {
+    exact: document.getElementById("incExact").checked,
+    high: document.getElementById("incHigh").checked,
+    mid: document.getElementById("incMid").checked,
+    low: document.getElementById("incLow").checked
+  };
+  var targets = rowState.filter(function(r) { return r.best && include[r.status]; });
+  if (targets.length === 0) return;
+  if (!confirm(targets.length + "件をFirebase(users/" + window.getUserKey() + "/app_tasks/{id}/geocode)に書き込みます。よろしいですか？")) return;
+
+  var statusEl = document.getElementById("writeStatus");
+  var done = 0;
+  for (var i = 0; i < targets.length; i++) {
+    var row = targets[i];
+    try {
+      var payload = {
+        address: row.best.matchedPattern,
+        originalAddress: row.rawAddr,
+        lat: row.best.lat,
+        lng: row.best.lng,
+        precision: row.best.precision,
+        confidence: row.status,
+        triesUsed: row.triesUsed,
+        updatedAt: new Date().toISOString()
+      };
+      if (row.chibanCandidates && row.chibanCandidates.length > 0) {
+        payload.candidates = row.chibanCandidates.map(function(c) {
+          return { key: c.key, lat: c.lat, lng: c.lng };
+        });
+      }
+      await scopedDb.ref("app_tasks/" + row.id + "/geocode").update(payload);
+      done++;
+      statusEl.textContent = "書き込み中… " + done + " / " + targets.length;
+    } catch (e) {
+      console.error("書き込み失敗:", row.id, e);
+    }
+  }
+  statusEl.textContent = done + "件 書き込み完了";
+});
+</script>
+</body>
+</html>
