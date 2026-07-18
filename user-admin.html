@@ -186,6 +186,12 @@ function saveUser() {
   });
 }
 
+// ★修正: /users ルート直下の読み取りは admin:true クレームを持つユーザーにしか
+// 許可されていない（Realtime Databaseルール）。admin権限の無いstaffがこれを
+// 呼ぶと必ずPERMISSION_DENIEDになり、一覧が正しく表示されなかった（登録自体は
+// 成功するが、その後の一覧更新でコンソールにエラーが出るだけで気づきにくい）。
+// カスタムトークンのadminクレームを見て、adminなら全員分、そうでなければ
+// 自分の登録情報だけを表示するように分岐する。
 function loadList() {
   db.ref('config/authorized_pins').once('value').then(function (pinSnap) {
     var pins = pinSnap.val() || {};
@@ -193,32 +199,77 @@ function loadList() {
       return { pin: pin, userKey: pins[pin].userKey, name: pins[pin].name || pins[pin].userKey };
     });
 
-    db.ref('users').once('value').then(function (usersSnap) {
-      var users = usersSnap.val() || {};
-      var listEl = document.getElementById('list');
+    var currentUser = firebase.auth().currentUser;
+    if (!currentUser) {
+      // 認証情報が取れない場合は安全側に倒して自分の分のみ試みる
+      loadOwnOnly(pinEntries);
+      return;
+    }
 
-      if (pinEntries.length === 0) {
-        listEl.innerHTML = '<div style="color:#888;font-size:13px;">まだ登録なし</div>';
-        return;
+    currentUser.getIdTokenResult().then(function (idTokenResult) {
+      var isAdmin = !!(idTokenResult.claims && idTokenResult.claims.admin);
+      if (isAdmin) {
+        db.ref('users').once('value').then(function (usersSnap) {
+          renderList(pinEntries, usersSnap.val() || {});
+        }).catch(function (e) {
+          console.error('users一覧取得エラー（admin権限のはずですが失敗）:', e);
+          loadOwnOnly(pinEntries);
+        });
+      } else {
+        loadOwnOnly(pinEntries);
       }
-
-      listEl.innerHTML = pinEntries.map(function (entry) {
-        var cfg = (users[entry.userKey] && users[entry.userKey].config) || {};
-        return '<div class="user-item">'
-          + '<div class="name">' + esc(entry.name) + '（' + esc(entry.userKey) + '）</div>'
-          + '<div class="meta">PIN: ' + esc(entry.pin) + '</div>'
-          + '<div class="meta">施工: ' + esc(cfg.calendarSeko || '未設定') + '</div>'
-          + '<div class="meta">下見: ' + esc(cfg.calendarShitami || '未設定') + '</div>'
-          + '<div class="meta">個人: ' + esc(cfg.calendarPersonal || '未設定') + '</div>'
-          + '<div class="meta">スプシ: ' + esc(cfg.spreadsheetId || '未設定') + ' / ' + esc(cfg.sheetName || '未設定') + '</div>'
-          + '<div class="btns">'
-          + '<button class="edit-btn" onclick="editUser(\'' + entry.pin + '\')">編集</button>'
-          + '<button class="del-btn" onclick="removeUser(\'' + entry.pin + '\', \'' + entry.userKey + '\')">削除</button>'
-          + '</div>'
-          + '</div>';
-      }).join('');
+    }).catch(function (e) {
+      console.error('権限確認エラー:', e);
+      loadOwnOnly(pinEntries);
     });
   });
+}
+
+// 自分のuserKey配下だけを読む（staffなら誰でも許可されているパス）
+function loadOwnOnly(pinEntries) {
+  var myUserKey = localStorage.getItem('userKey');
+  var mine = pinEntries.filter(function (e) { return e.userKey === myUserKey; });
+
+  if (mine.length === 0) {
+    document.getElementById('list').innerHTML =
+      '<div style="color:#888;font-size:13px;">一覧を見る権限がないため、自分の登録情報のみここに表示されます。まだ登録されていないか、userKeyが一致していません。</div>';
+    return;
+  }
+
+  db.ref('users/' + myUserKey + '/config').once('value').then(function (cfgSnap) {
+    var users = {};
+    users[myUserKey] = { config: cfgSnap.val() || {} };
+    renderList(mine, users);
+  }).catch(function (e) {
+    console.error(e);
+    document.getElementById('list').innerHTML =
+      '<div style="color:#888;font-size:13px;">自分の登録情報の取得に失敗しました。</div>';
+  });
+}
+
+function renderList(pinEntries, users) {
+  var listEl = document.getElementById('list');
+
+  if (pinEntries.length === 0) {
+    listEl.innerHTML = '<div style="color:#888;font-size:13px;">まだ登録なし</div>';
+    return;
+  }
+
+  listEl.innerHTML = pinEntries.map(function (entry) {
+    var cfg = (users[entry.userKey] && users[entry.userKey].config) || {};
+    return '<div class="user-item">'
+      + '<div class="name">' + esc(entry.name) + '（' + esc(entry.userKey) + '）</div>'
+      + '<div class="meta">PIN: ' + esc(entry.pin) + '</div>'
+      + '<div class="meta">施工: ' + esc(cfg.calendarSeko || '未設定') + '</div>'
+      + '<div class="meta">下見: ' + esc(cfg.calendarShitami || '未設定') + '</div>'
+      + '<div class="meta">個人: ' + esc(cfg.calendarPersonal || '未設定') + '</div>'
+      + '<div class="meta">スプシ: ' + esc(cfg.spreadsheetId || '未設定') + ' / ' + esc(cfg.sheetName || '未設定') + '</div>'
+      + '<div class="btns">'
+      + '<button class="edit-btn" onclick="editUser(\'' + entry.pin + '\')">編集</button>'
+      + '<button class="del-btn" onclick="removeUser(\'' + entry.pin + '\', \'' + entry.userKey + '\')">削除</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 function editUser(pin) {
