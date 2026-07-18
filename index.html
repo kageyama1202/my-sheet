@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-19 -->
+<!-- VERSION: 2026-07-19 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -55,7 +55,8 @@
       <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
       <a href="sogo.html"     class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
       <a id="smsBtn" href="sms.html" class="menu-btn disabled" style="background-color:#1a1a1a;">💬 SMS送信</a>
-      <a href="admin.html"    class="menu-btn disabled" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
+      <!-- ★修正: CSV取込は初回データ投入に必要なため、データ有無に関わらず常時クリック可能にする -->
+      <a href="admin.html"    class="menu-btn" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
     </div>
 
     <div style="text-align:center;margin-top:14px;">
@@ -84,6 +85,10 @@
         ('0' + d.getDate()).slice(-2);
     }
 
+    // ★修正: CSV取込(admin.html)ボタンは既にdisabledクラスを付けていないので、
+    // enableMenu()は他の.menu-btn.disabledのみを対象にすれば元々問題ないが、
+    // 念のためquerySelectorAllの対象は変えず、admin.htmlは最初からdisabledクラスが
+    // 無いためこの関数の影響を受けない（常にクリック可能なまま）。
     function enableMenu() {
       document.querySelectorAll('.menu-btn').forEach(function(btn) {
         btn.classList.remove('disabled');
@@ -158,7 +163,7 @@
           try { cached = localStorage.getItem('appData'); } catch(e) {}
           if (!cached) {
             statusMsg.className = 'status error';
-            statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">管理画面からCSVをアップロードしてください。</span>';
+            statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">下の「CSV取込（管理者）」からCSVをアップロードしてください。</span>';
           }
           return;
         }
