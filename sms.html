@@ -159,6 +159,12 @@ function loadAllData() {
     }
     renderPick();
     if (currentTab === 'tpl') renderTpls();
+  }, function(err) {
+    // 【追加】読み込み権限エラー時、雛形が「消えた」ように見えるのを防ぐ。
+    // データが消えたのではなく、認証セッションが切れて読めていないだけのケースが多い。
+    console.error('雛形の読み込み失敗:', err);
+    document.getElementById('tpl-pick').innerHTML =
+      '<span class="no-tpl" style="color:#c0392b">⚠ 読み込みエラー：再ログインしてください（右下のバッジからログアウト→PIN再入力）</span>';
   });
 
   db.ref(DB_LIST).on('value', function(snap) {
@@ -171,6 +177,12 @@ function loadAllData() {
     }
     updateBadge();
     if (currentTab === 'list') renderList();
+  }, function(err) {
+    // 【追加】送信リストが読み込み権限エラーで表示されないと「データが消えた」ように
+    // 見えてしまう。実際にはデータは残っていて、認証セッション切れで読めていないだけ。
+    console.error('送信リストの読み込み失敗:', err);
+    document.getElementById('send-list').innerHTML =
+      '<div class="empty-hint" style="color:#c0392b">⚠ 読み込みエラー：データが消えたわけではなく、ログインセッションが切れています。<br>右下のバッジをタップ→ログアウト→PIN再入力でおそらく復元します。</div>';
   });
 }
 
