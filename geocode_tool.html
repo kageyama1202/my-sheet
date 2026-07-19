@@ -226,10 +226,7 @@
     </div>
     <div class="footer-actions">
       <div class="write-controls">
-        <label><input type="checkbox" id="incExact" checked> 地番一致</label>
-        <label><input type="checkbox" id="incHigh" checked> 高精度</label>
-        <label><input type="checkbox" id="incMid" checked> 中精度</label>
-        <label><input type="checkbox" id="incLow"> 低精度</label>
+        <span class="meta-note" style="margin-top:0;">地番一致〜低精度まで、座標が取れた案件は全件書き込みます（失敗のみ対象外）</span>
         <button class="btn" id="writeBtn" disabled>Firebaseに書き込む</button>
       </div>
       <span class="meta-note" style="margin-top:0;" id="writeStatus"></span>
@@ -1070,18 +1067,10 @@ function escapeHtml(s) {
 function refreshWriteButton() {
   document.getElementById("writeBtn").disabled = !configOk || rowState.every(function(r){ return r.status === "pending" || r.status === "fail"; });
 }
-["incExact","incHigh","incMid","incLow"].forEach(function(id){
-  document.getElementById(id).addEventListener("change", refreshWriteButton);
-});
 
 document.getElementById("writeBtn").addEventListener("click", async function() {
-  var include = {
-    exact: document.getElementById("incExact").checked,
-    high: document.getElementById("incHigh").checked,
-    mid: document.getElementById("incMid").checked,
-    low: document.getElementById("incLow").checked
-  };
-  var targets = rowState.filter(function(r) { return r.best && include[r.status]; });
+  // 座標が取れた行（exact/high/mid/low）は全件対象。fail（座標なし）のみ除外。
+  var targets = rowState.filter(function(r) { return r.best; });
   if (targets.length === 0) return;
   if (!confirm(targets.length + "件をFirebase(users/" + window.getUserKey() + "/app_tasks/{id}/geocode)に書き込みます。よろしいですか？")) return;
 
