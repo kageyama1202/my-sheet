@@ -384,6 +384,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="user-scope.js"></script>
 
 <script>
 var firebaseConfig = {
@@ -430,13 +431,16 @@ function startClipboard() {
   });
 }
 
-// 既にstaff/viewerとしてログイン済みならそれを維持（clipboardのために上書きしない）。
-// 未ログイン時のみ匿名認証にフォールバックする。
-if (auth.currentUser) {
-  startClipboard();
-} else {
-  auth.signInAnonymously().then(startClipboard).catch(function(e){ console.error(e); });
-}
+// 【修正】auth.currentUser は initializeApp() 直後は非同期復元待ちでほぼ必ず null。
+// これを同期チェックしていたため、ログイン中でも毎回 signInAnonymously() が実行され、
+// 本物のスタッフ認証セッション（カスタムクレーム付き）を匿名セッションで上書きしていた。
+// これが原因で、clipboardを一度開いただけでそのタブの以後の全ページ操作が
+// PERMISSION_DENIEDになっていた。匿名ログインは廃止し、user-scope.js経由で
+// 復元されるスタッフ認証セッションを待ってから開始する（未ログインならuser-scope.js
+// が自動でlogin.htmlへ飛ばすので、ここでは待つだけでよい）。
+firebase.auth().onAuthStateChanged(function (user) {
+  if (user) startClipboard();
+});
 
 function renderList() {
   var q = document.getElementById('searchInput').value.trim().toLowerCase();
