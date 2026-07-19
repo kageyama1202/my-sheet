@@ -1,572 +1,269 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-07-19 -->
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>MyClip</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #0f0f0f;
-    --surface: #1a1a1a;
-    --surface2: #242424;
-    --border: #2e2e2e;
-    --accent: #4f8ef7;
-    --accent-dim: rgba(79,142,247,0.15);
-    --pin: #f0a500;
-    --pin-dim: rgba(240,165,0,0.15);
-    --text: #e8e8e8;
-    --text-dim: #888;
-    --danger: #e05c5c;
-    --radius: 10px;
-    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-  }
-
-  body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding-bottom: 40px;
-  }
-
-  .header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 16px 10px;
-  }
-
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-
-  .logo {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    color: var(--accent);
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .btn-icon {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .btn-icon:active { opacity: 0.7; }
-
-  .search-wrap {
-    position: relative;
-  }
-
-  .search-wrap svg {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-dim);
-    pointer-events: none;
-  }
-
-  #searchInput {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 14px;
-    padding: 8px 10px 8px 34px;
-    outline: none;
-    -webkit-appearance: none;
-  }
-
-  #searchInput:focus { border-color: var(--accent); }
-  #searchInput::placeholder { color: var(--text-dim); }
-
-  .add-form {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 200;
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .add-form.open { display: flex; }
-
-  .add-sheet {
-    background: var(--surface);
-    border-radius: 16px 16px 0 0;
-    padding: 20px 16px 36px;
-    width: 100%;
-  }
-
-  .add-sheet h3 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 14px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  #newText {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-size: 16px;
-    padding: 12px;
-    outline: none;
-    resize: none;
-    min-height: 80px;
-    -webkit-appearance: none;
-    margin-bottom: 10px;
-  }
-
-  #newText:focus { border-color: var(--accent); }
-
-  .add-options {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .pin-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--text-dim);
-    cursor: pointer;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 12px;
-    user-select: none;
-  }
-
-  .pin-toggle.active {
-    color: var(--pin);
-    border-color: var(--pin);
-    background: var(--pin-dim);
-  }
-
-  .add-btns {
-    display: flex;
-    gap: 8px;
-  }
-
-  .btn-primary {
-    flex: 1;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius);
-    padding: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .btn-cancel {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: var(--radius);
-    padding: 12px 20px;
-    font-size: 15px;
-    cursor: pointer;
-  }
-
-  .main {
-    padding: 0 16px;
-  }
-
-  .section-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-    padding: 16px 0 8px;
-  }
-
-  .clip-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .clip-item {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    transition: background 0.15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .clip-item:active { background: var(--surface2); }
-
-  .clip-item.pinned {
-    border-color: rgba(240,165,0,0.3);
-    background: rgba(240,165,0,0.05);
-  }
-
-  .clip-text {
-    flex: 1;
-    font-size: 15px;
-    line-height: 1.4;
-    word-break: break-all;
-    color: var(--text);
-  }
-
-  .clip-item.pinned .clip-text {
-    color: #f5d080;
-  }
-
-  .clip-actions {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .btn-small {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 6px;
-    padding: 5px 10px;
-    font-size: 12px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .btn-small:active { opacity: 0.6; }
-
-  .btn-small.copy-btn {
-    color: var(--accent);
-    border-color: rgba(79,142,247,0.3);
-  }
-
-  .btn-small.pin-btn.active {
-    color: var(--pin);
-    border-color: rgba(240,165,0,0.3);
-  }
-
-  .btn-small.del-btn { color: var(--danger); }
-
-  .toast {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--accent);
-    color: #fff;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    opacity: 0;
-    transition: all 0.2s;
-    z-index: 300;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  .fab {
-    position: fixed;
-    bottom: 24px;
-    right: 20px;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #fff;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 16px rgba(79,142,247,0.4);
-    z-index: 100;
-  }
-
-  .fab:active { transform: scale(0.93); }
-
-  .empty {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 14px;
-    padding: 32px 0;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>案件管理 トップメニュー</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; margin: 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { color: #333; font-size: 22px; margin-bottom: 10px; text-align: center; }
+    .status { font-size: 14px; font-weight: bold; margin-bottom: 16px; padding: 12px; border-radius: 4px; text-align: center; }
+    .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error   { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .cal-status { font-size: 12px; padding: 6px 10px; border-radius: 4px; margin-bottom: 14px; text-align: center; background: #e8eaf6; color: #3949ab; border: 1px solid #c5cae9; }
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .menu-btn { display: block; text-decoration: none; padding: 18px; background-color: #007bff; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+    .menu-btn:hover { opacity: 0.85; }
+    .menu-btn.disabled { background-color: #ccc !important; color: #888; pointer-events: none; box-shadow: none; }
+    @keyframes sms-blink {
+      0%,100% { background-color: #1a1a1a; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      50% { background-color: #e53935; box-shadow: 0 0 14px rgba(229,57,53,0.85); }
+    }
+    .sms-blink { animation: sms-blink 1s ease-in-out infinite !important; }
+    .gas-url-section { margin-top: 18px; padding: 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; }
+    .gas-url-section label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+    .gas-url-section input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; margin-bottom: 6px; }
+    .gas-url-section button { padding: 6px 14px; background: #1a237e; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; margin-right: 6px; }
+    .gas-url-section button:hover { background: #283593; }
+    #gasUrlStatus { font-size: 11px; color: #555; margin-top: 4px; }
+    @media (max-width: 480px) { .menu-grid { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
+  <div class="container">
+    <h1>🏠 案件管理システム</h1>
 
-<div class="header">
-  <div class="header-top">
-    <div class="logo">📋 MyClip</div>
-    <div class="header-actions">
-      <button class="btn-icon" onclick="clearHistory()">🗑 履歴クリア</button>
+    <div id="statusMsg" class="status loading">
+      ⏳ 読込中...<br>
+      <span style="font-size:12px; font-weight:normal;">（少々お待ちください）</span>
     </div>
-  </div>
-  <div class="search-wrap">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-    </svg>
-    <input type="search" id="searchInput" placeholder="検索..." oninput="renderList()" autocomplete="off">
-  </div>
-</div>
 
-<div class="main">
-  <div class="section-label">📌 ピン留め</div>
-  <div class="clip-list" id="pinnedList"></div>
+    <div id="calSyncStatus" class="cal-status" style="display:none;"></div>
 
-  <div class="section-label">🕐 最近使った</div>
-  <div class="clip-list" id="historyList"></div>
-</div>
-
-<div class="add-form" id="addForm" onclick="closeForm(event)">
-  <div class="add-sheet">
-    <h3>テキストを追加</h3>
-    <textarea id="newText" placeholder="単語、数字、定型文..." rows="3"></textarea>
-    <div class="add-options">
-      <div class="pin-toggle" id="pinToggle" onclick="togglePin()">
-        📌 ピン留め
-      </div>
+    <div class="menu-grid">
+      <a href="action.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション</a>
+      <a href="agenda.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#1a237e;">🎯 Today's Agenda</a>
+      <a href="today.html"    class="menu-btn disabled">📋 案件リスト</a>
+      <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
+      <a href="sogo.html"     class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
+      <a id="smsBtn" href="sms.html" class="menu-btn disabled" style="background-color:#1a1a1a;">💬 SMS送信</a>
+      <a href="clipboard.html" class="menu-btn" style="background-color:#4f8ef7;">📋 クリップボード</a>
+      <!-- ★修正: CSV取込は初回データ投入に必要なため、データ有無に関わらず常時クリック可能にする -->
+      <a href="admin.html"    class="menu-btn" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
     </div>
-    <div class="add-btns">
-      <button class="btn-cancel" onclick="closeForm()">キャンセル</button>
-      <button class="btn-primary" onclick="addItem()">保存</button>
+
+    <div style="text-align:center;margin-top:14px;">
+      <a href="viewer.html" style="font-size:12px;color:#888;text-decoration:none;border-bottom:1px dotted #aaa;">🔒 閲覧用（上役PIN）</a>
     </div>
+
   </div>
-</div>
 
-<button class="fab" onclick="openForm()">＋</button>
-<div class="toast" id="toast"></div>
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    var database = scopedDatabase(firebase.database());
 
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="user-scope.js"></script>
-
-<script>
-var firebaseConfig = {
-  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
-  authDomain: "project-6745138395263517914.firebaseapp.com",
-  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
-  projectId: "project-6745138395263517914",
-  storageBucket: "project-6745138395263517914.firebasestorage.app",
-  messagingSenderId: "1054295910908",
-  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
-};
-
-firebase.initializeApp(firebaseConfig);
-var db = scopedDatabase(firebase.database());
-var auth = firebase.auth();
-
-var pinnedList = [];
-var clipHistory = [];
-var isPinned = false;
-
-function startClipboard() {
-  db.ref('app_clipboard/pinned').on('value', function(snap) {
-    pinnedList = [];
-    var val = snap.val();
-    if (val) {
-      Object.keys(val).forEach(function(k) {
-        pinnedList.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
-      });
-      pinnedList.sort(function(a,b){ return b.ts - a.ts; });
+    function getTodayStr() {
+      var d = new Date();
+      return d.getFullYear() + '-' +
+        ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+        ('0' + d.getDate()).slice(-2);
     }
-    renderList();
-  });
 
-  db.ref('app_clipboard/history').on('value', function(snap) {
-    clipHistory = [];
-    var val = snap.val();
-    if (val) {
-      Object.keys(val).forEach(function(k) {
-        clipHistory.push({ key: k, text: val[k].text, ts: val[k].ts || 0 });
-      });
-      clipHistory.sort(function(a,b){ return b.ts - a.ts; });
-    }
-    renderList();
-  });
-}
-
-// 【修正】auth.currentUser は initializeApp() 直後は非同期復元待ちでほぼ必ず null。
-// これを同期チェックしていたため、ログイン中でも毎回 signInAnonymously() が実行され、
-// 本物のスタッフ認証セッション（カスタムクレーム付き）を匿名セッションで上書きしていた。
-// これが原因で、clipboardを一度開いただけでそのタブの以後の全ページ操作が
-// PERMISSION_DENIEDになっていた。匿名ログインは廃止し、user-scope.js経由で
-// 復元されるスタッフ認証セッションを待ってから開始する（未ログインならuser-scope.js
-// が自動でlogin.htmlへ飛ばすので、ここでは待つだけでよい）。
-firebase.auth().onAuthStateChanged(function (user) {
-  if (user) startClipboard();
-});
-
-function renderList() {
-  var q = document.getElementById('searchInput').value.trim().toLowerCase();
-
-  var pFiltered = pinnedList.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
-  var pEl = document.getElementById('pinnedList');
-  pEl.innerHTML = pFiltered.length === 0
-    ? '<div class="empty">ピン留めなし</div>'
-    : pFiltered.map(function(item){ return buildItem(item, true); }).join('');
-
-  var hFiltered = clipHistory.filter(function(i){ return !q || i.text.toLowerCase().indexOf(q) >= 0; });
-  var hEl = document.getElementById('historyList');
-  hEl.innerHTML = hFiltered.length === 0
-    ? '<div class="empty">履歴なし</div>'
-    : hFiltered.map(function(item){ return buildItem(item, false); }).join('');
-}
-
-function buildItem(item, isPin) {
-  var esc = item.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  return '<div class="clip-item' + (isPin ? ' pinned' : '') + '" onclick="copyItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">'
-    + '<div class="clip-text">' + esc + '</div>'
-    + '<div class="clip-actions">'
-    + '<button class="btn-small copy-btn" onclick="event.stopPropagation();copyItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">コピー</button>'
-    + (isPin
-        ? '<button class="btn-small pin-btn active" onclick="event.stopPropagation();unpin(\'' + item.key + '\')">📌</button>'
-        : '<button class="btn-small pin-btn" onclick="event.stopPropagation();pinItem(\'' + item.key + '\')">📌</button>')
-    + '<button class="btn-small del-btn" onclick="event.stopPropagation();deleteItem(\'' + item.key + '\',\'' + (isPin?'pinned':'history') + '\')">✕</button>'
-    + '</div>'
-    + '</div>';
-}
-
-function copyItem(key, type) {
-  var list = type === 'pinned' ? pinnedList : clipHistory;
-  var item = list.find(function(i){ return i.key === key; });
-  if (!item) return;
-  navigator.clipboard.writeText(item.text).then(function() {
-    showToast('コピーしました');
-    if (type === 'history') {
-      db.ref('app_clipboard/history/' + key + '/ts').set(Date.now());
-    }
-    db.ref('app_clipboard/current').set({ text: item.text, ts: Date.now() });
-  });
-}
-
-function pinItem(key) {
-  var item = clipHistory.find(function(i){ return i.key === key; });
-  if (!item) return;
-  db.ref('app_clipboard/pinned').push({ text: item.text, ts: Date.now() });
-  showToast('ピン留めしました');
-}
-
-function unpin(key) {
-  db.ref('app_clipboard/pinned/' + key).remove();
-  showToast('ピン解除しました');
-}
-
-function deleteItem(key, type) {
-  db.ref('app_clipboard/' + type + '/' + key).remove();
-}
-
-function addItem() {
-  var text = document.getElementById('newText').value.trim();
-  if (!text) return;
-  var node = isPinned ? 'app_clipboard/pinned' : 'app_clipboard/history';
-  db.ref(node).push({ text: text, ts: Date.now() });
-  db.ref('app_clipboard/current').set({ text: text, ts: Date.now() });
-  document.getElementById('newText').value = '';
-  isPinned = false;
-  document.getElementById('pinToggle').classList.remove('active');
-  closeForm();
-  showToast('保存しました');
-  trimHistory();
-}
-
-function trimHistory() {
-  db.ref('app_clipboard/history').once('value', function(snap) {
-    var val = snap.val();
-    if (!val) return;
-    var keys = Object.keys(val);
-    if (keys.length > 50) {
-      var sorted = keys.map(function(k){ return { key: k, ts: val[k].ts || 0 }; });
-      sorted.sort(function(a,b){ return a.ts - b.ts; });
-      sorted.slice(0, sorted.length - 50).forEach(function(i){
-        db.ref('app_clipboard/history/' + i.key).remove();
+    // ★修正: CSV取込(admin.html)ボタンは既にdisabledクラスを付けていないので、
+    // enableMenu()は他の.menu-btn.disabledのみを対象にすれば元々問題ないが、
+    // 念のためquerySelectorAllの対象は変えず、admin.htmlは最初からdisabledクラスが
+    // 無いためこの関数の影響を受けない（常にクリック可能なまま）。
+    function enableMenu() {
+      document.querySelectorAll('.menu-btn').forEach(function(btn) {
+        btn.classList.remove('disabled');
       });
     }
-  });
-}
 
-function clearHistory() {
-  if (!confirm('履歴を全件削除しますか？\n（ピン留めは残ります）')) return;
-  db.ref('app_clipboard/history').remove();
-  showToast('履歴をクリアしました');
-}
+    var PERSONAL_CAL_SYNC_URL = 'https://us-central1-project-6745138395263517914.cloudfunctions.net/syncPersonalCalendar';
 
-function openForm() {
-  document.getElementById('addForm').classList.add('open');
-  setTimeout(function(){ document.getElementById('newText').focus(); }, 100);
-}
+    function syncMyCalendar(manual) {
+      var calDiv = document.getElementById('calSyncStatus');
+      var url = PERSONAL_CAL_SYNC_URL + '?userKey=' + encodeURIComponent(getUserKey());
+      calDiv.style.display = 'block';
+      calDiv.style.background = '#e8eaf6';
+      calDiv.style.color = '#3949ab';
+      calDiv.style.border = '1px solid #c5cae9';
+      calDiv.textContent = '📅 マイカレンダー同期中...（バックグラウンド）';
+      fetch(url)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.status === 'ok') {
+            var now = new Date();
+            var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
+              now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
+            calDiv.textContent = '✅ マイカレンダー同期完了（' + data.count + '件 / ' + timeStr + '）';
+            calDiv.style.background = '#e8f5e9';
+            calDiv.style.color = '#2e7d32';
+            calDiv.style.border = '1px solid #a5d6a7';
+          } else {
+            calDiv.textContent = '⚠️ 同期エラー: ' + (data.message || '不明');
+            calDiv.style.background = '#fff3e0';
+            calDiv.style.color = '#e65100';
+          }
+        })
+        .catch(function(err) {
+          calDiv.textContent = '❌ カレンダー同期失敗: ' + err.message;
+          calDiv.style.background = '#fce4ec';
+          calDiv.style.color = '#c62828';
+        });
+    }
 
-function closeForm(e) {
-  if (e && e.target !== document.getElementById('addForm')) return;
-  document.getElementById('addForm').classList.remove('open');
-  document.getElementById('newText').value = '';
-  isPinned = false;
-  document.getElementById('pinToggle').classList.remove('active');
-}
+    // app_sms_list を監視して未送信があればSMSボタンを点滅
+    function checkSmsPending() {
+      database.ref('app_sms_list').on('value', function(snapshot) {
+        var smsBtn = document.getElementById('smsBtn');
+        if (!smsBtn) return;
+        var data = snapshot.val();
+        var hasPending = false;
+        if (data) {
+          Object.keys(data).forEach(function(key) {
+            if (data[key].done === false || data[key].done === undefined) {
+              hasPending = true;
+            }
+          });
+        }
+        if (hasPending) {
+          smsBtn.classList.add('sms-blink');
+          smsBtn.title = '未送信のSMSがあります';
+        } else {
+          smsBtn.classList.remove('sms-blink');
+          smsBtn.title = '';
+        }
+      });
+    }
 
-function togglePin() {
-  isPinned = !isPinned;
-  document.getElementById('pinToggle').classList.toggle('active', isPinned);
-}
+    function loadFirebaseData() {
+      var statusMsg = document.getElementById('statusMsg');
 
-function showToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 1600);
-}
+      database.ref().once('value').then(function(snapshot) {
+        var dbData = snapshot.val();
+        if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
+          var cached = null;
+          try { cached = localStorage.getItem('appData'); } catch(e) {}
+          if (!cached) {
+            statusMsg.className = 'status error';
+            statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">下の「CSV取込（管理者）」からCSVをアップロードしてください。</span>';
+          }
+          return;
+        }
 
-window.addClipText = function(text, pin) {
-  if (!text) return;
-  var node = pin ? 'app_clipboard/pinned' : 'app_clipboard/history';
-  db.ref(node).push({ text: text, ts: Date.now() });
-  db.ref('app_clipboard/current').set({ text: text, ts: Date.now() });
-};
-</script>
+        var tasks = dbData.app_tasks;
+        var maxSeq = 0;
+        Object.values(tasks).forEach(function(t) {
+          if (t.seqNo && t.seqNo > maxSeq) maxSeq = t.seqNo;
+        });
+        var updates = {};
+        Object.keys(tasks).forEach(function(key) {
+          if (!tasks[key].seqNo) {
+            maxSeq++;
+            tasks[key].seqNo = maxSeq;
+            updates['app_tasks/' + key + '/seqNo'] = maxSeq;
+          }
+        });
+        if (Object.keys(updates).length > 0) { database.ref().update(updates); }
+
+        var today = getTodayStr();
+        var filtered = {};
+        Object.keys(tasks).forEach(function(key) {
+          var t = tasks[key];
+          var status = t.localStatus || '';
+          var sekoDate = (t.csvData && t.csvData[2]) ? t.csvData[2] : '';
+          var isDone = (status === '完了' || status === 'キャンセル');
+          var isPast = sekoDate && sekoDate < today;
+          if (!(isDone && isPast)) { filtered[key] = t; }
+        });
+        dbData.app_tasks = filtered;
+
+        try {
+          localStorage.setItem('appData', JSON.stringify(dbData));
+        } catch(e) {
+          console.warn('localStorage容量超過のため保存スキップ:', e.message);
+          var retryFiltered = {};
+          var cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30);
+          var cutoffStr = cutoff.getFullYear() + '-' +
+            ('0' + (cutoff.getMonth() + 1)).slice(-2) + '-' +
+            ('0' + cutoff.getDate()).slice(-2);
+          Object.keys(filtered).forEach(function(key) {
+            var t = filtered[key];
+            var status = t.localStatus || '';
+            var sekoDate = (t.csvData && t.csvData[2]) ? t.csvData[2] : '';
+            var isDone = (status === '完了' || status === 'キャンセル');
+            var isOld = sekoDate && sekoDate < cutoffStr;
+            if (!(isDone && isOld)) { retryFiltered[key] = t; }
+          });
+          dbData.app_tasks = retryFiltered;
+          try {
+            localStorage.setItem('appData', JSON.stringify(dbData));
+          } catch(e2) {
+            console.warn('再試行も失敗。既存キャッシュで動作継続:', e2.message);
+          }
+        }
+
+        var now = new Date();
+        var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
+          now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
+        statusMsg.className = 'status success';
+        statusMsg.innerHTML = '✅ 最新データ取得完了（' + timeStr + '）';
+        enableMenu();
+
+        // SMS未送信チェック（認証後に監視開始）
+        checkSmsPending();
+
+      }).catch(function(error) {
+        console.error('Firebase取得エラー:', error);
+        var cached = null;
+        try { cached = localStorage.getItem('appData'); } catch(e) {}
+        if (cached) {
+          statusMsg.className = 'status success';
+          statusMsg.innerHTML = '⚠️ 通信エラー（前回キャッシュで動作中）';
+        } else {
+          statusMsg.className = 'status error';
+          statusMsg.innerHTML = '❌ 通信エラー<br><span style="font-size:12px; font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
+        }
+      });
+    }
+
+    window.addEventListener('load', function() {
+      // ① 個人カレンダー同期を最初に即発火（結果を待たない）
+      syncMyCalendar(false);
+
+      // ② キャッシュがあれば即メニュー有効化
+      var cached = null;
+      try { cached = localStorage.getItem('appData'); } catch(e) {}
+      if (cached) {
+        enableMenu();
+        var statusMsg = document.getElementById('statusMsg');
+        statusMsg.className = 'status success';
+        statusMsg.innerHTML = '✅ キャッシュ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
+      }
+
+      // ③ 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
+      loadFirebaseData();
+    });
+  </script>
+  <div id="modal-overlay"><div id="modal-content"></div></div>
 </body>
 </html>
