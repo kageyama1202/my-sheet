@@ -1,17 +1,45 @@
 /* user-scope.js
-   複数ユーザー分離の共通スクリプト。
-   全HTMLファイルで firebase-database.js の直後・自分のfirebaseConfigスクリプトより前に読み込むこと。
+   複数ユーザー分離＋認証まわりの「唯一の正本」。
+
+   【重要・今後のルール】
+   認証関連のトラブルが繰り返し起きたため、Firebase初期化と認証セッションの
+   整合性チェックはこのファイルに一本化した。各ページ側（sms.html等）で
+   signInAnonymously() や独自の認証チェックを書くのは禁止。書くと今回の
+   clipboard.htmlの事故（匿名ログインが本物のスタッフセッションを上書きし、
+   全ページでPERMISSION_DENIEDになった）が再発する。
+
+   全HTMLファイルで firebase-app.js / firebase-auth.js / firebase-database.js の
+   直後・自分のfirebaseConfigスクリプトより前に読み込むこと（読み込み順はこれまで通り）。
 
    やること：
-   1. スタッフは localStorage にuserKeyが無ければ login.html にリダイレクト
-   2. 閲覧者（viewerMode）は sessionStorage を使う → ブラウザ/タブを閉じると自動的にログアウト状態に戻る
-   3. scopedDatabase(firebase.database()) で users/{userKey}/ 配下だけを見るDBワッパーを提供
-   4. 画面右下に「誰としてログイン中か」バッジを表示（タップで切替）
-   5. 【追加】userKeyは残っているのにFirebase認証セッションだけ切れている状態を検知し、
-      自動でログイン画面に戻す（全ページでPERMISSION_DENIENDになる不具合の対策）
+   1. Firebaseアプリをこのファイル自身が初期化する（各ページの重複initializeAppは
+      無害な二重呼び出しとしてスキップされるので、既存ページの修正は不要）
+   2. スタッフは localStorage にuserKeyが無ければ login.html にリダイレクト
+   3. 閲覧者（viewerMode）は sessionStorage を使う → ブラウザ/タブを閉じると自動的にログアウト状態に戻る
+   4. scopedDatabase(firebase.database()) で users/{userKey}/ 配下だけを見るDBラッパーを提供
+   5. 画面右下に「誰としてログイン中か」バッジを表示（タップで切替）
+   6. userKeyは残っているのにFirebase認証セッションだけ切れている状態を検知し、
+      自動でログイン画面に戻す（このファイルの読み込み直後、各ページ自身のコードが
+      動き出す前に監視を開始するので、ページ読み込み直後の書き込み失敗にも対応できる）
 */
 (function () {
   var LOGIN_PAGE = 'login.html';
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+    authDomain: "project-6745138395263517914.firebaseapp.com",
+    databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+    projectId: "project-6745138395263517914",
+    storageBucket: "project-6745138395263517914.firebasestorage.app",
+    messagingSenderId: "1054295910908",
+    appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+  };
+
+  // このファイルが最初にFirebaseを初期化する。各ページ自身の
+  // `if(!firebase.apps.length)firebase.initializeApp(firebaseConfig)` は
+  // その時点で既に初期化済みなので何もせずスキップされるだけで安全。
+  if (typeof firebase !== 'undefined' && firebase.apps && !firebase.apps.length) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+  }
 
   function isViewing() {
     return sessionStorage.getItem('viewerMode') === '1';
@@ -76,14 +104,12 @@
     location.replace(LOGIN_PAGE + '?return=' + encodeURIComponent(here));
   }
 
-  // 【追加】localStorage/sessionStorageにuserKeyは残っているが、
-  // Firebaseの実際の認証セッション（トークン）が切れている場合を検知する。
-  // この状態を放置すると、ページは「ログイン中」に見えるのにDBへの読み書きは
-  // 全てPERMISSION_DENIEDになる（ボタンを押した瞬間にエラーになる不具合の原因）。
-  //
-  // 注意：このファイルは firebase.initializeApp() より前に読み込まれる決まりなので、
-  // ここではまだ firebase.auth() は使えない。そのためDOMContentLoaded後（＝各ページの
-  // firebaseConfig初期化スクリプトが実行済みのタイミング）まで待ってからチェックする。
+  // localStorage/sessionStorageにuserKeyは残っているが、Firebaseの実際の認証
+  // セッション（トークン）が切れている場合を検知する。放置するとページは
+  // 「ログイン中」に見えるのにDBの読み書きは全てPERMISSION_DENIEDになり、
+  // データが「消えた」ように見える（実際は読めていないだけ）。
+  // このファイルが自前でFirebaseを初期化するようになったので、この監視は
+  // DOMContentLoadedを待たずページ読み込み直後（各ページ自身のコードより先）に開始できる。
   function watchAuthSession() {
     if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length || !firebase.auth) return;
     var settled = false;
@@ -100,10 +126,9 @@
       if (!user) forceRelogin();
     });
   }
+  watchAuthSession();
 
   window.addEventListener('DOMContentLoaded', function () {
-    watchAuthSession();
-
     var viewing = window.isViewerMode();
     var badge = document.createElement('div');
     badge.textContent = (viewing ? '🔍 閲覧中: ' : '👤 ') + window.getUserName();
