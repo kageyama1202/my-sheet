@@ -659,6 +659,13 @@ async function geocodeOne(address, attempt) {
   };
 }
 
+function extractCityLevelAddress(rawAddr) {
+  var norm = baseNormalize(rawAddr);
+  var m = norm.match(/^(\S+?[都道府県])(\S+?[市郡])(\S+?区)?/);
+  if (!m) return null;
+  return m[1] + m[2] + (m[3] || "");
+}
+
 async function geocodeWithRetries(rawAddr, onCandidateTried) {
   var chibanHit = lookupChiban(rawAddr);
   if (chibanHit && chibanHit.lat != null) {
@@ -706,6 +713,25 @@ async function geocodeWithRetries(rawAddr, onCandidateTried) {
 
   if (!best && gsi) {
     best = { matchedPattern: "(GSIのみ: " + (gsi.title || "") + ")", precision: "GSI_ONLY", lat: gsi.lat, lng: gsi.lng, patternIndex: 0 };
+  }
+
+  // 最終フォールバック：住所を丁目・番地未満まで解決できなかった場合、
+  // 市区町村レベルまで丸めて再度ジオコーディングする。ピンポイントの精度は無いが、
+  // ルート解析の目安としては座標ゼロより遥かにマシなので、ここで「座標なし」を防ぐ。
+  if (!best) {
+    var cityAddr = extractCityLevelAddress(rawAddr);
+    if (cityAddr) {
+      var cityResult = await geocodeOne(cityAddr);
+      await sleep(200);
+      if (cityResult) {
+        googleBest = { formatted: cityResult.formatted, lat: cityResult.lat, lng: cityResult.lng, precision: "APPROXIMATE" };
+        best = {
+          matchedPattern: "(市区町村レベル概算: " + cityAddr + " ／ 要人力調査)",
+          precision: "CITY_FALLBACK",
+          lat: cityResult.lat, lng: cityResult.lng, patternIndex: 0
+        };
+      }
+    }
   }
 
   return { best: best, googleBest: googleBest, gsi: gsi, triesUsed: triesUsed, candidatesTotal: candidates.length + (chibanHit ? chibanHit.keysTotal : 0), source: "api", chibanCandidates: (chibanHit && chibanHit.candidates) ? chibanHit.candidates : null };
