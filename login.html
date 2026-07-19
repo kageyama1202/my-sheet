@@ -51,6 +51,7 @@
   }
   #go:active { opacity: 0.75; }
   #go:disabled { opacity: 0.5; }
+  #checking { font-size: 12px; color: #777; margin-top: 14px; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -59,6 +60,7 @@
   <input type="tel" id="pin" maxlength="8" inputmode="numeric" autocomplete="off" placeholder="••••" autofocus>
   <div id="err"></div>
   <button id="go" onclick="tryLogin()">入る</button>
+  <div id="checking"></div>
 </div>
 
 <script>
@@ -67,10 +69,30 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
 var ISSUE_TOKEN_URL = "https://us-central1-project-6745138395263517914.cloudfunctions.net/issueStaffToken";
 
-// 既にログイン済み（localStorageにuserKeyがある）なら即遷移
+// 【修正】以前は localStorage に userKey が残っていれば無条件で次ページへ進んでいた。
+// これだと「userKeyは残っているがFirebaseの認証セッション(トークン)だけ切れている」
+// 状態を検知できず、全ページでDB書き込みがPERMISSION_DENIEDになる不具合があった。
+// → 実際に firebase.auth() が認証済みユーザーを持っているか確認してから遷移する。
 if (localStorage.getItem('userKey')) {
-  goNext();
+  document.getElementById('checking').textContent = 'ログイン状態を確認中...';
 }
+
+var authSettled = false;
+function decideAuth(hasUser) {
+  if (authSettled) return;
+  authSettled = true;
+  document.getElementById('checking').textContent = '';
+  if (hasUser && localStorage.getItem('userKey')) {
+    goNext();
+  } else if (localStorage.getItem('userKey')) {
+    // userKeyは残っているが認証セッションが切れている＝再ログインが必要
+    localStorage.removeItem('userKey');
+    localStorage.removeItem('userName');
+  }
+}
+firebase.auth().onAuthStateChanged(function (user) { decideAuth(!!user); });
+// onAuthStateChangedが万一発火しない場合の保険（2.5秒でPIN入力に切り替える）
+setTimeout(function () { decideAuth(!!firebase.auth().currentUser); }, 2500);
 
 document.getElementById('pin').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') tryLogin();
