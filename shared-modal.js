@@ -1,6 +1,29 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
+
+var SITECHECK_GROUPS = [
+  { title: '床暖まわり', items: [
+    ['床暖','yukadan'],['巾木厚さ','habakiAtsusa'],['搬入時刻','hannyuJikoku'],
+    ['電動シャッター','dendouShutter'],['追い焚き有無','oidaki'],
+    ['角依頼(屋さん合番)','kadoIraiYasan'],['依頼状況','iraiJoukyou'],
+    ['クラウド報告','cloudHoukoku'],['施工日確認(帳場さん)','sekoKakuninBanba']
+  ]},
+  { title: '養生まわり', items: [
+    ['養生','yousei'],['図面吊戸棚高','zumenTsuridanaTakasa'],['図面天井高','zumenTenjouTakasa'],
+    ['レンジフード変更','rangeHoodHenkou'],['天井高さ','tenjouTakasa'],['施工日確認(相手)','sekoKakuninAite']
+  ]},
+  { title: '窓台まわり', items: [
+    ['窓台高さ','madodaiTakasa'],['天吊りフード','tentsuriHood'],['ニッチ','nicchi'],
+    ['SK下がり壁','skSagariKabe'],['CB下がり壁','cbSagariKabe'],['設備','setsubi'],
+    ['KP貼り方','kpHarikata'],['コンセント','consent'],['ダクト','duct']
+  ]},
+  { title: '大工完了まわり', items: [
+    ['大工完了','daikuKanryo'],['搬入経路','hannyuKeiro'],['パネルカット','panelCut'],
+    ['駐車スペース','chuushaSpace'],['写メ','shame'],['キーBOX','keyBox'],
+    ['SK下地','skShita'],['天板下地','tenbanShita'],['CB下地','cbShita']
+  ]}
+];
 
 function normalizePhoneModal(raw) {
   if (!raw) return "";
@@ -30,6 +53,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var timeOpts = generateTimeOptions();
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
+  var siteCheckObj = obj.siteCheck || {};
 
   // 即時保存用ヘルパー
   function saveField(updates) {
@@ -119,6 +143,22 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">' + escHtmlModal(memoVal) + '</textarea>';
   }
   html += '</div>';
+
+  // 🛠️ 現場チェック（メモとは別。テキスト入力・項目離脱時に即時保存）
+  html += '<div class="modal-section"><h4 style="color:#e65100;margin-bottom:6px;">🛠️ 現場チェック</h4>';
+  html += '<div id="sitecheck-area">';
+  SITECHECK_GROUPS.forEach(function(group){
+    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
+    group.items.forEach(function(item){
+      var label = item[0], fkey = item[1];
+      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
+      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
+      html += '<input type="text" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtmlModal(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" /></div>';
+    });
+    html += '</div>';
+  });
+  html += '</div></div>';
 
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-flag-btn'+(isFlagged?' flagged':'')+'" id="modal-flag-btn">'+(isFlagged?'⚑ 注目中':'⚐ 注目')+'</button>';
@@ -217,6 +257,19 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       memoDebounce = setTimeout(function(){
         saveField({memo: memoElAtInput.value});
       }, 1000);
+    });
+  }
+
+  // 🛠️ 現場チェック（各項目、離脱時に即時保存。イベント委譲で1リスナー）
+  var sitecheckArea = document.getElementById('sitecheck-area');
+  if (sitecheckArea) {
+    sitecheckArea.addEventListener('focusout', function(e){
+      var t = e.target;
+      if (t && t.classList && t.classList.contains('sitecheck-input')) {
+        var fkey = t.getAttribute('data-field');
+        siteCheckObj[fkey] = t.value;
+        saveField({siteCheck: siteCheckObj});
+      }
     });
   }
 
