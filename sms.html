@@ -75,9 +75,20 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 .casekey-badge{display:inline-block;font-size:10px;color:#5d4037;background:#efebe9;border:1px solid #bcaaa4;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
 .info-loading{font-size:11px;color:#aaa;padding:6px 0;}
 .tpl-hint{font-size:11px;color:#aaa;padding:4px 2px 10px;line-height:1.6;}
+.header-bar{display:flex;align-items:center;gap:6px;background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 10px;position:sticky;top:0;z-index:11;}
+.header-bar .hb-title{font-size:13px;font-weight:600;color:#555;flex:1;text-align:center;}
+.hb-btn{display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#555;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+.hb-btn:active{background:#f5f5f5;}
 </style>
 </head>
 <body>
+
+<div class="header-bar">
+  <button class="hb-btn" onclick="goBack()"><i class="ti ti-chevron-left" style="font-size:14px"></i>戻る</button>
+  <span class="hb-title">SMS送信</span>
+  <a class="hb-btn" href="today.html"><i class="ti ti-list" style="font-size:14px"></i>案件一覧</a>
+  <a class="hb-btn" href="index.html"><i class="ti ti-home" style="font-size:14px"></i>トップ</a>
+</div>
 
 <div class="tabs">
   <div class="tab active" id="tab-btn-compose" onclick="showTab('compose')"><i class="ti ti-edit"></i> 作成</div>
@@ -116,7 +127,7 @@ textarea:focus{outline:none;border-color:#aaa;background:#fff;}
 </div>
 
 <div id="tab-tpl" class="section">
-  <div class="tpl-hint">文章内で <code>{邸名}</code> <code>{種目}</code> <code>{施工日}</code> と入力すると、案件情報から自動で置き換わります。</div>
+  <div class="tpl-hint">文章内で <code>{邸名}</code> <code>{種目}</code> <code>{施工日}</code> <code>{自分の名前}</code> と入力すると、案件情報／ログイン中の担当者名から自動で置き換わります。</div>
   <div id="tpl-list"></div>
   <button class="btn-add-tpl" id="add-tpl-btn" onclick="addTpl()">
     <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>雛形を追加（最大5件）
@@ -195,19 +206,28 @@ function ensureDefaultTemplate() {
     db.ref(DB_TPL).push({
       name: '下見連絡',
       order: -1,
-      body: 'お世話になっております、タカラ下見班影山です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします'
+      body: 'お世話になっております、タカラ下見班{自分の名前}です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします'
     });
   }
 }
 
 function writeDefaultTpls() {
   var defaults = [
-    { name:'下見連絡',   order:0, body:'お世話になっております、タカラ下見班影山です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします' },
-    { name:'下見依頼',   order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
-    { name:'施工前確認', order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
-    { name:'日程調整',   order:3, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の影山です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
+    { name:'下見連絡',   order:0, body:'お世話になっております、タカラ下見班{自分の名前}です、{邸名}{種目}施工日は{施工日}になっております、よろしくお願いいたします' },
+    { name:'下見依頼',   order:1, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の{自分の名前}です。\n\n施工日が近づいてまいりましたので、事前の下見訪問のご都合をお聞かせいただけますでしょうか。\n\nご連絡お待ちしております。\nどうぞよろしくお願いいたします。' },
+    { name:'施工前確認', order:2, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の{自分の名前}です。\n\n施工日のご確認のご連絡をさせていただきました。\nご不明な点などございましたらお気軽にご連絡ください。\n\nよろしくお願いいたします。' },
+    { name:'日程調整',   order:3, body:'突然のご連絡失礼いたします。\nタカラスタンダード施工担当の{自分の名前}です。\n\n下見の日程についてご相談させていただきたく、ご連絡いたしました。\nご都合の良い日時をいくつかお知らせいただけますでしょうか。\n\nよろしくお願いいたします。' },
   ];
   defaults.forEach(function(t) { db.ref(DB_TPL).push(t); });
+}
+
+function goBack() {
+  // 直前の画面（案件モーダル等）に戻る。履歴が無い/このアプリ外から来た場合は案件一覧へ。
+  if (document.referrer && document.referrer.indexOf(location.host) > -1) {
+    history.back();
+  } else {
+    location.href = 'today.html';
+  }
 }
 
 function showTab(t) {
@@ -221,12 +241,14 @@ function showTab(t) {
   if (t==='tpl')     renderTpls();
 }
 
-// 雛形本文中の {邸名} {種目} {施工日} を実際の値に置き換える
+// 雛形本文中の {邸名} {種目} {施工日} {自分の名前} を実際の値に置き換える
 function applyPlaceholders(body) {
+  var myName = (typeof window.getUserName === 'function') ? window.getUserName() : '';
   return String(body)
     .replace(/{邸名}/g, currentOyaName || '')
     .replace(/{種目}/g, currentShumoku || '')
-    .replace(/{施工日}/g, currentSekoDate || '');
+    .replace(/{施工日}/g, currentSekoDate || '')
+    .replace(/{自分の名前}/g, myName || '');
 }
 
 function renderPick() {
