@@ -264,7 +264,19 @@ function buildChecksFromArr(id,items,allChecked,showCount){var el=document.getEl
 function addSelBtns(el){var ba=document.createElement('span');ba.textContent='全選択';ba.className='sel-btn';ba.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=true;});renderTable();});var bn=document.createElement('span');bn.textContent='全解除';bn.className='sel-btn red';bn.addEventListener('click',function(){el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false;});renderTable();});el.appendChild(ba);el.appendChild(document.createTextNode(' '));el.appendChild(bn);el.appendChild(document.createTextNode(' '));}
 function setupToggle(tid,cid){var tog=document.getElementById(tid),el=document.getElementById(cid);var open=false;tog.addEventListener('click',function(){open=!open;el.style.maxHeight=open?'none':'20px';el.style.overflow=open?'visible':'hidden';tog.textContent=open?'▼ 閉じる':'▶ 展開';});}
 function getChecked(id){var v=[];document.getElementById(id).querySelectorAll('input[type=checkbox]:checked').forEach(function(c){v.push(c.value);});return v;}
-function applyTextSearch(){var w=searchInput.value.toLowerCase();var rows=document.getElementById('table-body').getElementsByTagName('tr');var n=0;for(var i=0;i<rows.length;i++){var s=rows[i].textContent.toLowerCase().indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';}
+// ★2026-07-22追加（07-22b修正）★ 表記揺れ吸収（全角→半角、漢数字→算用数字）。元データは書き換えず、比較時だけ正規化する。
+// 「十」を使った二桁変換（二十三→23等）は、"十勝"「五十嵐」「十文字」のような
+// 十を含む地名・人名まで巻き込んで数字扱いしてしまい、「10」検索時に無関係な行が
+// 誤ヒットする副作用があったため廃止。一〜九・〇の一文字ずつの変換のみ行う。
+var KANJI_NUM_MAP={'〇':'0','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9'};
+function normalizeSearchText(s){
+  if(!s)return'';
+  s=String(s);
+  s=s.replace(/[０-９Ａ-Ｚａ-ｚ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);});
+  s=s.replace(/[〇一二三四五六七八九]/g,function(c){return KANJI_NUM_MAP[c];});
+  return s.toLowerCase();
+}
+function applyTextSearch(){var w=normalizeSearchText(searchInput.value);var rows=document.getElementById('table-body').getElementsByTagName('tr');var n=0;for(var i=0;i<rows.length;i++){var s=normalizeSearchText(rows[i].textContent).indexOf(w)!==-1;rows[i].style.display=s?'':'none';if(s)n++;}document.getElementById('countDisplay').textContent='検索結果: '+n+' 件';}
 function getPersonalEventsInRange(from,to){var result=[];Object.keys(personalEvents).forEach(function(dateKey){if(from&&dateKey<from)return;if(to&&dateKey>to)return;var dayEvents=personalEvents[dateKey];if(!dayEvents)return;Object.keys(dayEvents).forEach(function(evId){var ev=dayEvents[evId];result.push({_type:'personal',dateKey:dateKey,title:ev.title||'',start:ev.start||dateKey,end:ev.end||'',allDay:ev.allDay||false,location:ev.location||''});});});result.sort(function(a,b){return a.start.localeCompare(b.start);});return result;}
 function fmtTime(s){if(!s||s.length<=10)return'終日';return s.substring(11,16);}
 function insertDeadlineLabelRow(tbody,type,dateStr,colCount){var tr=document.createElement('tr');tr.className='deadline-label '+(type==='10'?'deadline-label-10':'deadline-label-21');tr.style.pointerEvents='none';var td=document.createElement('td');td.colSpan=colCount+1;if(type==='10'){td.textContent='▲ ここまでに下見完了必須（新築SK 施工10日前デッドライン: '+dateStr+'以前の施工）';}else{td.textContent='▲ ここまでに下見完了推奨（新築 施工3週間前ボーダー: '+dateStr+'以前の施工）';}tr.appendChild(td);tbody.appendChild(tr);}
