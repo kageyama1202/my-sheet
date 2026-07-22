@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-29-002 -->
+<!-- VERSION: 2026-07-22-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -87,6 +87,21 @@
     var invalidChars=/[.#$\[\]\/]/g;
     function safeKey(id){return String(id).replace(/\s+/g,'').replace(invalidChars,'_');}
 
+    // ★2026-07-22追加★
+    // SalesforceのレコードIDは15桁(大文字小文字を区別する)と、末尾に3桁の
+    // チェックサムが付いた18桁(大文字小文字を区別しない)の2種類の表記がある。
+    // CSVエクスポート時の設定次第でどちらの形式で出力されるかが変わりうり、
+    // 同じ案件でも取込のたびにID表記が変わると、safeKey()後のキーが別物に
+    // なってしまい「別案件として新規登録」→Firebase側に重複レコードが発生
+    // →Googleカレンダーにも同じ案件のイベントが2個できる、という不具合の
+    // 直接原因になっていた。18桁IDの先頭15桁は元の15桁IDと完全一致するので、
+    // 常に15桁へ正規化してからキーとして使う。
+    function normalizeSfId(raw){
+      var id=String(raw||'').trim();
+      if(id.length===18)return id.substring(0,15);
+      return id;
+    }
+
     var LOCAL_FIELDS=['localStatus','date','time','order','emailSent','finalReport','memo','seqNo'];
 
     function extractLocal(obj){
@@ -114,13 +129,17 @@
         log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
 
         var newMap={};
-        var skipped=0,kanryoSkipped=0;
+        var skipped=0,kanryoSkipped=0,idNormalized=0;
         validLines.forEach(function(cols){
-          var id=String(cols[0]||'').trim();
+          var rawId=String(cols[0]||'').trim();
+          var id=normalizeSfId(rawId);
+          if(id!==rawId)idNormalized++;
           if(!id){skipped++;return;}
           if(isKanryo(cols)){kanryoSkipped++;return;}
+          cols[0]=id; // 以降の比較・保存も正規化後のIDで統一する
           newMap[safeKey(id)]=cols;
         });
+        if(idNormalized>0)log('🔧 18桁ID→15桁に正規化: '+idNormalized+'件','info');
         if(skipped>0)log('⚠ ID空白でスキップ: '+skipped+'行','warn');
         if(kanryoSkipped>0)log('✅ 「完了」ステータスをスキップ: '+kanryoSkipped+'件','ok');
         var newKeys=Object.keys(newMap);
@@ -138,7 +157,7 @@
             var oldObj=existing[oldKey];
             if(!oldObj)return;
             var oldId='';
-            if(oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(String(oldObj.csvData[0]).trim());
+            if(oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(normalizeSfId(String(oldObj.csvData[0]).trim()));
             if(oldId&&newMap[oldId]){
               var ld=extractLocal(oldObj);
               if(Object.keys(ld).length>0){
@@ -180,7 +199,7 @@
           existingKeys.forEach(function(oldKey){
             var oldObj=existing[oldKey];
             if(!oldObj||!oldObj.csvData||!oldObj.csvData[0])return;
-            var newKey=safeKey(String(oldObj.csvData[0]).trim());
+            var newKey=safeKey(normalizeSfId(String(oldObj.csvData[0]).trim()));
             if(oldKey!==newKey&&newMap[newKey])oldToNewKeyMap[oldKey]=newKey;
           });
 
