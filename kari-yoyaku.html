@@ -8,6 +8,8 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<script src="shared-modal.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -271,6 +273,15 @@
   </div>
 </div>
 
+<!-- 正規の案件モーダル（shared-modal.js用）。kari権限や対象外ユーザーには読み取り専用に切り替える -->
+<div id="modal-overlay">
+  <div id="modal-content">
+    <button id="modal-close">✕ 閉じる</button>
+    <div id="readonly-note" style="display:none;background:#fff3cd;color:#7a5b00;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px;">閲覧のみ（この画面からの編集はできません）</div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <div id="overlay" onclick="if(event.target===this)closeModal()">
   <div id="modal">
     <h3 id="mTitle"></h3>
@@ -416,6 +427,7 @@ var targetPersonal = {};
 function loadCaseData(key) {
   targetTasks = {};
   targetPersonal = {};
+  window.__kariGlobalHeaders = [];
   rawDb.ref('users/' + key + '/app_tasks').once('value').then(function (snap) {
     targetTasks = snap.val() || {};
     renderWeekAgenda();
@@ -426,6 +438,9 @@ function loadCaseData(key) {
     renderWeekAgenda();
     renderWeekStrip();
   }).catch(function (e) { console.warn('personal_calendar取得失敗', e); });
+  rawDb.ref('users/' + key + '/app_meta/headers').once('value').then(function (snap) {
+    window.__kariGlobalHeaders = snap.val() || [];
+  }).catch(function (e) { console.warn('app_meta取得失敗', e); });
 }
 function formatToYMD(v) {
   if (!v) return '';
@@ -433,6 +448,14 @@ function formatToYMD(v) {
   var m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
   if (!m) return '';
   return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+}
+function extractArea(addr) {
+  if (!addr) return '';
+  var a = addr.replace(/\s+/g, '');
+  var s = a.match(/札幌市(.+?区)/); if (s) return s[1];
+  var c = a.match(/北海道(.+?市)/); if (c && !c[1].includes('札幌')) return c[1];
+  var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
+  return 'その他';
 }
 function buildDayItems(date) {
   var items = [];
@@ -443,18 +466,19 @@ function buildDayItems(date) {
     var title = cols[4] || '(無題)';
     var time = cols[13] || obj.time || '';
     var order = obj.order || '';
+    var area = extractArea(cols[11] || '');
     if (shitami === date) {
-      items.push({ badge: '🔵', kindLabel: '下見', title: title, time: time, order: order, obj: obj, date: date });
+      items.push({ badge: '🔵', kindLabel: '下見', title: title, area: area, time: time, order: order, obj: obj, caseKey: key, date: date });
     }
     if (yotei === date && yotei !== shitami) {
-      items.push({ badge: '🟠', kindLabel: '下見予定', title: title, time: obj.time || '', order: order, obj: obj, date: date });
+      items.push({ badge: '🟠', kindLabel: '下見予定', title: title, area: area, time: obj.time || '', order: order, obj: obj, caseKey: key, date: date });
     }
   });
   var pday = targetPersonal[date];
   if (pday) {
     Object.keys(pday).forEach(function (id) {
       var ev = pday[id];
-      items.push({ badge: '📅', kindLabel: '個人予定', title: ev.title || '', time: ev.allDay ? '終日' : (ev.start || ''), order: '', personal: true, date: date });
+      items.push({ badge: '📅', kindLabel: '個人予定', title: ev.title || '', area: '', time: ev.allDay ? '終日' : (ev.start || ''), order: '', personal: true, date: date });
     });
   }
   var kday = (allKariSlotsData[date]) || {};
@@ -464,7 +488,7 @@ function buildDayItems(date) {
       badge: e.status === '確定' ? '✅' : '🟠',
       kindLabel: e.status === '確定' ? '確定' : '仮予約',
       title: (e.requester_name || '') + (e.memo ? '　' + e.memo : ''),
-      time: (e.start || '') + '〜' + (e.end || ''),
+      area: '', time: (e.start || '') + '〜' + (e.end || ''),
       order: '',
       kari: true, kariDate: date, kariId: id, kariE: e
     });
@@ -498,10 +522,15 @@ function renderWeekAgenda() {
       html += '<div class="empty">予定なし</div>';
     } else {
       items.forEach(function (it, idx) {
+        var mainText = it.kari
+          ? (it.kindLabel + '：' + it.title)
+          : (it.personal
+            ? (it.kindLabel + '：' + it.title)
+            : (it.kindLabel + (it.area ? '【' + it.area + '】' : '')));
         html += '<div class="agenda-item" data-date="' + ds + '" data-idx="' + idx + '">'
           + '<span class="ord">' + (it.order ? it.order : '') + '</span>'
           + '<span class="tm">' + (it.time || '') + '</span>'
-          + '<span class="tt">' + it.badge + ' ' + escapeHtml(it.kindLabel + '：' + it.title) + '</span>'
+          + '<span class="tt">' + it.badge + ' ' + escapeHtml(mainText) + '</span>'
           + '</div>';
       });
     }
@@ -522,7 +551,8 @@ function renderWeekAgenda() {
         if (!it) return;
         el.onclick = function () {
           if (it.kari) openModal(it.kariDate, it.kariId, it.kariE);
-          else openCaseModal(it);
+          else if (it.personal) openPersonalInfoModal(it);
+          else openRealCaseModal(it);
         };
       });
     })(ds2);
@@ -692,21 +722,53 @@ function openModal(date, id, e) {
   document.getElementById('overlay').classList.add('show');
 }
 
-function openCaseModal(item) {
-  currentModalPath = null; // 案件情報は削除・確定の対象外
-  document.getElementById('mTitle').textContent = item.date + ' ' + item.title;
-  var cols = (item.obj && item.obj.csvData) || [];
+function openPersonalInfoModal(item) {
+  currentModalPath = null;
+  document.getElementById('mTitle').textContent = item.date + ' の個人予定';
   document.getElementById('modalRows').innerHTML = rowsHtml([
-    { label: '種別', value: item.kindLabel },
     { label: '時間', value: item.time || '（未設定）' },
-    { label: '順番', value: item.order || '（未設定）' },
-    { label: '状態', value: cols[1] || '' },
-    { label: '住所', value: cols[11] || '' },
-    { label: '打合担当', value: cols[5] || '' }
+    { label: 'タイトル', value: item.title || '' }
   ]);
   document.getElementById('mDelBtn').style.display = 'none';
   document.getElementById('mConfBtn').style.display = 'none';
   document.getElementById('overlay').classList.add('show');
+}
+
+// 案件（下見・下見予定）は正規の案件モーダル(shared-modal.js)をそのまま使う。
+// ただし書き込み権限が無いユーザー（kari権限、または対象者=自分以外のスタッフ）が
+// 開いた場合は、保存が静かに失敗して混乱するのを防ぐため、入力欄を読み取り専用にする。
+function canEditTarget() {
+  return isAdmin || (myUserKey && myUserKey === targetUserKey);
+}
+function openRealCaseModal(item) {
+  var fakeScopedDb = {
+    ref: function (path) {
+      return (path === undefined || path === '')
+        ? rawDb.ref('users/' + targetUserKey)
+        : rawDb.ref('users/' + targetUserKey + '/' + path);
+    }
+  };
+  var globalHeaders = window.__kariGlobalHeaders || [];
+  window.openCaseModal(item.caseKey, item.obj, globalHeaders, targetTasks, null, fakeScopedDb, function () {
+    renderWeekAgenda();
+  });
+  var readonly = !canEditTarget();
+  document.getElementById('readonly-note').style.display = readonly ? 'block' : 'none';
+  if (readonly) {
+    setTimeout(function () {
+      var body = document.getElementById('modal-body');
+      if (!body) return;
+      body.querySelectorAll('input, textarea, select, button').forEach(function (el) {
+        el.disabled = true;
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.6';
+      });
+      body.querySelectorAll('.kanban-step').forEach(function (el) {
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.6';
+      });
+    }, 0);
+  }
 }
 function closeModal() {
   document.getElementById('overlay').classList.remove('show');
