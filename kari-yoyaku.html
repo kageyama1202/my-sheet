@@ -255,14 +255,23 @@
 
   <div class="card">
     <h2>仮予約を入れる</h2>
-    <div class="row2">
-      <div><label>開始時刻</label><input type="time" id="fStart" value="09:00"></div>
-      <div><label>終了時刻</label><input type="time" id="fEnd" value="10:00"></div>
-    </div>
-    <label>お名前・会社名</label>
-    <input type="text" id="fName" placeholder="例：営業部 山田">
-    <label>案件名・要件メモ</label>
-    <textarea id="fMemo" placeholder="例：〇〇邸 SK下見の件で相談"></textarea>
+    <label>案件名</label>
+    <input type="text" id="fCaseName" placeholder="例：〇〇邸 SK下見">
+    <label>時間</label>
+    <input type="time" id="fTime" value="09:00">
+    <label>担当者</label>
+    <input type="text" id="fTantou" placeholder="例：営業部 山田">
+    <label>住所（簡易）</label>
+    <input type="text" id="fArea" list="areaOptions" placeholder="例：豊平区、江別市 など">
+    <datalist id="areaOptions">
+      <option value="北区"><option value="西区"><option value="厚別区"><option value="手稲区">
+      <option value="東区"><option value="清田区"><option value="豊平区"><option value="中央区">
+      <option value="南区"><option value="白石区">
+      <option value="江別市"><option value="北広島市"><option value="倶知安町"><option value="岩見沢市">
+      <option value="南幌町"><option value="石狩市"><option value="その他">
+    </datalist>
+    <label>内容などのメモ</label>
+    <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
     <button class="primary" id="submitBtn" onclick="submitReservation()">この時間で仮予約する</button>
     <div id="formMsg"></div>
   </div>
@@ -485,8 +494,8 @@ function buildDayItems(date) {
     items.push({
       badge: e.status === '確定' ? '✅' : '🟠',
       kindLabel: e.status === '確定' ? '確定' : '仮予約',
-      title: (e.requester_name || '') + (e.memo ? '　' + e.memo : ''),
-      area: '', time: (e.start || '') + '〜' + (e.end || ''),
+      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : ''),
+      area: e.area || '', time: e.start || '',
       order: '',
       kari: true, kariDate: date, kariId: id, kariE: e
     });
@@ -523,7 +532,7 @@ function renderWeekView() {
     } else {
       items.forEach(function (it, idx) {
         var mainText = it.kari
-          ? it.title
+          ? (it.title + (it.area ? '【' + it.area + '】' : ''))
           : (it.personal ? it.title : (it.kindLabel + (it.area ? '【' + it.area + '】' : '')));
         html += '<div class="week-item" data-date="' + ds + '" data-idx="' + idx + '">'
           + '<span class="wi-tm">' + (it.order ? it.order + '. ' : '') + (it.time || '') + '</span>'
@@ -619,8 +628,8 @@ function renderDayView(snap) {
     var div = document.createElement('div');
     div.className = 'slot' + (e.status === '確定' ? ' kakutei' : '');
     div.innerHTML =
-      '<span class="time">' + e.start + '〜' + e.end + '</span>' +
-      '<span class="who">' + escapeHtml(e.requester_name || '') + '</span>' +
+      '<span class="time">' + e.start + '</span>' +
+      '<span class="who">' + escapeHtml(e.case_name || '') + (e.tantou ? '（' + escapeHtml(e.tantou) + '）' : '') + '</span>' +
       '<span class="badge' + (e.status === '確定' ? ' kakutei' : '') + '">' + (e.status || '仮') + '</span>';
     div.onclick = function () { openModal(currentDate, id, e); };
     box.appendChild(div);
@@ -657,8 +666,8 @@ function subscribeUpcoming() {
       div.className = 'list-item';
       div.innerHTML =
         '<span class="d">' + r.date + '</span>' +
-        '<span class="t">' + r.e.start + '〜' + r.e.end + '</span>' +
-        '<span class="w">' + escapeHtml(r.e.requester_name || '') + (r.e.status === '確定' ? ' ✅' : '') + '</span>';
+        '<span class="t">' + r.e.start + '</span>' +
+        '<span class="w">' + escapeHtml(r.e.case_name || '') + (r.e.status === '確定' ? ' ✅' : '') + '</span>';
       div.onclick = function () { openModal(r.date, r.id, r.e); };
       box.appendChild(div);
     });
@@ -676,8 +685,10 @@ function openModal(date, id, e) {
   currentModalPath = date + '/' + id;
   document.getElementById('mTitle').textContent = date + ' の仮予約';
   document.getElementById('modalRows').innerHTML = rowsHtml([
-    { label: '時間', value: e.start + '〜' + e.end },
-    { label: '依頼者', value: e.requester_name || '(未入力)' },
+    { label: '案件名', value: e.case_name || '(未入力)' },
+    { label: '時間', value: e.start || '' },
+    { label: '担当者', value: e.tantou || '(未入力)' },
+    { label: '住所（簡易）', value: e.area || '(未入力)' },
     { label: 'メモ', value: e.memo || '(メモなし)' },
     { label: '状態', value: e.status || '仮' }
   ]);
@@ -758,18 +769,19 @@ function markKakutei() {
 // ============ 新規予約（重複チェック付きトランザクション） ============
 function submitReservation() {
   var date = document.getElementById('viewDate').value;
-  var start = document.getElementById('fStart').value;
-  var end = document.getElementById('fEnd').value;
-  var name = document.getElementById('fName').value.trim();
+  var caseName = document.getElementById('fCaseName').value.trim();
+  var time = document.getElementById('fTime').value;
+  var tantou = document.getElementById('fTantou').value.trim();
+  var area = document.getElementById('fArea').value.trim();
   var memo = document.getElementById('fMemo').value.trim();
   var msg = document.getElementById('formMsg');
   var btn = document.getElementById('submitBtn');
 
   msg.className = ''; msg.textContent = '';
 
-  if (!date || !start || !end) { msg.className = 'err'; msg.textContent = '日付・開始・終了を入力してください'; return; }
-  if (start >= end) { msg.className = 'err'; msg.textContent = '終了時刻は開始時刻より後にしてください'; return; }
-  if (!name) { msg.className = 'err'; msg.textContent = 'お名前・会社名を入力してください'; return; }
+  if (!date || !time) { msg.className = 'err'; msg.textContent = '日付・時間を入力してください'; return; }
+  if (!caseName) { msg.className = 'err'; msg.textContent = '案件名を入力してください'; return; }
+  if (!tantou) { msg.className = 'err'; msg.textContent = '担当者を入力してください'; return; }
 
   btn.disabled = true;
 
@@ -777,15 +789,16 @@ function submitReservation() {
     current = current || {};
     for (var key in current) {
       var e = current[key];
-      if (!(end <= e.start || start >= e.end)) {
-        return; // undefinedを返す＝トランザクション中止（重複あり）
+      if (e.start === time) {
+        return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
       }
     }
     var newId = rawDb.ref().push().key;
     current[newId] = {
-      start: start,
-      end: end,
-      requester_name: name,
+      case_name: caseName,
+      start: time,
+      tantou: tantou,
+      area: area,
       memo: memo,
       status: '仮',
       ownerUid: currentUid,
@@ -797,9 +810,11 @@ function submitReservation() {
     if (error) {
       msg.className = 'err'; msg.textContent = '通信エラー：' + error.message;
     } else if (!committed) {
-      msg.className = 'err'; msg.textContent = 'その時間帯は既に他の仮予約と重複しています。時間を変えてください。';
+      msg.className = 'err'; msg.textContent = 'その時刻には既に他の仮予約が入っています。時間を変えてください。';
     } else {
       msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
+      document.getElementById('fCaseName').value = '';
+      document.getElementById('fArea').value = '';
       document.getElementById('fMemo').value = '';
     }
   });
