@@ -168,7 +168,7 @@
         if(showY&&fbDate){var isSameAsCSV=(fbDate===csvShitamiDate)&&(fbTime===csvShitamiTime||(fbTime===''&&csvShitamiTime===''));if(!isSameAsCSV){if(!dm[fbDate])dm[fbDate]=[];var lbl="予"+kubun+" "+orderStr+(fbTime?fbTime+" ":"")+shortType+" "+tei;dm[fbDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:lbl,timeStr:fbTime});}}
       });
       if(showP){Object.keys(personalCalCache).forEach(function(dateKey){var evs=personalCalCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(evId){var ev=evs[evId];if(!ev||!ev.title)return;var pTime=getPersonalTime(ev);var lbl="📅 "+(pTime&&pTime!=='終日'?pTime+" ":pTime==='終日'?'終日 ':'')+ev.title;if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:lbl,timeStr:pTime});});});}
-      Object.keys(kariSlotsCache).forEach(function(dateKey){var evs=kariSlotsCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(id){var ev=evs[id];if(!ev)return;var statusTag=ev.status==='確定'?'✅':'仮';var lbl="🟠"+statusTag+" "+(ev.start||'')+(ev.end?'〜'+ev.end:'')+" "+(ev.requester_name||'');if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'kari_'+dateKey+'_'+id,obj:ev,cols:[],type:'kari',label:lbl,timeStr:ev.start||''});});});
+      Object.keys(kariSlotsCache).forEach(function(dateKey){var evs=kariSlotsCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(id){var ev=evs[id];if(!ev)return;var statusTag=ev.status==='確定'?'✅':'仮';var areaStr=ev.area?'【'+ev.area+'】':'';var lbl="🟠"+statusTag+" "+(ev.start||'')+" "+(ev.case_name||'')+areaStr;if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'kari_'+dateKey+'_'+id,obj:ev,cols:[],type:'kari',label:lbl,timeStr:ev.start||''});});});
       Object.keys(dm).forEach(function(dk){dm[dk].sort(function(a,b){var ta=a.timeStr==='終日'?'00:00':a.timeStr||'99:99';var tb=b.timeStr==='終日'?'00:00':b.timeStr||'99:99';return ta<tb?-1:ta>tb?1:0;});});
       return dm;
     }
@@ -208,7 +208,7 @@
 
     function openDayList(dateStr,events){
       var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
-      events.forEach(function(ev){var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':ev.type==='kari'?'ev-kari':'ev-yotei';var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':ev.type==='kari'?'仮予約':'予定';var name='';if(ev.type==='personal'){name=ev.obj.title||'';}else if(ev.type==='kari'){name=(ev.obj.requester_name||'')+(ev.obj.memo?'　'+ev.obj.memo:'');}else{var kubun=getKubun(ev.cols);var st=getShortType(ev.cols);var tei=getTeiName(ev.cols);var orderPfx=ev.obj.order?ev.obj.order+'. ':'';name=orderPfx+'['+kubun+'] '+st+' '+tei;}var td=ev.timeStr&&ev.timeStr!=='終日'?ev.timeStr:ev.timeStr==='終日'?'終日':'';html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'"><span class="ev-tag '+tagClass+'">'+tagText+'</span><span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:60px;">'+td+'</span><span style="font-weight:bold;font-size:13px;">'+name+'</span></div>';});
+      events.forEach(function(ev){var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':ev.type==='kari'?'ev-kari':'ev-yotei';var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':ev.type==='kari'?'仮予約':'予定';var name='';if(ev.type==='personal'){name=ev.obj.title||'';}else if(ev.type==='kari'){name=(ev.obj.case_name||'')+(ev.obj.tantou?'（'+ev.obj.tantou+'）':'');}else{var kubun=getKubun(ev.cols);var st=getShortType(ev.cols);var tei=getTeiName(ev.cols);var orderPfx=ev.obj.order?ev.obj.order+'. ':'';name=orderPfx+'['+kubun+'] '+st+' '+tei;}var td=ev.timeStr&&ev.timeStr!=='終日'?ev.timeStr:ev.timeStr==='終日'?'終日':'';html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'"><span class="ev-tag '+tagClass+'">'+tagText+'</span><span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:60px;">'+td+'</span><span style="font-weight:bold;font-size:13px;">'+name+'</span></div>';});
       document.getElementById('dayListBody').innerHTML=html;dayListOverlay.style.display='block';
       document.querySelectorAll('.day-list-item').forEach(function(item){item.addEventListener('click',function(){dayListOverlay.style.display='none';if(item.dataset.type==='personal'){var evObj=null;for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}if(evObj)openPersonalModal(evObj);return;}if(item.dataset.type==='kari'){var evObj=null;for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}if(evObj)openKariModal(evObj);return;}var obj=globalTasks[item.dataset.key];if(!obj)return;openCaseModal(item.dataset.key,obj,globalHeaders,globalTasks,fullData,database,renderCal);});});
     }
@@ -221,9 +221,10 @@
     }
     function openKariModal(ev){
       var statusTag=ev.status==='確定'?'✅確定':'仮予約';
-      var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#e65100">🟠 '+statusTag+'</div></div><table class="modal-table">'
-        +'<tr><th>時間</th><td>'+(ev.start||'')+'〜'+(ev.end||'')+'</td></tr>'
-        +'<tr><th>依頼者</th><td>'+(ev.requester_name||'')+'</td></tr>'
+      var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#e65100">🟠 '+statusTag+'：'+(ev.case_name||'')+'</div></div><table class="modal-table">'
+        +'<tr><th>時間</th><td>'+(ev.start||'')+'</td></tr>'
+        +'<tr><th>担当者</th><td>'+(ev.tantou||'')+'</td></tr>'
+        +'<tr><th>住所（簡易）</th><td>'+(ev.area||'')+'</td></tr>'
         +'<tr><th>メモ</th><td>'+(ev.memo||'（メモなし）')+'</td></tr>'
         +'</table><div style="font-size:11px;color:#888;margin-top:8px;">削除・確定への変更は仮予約ページで行ってください</div>';
       document.getElementById('modal-body').innerHTML=html;modalOverlay.style.display='block';
