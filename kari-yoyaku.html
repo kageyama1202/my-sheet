@@ -186,6 +186,11 @@
   <div class="sub" id="targetLabel"></div>
 
   <div class="card">
+    <h2>この日の既存予定（下見・施工・個人）</h2>
+    <div id="caseEventsForDay"><div class="empty">読み込み中...</div></div>
+  </div>
+
+  <div class="card">
     <h2>この日の仮予約状況</h2>
     <label>日付</label>
     <input type="date" id="viewDate">
@@ -350,7 +355,55 @@ function selectTarget(key) {
   document.getElementById('targetLabel').textContent = '対象：' + (kariTargets[key].name || key);
   document.getElementById('targetPicker').style.display = 'none';
   document.getElementById('mainArea').style.display = 'block';
+  loadCaseData(key);
   initData();
+}
+
+// ============ 既存の案件・個人予定（参考表示） ============
+var targetTasks = {};
+var targetPersonal = {};
+function loadCaseData(key) {
+  targetTasks = {};
+  targetPersonal = {};
+  rawDb.ref('users/' + key + '/app_tasks').once('value').then(function (snap) {
+    targetTasks = snap.val() || {};
+    renderCaseEventsForDate(currentDate);
+  }).catch(function (e) { console.warn('app_tasks取得失敗', e); });
+  rawDb.ref('users/' + key + '/personal_calendar').once('value').then(function (snap) {
+    targetPersonal = snap.val() || {};
+    renderCaseEventsForDate(currentDate);
+  }).catch(function (e) { console.warn('personal_calendar取得失敗', e); });
+}
+function formatToYMD(v) {
+  if (!v) return '';
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+}
+function renderCaseEventsForDate(date) {
+  var box = document.getElementById('caseEventsForDay');
+  if (!box) return;
+  var rows = [];
+  Object.keys(targetTasks).forEach(function (key) {
+    var obj = targetTasks[key]; var cols = obj.csvData; if (!cols) return;
+    var sekou = formatToYMD(cols[2]);
+    var shitami = formatToYMD(cols[12]);
+    var yotei = formatToYMD(obj.date);
+    var title = cols[4] || '(無題)';
+    if (sekou === date) rows.push('🟢 施工：' + title);
+    if (shitami === date) rows.push('🔵 下見：' + title);
+    if (yotei === date && yotei !== shitami && yotei !== sekou) rows.push('🟠 下見予定：' + title);
+  });
+  var day = targetPersonal[date];
+  if (day) {
+    Object.keys(day).forEach(function (id) {
+      var ev = day[id];
+      rows.push('📅 ' + (ev.allDay ? '終日' : (ev.start || '')) + ' ' + (ev.title || ''));
+    });
+  }
+  if (rows.length === 0) { box.innerHTML = '<div class="empty">この日の既存予定はありません</div>'; return; }
+  box.innerHTML = rows.map(function (r) { return '<div class="empty" style="color:#ccc;">' + escapeHtml(r) + '</div>'; }).join('');
 }
 
 // ============ データ購読 ============
@@ -375,6 +428,7 @@ function attachDayListener(date) {
   currentDate = date;
   dayListenerDate = date;
   slotsRef(date).on('value', renderDayView);
+  renderCaseEventsForDate(date);
 }
 
 function renderDayView(snap) {
