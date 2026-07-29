@@ -44,6 +44,7 @@
     .ev-shitami{background:#bbdefb;color:#0d47a1;border-left:2px solid #1565c0;}
     .ev-yotei{background:#fff3e0;color:#e65100;border-left:2px solid #ef6c00;}
     .ev-personal{background:#f3e5f5;color:#4a148c;border-left:2px solid #7b1fa2;}
+    .ev-kari{background:#ffe0b2;color:#e65100;border-left:2px solid #ef6c00;}
     .cal-more{font-size:9px;color:#1a73e8;font-weight:bold;padding:0 3px;cursor:pointer;}
     #modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;backdrop-filter:blur(2px);}
     #modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:8px;width:90%;max-width:850px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
@@ -142,6 +143,13 @@
       renderCal();
     });
 
+    // 仮予約(kari-yoyaku.html)で登録された仮予約を混ぜて表示する。
+    var kariSlotsCache={};
+    database.ref('kari_yoyaku_slots').once('value').then(function(snap){
+      if(snap.val()){kariSlotsCache=snap.val();}
+      renderCal();
+    }).catch(function(e){console.warn('kari_yoyaku_slots取得失敗',e);});
+
     function buildDateMap(){
       var dm={};
       var showS=chkSekou.checked,showD=chkShitami.checked,showY=chkYotei.checked,showP=chkPersonal.checked;
@@ -160,6 +168,7 @@
         if(showY&&fbDate){var isSameAsCSV=(fbDate===csvShitamiDate)&&(fbTime===csvShitamiTime||(fbTime===''&&csvShitamiTime===''));if(!isSameAsCSV){if(!dm[fbDate])dm[fbDate]=[];var lbl="予"+kubun+" "+orderStr+(fbTime?fbTime+" ":"")+shortType+" "+tei;dm[fbDate].push({key:key,obj:obj,cols:cols,type:'yotei',label:lbl,timeStr:fbTime});}}
       });
       if(showP){Object.keys(personalCalCache).forEach(function(dateKey){var evs=personalCalCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(evId){var ev=evs[evId];if(!ev||!ev.title)return;var pTime=getPersonalTime(ev);var lbl="📅 "+(pTime&&pTime!=='終日'?pTime+" ":pTime==='終日'?'終日 ':'')+ev.title;if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'personal_'+evId,obj:ev,cols:[],type:'personal',label:lbl,timeStr:pTime});});});}
+      Object.keys(kariSlotsCache).forEach(function(dateKey){var evs=kariSlotsCache[dateKey];if(!evs)return;Object.keys(evs).forEach(function(id){var ev=evs[id];if(!ev)return;var statusTag=ev.status==='確定'?'✅':'仮';var lbl="🟠"+statusTag+" "+(ev.start||'')+(ev.end?'〜'+ev.end:'')+" "+(ev.requester_name||'');if(!dm[dateKey])dm[dateKey]=[];dm[dateKey].push({key:'kari_'+dateKey+'_'+id,obj:ev,cols:[],type:'kari',label:lbl,timeStr:ev.start||''});});});
       Object.keys(dm).forEach(function(dk){dm[dk].sort(function(a,b){var ta=a.timeStr==='終日'?'00:00':a.timeStr||'99:99';var tb=b.timeStr==='終日'?'00:00':b.timeStr||'99:99';return ta<tb?-1:ta>tb?1:0;});});
       return dm;
     }
@@ -191,7 +200,7 @@
       var cell=document.createElement('div');cell.className='cal-cell'+(isOther?' other-month':'')+(dateStr===todayStr?' today':'');
       var numDiv=document.createElement('div');numDiv.className='day-num'+(dow===0?' sun':'')+(dow===6?' sat':'');numDiv.textContent=dayNum;cell.appendChild(numDiv);
       var events=dateMap[dateStr]||[];
-      events.slice(0,3).forEach(function(ev){var evDiv=document.createElement('div');evDiv.className='cal-event ev-'+ev.type;evDiv.textContent=ev.label;evDiv.addEventListener('click',function(e){e.stopPropagation();if(ev.type==='personal')openPersonalModal(ev.obj);else openCaseModal(ev.key,ev.obj,globalHeaders,globalTasks,fullData,database,renderCal);});cell.appendChild(evDiv);});
+      events.slice(0,3).forEach(function(ev){var evDiv=document.createElement('div');evDiv.className='cal-event ev-'+ev.type;evDiv.textContent=ev.label;evDiv.addEventListener('click',function(e){e.stopPropagation();if(ev.type==='personal')openPersonalModal(ev.obj);else if(ev.type==='kari')openKariModal(ev.obj);else openCaseModal(ev.key,ev.obj,globalHeaders,globalTasks,fullData,database,renderCal);});cell.appendChild(evDiv);});
       if(events.length>3){var more=document.createElement('div');more.className='cal-more';more.textContent='他 '+(events.length-3)+' 件';cell.appendChild(more);}
       cell.addEventListener('click',function(){if(events.length)openDayList(dateStr,events);});
       return cell;
@@ -199,9 +208,9 @@
 
     function openDayList(dateStr,events){
       var html='<h3>📅 '+dateStr+'（'+events.length+'件）</h3>';
-      events.forEach(function(ev){var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':'ev-yotei';var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':'予定';var name='';if(ev.type==='personal'){name=ev.obj.title||'';}else{var kubun=getKubun(ev.cols);var st=getShortType(ev.cols);var tei=getTeiName(ev.cols);var orderPfx=ev.obj.order?ev.obj.order+'. ':'';name=orderPfx+'['+kubun+'] '+st+' '+tei;}var td=ev.timeStr&&ev.timeStr!=='終日'?ev.timeStr:ev.timeStr==='終日'?'終日':'';html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'"><span class="ev-tag '+tagClass+'">'+tagText+'</span><span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:60px;">'+td+'</span><span style="font-weight:bold;font-size:13px;">'+name+'</span></div>';});
+      events.forEach(function(ev){var tagClass=ev.type==='sekou'?'ev-sekou':ev.type==='shitami'?'ev-shitami':ev.type==='personal'?'ev-personal':ev.type==='kari'?'ev-kari':'ev-yotei';var tagText=ev.type==='sekou'?'施工':ev.type==='shitami'?'下見':ev.type==='personal'?'個人':ev.type==='kari'?'仮予約':'予定';var name='';if(ev.type==='personal'){name=ev.obj.title||'';}else if(ev.type==='kari'){name=(ev.obj.requester_name||'')+(ev.obj.memo?'　'+ev.obj.memo:'');}else{var kubun=getKubun(ev.cols);var st=getShortType(ev.cols);var tei=getTeiName(ev.cols);var orderPfx=ev.obj.order?ev.obj.order+'. ':'';name=orderPfx+'['+kubun+'] '+st+' '+tei;}var td=ev.timeStr&&ev.timeStr!=='終日'?ev.timeStr:ev.timeStr==='終日'?'終日':'';html+='<div class="day-list-item" data-key="'+ev.key+'" data-type="'+ev.type+'"><span class="ev-tag '+tagClass+'">'+tagText+'</span><span style="color:#1a73e8;font-size:11px;font-weight:bold;min-width:60px;">'+td+'</span><span style="font-weight:bold;font-size:13px;">'+name+'</span></div>';});
       document.getElementById('dayListBody').innerHTML=html;dayListOverlay.style.display='block';
-      document.querySelectorAll('.day-list-item').forEach(function(item){item.addEventListener('click',function(){dayListOverlay.style.display='none';if(item.dataset.type==='personal'){var evObj=null;for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}if(evObj)openPersonalModal(evObj);return;}var obj=globalTasks[item.dataset.key];if(!obj)return;openCaseModal(item.dataset.key,obj,globalHeaders,globalTasks,fullData,database,renderCal);});});
+      document.querySelectorAll('.day-list-item').forEach(function(item){item.addEventListener('click',function(){dayListOverlay.style.display='none';if(item.dataset.type==='personal'){var evObj=null;for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}if(evObj)openPersonalModal(evObj);return;}if(item.dataset.type==='kari'){var evObj=null;for(var i=0;i<events.length;i++){if(events[i].key===item.dataset.key){evObj=events[i].obj;break;}}if(evObj)openKariModal(evObj);return;}var obj=globalTasks[item.dataset.key];if(!obj)return;openCaseModal(item.dataset.key,obj,globalHeaders,globalTasks,fullData,database,renderCal);});});
     }
 
     function openPersonalModal(ev){
@@ -209,6 +218,15 @@
       var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#4a148c">📅 '+(ev.title||'')+'</div></div><table class="modal-table"><tr><th>日時</th><td>'+timeStr+'</td></tr>';
       if(ev.location)html+='<tr><th>場所</th><td><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ev.location)+'" target="_blank" style="color:#0056b3">🗺️ '+ev.location+'</a></td></tr>';
       html+='</table>';document.getElementById('modal-body').innerHTML=html;modalOverlay.style.display='block';
+    }
+    function openKariModal(ev){
+      var statusTag=ev.status==='確定'?'✅確定':'仮予約';
+      var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#e65100">🟠 '+statusTag+'</div></div><table class="modal-table">'
+        +'<tr><th>時間</th><td>'+(ev.start||'')+'〜'+(ev.end||'')+'</td></tr>'
+        +'<tr><th>依頼者</th><td>'+(ev.requester_name||'')+'</td></tr>'
+        +'<tr><th>メモ</th><td>'+(ev.memo||'（メモなし）')+'</td></tr>'
+        +'</table><div style="font-size:11px;color:#888;margin-top:8px;">削除・確定への変更は仮予約ページで行ってください</div>';
+      document.getElementById('modal-body').innerHTML=html;modalOverlay.style.display='block';
     }
   </script>
 </body>
