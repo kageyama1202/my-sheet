@@ -204,6 +204,12 @@ document.getElementById('contactToggle').addEventListener('click',function(){sho
 var personalEvents={};
 database.ref('personal_calendar').once('value').then(function(snap){personalEvents=snap.val()||{};renderTable();}).catch(function(e){console.warn('personal_calendar取得失敗',e);});
 
+// 仮予約(kari-yoyaku.html)で登録された仮予約を表示に混ぜる。
+// users/{userKey}/kari_yoyaku_slots に置く設計なので、scopedDatabase(database)でそのまま読める。
+var kariSlots={};
+database.ref('kari_yoyaku_slots').once('value').then(function(snap){kariSlots=snap.val()||{};renderTable();}).catch(function(e){console.warn('kari_yoyaku_slots取得失敗',e);});
+function getKariEventsInRange(from,to){var result=[];Object.keys(kariSlots).forEach(function(dateKey){if(from&&dateKey<from)return;if(to&&dateKey>to)return;var dayEvents=kariSlots[dateKey];if(!dayEvents)return;Object.keys(dayEvents).forEach(function(id){var ev=dayEvents[id];result.push({_type:'kari',dateKey:dateKey,start:ev.start||'',end:ev.end||'',requester_name:ev.requester_name||'',memo:ev.memo||'',status:ev.status||'仮'});});});result.sort(function(a,b){return (a.dateKey+a.start).localeCompare(b.dateKey+b.start);});return result;}
+
 var smsPendingKeys={};
 function loadSmsData(){
   database.ref('app_sms_list').once('value').then(function(snap){
@@ -293,12 +299,15 @@ var valid=Object.keys(globalTasks).filter(function(key){var obj=globalTasks[key]
     if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&sekouDate!==''&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(sekouDate===''&&showNoSekou)dm=true;if(!dm)return false;}return true;});
 valid.sort(function(a,b){function eff(obj){var c=obj.csvData;var yD=formatToYMD(obj.date||'');var aiD=formatToYMD(obj.ai_shitami_date||'');var sdD=formatToYMD(getSafeVal(c,12));var skD=formatToYMD(getSafeVal(c,2));if(skD==='')return'9999-99-99';if(cY&&yD)return yD;if(cAI&&aiD)return aiD;if(cD&&sdD)return sdD;return skD;}return eff(globalTasks[a]).localeCompare(eff(globalTasks[b]));});
 var personalInRange=getPersonalEventsInRange(from||null,to||null);
+var kariInRange=getKariEventsInRange(from||null,to||null);
 var taskItems=valid.map(function(key){var obj=globalTasks[key];var c=obj.csvData;var effDate='';var yD=formatToYMD(obj.date||'');var aiD=formatToYMD(obj.ai_shitami_date||'');var sdD=formatToYMD(getSafeVal(c,12));var skD=formatToYMD(getSafeVal(c,2));if(skD===''){effDate='9999-99-99';}else if(cY&&yD){effDate=yD;}else if(cAI&&aiD){effDate=aiD;}else if(cD&&sdD){effDate=sdD;}else{effDate=skD;}return{_type:'task',key:key,effDate:effDate,sekouDate:skD};});
 var personalItems=personalInRange.map(function(ev){return{_type:'personal',ev:ev,effDate:ev.dateKey};});
-var merged=taskItems.concat(personalItems);merged.sort(function(a,b){return a.effDate.localeCompare(b.effDate);});
+var kariItems=kariInRange.map(function(ev){return{_type:'kari',ev:ev,effDate:ev.dateKey};});
+var merged=taskItems.concat(personalItems).concat(kariItems);merged.sort(function(a,b){return a.effDate.localeCompare(b.effDate);});
 var inserted10=false,inserted21=false,taskCount=0,nosekouCount=0;
 merged.forEach(function(item,idx){
   if(item._type==='personal'){var ev=item.ev;var tr=document.createElement('tr');tr.className='personal-row';var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.innerHTML='<span class="personal-badge">📅</span>';tr.appendChild(tdNo);var tdMain=document.createElement('td');tdMain.colSpan=displayCols.length;tdMain.style.padding='4px 8px';tdMain.style.color='#4a148c';tdMain.style.fontWeight='bold';tdMain.style.fontSize='12px';var timeStr=ev.allDay?'終日':(fmtTime(ev.start)+(ev.end?'〜'+fmtTime(ev.end):''));var locStr=ev.location?'　📍'+ev.location:'';tdMain.textContent=ev.dateKey+'　'+timeStr+'　'+ev.title+locStr;tr.appendChild(tdMain);tbody.appendChild(tr);}
+  else if(item._type==='kari'){var ev=item.ev;var tr=document.createElement('tr');tr.className='personal-row';var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.innerHTML='<span class="personal-badge" style="color:#e65100;">🟠</span>';tr.appendChild(tdNo);var tdMain=document.createElement('td');tdMain.colSpan=displayCols.length;tdMain.style.padding='4px 8px';tdMain.style.color='#e65100';tdMain.style.fontWeight='bold';tdMain.style.fontSize='12px';var statusTag=ev.status==='確定'?'✅確定':'仮予約';var memoStr=ev.memo?'　'+ev.memo:'';tdMain.textContent=ev.dateKey+'　'+ev.start+'〜'+ev.end+'　['+statusTag+']　'+ev.requester_name+memoStr;tr.appendChild(tdMain);tbody.appendChild(tr);}
   else{
     taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var tr=document.createElement("tr");
     var isSmsPending=!!smsPendingKeys[key];
