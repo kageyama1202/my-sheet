@@ -135,6 +135,30 @@
     display: inline-block;
   }
 
+  .week-nav {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .week-day {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 2px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .week-day.selected { border-color: var(--accent); background: var(--accent-dim); }
+  .week-day.today .dnum { color: var(--accent); }
+  .week-day .wd { font-size: 10px; color: #888; }
+  .week-day .dnum { font-size: 15px; font-weight: 700; margin: 2px 0; }
+  .week-day .dcount { font-size: 10px; color: var(--kari); min-height: 12px; }
+
   /* modal */
   #overlay {
     display: none;
@@ -184,6 +208,17 @@
 <div id="mainArea" style="display:none;">
   <div><span class="switch-target" onclick="backToPicker()">← 対象者を変更</span></div>
   <div class="sub" id="targetLabel"></div>
+
+  <div class="card">
+    <h2>週間カレンダー（空き状況の目安）</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <button class="week-nav" onclick="shiftWeek(-1)">◀ 前週</button>
+      <div id="weekLabel" style="font-size:12px;color:#aaa;"></div>
+      <button class="week-nav" onclick="shiftWeek(1)">翌週 ▶</button>
+    </div>
+    <div id="weekStrip" class="week-strip"></div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">●の数＝その日の下見予定・個人予定・仮予約の合計件数（目安）。日付をタップすると下の詳細に切り替わります。</div>
+  </div>
 
   <div class="card">
     <h2>この日の既存予定（下見・施工・個人）</h2>
@@ -368,10 +403,12 @@ function loadCaseData(key) {
   rawDb.ref('users/' + key + '/app_tasks').once('value').then(function (snap) {
     targetTasks = snap.val() || {};
     renderCaseEventsForDate(currentDate);
+    renderWeekStrip();
   }).catch(function (e) { console.warn('app_tasks取得失敗', e); });
   rawDb.ref('users/' + key + '/personal_calendar').once('value').then(function (snap) {
     targetPersonal = snap.val() || {};
     renderCaseEventsForDate(currentDate);
+    renderWeekStrip();
   }).catch(function (e) { console.warn('personal_calendar取得失敗', e); });
 }
 function formatToYMD(v) {
@@ -387,13 +424,11 @@ function renderCaseEventsForDate(date) {
   var rows = [];
   Object.keys(targetTasks).forEach(function (key) {
     var obj = targetTasks[key]; var cols = obj.csvData; if (!cols) return;
-    var sekou = formatToYMD(cols[2]);
     var shitami = formatToYMD(cols[12]);
     var yotei = formatToYMD(obj.date);
     var title = cols[4] || '(無題)';
-    if (sekou === date) rows.push('🟢 施工：' + title);
     if (shitami === date) rows.push('🔵 下見：' + title);
-    if (yotei === date && yotei !== shitami && yotei !== sekou) rows.push('🟠 下見予定：' + title);
+    if (yotei === date && yotei !== shitami) rows.push('🟠 下見予定：' + title);
   });
   var day = targetPersonal[date];
   if (day) {
@@ -402,6 +437,11 @@ function renderCaseEventsForDate(date) {
       rows.push('📅 ' + (ev.allDay ? '終日' : (ev.start || '')) + ' ' + (ev.title || ''));
     });
   }
+  Object.keys(currentDaySlots).forEach(function (id) {
+    var e = currentDaySlots[id];
+    var tag = e.status === '確定' ? '✅確定' : '🟠仮予約';
+    rows.push(tag + '：' + (e.start || '') + '〜' + (e.end || '') + ' ' + (e.requester_name || ''));
+  });
   if (rows.length === 0) { box.innerHTML = '<div class="empty">この日の既存予定はありません</div>'; return; }
   box.innerHTML = rows.map(function (r) { return '<div class="empty" style="color:#ccc;">' + escapeHtml(r) + '</div>'; }).join('');
 }
@@ -429,10 +469,60 @@ function attachDayListener(date) {
   dayListenerDate = date;
   slotsRef(date).on('value', renderDayView);
   renderCaseEventsForDate(date);
+  renderWeekStrip();
 }
 
+// ============ 週間カレンダー ============
+var allKariCounts = {}; // date(YYYY-MM-DD) -> 件数
+function dateFromStr(s) { var p = s.split('-'); return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); }
+function dateToStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function countCaseEventsForDate(date) {
+  var c = 0;
+  Object.keys(targetTasks).forEach(function (key) {
+    var obj = targetTasks[key]; var cols = obj.csvData; if (!cols) return;
+    var shitami = formatToYMD(cols[12]);
+    var yotei = formatToYMD(obj.date);
+    if (shitami === date) c++;
+    else if (yotei === date) c++;
+  });
+  var day = targetPersonal[date];
+  if (day) c += Object.keys(day).length;
+  return c;
+}
+function renderWeekStrip() {
+  var box = document.getElementById('weekStrip');
+  if (!box || !currentDate) return;
+  var base = dateFromStr(currentDate);
+  var dow = base.getDay();
+  var sunday = new Date(base); sunday.setDate(base.getDate() - dow);
+  box.innerHTML = '';
+  var labels = ['日', '月', '火', '水', '木', '金', '土'];
+  var today = todayStr();
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(sunday); d.setDate(sunday.getDate() + i);
+    var ds = dateToStr(d);
+    var count = countCaseEventsForDate(ds) + (allKariCounts[ds] || 0);
+    var cell = document.createElement('div');
+    cell.className = 'week-day' + (ds === currentDate ? ' selected' : '') + (ds === today ? ' today' : '');
+    cell.innerHTML = '<div class="wd">' + labels[i] + '</div><div class="dnum">' + d.getDate() + '</div><div class="dcount">' + (count > 0 ? '●' + count : '') + '</div>';
+    cell.onclick = (function (dateStr) { return function () { document.getElementById('viewDate').value = dateStr; attachDayListener(dateStr); }; })(ds);
+    box.appendChild(cell);
+  }
+  document.getElementById('weekLabel').textContent = (sunday.getMonth() + 1) + '月' + sunday.getDate() + '日 〜';
+}
+function shiftWeek(delta) {
+  var d = dateFromStr(currentDate);
+  d.setDate(d.getDate() + delta * 7);
+  var newDate = dateToStr(d);
+  document.getElementById('viewDate').value = newDate;
+  attachDayListener(newDate);
+}
+
+var currentDaySlots = {};
 function renderDayView(snap) {
   var data = snap.val() || {};
+  currentDaySlots = data;
+  renderCaseEventsForDate(currentDate);
   var box = document.getElementById('slotsForDay');
   var keys = Object.keys(data).sort(function (a, b) {
     return data[a].start.localeCompare(data[b].start);
@@ -461,13 +551,16 @@ function subscribeUpcoming() {
     var all = snap.val() || {};
     var rows = [];
     var today = todayStr();
+    allKariCounts = {};
     Object.keys(all).forEach(function (date) {
-      if (date < today) return;
       var dayData = all[date];
+      allKariCounts[date] = Object.keys(dayData).length;
+      if (date < today) return;
       Object.keys(dayData).forEach(function (id) {
         rows.push({ date: date, id: id, e: dayData[id] });
       });
     });
+    renderWeekStrip();
     rows.sort(function (a, b) {
       return (a.date + a.e.start).localeCompare(b.date + b.e.start);
     });
