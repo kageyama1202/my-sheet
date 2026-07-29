@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>仮予約 ログイン</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    background: #0f0f0f;
+    color: #e8e8e8;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .box { width: 100%; max-width: 280px; text-align: center; }
+  .box h1 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #ccc; }
+  .box .sub { font-size: 12px; color: #777; margin-bottom: 20px; }
+  #pin {
+    width: 100%;
+    font-size: 30px;
+    letter-spacing: 10px;
+    text-align: center;
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 10px;
+    color: #e8e8e8;
+    padding: 14px 8px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  #pin:focus { border-color: #4f8ef7; }
+  #err { color: #e05c5c; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  #go {
+    width: 100%;
+    margin-top: 16px;
+    background: #4f8ef7;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #go:active { opacity: 0.75; }
+  #go:disabled { opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>仮予約</h1>
+  <div class="sub">専用の暗証番号を入力してください</div>
+  <input type="tel" id="pin" maxlength="8" inputmode="numeric" autocomplete="off" placeholder="••••" autofocus>
+  <div id="err"></div>
+  <button id="go" onclick="tryLogin()">入る</button>
+</div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+// ★Cloud Functions側に issueKariToken をデプロイ後、URLをここに設定
+var ISSUE_KARI_TOKEN_URL = "https://us-central1-project-6745138395263517914.cloudfunctions.net/issueKariToken";
+
+document.getElementById('pin').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') tryLogin();
+});
+
+function tryLogin() {
+  var pin = document.getElementById('pin').value.trim();
+  var errEl = document.getElementById('err');
+  var btn = document.getElementById('go');
+  errEl.textContent = '';
+  if (!pin) { errEl.textContent = '暗証番号を入力してください'; return; }
+
+  btn.disabled = true;
+
+  fetch(ISSUE_KARI_TOKEN_URL + '?pin=' + encodeURIComponent(pin))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.status !== 'ok') {
+        errEl.textContent = data.message || '暗証番号が違います';
+        document.getElementById('pin').value = '';
+        document.getElementById('pin').focus();
+        btn.disabled = false;
+        return;
+      }
+      return firebase.auth().signInWithCustomToken(data.token).then(function () {
+        var params = new URLSearchParams(location.search);
+        location.href = params.get('return') || 'kari-yoyaku.html';
+      });
+    })
+    .catch(function (e) {
+      console.error(e);
+      errEl.textContent = '通信エラー、もう一度お試しください';
+      btn.disabled = false;
+    });
+}
+</script>
+</body>
+</html>
