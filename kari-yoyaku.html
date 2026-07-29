@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>仮予約</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #4f8ef7;
+    --accent-dim: rgba(79,142,247,0.15);
+    --kari: #f0a500;
+    --kari-dim: rgba(240,165,0,0.18);
+    --kakutei: #2e9e5b;
+    --kakutei-dim: rgba(46,158,91,0.18);
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --danger: #e05c5c;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px 14px 60px;
+  }
+  h1 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 10px; }
+  label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+  input[type=date], input[type=time], input[type=text], textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px;
+    font-size: 15px;
+    outline: none;
+    font-family: var(--font);
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 50px; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > div { flex: 1; }
+  button.primary {
+    width: 100%;
+    margin-top: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:active { opacity: 0.75; }
+  button.primary:disabled { opacity: 0.5; }
+  #formMsg { font-size: 13px; margin-top: 8px; min-height: 16px; }
+  #formMsg.err { color: var(--danger); }
+  #formMsg.ok { color: var(--kakutei); }
+
+  .slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: var(--surface2);
+    margin-bottom: 6px;
+    cursor: pointer;
+    border-left: 3px solid var(--kari);
+  }
+  .slot.kakutei { border-left-color: var(--kakutei); }
+  .slot .time { font-weight: 700; font-size: 13px; min-width: 92px; color: var(--accent); }
+  .slot .who { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--kari-dim); color: var(--kari); font-weight: 700; }
+  .badge.kakutei { background: var(--kakutei-dim); color: var(--kakutei); }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 6px 2px; }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--surface2);
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+  .list-item .d { font-size: 12px; color: var(--text-dim); min-width: 78px; }
+  .list-item .t { font-weight: 700; font-size: 13px; min-width: 88px; color: var(--accent); }
+  .list-item .w { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .target-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 14px;
+    font-size: 15px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .target-btn:active { opacity: 0.7; }
+  .target-btn.current { border-color: var(--accent); color: var(--accent); }
+
+  .switch-target {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    margin-bottom: 14px;
+    display: inline-block;
+  }
+
+  /* modal */
+  #overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #overlay.show { display: flex; }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 18px;
+    padding-bottom: 30px;
+  }
+  #modal h3 { font-size: 15px; margin-bottom: 10px; }
+  #modal .mrow { font-size: 13px; color: #ccc; margin-bottom: 6px; }
+  #modal .mrow b { color: #fff; }
+  #modal .mbtns { display: flex; gap: 8px; margin-top: 14px; }
+  #modal button { flex: 1; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+  #modal .close { background: var(--surface2); color: var(--text); }
+  #modal .del { background: var(--danger); color: #fff; }
+  #modal .conf { background: var(--kakutei); color: #fff; }
+
+  #authNote { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+  #adminBadge { display: inline-block; font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; margin-left: 6px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>仮予約<span id="adminBadge" style="display:none;">管理者</span></h1>
+<div id="authNote" class="sub">読み込み中...</div>
+
+<!-- 対象者選択画面 -->
+<div id="targetPicker" style="display:none;">
+  <div class="card">
+    <h2>誰の予定を仮予約しますか？</h2>
+    <div id="targetList"></div>
+  </div>
+</div>
+
+<!-- 本体（対象者選択後に表示） -->
+<div id="mainArea" style="display:none;">
+  <div><span class="switch-target" onclick="backToPicker()">← 対象者を変更</span></div>
+  <div class="sub" id="targetLabel"></div>
+
+  <div class="card">
+    <h2>この日の仮予約状況</h2>
+    <label>日付</label>
+    <input type="date" id="viewDate">
+    <div id="slotsForDay" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>仮予約を入れる</h2>
+    <div class="row2">
+      <div><label>開始時刻</label><input type="time" id="fStart" value="09:00"></div>
+      <div><label>終了時刻</label><input type="time" id="fEnd" value="10:00"></div>
+    </div>
+    <label>お名前・会社名</label>
+    <input type="text" id="fName" placeholder="例：営業部 山田">
+    <label>案件名・要件メモ</label>
+    <textarea id="fMemo" placeholder="例：〇〇邸 SK下見の件で相談"></textarea>
+    <button class="primary" id="submitBtn" onclick="submitReservation()">この時間で仮予約する</button>
+    <div id="formMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>今後の仮予約 一覧</h2>
+    <div id="upcomingList"><div class="empty">読み込み中...</div></div>
+  </div>
+</div>
+
+<div id="overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <h3 id="mTitle"></h3>
+    <div class="mrow"><b>時間：</b><span id="mTime"></span></div>
+    <div class="mrow"><b>依頼者：</b><span id="mWho"></span></div>
+    <div class="mrow"><b>メモ：</b><span id="mMemo"></span></div>
+    <div class="mrow"><b>状態：</b><span id="mStatus"></span></div>
+    <div class="mbtns">
+      <button class="close" onclick="closeModal()">閉じる</button>
+      <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
+      <button class="del" id="mDelBtn" style="display:none;" onclick="deleteCurrentSlot()">削除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 設定 ============
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var rawDb = firebase.database(); // users/{userKey}/... を明示パスで扱う（scopedDatabaseは使わない）
+
+var isAdmin = false;
+var isKari = false;
+var myUserKey = null;   // 自分がstaffログインしている場合の自分のuserKey（無ければnull）
+var currentUid = null;
+var targetUserKey = null; // 今、誰の枠に仮予約しているか
+var currentDate = todayStr();
+var currentModalPath = null; // "date/id"
+var kariTargets = {};
+
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+document.getElementById('viewDate').value = currentDate;
+
+// ============ 認証 ============
+// 既にlogin.html経由でこのブラウザにスタッフ/管理者セッションがあれば、それをそのまま使う。
+// セッションが無ければ、この機能専用のkari-login.html（専用PIN）へ誘導する。
+firebase.auth().onAuthStateChanged(function (user) {
+  if (user) {
+    afterAuth(user);
+  } else {
+    redirectToKariLogin();
+  }
+});
+
+function redirectToKariLogin() {
+  var here = location.pathname.split('/').pop() || 'kari-yoyaku.html';
+  location.replace('kari-login.html?return=' + encodeURIComponent(here));
+}
+
+function afterAuth(user) {
+  currentUid = user.uid;
+  user.getIdTokenResult().then(function (res) {
+    var claims = res.claims || {};
+    isAdmin = !!claims.admin;
+    isKari = claims.role === 'kari';
+    myUserKey = claims.userKey || null;
+
+    if (!isAdmin && !isKari && claims.role !== 'staff') {
+      firebase.auth().signOut().then(redirectToKariLogin);
+      return;
+    }
+
+    document.getElementById('adminBadge').style.display = isAdmin ? 'inline-block' : 'none';
+    document.getElementById('authNote').textContent = isAdmin
+      ? '管理者としてアクセス中です。'
+      : (isKari ? '仮予約用アカウントでアクセス中です。' : 'スタッフとしてアクセス中です。');
+
+    loadTargets();
+  });
+}
+
+// ============ 対象者選択 ============
+function loadTargets() {
+  rawDb.ref('config/kari_targets').once('value').then(function (snap) {
+    kariTargets = snap.val() || {};
+    renderTargetPicker();
+  }).catch(function (e) {
+    document.getElementById('authNote').textContent = '対象者リストの取得に失敗しました：' + e.message;
+  });
+}
+
+function renderTargetPicker() {
+  var box = document.getElementById('targetList');
+  box.innerHTML = '';
+  var keys = Object.keys(kariTargets);
+  if (keys.length === 0) {
+    box.innerHTML = '<div class="empty">対象者が未登録です（config/kari_targetsに追加してください）</div>';
+  }
+  keys.forEach(function (key) {
+    var btn = document.createElement('button');
+    btn.className = 'target-btn' + (key === myUserKey ? ' current' : '');
+    btn.textContent = (kariTargets[key].name || key) + (key === myUserKey ? '（自分）' : '');
+    btn.onclick = function () { selectTarget(key); };
+    box.appendChild(btn);
+  });
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+
+  // staff/adminとして自分のuserKeyが分かっていれば、選び直す手間を省くため自動選択。
+  // 仮予約(kari)ロールはどの対象にするか毎回選ぶ必要がある（自分の枠を持たないため）。
+  if (myUserKey && kariTargets[myUserKey] && !isKari) {
+    selectTarget(myUserKey);
+  }
+}
+
+function backToPicker() {
+  if (targetUserKey) {
+    rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots').off();
+    rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + currentDate).off();
+  }
+  targetUserKey = null;
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+}
+
+function selectTarget(key) {
+  targetUserKey = key;
+  document.getElementById('targetLabel').textContent = '対象：' + (kariTargets[key].name || key);
+  document.getElementById('targetPicker').style.display = 'none';
+  document.getElementById('mainArea').style.display = 'block';
+  initData();
+}
+
+// ============ データ購読 ============
+function slotsRef(date) {
+  return rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date);
+}
+function slotsRootRef() {
+  return rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots');
+}
+
+var dayListenerDate = null;
+function initData() {
+  attachDayListener(currentDate);
+  document.getElementById('viewDate').onchange = function () {
+    attachDayListener(this.value);
+  };
+  subscribeUpcoming();
+}
+
+function attachDayListener(date) {
+  if (dayListenerDate) slotsRef(dayListenerDate).off('value', renderDayView);
+  currentDate = date;
+  dayListenerDate = date;
+  slotsRef(date).on('value', renderDayView);
+}
+
+function renderDayView(snap) {
+  var data = snap.val() || {};
+  var box = document.getElementById('slotsForDay');
+  var keys = Object.keys(data).sort(function (a, b) {
+    return data[a].start.localeCompare(data[b].start);
+  });
+  if (keys.length === 0) {
+    box.innerHTML = '<div class="empty">この日の仮予約はまだありません</div>';
+    return;
+  }
+  box.innerHTML = '';
+  keys.forEach(function (id) {
+    var e = data[id];
+    var div = document.createElement('div');
+    div.className = 'slot' + (e.status === '確定' ? ' kakutei' : '');
+    div.innerHTML =
+      '<span class="time">' + e.start + '〜' + e.end + '</span>' +
+      '<span class="who">' + escapeHtml(e.requester_name || '') + '</span>' +
+      '<span class="badge' + (e.status === '確定' ? ' kakutei' : '') + '">' + (e.status || '仮') + '</span>';
+    div.onclick = function () { openModal(currentDate, id, e); };
+    box.appendChild(div);
+  });
+}
+
+function subscribeUpcoming() {
+  var box = document.getElementById('upcomingList');
+  slotsRootRef().on('value', function (snap) {
+    var all = snap.val() || {};
+    var rows = [];
+    var today = todayStr();
+    Object.keys(all).forEach(function (date) {
+      if (date < today) return;
+      var dayData = all[date];
+      Object.keys(dayData).forEach(function (id) {
+        rows.push({ date: date, id: id, e: dayData[id] });
+      });
+    });
+    rows.sort(function (a, b) {
+      return (a.date + a.e.start).localeCompare(b.date + b.e.start);
+    });
+    if (rows.length === 0) {
+      box.innerHTML = '<div class="empty">今後の仮予約はありません</div>';
+      return;
+    }
+    box.innerHTML = '';
+    rows.forEach(function (r) {
+      var div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerHTML =
+        '<span class="d">' + r.date + '</span>' +
+        '<span class="t">' + r.e.start + '〜' + r.e.end + '</span>' +
+        '<span class="w">' + escapeHtml(r.e.requester_name || '') + (r.e.status === '確定' ? ' ✅' : '') + '</span>';
+      div.onclick = function () { openModal(r.date, r.id, r.e); };
+      box.appendChild(div);
+    });
+  });
+}
+
+// ============ モーダル ============
+function openModal(date, id, e) {
+  currentModalPath = date + '/' + id;
+  document.getElementById('mTitle').textContent = date + ' の仮予約';
+  document.getElementById('mTime').textContent = e.start + '〜' + e.end;
+  document.getElementById('mWho').textContent = e.requester_name || '(未入力)';
+  document.getElementById('mMemo').textContent = e.memo || '(メモなし)';
+  document.getElementById('mStatus').textContent = e.status || '仮';
+
+  var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
+  document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
+  document.getElementById('mConfBtn').style.display = (isAdmin && e.status !== '確定') ? 'block' : 'none';
+
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('overlay').classList.remove('show');
+  currentModalPath = null;
+}
+function deleteCurrentSlot() {
+  if (!currentModalPath) return;
+  if (!confirm('この仮予約を削除しますか？')) return;
+  slotsRootRef().child(currentModalPath).remove()
+    .then(closeModal)
+    .catch(function (e) { alert('削除できませんでした：' + e.message); });
+}
+function markKakutei() {
+  if (!currentModalPath) return;
+  slotsRootRef().child(currentModalPath).update({ status: '確定' })
+    .then(closeModal)
+    .catch(function (e) { alert('更新できませんでした：' + e.message); });
+}
+
+// ============ 新規予約（重複チェック付きトランザクション） ============
+function submitReservation() {
+  var date = document.getElementById('viewDate').value;
+  var start = document.getElementById('fStart').value;
+  var end = document.getElementById('fEnd').value;
+  var name = document.getElementById('fName').value.trim();
+  var memo = document.getElementById('fMemo').value.trim();
+  var msg = document.getElementById('formMsg');
+  var btn = document.getElementById('submitBtn');
+
+  msg.className = ''; msg.textContent = '';
+
+  if (!date || !start || !end) { msg.className = 'err'; msg.textContent = '日付・開始・終了を入力してください'; return; }
+  if (start >= end) { msg.className = 'err'; msg.textContent = '終了時刻は開始時刻より後にしてください'; return; }
+  if (!name) { msg.className = 'err'; msg.textContent = 'お名前・会社名を入力してください'; return; }
+
+  btn.disabled = true;
+
+  slotsRef(date).transaction(function (current) {
+    current = current || {};
+    for (var key in current) {
+      var e = current[key];
+      if (!(end <= e.start || start >= e.end)) {
+        return; // undefinedを返す＝トランザクション中止（重複あり）
+      }
+    }
+    var newId = rawDb.ref().push().key;
+    current[newId] = {
+      start: start,
+      end: end,
+      requester_name: name,
+      memo: memo,
+      status: '仮',
+      ownerUid: currentUid,
+      created_at: Date.now()
+    };
+    return current;
+  }, function (error, committed) {
+    btn.disabled = false;
+    if (error) {
+      msg.className = 'err'; msg.textContent = '通信エラー：' + error.message;
+    } else if (!committed) {
+      msg.className = 'err'; msg.textContent = 'その時間帯は既に他の仮予約と重複しています。時間を変えてください。';
+    } else {
+      msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
+      document.getElementById('fMemo').value = '';
+    }
+  });
+}
+</script>
+</body>
+</html>
