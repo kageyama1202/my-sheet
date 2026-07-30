@@ -65,7 +65,7 @@
   }
   .card h2 { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 10px; }
   label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
-  input[type=date], input[type=time], input[type=text], textarea {
+  input[type=date], input[type=time], input[type=text], textarea, select {
     width: 100%;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -269,7 +269,7 @@
 <body>
 
 <div id="topBar">
-  <h1 style="display:inline-block;">仮予約<span id="adminBadge" style="display:none;">管理者</span></h1>
+  <span id="adminBadge" style="display:none;">管理者</span>
   <div id="authNote" class="sub" style="margin-bottom:0;">読み込み中...</div>
 </div>
 
@@ -291,13 +291,13 @@
     <h2 class="form-heading">現調依頼したい日を入力してください</h2>
     <div class="sub" id="replyNote" style="margin-bottom:12px;"></div>
 
-    <label>日付</label>
+    <label>日付 <span style="color:var(--danger);">必須</span></label>
     <input type="date" id="viewDate">
     <label>案件名</label>
     <input type="text" id="fCaseName" placeholder="例：〇〇邸 SK下見">
     <label>時間</label>
-    <input type="time" id="fTime" value="09:00">
-    <label>担当者（このデータを入力している人）</label>
+    <select id="fTime"></select>
+    <label>担当者（このデータを入力している人） <span style="color:var(--danger);">必須</span></label>
     <input type="text" id="fTantou">
     <label>住所（簡易）</label>
     <input type="text" id="fArea" list="areaOptions" placeholder="例：豊平区、江別市 など">
@@ -310,7 +310,7 @@
     </datalist>
     <label>内容などのメモ</label>
     <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
-    <button class="primary" id="submitBtn" onclick="submitReservation()">この時間で仮予約する</button>
+    <button class="primary" id="submitBtn" onclick="submitReservation()">この日時で押さえて返答を待つ</button>
     <div id="formMsg"></div>
   </div>
 
@@ -388,6 +388,7 @@ function escapeHtml(s) {
 }
 
 document.getElementById('viewDate').value = currentDate;
+document.getElementById('fTime').innerHTML = generateTimeOptions();
 
 // ============ 認証 ============
 // 既にlogin.html経由でこのブラウザにスタッフ/管理者セッションがあれば、それをそのまま使う。
@@ -839,6 +840,7 @@ function submitReservation() {
     } else {
       msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
       document.getElementById('fCaseName').value = '';
+      document.getElementById('fTime').value = '';
       document.getElementById('fArea').value = '';
       document.getElementById('fMemo').value = '';
     }
