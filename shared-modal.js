@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・添付ファイル追加】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -44,6 +44,18 @@ function formatToYMDModal(ds) {
   if (p.length === 3) return p[0]+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[2]).padStart(2,"0"); return d;
 }
 
+// 📎 添付ファイル機能：firebase-storage.js が未読込のページでも動くよう、必要時に動的読込する
+function ensureFirebaseStorage(callback) {
+  if (window.firebase && firebase.storage) { callback(); return; }
+  var existing = document.querySelector('script[data-fb-storage]');
+  if (existing) { existing.addEventListener('load', callback); return; }
+  var s = document.createElement('script');
+  s.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js';
+  s.setAttribute('data-fb-storage', '1');
+  s.onload = callback;
+  document.head.appendChild(s);
+}
+
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
   var cols = obj.csvData; if (!cols) return;
   var sekouStr = getSafeValModal(cols,2).replace(/\s+/g,"")||"未定";
@@ -54,6 +66,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
   var siteCheckObj = obj.siteCheck || {};
+  var attachmentsObj = obj.attachments || {};
 
   // 即時保存用ヘルパー
   function saveField(updates) {
@@ -74,6 +87,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
   html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button></div></div>';
+
+  // 📎 添付ファイル
+  html += '<div class="modal-section" id="attach-section"><h4 style="color:#00695c;margin-bottom:6px;">📎 添付ファイル</h4>';
+  html += '<div id="attach-area" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;"></div>';
+  html += '<div style="display:flex;gap:8px;">';
+  html += '<button type="button" id="attach-photo-btn" style="padding:6px 12px;font-size:12px;border:none;border-radius:4px;background:#ff6b00;color:#fff;cursor:pointer;">📷 写真</button>';
+  html += '<button type="button" id="attach-file-btn" style="padding:6px 12px;font-size:12px;border:none;border-radius:4px;background:#007bff;color:#fff;cursor:pointer;">📎 ファイル追加</button>';
+  html += '</div>';
+  html += '<input type="file" id="attach-photo-input" accept="image/*" capture="environment" style="display:none;">';
+  html += '<input type="file" id="attach-file-input" multiple style="display:none;">';
+  html += '</div>';
 
   var geoM = obj.geocode || null;
   var geoOkM = geoM && (geoM.confidence === 'exact' || geoM.confidence === 'high') && geoM.lat != null && geoM.lng != null;
@@ -272,6 +296,86 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       }
     });
   }
+
+  // 📎 添付ファイル（Storage + Realtime DB。app_tasks/{key}側とは別書き込みでローカルミラーを正しくネストさせる）
+  function renderAttachments() {
+    var area = document.getElementById('attach-area');
+    if (!area) return;
+    var ids = Object.keys(attachmentsObj);
+    if (ids.length === 0) {
+      area.innerHTML = '<span style="font-size:12px;color:#999;">まだ添付なし</span>';
+      return;
+    }
+    ids.sort(function(a,b){ return (attachmentsObj[b].uploadedAt||0) - (attachmentsObj[a].uploadedAt||0); });
+    var ahtml = '';
+    ids.forEach(function(id){
+      var f = attachmentsObj[id];
+      var isImg = (f.contentType||'').indexOf('image/') === 0;
+      ahtml += '<div style="position:relative;width:64px;">';
+      ahtml += '<a href="'+f.url+'" target="_blank" rel="noopener" style="display:block;text-decoration:none;">';
+      if (isImg) {
+        ahtml += '<img src="'+f.url+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #ddd;display:block;">';
+      } else {
+        ahtml += '<div style="width:64px;height:64px;border-radius:6px;border:1px solid #ddd;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:26px;">📄</div>';
+      }
+      ahtml += '<div style="font-size:10px;color:#666;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">'+escHtmlModal(f.name||'')+'</div>';
+      ahtml += '</a>';
+      ahtml += '<button type="button" class="attach-del-btn" data-id="'+id+'" data-path="'+escHtmlModal(f.storagePath||'')+'" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#e53935;color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;">×</button>';
+      ahtml += '</div>';
+    });
+    area.innerHTML = ahtml;
+    area.querySelectorAll('.attach-del-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (!confirm('この添付ファイルを削除しますか？')) return;
+        var id = this.getAttribute('data-id');
+        var path = this.getAttribute('data-path');
+        ensureFirebaseStorage(function(){
+          if (path) firebase.storage().ref(path).delete().catch(function(e){ console.warn('storage delete warn:', e.message); });
+        });
+        firebaseDB.ref('app_tasks/'+key+'/attachments/'+id).remove().then(function(){
+          delete attachmentsObj[id];
+          if (globalTasks[key]) globalTasks[key].attachments = attachmentsObj;
+          if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+          renderAttachments();
+        });
+      });
+    });
+  }
+
+  function uploadAttachmentModal(file) {
+    ensureFirebaseStorage(function(){
+      var storage = firebase.storage();
+      var fileId = firebaseDB.ref('app_tasks/'+key+'/attachments').push().key;
+      var storagePath = 'users/' + getUserKey() + '/case_files/' + key + '/' + fileId + '_' + file.name;
+      var task = storage.ref(storagePath).put(file);
+      task.on('state_changed', function(){}, function(err){
+        alert('アップロード失敗: ' + err.message);
+      }, function(){
+        task.snapshot.ref.getDownloadURL().then(function(url){
+          var meta = { name: file.name, url: url, storagePath: storagePath, contentType: file.type||'', size: file.size||0, uploadedAt: Date.now() };
+          firebaseDB.ref('app_tasks/'+key+'/attachments/'+fileId).set(meta).then(function(){
+            attachmentsObj[fileId] = meta;
+            if (!globalTasks[key]) globalTasks[key] = obj;
+            globalTasks[key].attachments = attachmentsObj;
+            if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+            renderAttachments();
+          });
+        });
+      });
+    });
+  }
+
+  renderAttachments();
+  document.getElementById('attach-photo-btn').addEventListener('click', function(){ document.getElementById('attach-photo-input').click(); });
+  document.getElementById('attach-file-btn').addEventListener('click', function(){ document.getElementById('attach-file-input').click(); });
+  document.getElementById('attach-photo-input').addEventListener('change', function(e){
+    if (e.target.files[0]) uploadAttachmentModal(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('attach-file-input').addEventListener('change', function(e){
+    Array.prototype.forEach.call(e.target.files, function(f){ uploadAttachmentModal(f); });
+    e.target.value = '';
+  });
 
   document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
   document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
