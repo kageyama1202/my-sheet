@@ -294,14 +294,16 @@
     <h2 class="form-heading">現調依頼したい日を入力してください</h2>
     <div class="sub" id="replyNote" style="margin-bottom:12px;"></div>
 
-    <label>日付 <span style="color:var(--danger);">必須</span></label>
+    <label>参照日（カレンダー表示切替用）</label>
     <input type="date" id="viewDate">
     <label>案件名</label>
     <input type="text" id="fCaseName" placeholder="例：〇〇邸 SK下見">
-    <label>時間</label>
-    <select id="fTime"></select>
+    <label>候補日・時間 <span style="color:var(--danger);">必須</span>（複数登録可）</label>
+    <div id="dateRows"></div>
+    <button type="button" class="week-nav" id="addDateRowBtn" style="width:100%;margin-top:2px;margin-bottom:10px;">＋ 候補日を追加</button>
     <label>担当者（このデータを入力している人） <span style="color:var(--danger);">必須</span></label>
-    <input type="text" id="fTantou">
+    <input type="text" id="fTantou" list="tantouOptions">
+    <datalist id="tantouOptions"></datalist>
     <label>住所（簡易）</label>
     <input type="text" id="fArea" list="areaOptions" placeholder="例：豊平区、江別市 など">
     <datalist id="areaOptions">
@@ -312,9 +314,11 @@
       <option value="南幌町"><option value="石狩市"><option value="その他">
     </datalist>
     <label>メールアドレス <span style="color:var(--danger);">※電話番号とどちらか必須</span></label>
-    <input type="text" id="fEmail" placeholder="example@example.com">
+    <input type="text" id="fEmail" list="emailOptions" placeholder="example@example.com">
+    <datalist id="emailOptions"></datalist>
     <label>電話番号 <span style="color:var(--danger);">※メールとどちらか必須</span></label>
-    <input type="text" id="fTel" placeholder="09012345678">
+    <input type="text" id="fTel" list="telOptions" placeholder="09012345678">
+    <datalist id="telOptions"></datalist>
     <label>内容などのメモ</label>
     <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
     <label>図面など添付（任意）</label>
@@ -401,8 +405,37 @@ function escapeHtml(s) {
   });
 }
 
+function createDateRow(defaultDate) {
+  var row = document.createElement('div');
+  row.className = 'date-row';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+  var d = document.createElement('input');
+  d.type = 'date'; d.className = 'cDate'; d.style.flex = '1.3';
+  d.value = defaultDate || document.getElementById('viewDate').value;
+  var t = document.createElement('select');
+  t.className = 'cTime'; t.style.flex = '1';
+  t.innerHTML = generateTimeOptions();
+  var rm = document.createElement('button');
+  rm.type = 'button'; rm.textContent = '×';
+  rm.style.cssText = 'padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:15px;';
+  rm.onclick = function () {
+    if (document.querySelectorAll('#dateRows .date-row').length > 1) row.remove();
+  };
+  row.appendChild(d); row.appendChild(t); row.appendChild(rm);
+  return row;
+}
+function addDateRow() {
+  document.getElementById('dateRows').appendChild(createDateRow());
+}
+function resetDateRows() {
+  var box = document.getElementById('dateRows');
+  box.innerHTML = '';
+  box.appendChild(createDateRow());
+}
+
 document.getElementById('viewDate').value = currentDate;
-document.getElementById('fTime').innerHTML = generateTimeOptions();
+document.getElementById('dateRows').appendChild(createDateRow());
+document.getElementById('addDateRowBtn').onclick = addDateRow;
 
 // ============ 認証 ============
 // 既にlogin.html経由でこのブラウザにスタッフ/管理者セッションがあれば、それをそのまま使う。
@@ -514,6 +547,69 @@ function loadCaseData(key) {
   rawDb.ref('users/' + key + '/app_meta/headers').once('value').then(function (snap) {
     window.__kariGlobalHeaders = snap.val() || [];
   }).catch(function (e) { console.warn('app_meta取得失敗', e); });
+  loadContacts(key);
+}
+
+// ============ 担当者・連絡先の候補（一度入力したものを保存して再利用） ============
+var targetContacts = {}; // sanitizedKey -> {tantou, email, tel}
+function sanitizeContactKey(name) {
+  return name.trim().replace(/[.#$\[\]\/]/g, '_').substring(0, 60);
+}
+function loadContacts(key) {
+  targetContacts = {};
+  rawDb.ref('users/' + key + '/kari_contacts').once('value').then(function (snap) {
+    targetContacts = snap.val() || {};
+    renderContactOptions();
+  }).catch(function (e) { console.warn('kari_contacts取得失敗', e); });
+}
+function renderContactOptions() {
+  var list = Object.keys(targetContacts).map(function (k) { return targetContacts[k]; });
+  document.getElementById('tantouOptions').innerHTML = list.map(function (c) { return '<option value="' + escapeHtml(c.tantou || '') + '">'; }).join('');
+  document.getElementById('emailOptions').innerHTML = list.filter(function (c) { return c.email; }).map(function (c) { return '<option value="' + escapeHtml(c.email) + '">'; }).join('');
+  document.getElementById('telOptions').innerHTML = list.filter(function (c) { return c.tel; }).map(function (c) { return '<option value="' + escapeHtml(c.tel) + '">'; }).join('');
+}
+function findContactBy(field, value) {
+  value = (value || '').trim();
+  if (!value) return null;
+  var keys = Object.keys(targetContacts);
+  for (var i = 0; i < keys.length; i++) {
+    if ((targetContacts[keys[i]][field] || '') === value) return targetContacts[keys[i]];
+  }
+  return null;
+}
+function wireContactAutofill() {
+  document.getElementById('fTantou').addEventListener('change', function () {
+    var c = findContactBy('tantou', this.value);
+    if (c) {
+      if (c.email && !document.getElementById('fEmail').value) document.getElementById('fEmail').value = c.email;
+      if (c.tel && !document.getElementById('fTel').value) document.getElementById('fTel').value = c.tel;
+    }
+  });
+  document.getElementById('fEmail').addEventListener('change', function () {
+    var c = findContactBy('email', this.value);
+    if (c) {
+      if (c.tantou && !document.getElementById('fTantou').value) document.getElementById('fTantou').value = c.tantou;
+      if (c.tel && !document.getElementById('fTel').value) document.getElementById('fTel').value = c.tel;
+    }
+  });
+  document.getElementById('fTel').addEventListener('change', function () {
+    var c = findContactBy('tel', this.value);
+    if (c) {
+      if (c.tantou && !document.getElementById('fTantou').value) document.getElementById('fTantou').value = c.tantou;
+      if (c.email && !document.getElementById('fEmail').value) document.getElementById('fEmail').value = c.email;
+    }
+  });
+}
+wireContactAutofill();
+function saveContact(tantou, email, tel) {
+  if (!tantou) return;
+  var key = sanitizeContactKey(tantou);
+  rawDb.ref('users/' + targetUserKey + '/kari_contacts/' + key).set({
+    tantou: tantou, email: email || '', tel: tel || '', updated_at: Date.now()
+  }).then(function () {
+    targetContacts[key] = { tantou: tantou, email: email || '', tel: tel || '' };
+    renderContactOptions();
+  }).catch(function (e) { console.warn('kari_contacts保存失敗', e); });
 }
 function formatToYMD(v) {
   if (!v) return '';
@@ -859,9 +955,7 @@ function unmarkKakutei() {
 
 // ============ 新規予約（重複チェック付きトランザクション） ============
 function submitReservation() {
-  var date = document.getElementById('viewDate').value;
   var caseName = document.getElementById('fCaseName').value.trim();
-  var time = document.getElementById('fTime').value;
   var tantou = document.getElementById('fTantou').value.trim();
   var area = document.getElementById('fArea').value.trim();
   var email = document.getElementById('fEmail').value.trim();
@@ -876,18 +970,30 @@ function submitReservation() {
   msg.className = ''; msg.textContent = '';
   attachMsg.textContent = '';
 
-  if (!date || !time) { msg.className = 'err'; msg.textContent = '日付・時間を入力してください'; return; }
+  var rowEls = document.querySelectorAll('#dateRows .date-row');
+  var candidates = [];
+  var seen = {};
+  for (var i = 0; i < rowEls.length; i++) {
+    var d = rowEls[i].querySelector('.cDate').value;
+    var t = rowEls[i].querySelector('.cTime').value;
+    if (!d || !t) { msg.className = 'err'; msg.textContent = '候補日はすべて日付・時間を入力してください'; return; }
+    var dk = d + ' ' + t;
+    if (seen[dk]) { msg.className = 'err'; msg.textContent = '同じ日付・時間の候補が重複しています'; return; }
+    seen[dk] = true;
+    candidates.push({ date: d, time: t });
+  }
   if (!tantou) { msg.className = 'err'; msg.textContent = '担当者を入力してください'; return; }
   if (!email && !tel) { msg.className = 'err'; msg.textContent = 'メールアドレスか電話番号のどちらかを入力してください'; return; }
   if (file && file.size > 15 * 1024 * 1024) { msg.className = 'err'; msg.textContent = '添付ファイルは15MB以内にしてください'; return; }
 
   btn.disabled = true;
-  var newId = rawDb.ref().push().key;
+  var groupId = candidates.length > 1 ? rawDb.ref().push().key : null;
+  var uploadId = groupId || rawDb.ref().push().key;
 
   var uploadPromise = Promise.resolve({ url: '', name: '' });
   if (file) {
     attachMsg.textContent = 'ファイルをアップロード中...';
-    var storagePath = 'users/' + targetUserKey + '/kari_attachments/' + date + '_' + newId + '_' + file.name;
+    var storagePath = 'users/' + targetUserKey + '/kari_attachments/' + uploadId + '_' + file.name;
     var uploadTask = rawStorage.ref(storagePath).put(file);
     uploadPromise = uploadTask.then(function (snap) {
       return snap.ref.getDownloadURL();
@@ -898,44 +1004,59 @@ function submitReservation() {
   }
 
   uploadPromise.then(function (attach) {
-    return slotsRef(date).transaction(function (current) {
-      current = current || {};
-      for (var key in current) {
-        var e = current[key];
-        if (e.start === time) {
-          return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
+    var promises = candidates.map(function (c) {
+      var newId = rawDb.ref().push().key;
+      return slotsRef(c.date).transaction(function (current) {
+        current = current || {};
+        for (var key in current) {
+          var e = current[key];
+          if (e.start === c.time) {
+            return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
+          }
         }
-      }
-      current[newId] = {
-        case_name: caseName,
-        start: time,
-        tantou: tantou,
-        area: area,
-        email: email,
-        tel: tel,
-        memo: memo,
-        attachment_url: attach.url,
-        attachment_name: attach.name,
-        status: '仮',
-        ownerUid: currentUid,
-        created_at: Date.now()
-      };
-      return current;
+        var record = {
+          case_name: caseName,
+          start: c.time,
+          tantou: tantou,
+          area: area,
+          email: email,
+          tel: tel,
+          memo: memo,
+          attachment_url: attach.url,
+          attachment_name: attach.name,
+          status: '仮',
+          ownerUid: currentUid,
+          created_at: Date.now()
+        };
+        if (groupId) record.candidate_group = groupId;
+        current[newId] = record;
+        return current;
+      }).then(function (result) {
+        return { date: c.date, time: c.time, committed: result.committed };
+      });
     });
-  }).then(function (result) {
+    return Promise.all(promises);
+  }).then(function (results) {
     btn.disabled = false;
-    if (!result.committed) {
-      msg.className = 'err'; msg.textContent = 'その時刻には既に他の仮予約が入っています。時間を変えてください。';
-      return;
+    var failed = results.filter(function (r) { return !r.committed; });
+    var okCount = results.length - failed.length;
+    if (failed.length === 0) {
+      msg.className = 'ok';
+      msg.textContent = results.length > 1 ? (results.length + '件の候補日で仮予約を登録しました。') : '仮予約を登録しました。';
+    } else if (okCount === 0) {
+      msg.className = 'err'; msg.textContent = 'すべての候補日で時間が重複していました。時間を変えてください。';
+    } else {
+      msg.className = 'err';
+      msg.textContent = okCount + '件登録しましたが、' + failed.map(function (f) { return f.date + ' ' + f.time; }).join('、') + ' は既に埋まっていたため登録できませんでした。';
     }
-    msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
+    if (okCount > 0) saveContact(tantou, email, tel);
     document.getElementById('fCaseName').value = '';
-    document.getElementById('fTime').value = '';
     document.getElementById('fArea').value = '';
     document.getElementById('fEmail').value = '';
     document.getElementById('fTel').value = '';
     document.getElementById('fMemo').value = '';
     fileInput.value = '';
+    resetDateRows();
   }).catch(function (error) {
     btn.disabled = false;
     attachMsg.textContent = '';
