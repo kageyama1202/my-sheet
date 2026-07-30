@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-07-30 -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📁 保存庫</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <script src="user-scope.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 16px; }
+    .container { max-width: 700px; margin: 0 auto; }
+    .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .top-bar h1 { font-size: 20px; color: #333; margin: 0; }
+    .back-link { font-size: 13px; color: #555; text-decoration: none; border: 1px solid #ccc; padding: 6px 12px; border-radius: 6px; background: #fff; }
+    .back-link:hover { background: #eee; }
+
+    .upload-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+    .upload-btn { flex: 1; text-align: center; padding: 14px 8px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; color: #fff; }
+    .upload-btn.photo { background: #ff6b00; }
+    .upload-btn.file { background: #007bff; }
+    .upload-btn:active { opacity: 0.8; }
+
+    .progress-box { display: none; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+
+    .file-list { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+    .file-row { display: flex; align-items: center; padding: 12px 14px; border-bottom: 1px solid #eee; gap: 12px; }
+    .file-row:last-child { border-bottom: none; }
+    .file-icon { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 14px; color: #222; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { font-size: 11px; color: #999; margin-top: 2px; }
+    .file-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .file-actions a, .file-actions button { display: inline-block; text-decoration: none; font-size: 12px; padding: 6px 10px; border-radius: 4px; border: none; cursor: pointer; }
+    .open-btn { background: #e8f0fe; color: #1a56c4; }
+    .del-btn { background: #fdecea; color: #c62828; }
+
+    .empty-msg { text-align: center; color: #999; padding: 40px 20px; font-size: 14px; }
+    .status-msg { text-align: center; color: #999; padding: 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <h1>📁 保存庫</h1>
+      <a href="index.html" class="back-link">🏠 トップへ</a>
+    </div>
+
+    <div class="upload-bar">
+      <button class="upload-btn photo" id="btnPhoto">📷 写真を撮る</button>
+      <button class="upload-btn file" id="btnFile">📁 ファイルを選ぶ</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="fileInput" multiple style="display:none;">
+
+    <div class="progress-box" id="progressBox"></div>
+
+    <div id="fileList" class="file-list">
+      <div class="status-msg">読込中...</div>
+    </div>
+  </div>
+
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+      authDomain: "project-6745138395263517914.firebaseapp.com",
+      databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+      projectId: "project-6745138395263517914",
+      storageBucket: "project-6745138395263517914.firebasestorage.app",
+      messagingSenderId: "1054295910908",
+      appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+    };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    var database = scopedDatabase(firebase.database());
+    var storage = firebase.storage();
+
+    function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    function formatDate(ts) {
+      if (!ts) return '';
+      var d = new Date(ts);
+      return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2);
+    }
+    function iconFor(file) {
+      var ct = file.contentType || '';
+      var name = (file.name || '').toLowerCase();
+      if (ct.indexOf('image/') === 0) {
+        return '<img class="file-icon" src="' + file.url + '" alt="">';
+      }
+      var emoji = '📄';
+      if (name.endsWith('.pdf')) emoji = '📕';
+      else if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) emoji = '📊';
+      else if (name.endsWith('.doc') || name.endsWith('.docx')) emoji = '📝';
+      else if (name.endsWith('.zip') || name.endsWith('.rar')) emoji = '🗜️';
+      return '<div class="file-icon">' + emoji + '</div>';
+    }
+
+    function renderList(filesObj) {
+      var listEl = document.getElementById('fileList');
+      var keys = filesObj ? Object.keys(filesObj) : [];
+      if (keys.length === 0) {
+        listEl.innerHTML = '<div class="empty-msg">まだファイルがありません<br><span style="font-size:12px;">上のボタンから写真やファイルを追加してください</span></div>';
+        return;
+      }
+      keys.sort(function(a, b) { return (filesObj[b].uploadedAt || 0) - (filesObj[a].uploadedAt || 0); });
+      var html = '';
+      keys.forEach(function(id) {
+        var f = filesObj[id];
+        html += '<div class="file-row">';
+        html += iconFor(f);
+        html += '<div class="file-info"><div class="file-name">' + escHtml(f.name || '') + '</div>';
+        html += '<div class="file-meta">' + formatSize(f.size) + ' ・ ' + formatDate(f.uploadedAt) + '</div></div>';
+        html += '<div class="file-actions">';
+        html += '<a class="open-btn" href="' + f.url + '" target="_blank" rel="noopener">開く</a>';
+        html += '<button class="del-btn" data-id="' + id + '" data-path="' + escHtml(f.storagePath) + '">削除</button>';
+        html += '</div></div>';
+      });
+      listEl.innerHTML = html;
+
+      listEl.querySelectorAll('.del-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (!confirm('このファイルを削除しますか？')) return;
+          var id = this.getAttribute('data-id');
+          var path = this.getAttribute('data-path');
+          storage.ref(path).delete().catch(function(e) { console.warn('storage delete warn:', e.message); });
+          database.ref('personal_files/' + id).remove();
+        });
+      });
+    }
+
+    function escHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    database.ref('personal_files').on('value', function(snap) {
+      renderList(snap.val());
+    });
+
+    function uploadFile(file) {
+      var progressBox = document.getElementById('progressBox');
+      var fileId = database.ref('personal_files').push().key;
+      var storagePath = 'users/' + getUserKey() + '/personal_files/' + fileId + '_' + file.name;
+      var task = storage.ref(storagePath).put(file);
+
+      progressBox.style.display = 'block';
+      progressBox.textContent = '⏳ アップロード中: ' + file.name + ' (0%)';
+
+      task.on('state_changed', function(snap) {
+        var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        progressBox.textContent = '⏳ アップロード中: ' + file.name + ' (' + pct + '%)';
+      }, function(err) {
+        progressBox.textContent = '❌ アップロード失敗: ' + err.message;
+        setTimeout(function() { progressBox.style.display = 'none'; }, 4000);
+      }, function() {
+        task.snapshot.ref.getDownloadURL().then(function(url) {
+          database.ref('personal_files/' + fileId).set({
+            name: file.name,
+            url: url,
+            storagePath: storagePath,
+            contentType: file.type || '',
+            size: file.size || 0,
+            uploadedAt: Date.now()
+          }).then(function() {
+            progressBox.textContent = '✅ 追加しました: ' + file.name;
+            setTimeout(function() { progressBox.style.display = 'none'; }, 2000);
+          });
+        });
+      });
+    }
+
+    document.getElementById('btnPhoto').addEventListener('click', function() {
+      document.getElementById('photoInput').click();
+    });
+    document.getElementById('btnFile').addEventListener('click', function() {
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('photoInput').addEventListener('change', function(e) {
+      if (e.target.files[0]) uploadFile(e.target.files[0]);
+      e.target.value = '';
+    });
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      Array.prototype.forEach.call(e.target.files, function(f) { uploadFile(f); });
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>
