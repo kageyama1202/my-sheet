@@ -236,6 +236,7 @@ function openKariModalToday(ev){
   if(ev.attachment_url) html+='<tr><th>添付</th><td><a href="'+ev.attachment_url+'" target="_blank" style="color:#0056b3;">📎 '+(ev.attachment_name||'ファイルを開く')+'</a></td></tr>';
   html+='</table><div style="display:flex;gap:8px;margin-top:12px;">';
   if(ev.status!=='確定') html+='<button id="kariConfirmBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">確定にする</button>';
+  if(ev.status==='確定') html+='<button id="kariUnconfirmBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#888;color:#fff;cursor:pointer;">確定解除</button>';
   if(ev.email) html+='<button id="kariMailBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#4f8ef7;color:#fff;cursor:pointer;">📧 メールで連絡</button>';
   if(ev.tel) html+='<button id="kariSmsBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e7d5b;color:#fff;cursor:pointer;">💬 SMSで連絡</button>';
   html+='</div><div style="font-size:11px;color:#888;margin-top:8px;">削除はkari-yoyaku.htmlで行ってください</div>';
@@ -249,6 +250,13 @@ function openKariModalToday(ev){
         document.getElementById('modal-overlay').style.display='none';
         var updated={};for(var k in ev)updated[k]=ev[k];updated.status='確定';
         kariLaunchContact(updated);
+      }).catch(function(e){alert('更新できませんでした：'+e.message);});
+    };
+  }
+  if(ev.status==='確定'){
+    document.getElementById('kariUnconfirmBtn').onclick=function(){
+      database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'仮'}).then(function(){
+        document.getElementById('modal-overlay').style.display='none';
       }).catch(function(e){alert('更新できませんでした：'+e.message);});
     };
   }
