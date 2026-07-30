@@ -359,6 +359,7 @@
     <div class="mbtns">
       <button class="close" onclick="closeModal()">閉じる</button>
       <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
+      <button class="close" id="mUnconfBtn" style="display:none;" onclick="unmarkKakutei()">確定解除</button>
       <button class="del" id="mDelBtn" style="display:none;" onclick="deleteCurrentSlot()">削除</button>
     </div>
   </div>
@@ -751,6 +752,7 @@ function openModal(date, id, e) {
   var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
   document.getElementById('mConfBtn').style.display = (isAdmin && e.status !== '確定') ? 'block' : 'none';
+  document.getElementById('mUnconfBtn').style.display = (canDelete && e.status === '確定') ? 'block' : 'none';
 
   document.getElementById('overlay').classList.add('show');
 }
@@ -764,6 +766,7 @@ function openPersonalInfoModal(item) {
   ]);
   document.getElementById('mDelBtn').style.display = 'none';
   document.getElementById('mConfBtn').style.display = 'none';
+  document.getElementById('mUnconfBtn').style.display = 'none';
   document.getElementById('overlay').classList.add('show');
 }
 
@@ -844,6 +847,13 @@ function markKakutei() {
       closeModal();
       if (record) launchContact(record.date, Object.assign({}, record.e, { status: '確定' }));
     })
+    .catch(function (e) { alert('更新できませんでした：' + e.message); });
+}
+
+function unmarkKakutei() {
+  if (!currentModalPath) return;
+  slotsRootRef().child(currentModalPath).update({ status: '仮' })
+    .then(closeModal)
     .catch(function (e) { alert('更新できませんでした：' + e.message); });
 }
 
