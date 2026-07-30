@@ -751,7 +751,7 @@ function openModal(date, id, e) {
 
   var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
-  document.getElementById('mConfBtn').style.display = (isAdmin && e.status !== '確定') ? 'block' : 'none';
+  document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && e.status !== '確定') ? 'block' : 'none';
   document.getElementById('mUnconfBtn').style.display = (canDelete && e.status === '確定') ? 'block' : 'none';
 
   document.getElementById('overlay').classList.add('show');
