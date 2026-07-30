@@ -618,6 +618,16 @@ function formatToYMD(v) {
   if (!m) return '';
   return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
 }
+function countCandidateGroup(groupId) {
+  var c = 0;
+  Object.keys(allKariSlotsData).forEach(function (date) {
+    var day = allKariSlotsData[date];
+    Object.keys(day).forEach(function (id) {
+      if (day[id].candidate_group === groupId) c++;
+    });
+  });
+  return c;
+}
 function extractArea(addr) {
   if (!addr) return '';
   var a = addr.replace(/\s+/g, '');
@@ -653,10 +663,11 @@ function buildDayItems(date) {
   var kday = (allKariSlotsData[date]) || {};
   Object.keys(kday).forEach(function (id) {
     var e = kday[id];
+    var groupTag = e.candidate_group ? '（候補' + countCandidateGroup(e.candidate_group) + '件中）' : '';
     items.push({
       badge: e.status === '確定' ? '✅' : '🟠',
       kindLabel: e.status === '確定' ? '確定' : '仮予約',
-      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + (e.attachment_url ? ' 📎' : ''),
+      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + groupTag + (e.attachment_url ? ' 📎' : ''),
       area: e.area || '', time: e.start || '',
       order: '',
       kari: true, kariDate: date, kariId: id, kariE: e
@@ -832,6 +843,9 @@ function openModal(date, id, e) {
     { label: 'メモ', value: e.memo || '(メモなし)' },
     { label: '状態', value: e.status || '仮' }
   ]);
+  if (e.candidate_group) {
+    document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>候補日：</b>同じ案件で他に ' + (countCandidateGroup(e.candidate_group) - 1) + ' 件の候補日があります</div>';
+  }
   if (e.attachment_url) {
     document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
   }
