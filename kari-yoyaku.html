@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
 <script src="shared-modal.js"></script>
 <style>
@@ -261,6 +262,8 @@
   #modal .close { background: var(--surface2); color: var(--text); }
   #modal .del { background: var(--danger); color: #fff; }
   #modal .conf { background: var(--kakutei); color: #fff; }
+  #modal .mail { background: var(--accent); color: #fff; }
+  #modal .sms { background: #2e7d5b; color: #fff; }
 
   #authNote { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
   #adminBadge { display: inline-block; font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; margin-left: 6px; font-weight: 700; }
@@ -308,8 +311,15 @@
       <option value="江別市"><option value="北広島市"><option value="倶知安町"><option value="岩見沢市">
       <option value="南幌町"><option value="石狩市"><option value="その他">
     </datalist>
+    <label>メールアドレス <span style="color:var(--danger);">※電話番号とどちらか必須</span></label>
+    <input type="text" id="fEmail" placeholder="example@example.com">
+    <label>電話番号 <span style="color:var(--danger);">※メールとどちらか必須</span></label>
+    <input type="text" id="fTel" placeholder="09012345678">
     <label>内容などのメモ</label>
     <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
+    <label>図面など添付（任意）</label>
+    <input type="file" id="fAttachment" accept="image/*,.pdf">
+    <div id="attachMsg" style="font-size:11px;color:var(--text-dim);margin-top:4px;"></div>
     <button class="primary" id="submitBtn" onclick="submitReservation()">この日時で押さえて返答を待つ</button>
     <div id="formMsg"></div>
   </div>
@@ -345,6 +355,7 @@
   <div id="modal">
     <h3 id="mTitle"></h3>
     <div id="modalRows"></div>
+    <div id="mContactBtns" class="mbtns" style="display:none;"></div>
     <div class="mbtns">
       <button class="close" onclick="closeModal()">閉じる</button>
       <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
@@ -366,6 +377,7 @@ var firebaseConfig = {
 };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var rawDb = firebase.database(); // users/{userKey}/... を明示パスで扱う（scopedDatabaseは使わない）
+var rawStorage = firebase.storage();
 
 var isAdmin = false;
 var isKari = false;
@@ -374,6 +386,7 @@ var currentUid = null;
 var targetUserKey = null; // 今、誰の枠に仮予約しているか
 var currentDate = todayStr();
 var currentModalPath = null; // "date/id"
+var currentModalRecord = null; // 確定時の連絡アプリ起動用
 var kariTargets = {};
 
 function todayStr() {
@@ -546,7 +559,7 @@ function buildDayItems(date) {
     items.push({
       badge: e.status === '確定' ? '✅' : '🟠',
       kindLabel: e.status === '確定' ? '確定' : '仮予約',
-      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : ''),
+      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + (e.attachment_url ? ' 📎' : ''),
       area: e.area || '', time: e.start || '',
       order: '',
       kari: true, kariDate: date, kariId: id, kariE: e
@@ -710,15 +723,30 @@ function rowsHtml(rows) {
 
 function openModal(date, id, e) {
   currentModalPath = date + '/' + id;
+  currentModalRecord = { date: date, e: e };
   document.getElementById('mTitle').textContent = date + ' の仮予約';
   document.getElementById('modalRows').innerHTML = rowsHtml([
     { label: '案件名', value: e.case_name || '(未入力)' },
     { label: '時間', value: e.start || '' },
     { label: '担当者', value: e.tantou || '(未入力)' },
     { label: '住所（簡易）', value: e.area || '(未入力)' },
+    { label: 'メール', value: e.email || '(未入力)' },
+    { label: '電話番号', value: e.tel || '(未入力)' },
     { label: 'メモ', value: e.memo || '(メモなし)' },
     { label: '状態', value: e.status || '仮' }
   ]);
+  if (e.attachment_url) {
+    document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
+  }
+
+  var contactBox = document.getElementById('mContactBtns');
+  var contactHtml = '';
+  if (e.email) contactHtml += '<button class="mail" id="mMailBtn">📧 メールで連絡</button>';
+  if (e.tel) contactHtml += '<button class="sms" id="mSmsBtn">💬 SMSで連絡</button>';
+  contactBox.innerHTML = contactHtml;
+  contactBox.style.display = contactHtml ? 'flex' : 'none';
+  if (e.email) document.getElementById('mMailBtn').onclick = function () { location.href = buildMailto(date, e); };
+  if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
 
   var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
@@ -786,10 +814,36 @@ function deleteCurrentSlot() {
     .then(closeModal)
     .catch(function (e) { alert('削除できませんでした：' + e.message); });
 }
+function buildMailto(date, e) {
+  var subject = encodeURIComponent('【現調仮予約】' + (e.case_name || '') + ' ' + date + ' ' + (e.start || ''));
+  var body = encodeURIComponent(
+    (e.tantou || '') + ' 様\n\n' +
+    '仮予約の件、確認いたしました。\n\n' +
+    '日付：' + date + '\n時間：' + (e.start || '') + '\n案件名：' + (e.case_name || '') + '\n\n' +
+    '状態：' + (e.status || '仮') + '\n\n' +
+    'ご確認よろしくお願いいたします。'
+  );
+  return 'mailto:' + encodeURIComponent(e.email) + '?subject=' + subject + '&body=' + body;
+}
+function buildSms(date, e) {
+  var smsBody = encodeURIComponent(
+    (e.tantou || '') + '様　仮予約の件、確認いたしました。日付：' + date + ' 時間：' + (e.start || '') + ' 案件名：' + (e.case_name || '') + ' 状態：' + (e.status || '仮')
+  );
+  return 'sms:' + encodeURIComponent(e.tel) + '?body=' + smsBody;
+}
+function launchContact(date, e) {
+  if (e.email) location.href = buildMailto(date, e);
+  else if (e.tel) location.href = buildSms(date, e);
+}
+
 function markKakutei() {
   if (!currentModalPath) return;
+  var record = currentModalRecord;
   slotsRootRef().child(currentModalPath).update({ status: '確定' })
-    .then(closeModal)
+    .then(function () {
+      closeModal();
+      if (record) launchContact(record.date, Object.assign({}, record.e, { status: '確定' }));
+    })
     .catch(function (e) { alert('更新できませんでした：' + e.message); });
 }
 
@@ -800,50 +854,82 @@ function submitReservation() {
   var time = document.getElementById('fTime').value;
   var tantou = document.getElementById('fTantou').value.trim();
   var area = document.getElementById('fArea').value.trim();
+  var email = document.getElementById('fEmail').value.trim();
+  var tel = document.getElementById('fTel').value.trim();
   var memo = document.getElementById('fMemo').value.trim();
+  var fileInput = document.getElementById('fAttachment');
+  var file = fileInput.files && fileInput.files[0];
   var msg = document.getElementById('formMsg');
+  var attachMsg = document.getElementById('attachMsg');
   var btn = document.getElementById('submitBtn');
 
   msg.className = ''; msg.textContent = '';
+  attachMsg.textContent = '';
 
   if (!date || !time) { msg.className = 'err'; msg.textContent = '日付・時間を入力してください'; return; }
   if (!tantou) { msg.className = 'err'; msg.textContent = '担当者を入力してください'; return; }
+  if (!email && !tel) { msg.className = 'err'; msg.textContent = 'メールアドレスか電話番号のどちらかを入力してください'; return; }
+  if (file && file.size > 15 * 1024 * 1024) { msg.className = 'err'; msg.textContent = '添付ファイルは15MB以内にしてください'; return; }
 
   btn.disabled = true;
+  var newId = rawDb.ref().push().key;
 
-  slotsRef(date).transaction(function (current) {
-    current = current || {};
-    for (var key in current) {
-      var e = current[key];
-      if (e.start === time) {
-        return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
+  var uploadPromise = Promise.resolve({ url: '', name: '' });
+  if (file) {
+    attachMsg.textContent = 'ファイルをアップロード中...';
+    var storagePath = 'users/' + targetUserKey + '/kari_attachments/' + date + '_' + newId + '_' + file.name;
+    var uploadTask = rawStorage.ref(storagePath).put(file);
+    uploadPromise = uploadTask.then(function (snap) {
+      return snap.ref.getDownloadURL();
+    }).then(function (url) {
+      attachMsg.textContent = '';
+      return { url: url, name: file.name };
+    });
+  }
+
+  uploadPromise.then(function (attach) {
+    return slotsRef(date).transaction(function (current) {
+      current = current || {};
+      for (var key in current) {
+        var e = current[key];
+        if (e.start === time) {
+          return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
+        }
       }
-    }
-    var newId = rawDb.ref().push().key;
-    current[newId] = {
-      case_name: caseName,
-      start: time,
-      tantou: tantou,
-      area: area,
-      memo: memo,
-      status: '仮',
-      ownerUid: currentUid,
-      created_at: Date.now()
-    };
-    return current;
-  }, function (error, committed) {
+      current[newId] = {
+        case_name: caseName,
+        start: time,
+        tantou: tantou,
+        area: area,
+        email: email,
+        tel: tel,
+        memo: memo,
+        attachment_url: attach.url,
+        attachment_name: attach.name,
+        status: '仮',
+        ownerUid: currentUid,
+        created_at: Date.now()
+      };
+      return current;
+    });
+  }).then(function (result) {
     btn.disabled = false;
-    if (error) {
-      msg.className = 'err'; msg.textContent = '通信エラー：' + error.message;
-    } else if (!committed) {
+    if (!result.committed) {
       msg.className = 'err'; msg.textContent = 'その時刻には既に他の仮予約が入っています。時間を変えてください。';
-    } else {
-      msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
-      document.getElementById('fCaseName').value = '';
-      document.getElementById('fTime').value = '';
-      document.getElementById('fArea').value = '';
-      document.getElementById('fMemo').value = '';
+      return;
     }
+    msg.className = 'ok'; msg.textContent = '仮予約を登録しました。';
+    document.getElementById('fCaseName').value = '';
+    document.getElementById('fTime').value = '';
+    document.getElementById('fArea').value = '';
+    document.getElementById('fEmail').value = '';
+    document.getElementById('fTel').value = '';
+    document.getElementById('fMemo').value = '';
+    fileInput.value = '';
+  }).catch(function (error) {
+    btn.disabled = false;
+    attachMsg.textContent = '';
+    msg.className = 'err'; msg.textContent = '通信エラー：' + error.message;
   });
 }
 </script>
