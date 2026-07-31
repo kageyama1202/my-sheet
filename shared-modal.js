@@ -124,6 +124,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
+  html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;"></div>';
   var orderValInt = parseInt(obj.order, 10);
   var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
   html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div></div>';
@@ -246,12 +247,52 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   bindCheck('modal-finalReport','finalReport');
 
   // 日付・時間・順番（change/blurで即時）
+  function checkTimeConflict() {
+    var warnBox = document.getElementById('modal-time-warn');
+    if (!warnBox) return;
+    var d = document.getElementById('modal-date').value;
+    var t = document.getElementById('modal-time').value;
+    if (!d || !t) { warnBox.style.display = 'none'; return; }
+    var conflicts = [];
+    Object.keys(globalTasks).forEach(function(k){
+      if (k === key) return;
+      var o = globalTasks[k];
+      if (o && o.date === d && o.time === t) {
+        var c = o.csvData;
+        conflicts.push((c && c[4]) ? c[4] : k);
+      }
+    });
+    // 仮予約(kari_yoyaku_slots)も見る。ページによって変数名が違う
+    // （today.html: kariSlots／calendar.html: kariSlotsCache）ので両対応。
+    // どちらも無いページ（admin.html等）では単に何もしない。
+    var kariData = (typeof kariSlots !== 'undefined') ? kariSlots
+                  : (typeof kariSlotsCache !== 'undefined') ? kariSlotsCache
+                  : null;
+    if (kariData && kariData[d]) {
+      Object.keys(kariData[d]).forEach(function(kid){
+        var e = kariData[d][kid];
+        if (e && e.start === t) {
+          var st = e.status === '確定' ? '✅確定' : '🟠仮予約';
+          conflicts.push(st+'：'+(e.case_name||'')+(e.tantou?'（'+e.tantou+'）':''));
+        }
+      });
+    }
+    if (conflicts.length > 0) {
+      warnBox.textContent = '⚠ 同じ日時（'+d+' '+t+'）に他の予定があります：'+conflicts.join('、');
+      warnBox.style.display = 'block';
+    } else {
+      warnBox.style.display = 'none';
+    }
+  }
+  checkTimeConflict();
   document.getElementById('modal-date').addEventListener('change', function(){
     saveField({date: this.value});
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(this.value||"未定");
+    checkTimeConflict();
   });
   document.getElementById('modal-time').addEventListener('change', function(){
     saveField({time: this.value});
+    checkTimeConflict();
   });
   // 🔢 順：他案件の自動並べ替えは廃止。入力した数値をそのまま保存するだけ。
   document.getElementById('modal-order').addEventListener('change', function(){
