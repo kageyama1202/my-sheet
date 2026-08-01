@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-07-22-001 -->
+<!-- VERSION: 2026-08-01-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -17,6 +17,8 @@
     button:disabled{opacity:0.5;cursor:not-allowed;}
     button.danger{background:#b71c1c;}
     button.danger:hover{background:#c62828;}
+    button.warn2{background:#e65100;}
+    button.warn2:hover{background:#f57c00;}
     p{font-size:13px;color:#888;text-align:left;line-height:1.7;}
     .top-link{display:inline-block;margin-bottom:15px;text-decoration:none;font-weight:bold;color:#64b5f6;font-size:14px;}
     h2{color:#fff;margin-top:0;font-size:18px;}
@@ -45,6 +47,13 @@
     <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ Firebase上のステータス「完了」案件を一括削除します（「下見完了」は削除しません）</p>
     <button id="cleanBtn" class="danger" disabled>🗑 Firebase上の「完了」案件を一括削除</button>
 
+    <hr class="divider">
+
+    <p style="color:#ffd54f;text-align:left;font-size:13px;">⚠️ タイムラグ等でGoogleカレンダー・すぷ氏の表示が現在のFirebaseデータとズレていると気づいたときに使用。<br>
+    ①カレンダー全消去 → ②すぷ氏の行とロック解除 → ③現在のFirebaseデータで全件再登録、を自動で順番に実行します。<br>
+    案件数が多いと数分かかります。実行中は他の操作をしないでください。</p>
+    <button id="rewriteBtn" class="warn2" disabled>🔄 カレンダー・すぷ氏 完全書き直し</button>
+
     <div class="log" id="logArea"></div>
 
     <hr class="divider">
@@ -61,6 +70,7 @@
     document.getElementById('authStatus').style.color='#66bb6a';
     document.getElementById('uploadBtn').disabled=false;
     document.getElementById('cleanBtn').disabled=false;
+    document.getElementById('rewriteBtn').disabled=false;
 
     var logEl=document.getElementById('logArea');
     function log(msg,cls){logEl.style.display='block';logEl.innerHTML+='<div class="'+(cls||'info')+'">'+msg+'</div>';logEl.scrollTop=logEl.scrollHeight;}
@@ -267,6 +277,54 @@
           alert('エラー: '+err);
           btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
         });
+      });
+    });
+
+    // ★2026-08-01追加★
+    // タイムラグ等でGoogleカレンダー・すぷ氏の表示内容が現在のFirebase
+    // データとズレていることに人間（現場側）が気づいた際、URLを手打ちせず
+    // ボタン1つで①clearAllEvents（カレンダー全消去）②resetSheetAndLocks
+    // （すぷ氏の行削除＋ロック解除）③syncAll（現在のFirebaseデータで全件
+    // 再登録）を順番に実行できるようにしたもの。2026-07-30の大規模インシ
+    // デント復旧時に確立した標準手順（HANDOFF: clearAllEvents→
+    // resetSheetAndLocks→syncAll）をそのままボタン化している。
+    var CLOUD_FN_BASE='https://us-central1-project-6745138395263517914.cloudfunctions.net/';
+
+    function callCloudFn(name,userKey){
+      return fetch(CLOUD_FN_BASE+name+'?userKey='+encodeURIComponent(userKey))
+        .then(function(r){
+          return r.text().then(function(t){
+            var body=t;
+            try{body=JSON.parse(t);}catch(e){}
+            return {ok:r.ok,status:r.status,body:body};
+          });
+        });
+    }
+
+    document.getElementById('rewriteBtn').addEventListener('click',function(){
+      var userKey=(typeof window.getUserKey==='function')?window.getUserKey():'';
+      if(!userKey){alert('userKeyが取得できませんでした。ログインし直してください。');return;}
+      if(!confirm('「'+userKey+'」のGoogleカレンダーを一旦全消去し、すぷ氏（管理表）とカレンダーを現在のFirebaseデータで完全に書き直します。\n\n案件数が多いと数分かかります。\n\n実行しますか？'))return;
+
+      var btn=this;btn.disabled=true;btn.textContent='実行中...';
+      logEl.innerHTML='';logEl.style.display='block';
+      log('🚀 完全書き直し開始（userKey: '+userKey+'）');
+
+      callCloudFn('clearAllEvents',userKey).then(function(res){
+        log((res.ok?'✅ ':'⚠ ')+'① clearAllEvents 完了: '+JSON.stringify(res.body),res.ok?'ok':'warn');
+        return callCloudFn('resetSheetAndLocks',userKey);
+      }).then(function(res){
+        log((res.ok?'✅ ':'⚠ ')+'② resetSheetAndLocks 完了: '+JSON.stringify(res.body),res.ok?'ok':'warn');
+        return callCloudFn('syncAll',userKey);
+      }).then(function(res){
+        log((res.ok?'✅ ':'⚠ ')+'③ syncAll 完了: '+JSON.stringify(res.body),res.ok?'ok':'warn');
+        log('🎉 完全書き直し完了。カレンダー・すぷ氏を確認してください。','ok');
+        alert('✅ 完全書き直しが完了しました。\n\nカレンダー・すぷ氏の表示を確認してください。');
+        btn.disabled=false;btn.textContent='🔄 カレンダー・すぷ氏 完全書き直し';
+      }).catch(function(err){
+        log('❌ エラーで途中停止: '+err,'err');
+        alert('❌ エラーが発生し途中で止まりました: '+err+'\n\nログを確認し、止まったステップから手動でURLを叩いて続きを実行してください。');
+        btn.disabled=false;btn.textContent='🔄 カレンダー・すぷ氏 完全書き直し';
       });
     });
   </script>
