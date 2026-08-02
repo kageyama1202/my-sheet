@@ -581,6 +581,9 @@ function loadCaseData(key) {
 }
 
 // ============ 担当者・連絡先の候補（一度入力したものを保存して再利用） ============
+// kari_contacts（フォーム送信時に保存）に加え、既存のkari_yoyaku_slots（過去にこの
+// 仮予約ページで実際に入力された全件）からも候補を集める。kari_contactsが空でも、
+// 過去の仮予約さえあれば候補として出てくる。
 var targetContacts = {}; // sanitizedKey -> {tantou, email, tel}
 function sanitizeContactKey(name) {
   return name.trim().replace(/[.#$\[\]\/]/g, '_').substring(0, 60);
@@ -592,8 +595,17 @@ function loadContacts(key) {
     renderContactOptions();
   }).catch(function (e) { console.warn('kari_contacts取得失敗', e); });
 }
-function renderContactOptions() {
+function collectContactList() {
   var list = Object.keys(targetContacts).map(function (k) { return targetContacts[k]; });
+  Object.keys(allKariSlotsData || {}).forEach(function (date) {
+    Object.keys(allKariSlotsData[date] || {}).forEach(function (id) {
+      list.push(allKariSlotsData[date][id]);
+    });
+  });
+  return list;
+}
+function renderContactOptions() {
+  var list = collectContactList();
   document.getElementById('tantouOptions').innerHTML = list.map(function (c) { return '<option value="' + escapeHtml(c.tantou || '') + '">'; }).join('');
   document.getElementById('emailOptions').innerHTML = list.filter(function (c) { return c.email; }).map(function (c) { return '<option value="' + escapeHtml(c.email) + '">'; }).join('');
   document.getElementById('telOptions').innerHTML = list.filter(function (c) { return c.tel; }).map(function (c) { return '<option value="' + escapeHtml(c.tel) + '">'; }).join('');
@@ -601,9 +613,9 @@ function renderContactOptions() {
 function findContactBy(field, value) {
   value = (value || '').trim();
   if (!value) return null;
-  var keys = Object.keys(targetContacts);
-  for (var i = 0; i < keys.length; i++) {
-    if ((targetContacts[keys[i]][field] || '') === value) return targetContacts[keys[i]];
+  var list = collectContactList();
+  for (var i = 0; i < list.length; i++) {
+    if ((list[i][field] || '') === value) return list[i];
   }
   return null;
 }
@@ -637,8 +649,8 @@ function wireClickSuggest(inputId, listId, field) {
   if (!input || !box) return;
   function itemsFor(q) {
     var seen = {}, out = [];
-    Object.keys(targetContacts).forEach(function (k) {
-      var v = (targetContacts[k][field] || '').trim();
+    collectContactList().forEach(function (c) {
+      var v = (c[field] || '').trim();
       if (!v || seen[v]) return;
       if (q && v.toLowerCase().indexOf(q.toLowerCase()) === -1) return;
       seen[v] = true; out.push(v);
@@ -899,6 +911,7 @@ function subscribeUpcoming() {
     });
     renderMonthCalendar();
     renderDayAgenda();
+    renderContactOptions();
   });
 }
 
