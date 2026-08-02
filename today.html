@@ -208,6 +208,11 @@ database.ref('personal_calendar').once('value').then(function(snap){personalEven
 // users/{userKey}/kari_yoyaku_slots に置く設計なので、scopedDatabase(database)でそのまま読める。
 var kariSlots={};
 database.ref('kari_yoyaku_slots').once('value').then(function(snap){kariSlots=snap.val()||{};renderTable();}).catch(function(e){console.warn('kari_yoyaku_slots取得失敗',e);});
+// ★2026-08-02追加★ 確定/確定解除ボタンを押した直後、kariSlotsのローカルキャッシュが
+// 古いままrenderTable()が呼ばれておらず、Firebase側の書き込みは成功しているのに
+// 画面上は変化が起きない（＝一見「動いていない」ように見える）不具合があった。
+// 確定/確定解除の成功後は必ずこの関数でkariSlotsを取り直してから再描画する。
+function reloadKariAndRender(){database.ref('kari_yoyaku_slots').once('value').then(function(snap){kariSlots=snap.val()||{};renderTable();}).catch(function(e){console.warn('kari_yoyaku_slots再取得失敗',e);});}
 function getKariEventsInRange(from,to){var result=[];Object.keys(kariSlots).forEach(function(dateKey){if(from&&dateKey<from)return;if(to&&dateKey>to)return;var dayEvents=kariSlots[dateKey];if(!dayEvents)return;Object.keys(dayEvents).forEach(function(id){var ev=dayEvents[id];result.push({_type:'kari',dateKey:dateKey,id:id,start:ev.start||'',case_name:ev.case_name||'',tantou:ev.tantou||'',area:ev.area||'',email:ev.email||'',tel:ev.tel||'',attachment_url:ev.attachment_url||'',attachment_name:ev.attachment_name||'',candidate_group:ev.candidate_group||'',memo:ev.memo||'',status:ev.status||'仮'});});});result.sort(function(a,b){return (a.dateKey+a.start).localeCompare(b.dateKey+b.start);});return result;}
 function countCandidateGroupToday(groupId){var c=0;Object.keys(kariSlots).forEach(function(dateKey){var day=kariSlots[dateKey];Object.keys(day).forEach(function(id){if(day[id].candidate_group===groupId)c++;});});return c;}
 
@@ -250,6 +255,7 @@ function openKariModalToday(ev){
     document.getElementById('kariConfirmBtn').onclick=function(){
       database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'確定'}).then(function(){
         document.getElementById('modal-overlay').style.display='none';
+        reloadKariAndRender();
         var updated={};for(var k in ev)updated[k]=ev[k];updated.status='確定';
         kariLaunchContact(updated);
       }).catch(function(e){alert('更新できませんでした：'+e.message);});
@@ -259,6 +265,7 @@ function openKariModalToday(ev){
     document.getElementById('kariUnconfirmBtn').onclick=function(){
       database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'仮'}).then(function(){
         document.getElementById('modal-overlay').style.display='none';
+        reloadKariAndRender();
       }).catch(function(e){alert('更新できませんでした：'+e.message);});
     };
   }
