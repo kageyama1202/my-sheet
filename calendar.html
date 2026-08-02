@@ -149,6 +149,9 @@
       if(snap.val()){kariSlotsCache=snap.val();}
       renderCal();
     }).catch(function(e){console.warn('kari_yoyaku_slots取得失敗',e);});
+    // ★2026-08-02追加★ today.htmlと同じ不具合（確定/確定解除の書き込みは成功しているのに
+    // ローカルキャッシュkariSlotsCacheを再取得しておらず画面に反映されない）を修正するための再読込関数。
+    function reloadKariAndRenderCal(){database.ref('kari_yoyaku_slots').once('value').then(function(snap){kariSlotsCache=snap.val()||{};renderCal();}).catch(function(e){console.warn('kari_yoyaku_slots再取得失敗',e);});}
 
     function buildDateMap(){
       var dm={};
@@ -255,6 +258,7 @@
         document.getElementById('calKariConfirmBtn').onclick=function(){
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'確定'}).then(function(){
             modalOverlay.style.display='none';
+            reloadKariAndRenderCal();
             var updated=Object.assign({},ev,{status:'確定'});
             calKariLaunchContact(updated);
           }).catch(function(e){alert('更新できませんでした：'+e.message);});
@@ -264,6 +268,7 @@
         document.getElementById('calKariUnconfirmBtn').onclick=function(){
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'仮'}).then(function(){
             modalOverlay.style.display='none';
+            reloadKariAndRenderCal();
           }).catch(function(e){alert('更新できませんでした：'+e.message);});
         };
       }
