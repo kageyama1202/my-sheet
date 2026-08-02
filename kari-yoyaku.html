@@ -1,1 +1,1227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>仮予約</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<script src="shared-modal.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #4f8ef7;
+    --accent-dim: rgba(79,142,247,0.15);
+    --kari: #f0a500;
+    --kari-dim: rgba(240,165,0,0.18);
+    --kakutei: #2e9e5b;
+    --kakutei-dim: rgba(46,158,91,0.18);
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --danger: #e05c5c;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #topBar { flex: 0 0 auto; padding: 10px 14px 4px; }
+  #scrollWrap { flex: 1 1 auto; overflow-y: auto; padding: 0 14px 20px; }
+  #mainArea { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
+  #formSection { flex: 1 1 50%; overflow-y: auto; padding: 4px 14px 14px; box-sizing: border-box; }
+  #calSection { flex: 1 1 50%; display: flex; overflow: hidden; border-top: 1px solid var(--border); }
+  #calLeft { width: 50%; overflow-y: auto; padding: 10px; box-sizing: border-box; border-right: 1px solid var(--border); }
+  #calRight { width: 50%; overflow-y: auto; padding: 10px; box-sizing: border-box; }
+  @media (max-width: 720px) {
+    #calSection { flex-direction: column; overflow-y: auto; }
+    #calLeft, #calRight { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    #formSection, #calSection { flex: 1 1 auto; }
+    #mainArea { overflow-y: auto; }
+  }
+  .form-heading { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  h1 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 10px; }
+  label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+  input[type=date], input[type=time], input[type=text], textarea, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px;
+    font-size: 15px;
+    outline: none;
+    font-family: var(--font);
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 50px; }
+  .ac-wrap { position: relative; }
+  .ac-list {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 2px);
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 170px; overflow-y: auto; z-index: 50; box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .ac-item { padding: 10px 12px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .ac-item:hover { background: var(--accent); color: #fff; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > div { flex: 1; }
+  button.primary {
+    width: 100%;
+    margin-top: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:active { opacity: 0.75; }
+  button.primary:disabled { opacity: 0.5; }
+  #formMsg { font-size: 13px; margin-top: 8px; min-height: 16px; }
+  #formMsg.err { color: var(--danger); }
+  #formMsg.ok { color: var(--kakutei); }
 
+  .slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: var(--surface2);
+    margin-bottom: 6px;
+    cursor: pointer;
+    border-left: 3px solid var(--kari);
+  }
+  .slot.kakutei { border-left-color: var(--kakutei); }
+  .slot .time { font-weight: 700; font-size: 13px; min-width: 92px; color: var(--accent); }
+  .slot .who { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--kari-dim); color: var(--kari); font-weight: 700; }
+  .badge.kakutei { background: var(--kakutei-dim); color: var(--kakutei); }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 6px 2px; }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--surface2);
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+  .list-item .d { font-size: 12px; color: var(--text-dim); min-width: 78px; }
+  .list-item .t { font-weight: 700; font-size: 13px; min-width: 88px; color: var(--accent); }
+  .list-item .w { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .target-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 14px;
+    font-size: 15px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .target-btn:active { opacity: 0.7; }
+  .target-btn.current { border-color: var(--accent); color: var(--accent); }
+
+  .switch-target {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    margin-bottom: 14px;
+    display: inline-block;
+  }
+
+  .week-nav {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; overflow-x: auto; }
+  .week-col { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 3px; min-height: 60px; }
+  .week-col.today { border-color: var(--accent); }
+  .week-col-head { text-align: center; margin-bottom: 4px; cursor: pointer; }
+  .week-col-head .wd { font-size: 9px; color: #888; }
+  .week-col-head .dnum { font-size: 13px; font-weight: 700; }
+  .week-col.today .dnum { color: var(--accent); }
+  .week-item {
+    background: var(--bg);
+    border-radius: 5px;
+    padding: 3px 4px;
+    margin-bottom: 3px;
+    cursor: pointer;
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+  .week-item .wi-tm { color: var(--accent); font-weight: 700; display: block; }
+  .week-item .wi-tt { color: #ccc; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .week-empty { font-size: 9px; color: var(--text-dim); text-align: center; padding: 6px 0; }
+
+  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .month-wd { text-align: center; font-size: 10px; color: #888; padding-bottom: 4px; }
+  .month-cell {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    min-height: 40px;
+    padding: 3px 2px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 10px;
+  }
+  .month-cell.otherMonth { opacity: 0.35; }
+  .month-cell.today { border-color: var(--accent); }
+  .month-cell.selected { background: var(--accent-dim); border-color: var(--accent); }
+  .month-cell .mnum { font-weight: 700; font-size: 12px; }
+  .month-cell .mcount { color: var(--accent); font-size: 9px; margin-top: 2px; }
+
+  .agenda-day-item {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .agenda-day-item .adi-top { display: flex; gap: 6px; align-items: center; }
+  .agenda-day-item .adi-tm { color: var(--accent); font-weight: 700; min-width: 40px; }
+  .agenda-day-item .adi-ord { color: var(--text-dim); font-size: 10px; }
+  .agenda-day-item .adi-tt { color: #ddd; }
+
+  .day-group { margin-bottom: 14px; }
+  .day-group:last-child { margin-bottom: 0; }
+  .day-group-header { font-size: 12px; font-weight: 700; color: #ccc; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .day-group-header.is-today { color: var(--accent); }
+  .agenda-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 7px;
+    background: var(--surface2);
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .agenda-item .ord { min-width: 20px; color: var(--text-dim); font-size: 11px; }
+  .agenda-item .tm { min-width: 42px; color: var(--accent); font-weight: 700; font-size: 11px; }
+  .agenda-item .tt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* modal */
+  #overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #overlay.show { display: flex; }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 18px;
+    padding-bottom: 30px;
+  }
+  #modal h3 { font-size: 15px; margin-bottom: 10px; }
+  #modal .mrow { font-size: 13px; color: #ccc; margin-bottom: 6px; }
+  #modal .mrow b { color: #fff; }
+  #modal .mbtns { display: flex; gap: 8px; margin-top: 14px; }
+  #modal button { flex: 1; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+  #modal .close { background: var(--surface2); color: var(--text); }
+  #modal .del { background: var(--danger); color: #fff; }
+  #modal .conf { background: var(--kakutei); color: #fff; }
+  #modal .mail { background: var(--accent); color: #fff; }
+  #modal .sms { background: #2e7d5b; color: #fff; }
+
+  #authNote { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+  #adminBadge { display: inline-block; font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; margin-left: 6px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <span id="adminBadge" style="display:none;">管理者</span>
+  <div id="authNote" class="sub" style="margin-bottom:0;">読み込み中...</div>
+</div>
+
+<!-- 対象者選択画面 -->
+<div id="targetPicker" style="display:none;flex:1;overflow-y:auto;padding:0 14px 20px;">
+  <div class="card">
+    <h2>誰の予定を仮予約しますか？</h2>
+    <div id="targetList"></div>
+  </div>
+</div>
+
+<!-- 本体（対象者選択後に表示） -->
+<div id="mainArea" style="display:none;">
+
+  <div id="formSection">
+    <div><span class="switch-target" onclick="backToPicker()">← 対象者を変更</span></div>
+    <div class="sub" id="targetLabel"></div>
+
+    <h2 class="form-heading">現調依頼したい日を入力してください</h2>
+    <div class="sub" id="replyNote" style="margin-bottom:12px;"></div>
+
+    <label>参照日（カレンダー表示切替用）</label>
+    <input type="date" id="viewDate">
+    <label>案件名</label>
+    <input type="text" id="fCaseName" placeholder="例：〇〇邸 SK下見">
+    <label>候補日・時間 <span style="color:var(--danger);">必須</span>（複数登録可）</label>
+    <div id="dateRows"></div>
+    <button type="button" class="week-nav" id="addDateRowBtn" style="width:100%;margin-top:2px;margin-bottom:10px;">＋ 候補日を追加</button>
+    <label>担当者（このデータを入力している人） <span style="color:var(--danger);">必須</span></label>
+    <div class="ac-wrap">
+      <input type="text" id="fTantou" list="tantouOptions" autocomplete="off">
+      <div class="ac-list" id="fTantouSuggest"></div>
+    </div>
+    <datalist id="tantouOptions"></datalist>
+    <label>住所（簡易）</label>
+    <input type="text" id="fArea" list="areaOptions" placeholder="例：豊平区、江別市 など">
+    <datalist id="areaOptions">
+      <option value="北区"><option value="西区"><option value="厚別区"><option value="手稲区">
+      <option value="東区"><option value="清田区"><option value="豊平区"><option value="中央区">
+      <option value="南区"><option value="白石区">
+      <option value="江別市"><option value="北広島市"><option value="倶知安町"><option value="岩見沢市">
+      <option value="南幌町"><option value="石狩市"><option value="その他">
+    </datalist>
+    <label>メールアドレス <span style="color:var(--danger);">※電話番号とどちらか必須</span></label>
+    <div class="ac-wrap">
+      <input type="text" id="fEmail" list="emailOptions" placeholder="example@example.com" autocomplete="off">
+      <div class="ac-list" id="fEmailSuggest"></div>
+    </div>
+    <datalist id="emailOptions"></datalist>
+    <label>電話番号 <span style="color:var(--danger);">※メールとどちらか必須</span></label>
+    <div class="ac-wrap">
+      <input type="text" id="fTel" list="telOptions" placeholder="09012345678" autocomplete="off">
+      <div class="ac-list" id="fTelSuggest"></div>
+    </div>
+    <datalist id="telOptions"></datalist>
+    <label>内容などのメモ</label>
+    <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
+    <label>図面など添付（任意）</label>
+    <input type="file" id="fAttachment" accept="image/*,.pdf">
+    <div id="attachMsg" style="font-size:11px;color:var(--text-dim);margin-top:4px;"></div>
+    <button class="primary" id="submitBtn" onclick="submitReservation()">この日時で押さえて返答を待つ</button>
+    <div id="formMsg"></div>
+  </div>
+
+  <div id="calSection">
+    <div id="calLeft">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <button class="week-nav" onclick="shiftMonth(-1)">◀</button>
+        <div id="monthLabel" style="font-size:12px;color:#aaa;"></div>
+        <button class="week-nav" onclick="shiftMonth(1)">▶</button>
+      </div>
+      <div id="monthGrid" class="month-grid"></div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:6px;">数字は下見件数。日付タップで右側の予定に切り替わります。</div>
+    </div>
+    <div id="calRight">
+      <div id="dayAgendaHeader" style="font-size:12px;font-weight:700;color:#ccc;margin-bottom:8px;"></div>
+      <div id="dayAgendaList"><div class="empty">読み込み中...</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 正規の案件モーダル（shared-modal.js用）。kari権限や対象外ユーザーには読み取り専用に切り替える -->
+<div id="modal-overlay">
+  <div id="modal-content">
+    <button id="modal-close">✕ 閉じる</button>
+    <div id="readonly-note" style="display:none;background:#fff3cd;color:#7a5b00;font-size:12px;padding:6px 10px;border-radius:6px;margin-bottom:10px;">閲覧のみ（この画面からの編集はできません）</div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div id="overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <h3 id="mTitle"></h3>
+    <div id="modalRows"></div>
+    <div id="mContactBtns" class="mbtns" style="display:none;"></div>
+    <div class="mbtns">
+      <button class="close" onclick="closeModal()">閉じる</button>
+      <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
+      <button class="close" id="mUnconfBtn" style="display:none;" onclick="unmarkKakutei()">確定解除</button>
+      <button class="del" id="mDelBtn" style="display:none;" onclick="deleteCurrentSlot()">削除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 設定 ============
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var rawDb = firebase.database(); // users/{userKey}/... を明示パスで扱う（scopedDatabaseは使わない）
+var rawStorage = firebase.storage();
+
+var isAdmin = false;
+var isKari = false;
+var myUserKey = null;   // 自分がstaffログインしている場合の自分のuserKey（無ければnull）
+var currentUid = null;
+var targetUserKey = null; // 今、誰の枠に仮予約しているか
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+function getUrlDateParam() {
+  // today.html/calendar.htmlの仮予約モーダルから「日付変更はこちら」で
+  // ?date=YYYY-MM-DD 付きで飛んできた場合、その日を初期表示日にする。
+  try {
+    var v = new URLSearchParams(location.search).get('date');
+    return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+  } catch (e) { return null; }
+}
+function getUrlOpenIdParam() {
+  // 同じくtoday.html/calendar.htmlから ?open=<仮予約ID> 付きで飛んできた場合、
+  // 該当の仮予約を自動でモーダル表示する（再入力の手間を省くため）。
+  try { return new URLSearchParams(location.search).get('open') || null; } catch (e) { return null; }
+}
+var currentDate = getUrlDateParam() || todayStr();
+var urlOpenId = getUrlOpenIdParam();
+var currentModalPath = null; // "date/id"
+var currentModalRecord = null; // 確定時の連絡アプリ起動用
+var kariTargets = {};
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function createDateRow(defaultDate) {
+  var row = document.createElement('div');
+  row.className = 'date-row';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+  var d = document.createElement('input');
+  d.type = 'date'; d.className = 'cDate'; d.style.flex = '1.3';
+  d.value = defaultDate || document.getElementById('viewDate').value;
+  var t = document.createElement('select');
+  t.className = 'cTime'; t.style.flex = '1';
+  t.innerHTML = generateTimeOptions();
+  var rm = document.createElement('button');
+  rm.type = 'button'; rm.textContent = '×';
+  rm.style.cssText = 'padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:15px;';
+  rm.onclick = function () {
+    if (document.querySelectorAll('#dateRows .date-row').length > 1) row.remove();
+  };
+  row.appendChild(d); row.appendChild(t); row.appendChild(rm);
+  return row;
+}
+function addDateRow() {
+  document.getElementById('dateRows').appendChild(createDateRow());
+}
+function resetDateRows() {
+  var box = document.getElementById('dateRows');
+  box.innerHTML = '';
+  box.appendChild(createDateRow());
+}
+
+document.getElementById('viewDate').value = currentDate;
+document.getElementById('dateRows').appendChild(createDateRow());
+document.getElementById('addDateRowBtn').onclick = addDateRow;
+
+// ============ 認証 ============
+// 既にlogin.html経由でこのブラウザにスタッフ/管理者セッションがあれば、それをそのまま使う。
+// セッションが無ければ、この機能専用のkari-login.html（専用PIN）へ誘導する。
+firebase.auth().onAuthStateChanged(function (user) {
+  if (user) {
+    afterAuth(user);
+  } else {
+    redirectToKariLogin();
+  }
+});
+
+function redirectToKariLogin() {
+  var here = location.pathname.split('/').pop() || 'kari-yoyaku.html';
+  location.replace('kari-login.html?return=' + encodeURIComponent(here));
+}
+
+function afterAuth(user) {
+  currentUid = user.uid;
+  user.getIdTokenResult().then(function (res) {
+    var claims = res.claims || {};
+    isAdmin = !!claims.admin;
+    isKari = claims.role === 'kari';
+    myUserKey = claims.userKey || null;
+
+    if (!isAdmin && !isKari && claims.role !== 'staff') {
+      firebase.auth().signOut().then(redirectToKariLogin);
+      return;
+    }
+
+    document.getElementById('adminBadge').style.display = isAdmin ? 'inline-block' : 'none';
+    document.getElementById('authNote').textContent = isAdmin
+      ? '管理者としてアクセス中です。'
+      : (isKari ? '仮予約用アカウントでアクセス中です。' : 'スタッフとしてアクセス中です。');
+
+    loadTargets();
+  });
+}
+
+// ============ 対象者選択 ============
+function loadTargets() {
+  rawDb.ref('config/kari_targets').once('value').then(function (snap) {
+    kariTargets = snap.val() || {};
+    renderTargetPicker();
+  }).catch(function (e) {
+    document.getElementById('authNote').textContent = '対象者リストの取得に失敗しました：' + e.message;
+  });
+}
+
+function renderTargetPicker() {
+  var box = document.getElementById('targetList');
+  box.innerHTML = '';
+  var keys = Object.keys(kariTargets);
+  if (keys.length === 0) {
+    box.innerHTML = '<div class="empty">対象者が未登録です（config/kari_targetsに追加してください）</div>';
+  }
+  keys.forEach(function (key) {
+    var btn = document.createElement('button');
+    btn.className = 'target-btn' + (key === myUserKey ? ' current' : '');
+    btn.textContent = (kariTargets[key].name || key) + (key === myUserKey ? '（自分）' : '');
+    btn.onclick = function () { selectTarget(key); };
+    box.appendChild(btn);
+  });
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+
+  // staff/adminとして自分のuserKeyが分かっていれば、選び直す手間を省くため自動選択。
+  // 仮予約(kari)ロールはどの対象にするか毎回選ぶ必要がある（自分の枠を持たないため）。
+  if (myUserKey && kariTargets[myUserKey] && !isKari) {
+    selectTarget(myUserKey);
+  }
+}
+
+function backToPicker() {
+  if (targetUserKey) {
+    rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots').off();
+    rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + currentDate).off();
+  }
+  targetUserKey = null;
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+}
+
+function selectTarget(key) {
+  targetUserKey = key;
+  document.getElementById('targetLabel').textContent = '対象：' + (kariTargets[key].name || key);
+  document.getElementById('replyNote').textContent = '入力確認後、' + (kariTargets[key].name || key) + 'から可否・調整有無のお返事をさせていただきます。';
+  document.getElementById('targetPicker').style.display = 'none';
+  document.getElementById('mainArea').style.display = 'flex';
+  loadCaseData(key);
+  initData();
+}
+
+// ============ 既存の案件・個人予定（参考表示） ============
+var targetTasks = {};
+var targetPersonal = {};
+function loadCaseData(key) {
+  targetTasks = {};
+  targetPersonal = {};
+  window.__kariGlobalHeaders = [];
+  rawDb.ref('users/' + key + '/app_tasks').once('value').then(function (snap) {
+    targetTasks = snap.val() || {};
+    renderMonthCalendar(); renderDayAgenda();
+  }).catch(function (e) { console.warn('app_tasks取得失敗', e); });
+  rawDb.ref('users/' + key + '/personal_calendar').once('value').then(function (snap) {
+    targetPersonal = snap.val() || {};
+    renderMonthCalendar(); renderDayAgenda();
+  }).catch(function (e) { console.warn('personal_calendar取得失敗', e); });
+  rawDb.ref('users/' + key + '/app_meta/headers').once('value').then(function (snap) {
+    window.__kariGlobalHeaders = snap.val() || [];
+  }).catch(function (e) { console.warn('app_meta取得失敗', e); });
+  loadContacts(key);
+}
+
+// ============ 担当者・連絡先の候補（一度入力したものを保存して再利用） ============
+// kari_contacts（フォーム送信時に保存）に加え、既存のkari_yoyaku_slots（過去にこの
+// 仮予約ページで実際に入力された全件）からも候補を集める。kari_contactsが空でも、
+// 過去の仮予約さえあれば候補として出てくる。
+var targetContacts = {}; // sanitizedKey -> {tantou, email, tel}
+function sanitizeContactKey(name) {
+  return name.trim().replace(/[.#$\[\]\/]/g, '_').substring(0, 60);
+}
+function loadContacts(key) {
+  targetContacts = {};
+  rawDb.ref('users/' + key + '/kari_contacts').once('value').then(function (snap) {
+    targetContacts = snap.val() || {};
+    renderContactOptions();
+  }).catch(function (e) { console.warn('kari_contacts取得失敗', e); });
+}
+function collectContactList() {
+  var list = Object.keys(targetContacts).map(function (k) { return targetContacts[k]; });
+  Object.keys(allKariSlotsData || {}).forEach(function (date) {
+    Object.keys(allKariSlotsData[date] || {}).forEach(function (id) {
+      list.push(allKariSlotsData[date][id]);
+    });
+  });
+  return list;
+}
+function dedupKeyFor(field, v) {
+  // 表記ゆれ（スペースの入れ方など）が違うだけの同一値を重複として弾くための正規化キー
+  if (field === 'tel') return normalizePhoneModal(v);
+  if (field === 'email') return v.trim().toLowerCase();
+  return v.trim().replace(/\s+/g, '');
+}
+function uniqueContactValues(field) {
+  var seen = {}, out = [];
+  collectContactList().forEach(function (c) {
+    var v = (c[field] || '').trim();
+    if (!v) return;
+    var key = dedupKeyFor(field, v);
+    if (seen[key]) return;
+    seen[key] = true; out.push(v);
+  });
+  return out;
+}
+function renderContactOptions() {
+  document.getElementById('tantouOptions').innerHTML = uniqueContactValues('tantou').map(function (v) { return '<option value="' + escapeHtml(v) + '">'; }).join('');
+  document.getElementById('emailOptions').innerHTML = uniqueContactValues('email').map(function (v) { return '<option value="' + escapeHtml(v) + '">'; }).join('');
+  document.getElementById('telOptions').innerHTML = uniqueContactValues('tel').map(function (v) { return '<option value="' + escapeHtml(v) + '">'; }).join('');
+}
+function findContactBy(field, value) {
+  value = (value || '').trim();
+  if (!value) return null;
+  var list = collectContactList();
+  for (var i = 0; i < list.length; i++) {
+    if ((list[i][field] || '') === value) return list[i];
+  }
+  return null;
+}
+function wireContactAutofill() {
+  document.getElementById('fTantou').addEventListener('change', function () {
+    var c = findContactBy('tantou', this.value);
+    if (c) {
+      if (c.email && !document.getElementById('fEmail').value) document.getElementById('fEmail').value = c.email;
+      if (c.tel && !document.getElementById('fTel').value) document.getElementById('fTel').value = c.tel;
+    }
+  });
+  document.getElementById('fEmail').addEventListener('change', function () {
+    var c = findContactBy('email', this.value);
+    if (c) {
+      if (c.tantou && !document.getElementById('fTantou').value) document.getElementById('fTantou').value = c.tantou;
+      if (c.tel && !document.getElementById('fTel').value) document.getElementById('fTel').value = c.tel;
+    }
+  });
+  document.getElementById('fTel').addEventListener('change', function () {
+    var c = findContactBy('tel', this.value);
+    if (c) {
+      if (c.tantou && !document.getElementById('fTantou').value) document.getElementById('fTantou').value = c.tantou;
+      if (c.email && !document.getElementById('fEmail').value) document.getElementById('fEmail').value = c.email;
+    }
+  });
+}
+// クリックで選べる候補リスト（datalistはiOS Safari等で候補が出ないことがあるため独自実装）
+function wireClickSuggest(inputId, listId, field) {
+  var input = document.getElementById(inputId);
+  var box = document.getElementById(listId);
+  if (!input || !box) return;
+  function itemsFor(q) {
+    var all = uniqueContactValues(field);
+    if (!q) return all;
+    return all.filter(function (v) { return v.toLowerCase().indexOf(q.toLowerCase()) !== -1; });
+  }
+  function render(q) {
+    var items = itemsFor(q);
+    if (items.length === 0) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = items.map(function (v) { return '<div class="ac-item" data-v="' + escapeHtml(v) + '">' + escapeHtml(v) + '</div>'; }).join('');
+    box.style.display = 'block';
+    box.querySelectorAll('.ac-item').forEach(function (el) {
+      // mousedown/touchstartでblurより先に発火させ、候補選択を確実に反映する
+      var pick = function (e) {
+        e.preventDefault();
+        input.value = el.getAttribute('data-v');
+        box.style.display = 'none';
+        input.dispatchEvent(new Event('change'));
+      };
+      el.addEventListener('mousedown', pick);
+      el.addEventListener('touchstart', pick);
+    });
+  }
+  input.addEventListener('focus', function () { render(this.value); });
+  input.addEventListener('input', function () { render(this.value); });
+  input.addEventListener('blur', function () { setTimeout(function () { box.style.display = 'none'; }, 150); });
+}
+wireContactAutofill();
+wireClickSuggest('fTantou', 'fTantouSuggest', 'tantou');
+wireClickSuggest('fEmail', 'fEmailSuggest', 'email');
+wireClickSuggest('fTel', 'fTelSuggest', 'tel');
+function saveContact(tantou, email, tel) {
+  if (!tantou) return;
+  var key = sanitizeContactKey(tantou);
+  rawDb.ref('users/' + targetUserKey + '/kari_contacts/' + key).set({
+    tantou: tantou, email: email || '', tel: tel || '', updated_at: Date.now()
+  }).then(function () {
+    targetContacts[key] = { tantou: tantou, email: email || '', tel: tel || '' };
+    renderContactOptions();
+  }).catch(function (e) { console.warn('kari_contacts保存失敗', e); });
+}
+function formatToYMD(v) {
+  if (!v) return '';
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+}
+function countCandidateGroup(groupId) {
+  var c = 0;
+  Object.keys(allKariSlotsData).forEach(function (date) {
+    var day = allKariSlotsData[date];
+    Object.keys(day).forEach(function (id) {
+      if (day[id].candidate_group === groupId) c++;
+    });
+  });
+  return c;
+}
+function extractArea(addr) {
+  if (!addr) return '';
+  var a = addr.replace(/\s+/g, '');
+  var s = a.match(/札幌市(.+?区)/); if (s) return s[1];
+  var c = a.match(/北海道(.+?市)/); if (c && !c[1].includes('札幌')) return c[1];
+  var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
+  return 'その他';
+}
+function buildDayItems(date) {
+  var items = [];
+  Object.keys(targetTasks).forEach(function (key) {
+    var obj = targetTasks[key]; var cols = obj.csvData; if (!cols) return;
+    var shitami = formatToYMD(cols[12]);
+    var yotei = formatToYMD(obj.date);
+    var title = cols[4] || '(無題)';
+    var time = cols[13] || obj.time || '';
+    var order = obj.order || '';
+    var area = extractArea(cols[11] || '');
+    if (shitami === date) {
+      items.push({ badge: '🔵', kindLabel: '下見', title: title, area: area, time: time, order: order, obj: obj, caseKey: key, date: date });
+    }
+    if (yotei === date && yotei !== shitami) {
+      items.push({ badge: '🟠', kindLabel: '下見予定', title: title, area: area, time: obj.time || '', order: order, obj: obj, caseKey: key, date: date });
+    }
+  });
+  var pday = targetPersonal[date];
+  if (pday) {
+    Object.keys(pday).forEach(function (id) {
+      var ev = pday[id];
+      items.push({ badge: '📅', kindLabel: '個人予定', title: ev.title || '', area: '', time: ev.allDay ? '終日' : (ev.start || ''), order: '', personal: true, date: date });
+    });
+  }
+  var kday = (allKariSlotsData[date]) || {};
+  Object.keys(kday).forEach(function (id) {
+    var e = kday[id];
+    var groupTag = e.candidate_group ? '（候補' + countCandidateGroup(e.candidate_group) + '件中）' : '';
+    items.push({
+      badge: e.status === '確定' ? '✅' : '🟠',
+      kindLabel: e.status === '確定' ? '確定' : '仮予約',
+      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + groupTag + (e.attachment_url ? ' 📎' : ''),
+      area: e.area || '', time: e.start || '',
+      order: '',
+      kari: true, kariDate: date, kariId: id, kariE: e
+    });
+  });
+  items.sort(function (a, b) {
+    var oa = parseInt(a.order, 10); var ob = parseInt(b.order, 10);
+    var oaKey = isNaN(oa) ? 9999 : oa;
+    var obKey = isNaN(ob) ? 9999 : ob;
+    if (oaKey !== obKey) return oaKey - obKey;
+    return (a.time || '99:99').localeCompare(b.time || '99:99');
+  });
+  return items;
+}
+
+var viewMonthDate = null; // 月間カレンダーの表示対象月（Dateの1日）
+
+function countShitami(date) {
+  var c = 0;
+  Object.keys(targetTasks).forEach(function (key) {
+    var obj = targetTasks[key]; var cols = obj.csvData; if (!cols) return;
+    if (formatToYMD(cols[12]) === date) c++;
+  });
+  return c;
+}
+
+function renderMonthCalendar() {
+  var box = document.getElementById('monthGrid');
+  if (!box || !currentDate) return;
+  if (!viewMonthDate) viewMonthDate = dateFromStr(currentDate);
+  var y = viewMonthDate.getFullYear(), m = viewMonthDate.getMonth();
+  var firstDay = new Date(y, m, 1);
+  var startOffset = firstDay.getDay();
+  var gridStart = new Date(y, m, 1 - startOffset);
+  var today = todayStr();
+  var labels = ['日', '月', '火', '水', '木', '金', '土'];
+  var html = labels.map(function (l) { return '<div class="month-wd">' + l + '</div>'; }).join('');
+  for (var i = 0; i < 42; i++) {
+    var d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
+    var ds = dateToStr(d);
+    var otherMonth = d.getMonth() !== m;
+    var count = countShitami(ds);
+    var cls = 'month-cell' + (otherMonth ? ' otherMonth' : '') + (ds === today ? ' today' : '') + (ds === currentDate ? ' selected' : '');
+    html += '<div class="' + cls + '" data-pick="' + ds + '"><div class="mnum">' + d.getDate() + '</div>' + (count > 0 ? '<div class="mcount">' + count + '</div>' : '') + '</div>';
+  }
+  box.innerHTML = html;
+  document.getElementById('monthLabel').textContent = y + '年' + (m + 1) + '月';
+  box.querySelectorAll('[data-pick]').forEach(function (el) {
+    el.onclick = function () {
+      var ds = this.getAttribute('data-pick');
+      document.getElementById('viewDate').value = ds;
+      attachDayListener(ds);
+    };
+  });
+}
+
+function shiftMonth(delta) {
+  if (!viewMonthDate) viewMonthDate = dateFromStr(currentDate);
+  viewMonthDate.setMonth(viewMonthDate.getMonth() + delta);
+  renderMonthCalendar();
+}
+
+function renderDayAgenda() {
+  var box = document.getElementById('dayAgendaList');
+  var head = document.getElementById('dayAgendaHeader');
+  if (!box || !currentDate) return;
+  var d = dateFromStr(currentDate);
+  var labels = ['日', '月', '火', '水', '木', '金', '土'];
+  head.textContent = (d.getMonth() + 1) + '/' + d.getDate() + '（' + labels[d.getDay()] + '）の予定';
+
+  var items = buildDayItems(currentDate);
+  if (items.length === 0) {
+    box.innerHTML = '<div class="empty">この日の予定はありません</div>';
+    return;
+  }
+  box.innerHTML = items.map(function (it, idx) {
+    var mainText = it.kari
+      ? (it.title + (it.area ? '【' + it.area + '】' : ''))
+      : (it.personal ? it.title : (it.kindLabel + (it.area ? '【' + it.area + '】' : '')));
+    return '<div class="agenda-day-item" data-idx="' + idx + '">'
+      + '<div class="adi-top"><span class="adi-tm">' + (it.time || '') + '</span>'
+      + (it.order ? '<span class="adi-ord">' + it.order + '番</span>' : '') + '</div>'
+      + '<div class="adi-tt">' + it.badge + ' ' + escapeHtml(mainText) + '</div>'
+      + '</div>';
+  }).join('');
+  box.querySelectorAll('.agenda-day-item').forEach(function (el) {
+    var idx = parseInt(el.getAttribute('data-idx'), 10);
+    var it = items[idx];
+    if (!it) return;
+    el.onclick = function () {
+      if (it.kari) openModal(it.kariDate, it.kariId, it.kariE);
+      else if (it.personal) openPersonalInfoModal(it);
+      else openRealCaseModal(it);
+    };
+  });
+
+  if (urlOpenId) {
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kari && items[i].kariId === urlOpenId) {
+        var target = items[i];
+        urlOpenId = null;
+        setTimeout(function () { openModal(target.kariDate, target.kariId, target.kariE); }, 0);
+        break;
+      }
+    }
+  }
+}
+
+// ============ データ購読 ============
+function slotsRef(date) {
+  return rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date);
+}
+function slotsRootRef() {
+  return rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots');
+}
+
+var dayListenerDate = null;
+function initData() {
+  viewMonthDate = dateFromStr(currentDate);
+  attachDayListener(currentDate);
+  document.getElementById('viewDate').onchange = function () {
+    attachDayListener(this.value);
+  };
+  subscribeUpcoming();
+}
+
+function attachDayListener(date) {
+  if (dayListenerDate) slotsRef(dayListenerDate).off('value', renderDayView);
+  currentDate = date;
+  dayListenerDate = date;
+  slotsRef(date).on('value', renderDayView);
+  var dObj = dateFromStr(date);
+  if (!viewMonthDate || viewMonthDate.getFullYear() !== dObj.getFullYear() || viewMonthDate.getMonth() !== dObj.getMonth()) {
+    viewMonthDate = new Date(dObj.getFullYear(), dObj.getMonth(), 1);
+  }
+  renderMonthCalendar(); renderDayAgenda();
+}
+
+// ============ 月間カレンダー共通ユーティリティ ============
+var allKariCounts = {}; // date(YYYY-MM-DD) -> 件数（互換のため保持、現状未使用）
+var allKariSlotsData = {}; // date(YYYY-MM-DD) -> {id: entry}
+function dateFromStr(s) { var p = s.split('-'); return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); }
+function dateToStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+
+var currentDaySlots = {};
+function renderDayView(snap) {
+  currentDaySlots = snap.val() || {};
+  renderMonthCalendar();
+  renderDayAgenda();
+}
+
+function subscribeUpcoming() {
+  slotsRootRef().on('value', function (snap) {
+    var all = snap.val() || {};
+    allKariSlotsData = all;
+    allKariCounts = {};
+    Object.keys(all).forEach(function (date) {
+      var dayData = all[date];
+      allKariCounts[date] = Object.keys(dayData).length;
+    });
+    renderMonthCalendar();
+    renderDayAgenda();
+    renderContactOptions();
+  });
+}
+
+// ============ モーダル ============
+function rowsHtml(rows) {
+  return rows.map(function (r) {
+    return '<div class="mrow"><b>' + escapeHtml(r.label) + '：</b>' + escapeHtml(r.value) + '</div>';
+  }).join('');
+}
+
+function openModal(date, id, e) {
+  currentModalPath = date + '/' + id;
+  currentModalRecord = { date: date, e: e };
+  var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
+  document.getElementById('mTitle').textContent = date + ' の仮予約';
+  document.getElementById('modalRows').innerHTML = rowsHtml([
+    { label: '案件名', value: e.case_name || '(未入力)' },
+    { label: '時間', value: e.start || '' },
+    { label: '担当者', value: e.tantou || '(未入力)' },
+    { label: '住所（簡易）', value: e.area || '(未入力)' },
+    { label: 'メール', value: e.email || '(未入力)' },
+    { label: '電話番号', value: e.tel || '(未入力)' },
+    { label: 'メモ', value: e.memo || '(メモなし)' },
+    { label: '状態', value: e.status || '仮' }
+  ]);
+  if (e.candidate_group) {
+    document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>候補日：</b>同じ案件で他に ' + (countCandidateGroup(e.candidate_group) - 1) + ' 件の候補日があります</div>';
+  }
+  if (e.attachment_url) {
+    document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
+  }
+  // 📅 日付・時間の変更（案件名・担当者・連絡先・メモ等はそのまま、日時だけ移動する）
+  if (canDelete) {
+    document.getElementById('modalRows').innerHTML +=
+      '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">' +
+      '<b>📅 日付・時間を変更：</b>' +
+      '<div style="display:flex;gap:6px;margin-top:6px;">' +
+      '<input type="date" id="mMoveDate" value="' + date + '" style="flex:1.3;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' +
+      '<select id="mMoveTime" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' + generateTimeOptions() + '</select>' +
+      '<button type="button" id="mMoveBtn" style="padding:8px 14px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;">変更する</button>' +
+      '</div><div id="mMoveMsg" style="font-size:12px;margin-top:4px;"></div>' +
+      '</div>';
+    document.getElementById('mMoveTime').value = e.start || '';
+    document.getElementById('mMoveBtn').onclick = function () { moveCurrentSlot(); };
+  }
+
+  var contactBox = document.getElementById('mContactBtns');
+  var contactHtml = '';
+  if (e.email) contactHtml += '<button class="mail" id="mMailBtn">📧 メールで連絡</button>';
+  if (e.tel) contactHtml += '<button class="sms" id="mSmsBtn">💬 SMSで連絡</button>';
+  contactBox.innerHTML = contactHtml;
+  contactBox.style.display = contactHtml ? 'flex' : 'none';
+  if (e.email) document.getElementById('mMailBtn').onclick = function () { location.href = buildMailto(date, e); };
+  if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
+
+  document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
+  document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && e.status !== '確定') ? 'block' : 'none';
+  document.getElementById('mUnconfBtn').style.display = (canDelete && e.status === '確定') ? 'block' : 'none';
+
+  document.getElementById('overlay').classList.add('show');
+}
+
+function moveCurrentSlot() {
+  if (!currentModalPath || !currentModalRecord) return;
+  var newDate = document.getElementById('mMoveDate').value;
+  var newTime = document.getElementById('mMoveTime').value;
+  var msgBox = document.getElementById('mMoveMsg');
+  msgBox.style.color = '#c0392b';
+  if (!newDate || !newTime) { msgBox.textContent = '日付と時間を入力してください'; return; }
+  var oldDate = currentModalRecord.date;
+  var oldStart = currentModalRecord.e.start || '';
+  if (newDate === oldDate && newTime === oldStart) { msgBox.textContent = '日時が変更されていません'; return; }
+  var payload = Object.assign({}, currentModalRecord.e, { start: newTime });
+  var newId = slotsRootRef().push().key;
+  var updates = {};
+  updates[currentModalPath] = null;
+  updates[newDate + '/' + newId] = payload;
+  msgBox.style.color = 'var(--muted)';
+  msgBox.textContent = '変更中...';
+  slotsRootRef().update(updates).then(function () {
+    closeModal();
+    attachDayListener(newDate);
+    document.getElementById('viewDate').value = newDate;
+  }).catch(function (e) {
+    msgBox.style.color = '#c0392b';
+    msgBox.textContent = '変更できませんでした：' + e.message;
+  });
+}
+
+function openPersonalInfoModal(item) {
+  currentModalPath = null;
+  document.getElementById('mTitle').textContent = item.date + ' の個人予定';
+  document.getElementById('modalRows').innerHTML = rowsHtml([
+    { label: '時間', value: item.time || '（未設定）' },
+    { label: 'タイトル', value: item.title || '' }
+  ]);
+  document.getElementById('mDelBtn').style.display = 'none';
+  document.getElementById('mConfBtn').style.display = 'none';
+  document.getElementById('mUnconfBtn').style.display = 'none';
+  document.getElementById('overlay').classList.add('show');
+}
+
+// 案件（下見・下見予定）は正規の案件モーダル(shared-modal.js)をそのまま使う。
+// ただし書き込み権限が無いユーザー（kari権限、または対象者=自分以外のスタッフ）が
+// 開いた場合は、保存が静かに失敗して混乱するのを防ぐため、入力欄を読み取り専用にする。
+function canEditTarget() {
+  return isAdmin || (myUserKey && myUserKey === targetUserKey);
+}
+function openRealCaseModal(item) {
+  var fakeScopedDb = {
+    ref: function (path) {
+      return (path === undefined || path === '')
+        ? rawDb.ref('users/' + targetUserKey)
+        : rawDb.ref('users/' + targetUserKey + '/' + path);
+    }
+  };
+  var globalHeaders = window.__kariGlobalHeaders || [];
+  window.openCaseModal(item.caseKey, item.obj, globalHeaders, targetTasks, null, fakeScopedDb, function () {
+    renderMonthCalendar(); renderDayAgenda();
+  });
+  var readonly = !canEditTarget();
+  document.getElementById('readonly-note').style.display = readonly ? 'block' : 'none';
+  if (readonly) {
+    setTimeout(function () {
+      var body = document.getElementById('modal-body');
+      if (!body) return;
+      body.querySelectorAll('input, textarea, select, button').forEach(function (el) {
+        el.disabled = true;
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.6';
+      });
+      body.querySelectorAll('.kanban-step').forEach(function (el) {
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.6';
+      });
+    }, 0);
+  }
+}
+function closeModal() {
+  document.getElementById('overlay').classList.remove('show');
+  currentModalPath = null;
+}
+function deleteCurrentSlot() {
+  if (!currentModalPath) return;
+  if (!confirm('この仮予約を削除しますか？')) return;
+  slotsRootRef().child(currentModalPath).remove()
+    .then(closeModal)
+    .catch(function (e) { alert('削除できませんでした：' + e.message); });
+}
+function buildMailto(date, e) {
+  var subject = encodeURIComponent('【現調仮予約】' + (e.case_name || '') + ' ' + date + ' ' + (e.start || ''));
+  var body = encodeURIComponent(
+    (e.tantou || '') + ' 様\n\n' +
+    '仮予約の件、確認いたしました。\n\n' +
+    '日付：' + date + '\n時間：' + (e.start || '') + '\n案件名：' + (e.case_name || '') + '\n\n' +
+    '状態：' + (e.status || '仮') + '\n\n' +
+    'ご確認よろしくお願いいたします。'
+  );
+  return 'mailto:' + encodeURIComponent(e.email) + '?subject=' + subject + '&body=' + body;
+}
+function buildSms(date, e) {
+  var smsBody = encodeURIComponent(
+    (e.tantou || '') + '様　仮予約の件、確認いたしました。日付：' + date + ' 時間：' + (e.start || '') + ' 案件名：' + (e.case_name || '') + ' 状態：' + (e.status || '仮')
+  );
+  return 'sms:' + encodeURIComponent(e.tel) + '?body=' + smsBody;
+}
+function launchContact(date, e) {
+  if (e.email) location.href = buildMailto(date, e);
+  else if (e.tel) location.href = buildSms(date, e);
+}
+
+function markKakutei() {
+  if (!currentModalPath) return;
+  var record = currentModalRecord;
+  slotsRootRef().child(currentModalPath).update({ status: '確定' })
+    .then(function () {
+      closeModal();
+      if (record) launchContact(record.date, Object.assign({}, record.e, { status: '確定' }));
+    })
+    .catch(function (e) { alert('更新できませんでした：' + e.message); });
+}
+
+function unmarkKakutei() {
+  if (!currentModalPath) return;
+  slotsRootRef().child(currentModalPath).update({ status: '仮' })
+    .then(closeModal)
+    .catch(function (e) { alert('更新できませんでした：' + e.message); });
+}
+
+// ============ 新規予約（重複チェック付きトランザクション） ============
+function submitReservation() {
+  var caseName = document.getElementById('fCaseName').value.trim();
+  var tantou = document.getElementById('fTantou').value.trim();
+  var area = document.getElementById('fArea').value.trim();
+  var email = document.getElementById('fEmail').value.trim();
+  var tel = document.getElementById('fTel').value.trim();
+  var memo = document.getElementById('fMemo').value.trim();
+  var fileInput = document.getElementById('fAttachment');
+  var file = fileInput.files && fileInput.files[0];
+  var msg = document.getElementById('formMsg');
+  var attachMsg = document.getElementById('attachMsg');
+  var btn = document.getElementById('submitBtn');
+
+  msg.className = ''; msg.textContent = '';
+  attachMsg.textContent = '';
+
+  var rowEls = document.querySelectorAll('#dateRows .date-row');
+  var candidates = [];
+  var seen = {};
+  for (var i = 0; i < rowEls.length; i++) {
+    var d = rowEls[i].querySelector('.cDate').value;
+    var t = rowEls[i].querySelector('.cTime').value;
+    if (!d || !t) { msg.className = 'err'; msg.textContent = '候補日はすべて日付・時間を入力してください'; return; }
+    var dk = d + ' ' + t;
+    if (seen[dk]) { msg.className = 'err'; msg.textContent = '同じ日付・時間の候補が重複しています'; return; }
+    seen[dk] = true;
+    candidates.push({ date: d, time: t });
+  }
+  if (!tantou) { msg.className = 'err'; msg.textContent = '担当者を入力してください'; return; }
+  if (!email && !tel) { msg.className = 'err'; msg.textContent = 'メールアドレスか電話番号のどちらかを入力してください'; return; }
+  if (file && file.size > 15 * 1024 * 1024) { msg.className = 'err'; msg.textContent = '添付ファイルは15MB以内にしてください'; return; }
+
+  btn.disabled = true;
+  var groupId = candidates.length > 1 ? rawDb.ref().push().key : null;
+  var uploadId = groupId || rawDb.ref().push().key;
+
+  var uploadPromise = Promise.resolve({ url: '', name: '' });
+  if (file) {
+    attachMsg.textContent = 'ファイルをアップロード中...';
+    var storagePath = 'users/' + targetUserKey + '/kari_attachments/' + uploadId + '_' + file.name;
+    var uploadTask = rawStorage.ref(storagePath).put(file);
+    uploadPromise = uploadTask.then(function (snap) {
+      return snap.ref.getDownloadURL();
+    }).then(function (url) {
+      attachMsg.textContent = '';
+      return { url: url, name: file.name };
+    });
+  }
+
+  uploadPromise.then(function (attach) {
+    var promises = candidates.map(function (c) {
+      var newId = rawDb.ref().push().key;
+      return slotsRef(c.date).transaction(function (current) {
+        current = current || {};
+        for (var key in current) {
+          var e = current[key];
+          if (e.start === c.time) {
+            return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
+          }
+        }
+        var record = {
+          case_name: caseName,
+          start: c.time,
+          tantou: tantou,
+          area: area,
+          email: email,
+          tel: tel,
+          memo: memo,
+          attachment_url: attach.url,
+          attachment_name: attach.name,
+          status: '仮',
+          ownerUid: currentUid,
+          created_at: Date.now()
+        };
+        if (groupId) record.candidate_group = groupId;
+        current[newId] = record;
+        return current;
+      }).then(function (result) {
+        return { date: c.date, time: c.time, committed: result.committed };
+      });
+    });
+    return Promise.all(promises);
+  }).then(function (results) {
+    btn.disabled = false;
+    var failed = results.filter(function (r) { return !r.committed; });
+    var okCount = results.length - failed.length;
+    if (failed.length === 0) {
+      msg.className = 'ok';
+      msg.textContent = results.length > 1 ? (results.length + '件の候補日で仮予約を登録しました。') : '仮予約を登録しました。';
+    } else if (okCount === 0) {
+      msg.className = 'err'; msg.textContent = 'すべての候補日で時間が重複していました。時間を変えてください。';
+    } else {
+      msg.className = 'err';
+      msg.textContent = okCount + '件登録しましたが、' + failed.map(function (f) { return f.date + ' ' + f.time; }).join('、') + ' は既に埋まっていたため登録できませんでした。';
+    }
+    if (okCount > 0) saveContact(tantou, email, tel);
+    document.getElementById('fCaseName').value = '';
+    document.getElementById('fArea').value = '';
+    document.getElementById('fEmail').value = '';
+    document.getElementById('fTel').value = '';
+    document.getElementById('fMemo').value = '';
+    fileInput.value = '';
+    resetDateRows();
+  }).catch(function (error) {
+    btn.disabled = false;
+    attachMsg.textContent = '';
+    msg.className = 'err'; msg.textContent = '通信エラー：' + error.message;
+  });
+}
+</script>
+</body>
+</html>
