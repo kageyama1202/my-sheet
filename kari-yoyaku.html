@@ -79,6 +79,14 @@
   }
   input:focus, textarea:focus { border-color: var(--accent); }
   textarea { resize: vertical; min-height: 50px; }
+  .ac-wrap { position: relative; }
+  .ac-list {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 2px);
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 170px; overflow-y: auto; z-index: 50; box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .ac-item { padding: 10px 12px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .ac-item:hover { background: var(--accent); color: #fff; }
   .row2 { display: flex; gap: 8px; }
   .row2 > div { flex: 1; }
   button.primary {
@@ -302,7 +310,10 @@
     <div id="dateRows"></div>
     <button type="button" class="week-nav" id="addDateRowBtn" style="width:100%;margin-top:2px;margin-bottom:10px;">＋ 候補日を追加</button>
     <label>担当者（このデータを入力している人） <span style="color:var(--danger);">必須</span></label>
-    <input type="text" id="fTantou" list="tantouOptions">
+    <div class="ac-wrap">
+      <input type="text" id="fTantou" list="tantouOptions" autocomplete="off">
+      <div class="ac-list" id="fTantouSuggest"></div>
+    </div>
     <datalist id="tantouOptions"></datalist>
     <label>住所（簡易）</label>
     <input type="text" id="fArea" list="areaOptions" placeholder="例：豊平区、江別市 など">
@@ -314,10 +325,16 @@
       <option value="南幌町"><option value="石狩市"><option value="その他">
     </datalist>
     <label>メールアドレス <span style="color:var(--danger);">※電話番号とどちらか必須</span></label>
-    <input type="text" id="fEmail" list="emailOptions" placeholder="example@example.com">
+    <div class="ac-wrap">
+      <input type="text" id="fEmail" list="emailOptions" placeholder="example@example.com" autocomplete="off">
+      <div class="ac-list" id="fEmailSuggest"></div>
+    </div>
     <datalist id="emailOptions"></datalist>
     <label>電話番号 <span style="color:var(--danger);">※メールとどちらか必須</span></label>
-    <input type="text" id="fTel" list="telOptions" placeholder="09012345678">
+    <div class="ac-wrap">
+      <input type="text" id="fTel" list="telOptions" placeholder="09012345678" autocomplete="off">
+      <div class="ac-list" id="fTelSuggest"></div>
+    </div>
     <datalist id="telOptions"></datalist>
     <label>内容などのメモ</label>
     <textarea id="fMemo" placeholder="例：相談したい内容など"></textarea>
@@ -401,7 +418,13 @@ function getUrlDateParam() {
     return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
   } catch (e) { return null; }
 }
+function getUrlOpenIdParam() {
+  // 同じくtoday.html/calendar.htmlから ?open=<仮予約ID> 付きで飛んできた場合、
+  // 該当の仮予約を自動でモーダル表示する（再入力の手間を省くため）。
+  try { return new URLSearchParams(location.search).get('open') || null; } catch (e) { return null; }
+}
 var currentDate = getUrlDateParam() || todayStr();
+var urlOpenId = getUrlOpenIdParam();
 var currentModalPath = null; // "date/id"
 var currentModalRecord = null; // 確定時の連絡アプリ起動用
 var kariTargets = {};
@@ -607,7 +630,46 @@ function wireContactAutofill() {
     }
   });
 }
+// クリックで選べる候補リスト（datalistはiOS Safari等で候補が出ないことがあるため独自実装）
+function wireClickSuggest(inputId, listId, field) {
+  var input = document.getElementById(inputId);
+  var box = document.getElementById(listId);
+  if (!input || !box) return;
+  function itemsFor(q) {
+    var seen = {}, out = [];
+    Object.keys(targetContacts).forEach(function (k) {
+      var v = (targetContacts[k][field] || '').trim();
+      if (!v || seen[v]) return;
+      if (q && v.toLowerCase().indexOf(q.toLowerCase()) === -1) return;
+      seen[v] = true; out.push(v);
+    });
+    return out;
+  }
+  function render(q) {
+    var items = itemsFor(q);
+    if (items.length === 0) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = items.map(function (v) { return '<div class="ac-item" data-v="' + escapeHtml(v) + '">' + escapeHtml(v) + '</div>'; }).join('');
+    box.style.display = 'block';
+    box.querySelectorAll('.ac-item').forEach(function (el) {
+      // mousedown/touchstartでblurより先に発火させ、候補選択を確実に反映する
+      var pick = function (e) {
+        e.preventDefault();
+        input.value = el.getAttribute('data-v');
+        box.style.display = 'none';
+        input.dispatchEvent(new Event('change'));
+      };
+      el.addEventListener('mousedown', pick);
+      el.addEventListener('touchstart', pick);
+    });
+  }
+  input.addEventListener('focus', function () { render(this.value); });
+  input.addEventListener('input', function () { render(this.value); });
+  input.addEventListener('blur', function () { setTimeout(function () { box.style.display = 'none'; }, 150); });
+}
 wireContactAutofill();
+wireClickSuggest('fTantou', 'fTantouSuggest', 'tantou');
+wireClickSuggest('fEmail', 'fEmailSuggest', 'email');
+wireClickSuggest('fTel', 'fTelSuggest', 'tel');
 function saveContact(tantou, email, tel) {
   if (!tantou) return;
   var key = sanitizeContactKey(tantou);
@@ -770,6 +832,17 @@ function renderDayAgenda() {
       else openRealCaseModal(it);
     };
   });
+
+  if (urlOpenId) {
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kari && items[i].kariId === urlOpenId) {
+        var target = items[i];
+        urlOpenId = null;
+        setTimeout(function () { openModal(target.kariDate, target.kariId, target.kariE); }, 0);
+        break;
+      }
+    }
+  }
 }
 
 // ============ データ購読 ============
@@ -839,6 +912,7 @@ function rowsHtml(rows) {
 function openModal(date, id, e) {
   currentModalPath = date + '/' + id;
   currentModalRecord = { date: date, e: e };
+  var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
   document.getElementById('mTitle').textContent = date + ' の仮予約';
   document.getElementById('modalRows').innerHTML = rowsHtml([
     { label: '案件名', value: e.case_name || '(未入力)' },
@@ -856,6 +930,20 @@ function openModal(date, id, e) {
   if (e.attachment_url) {
     document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
   }
+  // 📅 日付・時間の変更（案件名・担当者・連絡先・メモ等はそのまま、日時だけ移動する）
+  if (canDelete) {
+    document.getElementById('modalRows').innerHTML +=
+      '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">' +
+      '<b>📅 日付・時間を変更：</b>' +
+      '<div style="display:flex;gap:6px;margin-top:6px;">' +
+      '<input type="date" id="mMoveDate" value="' + date + '" style="flex:1.3;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' +
+      '<select id="mMoveTime" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' + generateTimeOptions() + '</select>' +
+      '<button type="button" id="mMoveBtn" style="padding:8px 14px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;">変更する</button>' +
+      '</div><div id="mMoveMsg" style="font-size:12px;margin-top:4px;"></div>' +
+      '</div>';
+    document.getElementById('mMoveTime').value = e.start || '';
+    document.getElementById('mMoveBtn').onclick = function () { moveCurrentSlot(); };
+  }
 
   var contactBox = document.getElementById('mContactBtns');
   var contactHtml = '';
@@ -866,12 +954,38 @@ function openModal(date, id, e) {
   if (e.email) document.getElementById('mMailBtn').onclick = function () { location.href = buildMailto(date, e); };
   if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
 
-  var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
   document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && e.status !== '確定') ? 'block' : 'none';
   document.getElementById('mUnconfBtn').style.display = (canDelete && e.status === '確定') ? 'block' : 'none';
 
   document.getElementById('overlay').classList.add('show');
+}
+
+function moveCurrentSlot() {
+  if (!currentModalPath || !currentModalRecord) return;
+  var newDate = document.getElementById('mMoveDate').value;
+  var newTime = document.getElementById('mMoveTime').value;
+  var msgBox = document.getElementById('mMoveMsg');
+  msgBox.style.color = '#c0392b';
+  if (!newDate || !newTime) { msgBox.textContent = '日付と時間を入力してください'; return; }
+  var oldDate = currentModalRecord.date;
+  var oldStart = currentModalRecord.e.start || '';
+  if (newDate === oldDate && newTime === oldStart) { msgBox.textContent = '日時が変更されていません'; return; }
+  var payload = Object.assign({}, currentModalRecord.e, { start: newTime });
+  var newId = slotsRootRef().push().key;
+  var updates = {};
+  updates[currentModalPath] = null;
+  updates[newDate + '/' + newId] = payload;
+  msgBox.style.color = 'var(--muted)';
+  msgBox.textContent = '変更中...';
+  slotsRootRef().update(updates).then(function () {
+    closeModal();
+    attachDayListener(newDate);
+    document.getElementById('viewDate').value = newDate;
+  }).catch(function (e) {
+    msgBox.style.color = '#c0392b';
+    msgBox.textContent = '変更できませんでした：' + e.message;
+  });
 }
 
 function openPersonalInfoModal(item) {
