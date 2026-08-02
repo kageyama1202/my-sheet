@@ -389,15 +389,22 @@ var isKari = false;
 var myUserKey = null;   // 自分がstaffログインしている場合の自分のuserKey（無ければnull）
 var currentUid = null;
 var targetUserKey = null; // 今、誰の枠に仮予約しているか
-var currentDate = todayStr();
-var currentModalPath = null; // "date/id"
-var currentModalRecord = null; // 確定時の連絡アプリ起動用
-var kariTargets = {};
-
 function todayStr() {
   var d = new Date();
   return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
 }
+function getUrlDateParam() {
+  // today.html/calendar.htmlの仮予約モーダルから「日付変更はこちら」で
+  // ?date=YYYY-MM-DD 付きで飛んできた場合、その日を初期表示日にする。
+  try {
+    var v = new URLSearchParams(location.search).get('date');
+    return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+  } catch (e) { return null; }
+}
+var currentDate = getUrlDateParam() || todayStr();
+var currentModalPath = null; // "date/id"
+var currentModalRecord = null; // 確定時の連絡アプリ起動用
+var kariTargets = {};
 function pad(n){ return n < 10 ? '0'+n : ''+n; }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
