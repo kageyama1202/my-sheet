@@ -382,7 +382,7 @@ var valid=Object.keys(globalTasks).filter(function(key){var obj=globalTasks[key]
     if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&sekouDate!==''&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(sekouDate===''&&showNoSekou)dm=true;if(!dm)return false;}return true;});
 valid.sort(function(a,b){function eff(obj){var c=obj.csvData;var yD=formatToYMD(obj.date||'');var aiD=formatToYMD(obj.ai_shitami_date||'');var sdD=formatToYMD(getSafeVal(c,12));var skD=formatToYMD(getSafeVal(c,2));if(skD==='')return'9999-99-99';if(cY&&yD)return yD;if(cAI&&aiD)return aiD;if(cD&&sdD)return sdD;return skD;}return eff(globalTasks[a]).localeCompare(eff(globalTasks[b]));});
 var personalInRange=getPersonalEventsInRange(from||null,to||null);
-var kariInRange=getKariEventsInRange(from||null,to||null);
+var kariInRange=getKariEventsInRange(from||today,to||null);
 var taskItems=valid.map(function(key){var obj=globalTasks[key];var c=obj.csvData;var effDate='';var yD=formatToYMD(obj.date||'');var aiD=formatToYMD(obj.ai_shitami_date||'');var sdD=formatToYMD(getSafeVal(c,12));var skD=formatToYMD(getSafeVal(c,2));if(skD===''){effDate='9999-99-99';}else if(cY&&yD){effDate=yD;}else if(cAI&&aiD){effDate=aiD;}else if(cD&&sdD){effDate=sdD;}else{effDate=skD;}return{_type:'task',key:key,effDate:effDate,sekouDate:skD};});
 var personalItems=personalInRange.map(function(ev){return{_type:'personal',ev:ev,effDate:ev.dateKey};});
 var kariItems=kariInRange.map(function(ev){return{_type:'kari',ev:ev,effDate:ev.dateKey};});
