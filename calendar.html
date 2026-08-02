@@ -241,7 +241,7 @@
       var timeOpts=generateTimeOptions();
       var editStyle='width:100%;box-sizing:border-box;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;';
       var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#e65100">🟠 '+statusTag+'：'+(ev.case_name||'')+'</div></div><table class="modal-table">'
-        +'<tr><th>日付</th><td>'+ev._dateKey+' <a href="kari-yoyaku.html?date='+ev._dateKey+'" target="_blank" style="font-size:11px;color:#1a73e8;font-weight:600;white-space:nowrap;">📅日付変更はこちら</a></td></tr>'
+        +'<tr><th>日付</th><td>'+ev._dateKey+' <a href="kari-yoyaku.html?date='+ev._dateKey+'&open='+encodeURIComponent(ev._id)+'" target="_blank" style="font-size:11px;color:#1a73e8;font-weight:600;white-space:nowrap;">📅日付変更はこちら</a></td></tr>'
         +'<tr><th>時間</th><td><select id="calKariEditTime" style="'+editStyle+'">'+timeOpts+'</select></td></tr>'
         +'<tr><th>担当者</th><td><input type="text" id="calKariEditTantou" style="'+editStyle+'" value="'+escHtmlModal(ev.tantou||'')+'"></td></tr>'
         +'<tr><th>住所（簡易）</th><td><input type="text" id="calKariEditArea" style="'+editStyle+'" value="'+escHtmlModal(ev.area||'')+'"></td></tr>'
