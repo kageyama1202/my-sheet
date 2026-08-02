@@ -238,22 +238,43 @@
     function countCandidateGroupCal(groupId){var c=0;Object.keys(kariSlotsCache).forEach(function(dateKey){var day=kariSlotsCache[dateKey];Object.keys(day).forEach(function(id){if(day[id].candidate_group===groupId)c++;});});return c;}
     function openKariModal(ev){
       var statusTag=ev.status==='確定'?'✅確定':'仮予約';
+      var timeOpts=generateTimeOptions();
+      var editStyle='width:100%;box-sizing:border-box;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;';
       var html='<div class="modal-header-info"><div class="modal-title-row" style="color:#e65100">🟠 '+statusTag+'：'+(ev.case_name||'')+'</div></div><table class="modal-table">'
-        +'<tr><th>時間</th><td>'+(ev.start||'')+'</td></tr>'
-        +'<tr><th>担当者</th><td>'+(ev.tantou||'')+'</td></tr>'
-        +'<tr><th>住所（簡易）</th><td>'+(ev.area||'')+'</td></tr>'
-        +'<tr><th>メール</th><td>'+(ev.email||'')+'</td></tr>'
-        +'<tr><th>電話番号</th><td>'+(ev.tel||'')+'</td></tr>'
-        +'<tr><th>メモ</th><td>'+(ev.memo||'（メモなし）')+'</td></tr>';
+        +'<tr><th>日付</th><td>'+ev._dateKey+' <a href="kari-yoyaku.html?date='+ev._dateKey+'" target="_blank" style="font-size:11px;color:#1a73e8;font-weight:600;white-space:nowrap;">📅日付変更はこちら</a></td></tr>'
+        +'<tr><th>時間</th><td><select id="calKariEditTime" style="'+editStyle+'">'+timeOpts+'</select></td></tr>'
+        +'<tr><th>担当者</th><td><input type="text" id="calKariEditTantou" style="'+editStyle+'" value="'+escHtmlModal(ev.tantou||'')+'"></td></tr>'
+        +'<tr><th>住所（簡易）</th><td><input type="text" id="calKariEditArea" style="'+editStyle+'" value="'+escHtmlModal(ev.area||'')+'"></td></tr>'
+        +'<tr><th>メール</th><td><input type="email" id="calKariEditEmail" style="'+editStyle+'" value="'+escHtmlModal(ev.email||'')+'"></td></tr>'
+        +'<tr><th>電話番号</th><td><input type="tel" id="calKariEditTel" style="'+editStyle+'" value="'+escHtmlModal(ev.tel||'')+'"></td></tr>'
+        +'<tr><th>メモ</th><td><textarea id="calKariEditMemo" style="'+editStyle+'min-height:50px;">'+escHtmlModal(ev.memo||'')+'</textarea></td></tr>';
       if(ev.attachment_url) html+='<tr><th>添付</th><td><a href="'+ev.attachment_url+'" target="_blank" style="color:#0056b3;">📎 '+(ev.attachment_name||'ファイルを開く')+'</a></td></tr>';
       if(ev.candidate_group) html+='<tr><th>候補日</th><td>同じ案件で他に '+(countCandidateGroupCal(ev.candidate_group)-1)+' 件の候補日があります</td></tr>';
-      html+='</table><div style="display:flex;gap:8px;margin-top:12px;">';
+      html+='</table><div id="calKariSaveMsg" style="display:none;color:#2e9e5b;font-size:12px;font-weight:600;margin-top:4px;">✓ 保存しました</div>';
+      html+='<div style="display:flex;gap:8px;margin-top:12px;">';
       if(ev.status!=='確定') html+='<button id="calKariConfirmBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">確定にする</button>';
       if(ev.status==='確定') html+='<button id="calKariUnconfirmBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#888;color:#fff;cursor:pointer;">確定解除</button>';
       if(ev.email) html+='<button id="calKariMailBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#1a73e8;color:#fff;cursor:pointer;">📧 メールで連絡</button>';
       if(ev.tel) html+='<button id="calKariSmsBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e7d5b;color:#fff;cursor:pointer;">💬 SMSで連絡</button>';
       html+='</div><div style="font-size:11px;color:#888;margin-top:8px;">削除は仮予約ページで行ってください</div>';
       document.getElementById('modal-body').innerHTML=html;modalOverlay.style.display='block';
+
+      document.getElementById('calKariEditTime').value=ev.start||'';
+      function calKariSaveField(upd){
+        database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update(upd).then(function(){
+          for(var k in upd) ev[k]=upd[k];
+          var msg=document.getElementById('calKariSaveMsg');
+          if(msg){msg.style.display='inline-block';clearTimeout(msg._t);msg._t=setTimeout(function(){msg.style.display='none';},1500);}
+          reloadKariAndRenderCal();
+        }).catch(function(e){alert('更新できませんでした：'+e.message);});
+      }
+      document.getElementById('calKariEditTime').addEventListener('change',function(){calKariSaveField({start:this.value});});
+      document.getElementById('calKariEditTantou').addEventListener('blur',function(){if(this.value!==(ev.tantou||''))calKariSaveField({tantou:this.value});});
+      document.getElementById('calKariEditArea').addEventListener('blur',function(){if(this.value!==(ev.area||''))calKariSaveField({area:this.value});});
+      document.getElementById('calKariEditEmail').addEventListener('blur',function(){if(this.value!==(ev.email||''))calKariSaveField({email:this.value});});
+      document.getElementById('calKariEditTel').addEventListener('blur',function(){if(this.value!==(ev.tel||''))calKariSaveField({tel:this.value});});
+      document.getElementById('calKariEditMemo').addEventListener('blur',function(){if(this.value!==(ev.memo||''))calKariSaveField({memo:this.value});});
+
       if(ev.status!=='確定'){
         document.getElementById('calKariConfirmBtn').onclick=function(){
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'確定'}).then(function(){
