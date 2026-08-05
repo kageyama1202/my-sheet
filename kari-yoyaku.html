@@ -103,7 +103,7 @@
   }
   button.primary:active { opacity: 0.75; }
   button.primary:disabled { opacity: 0.5; }
-  #formMsg { font-size: 13px; margin-top: 8px; min-height: 16px; }
+  #formMsg { font-size: 13px; margin-top: 8px; min-height: 16px; white-space: pre-line; }
   #formMsg.err { color: var(--danger); }
   #formMsg.ok { color: var(--kakutei); }
 
@@ -775,6 +775,49 @@ function buildDayItems(date) {
   return items;
 }
 
+// ============ 日時重複チェック（同時刻＝入力不可／前後72分＝警告のみ） ============
+function timeToMinutesK(t) {
+  if (!t) return null;
+  var p = String(t).split(':');
+  if (p.length < 2) return null;
+  var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+// date/timeの候補について、その対象者の当日の予定（下見=app_tasks、個人予定、仮予約=kari 全ステータス）と
+// 突き合わせ、exact=同時刻（入力不可）／nearby=前後72分以内（警告のみ）を返す。
+// 各要素はbuildDayItems()の生アイテム（time/badge/title/area等を含む）そのもの。
+// excludeKariId：自分自身（移動元の仮予約など）を比較対象から除外したい場合に指定。
+function getDayConflicts(date, time, excludeKariId) {
+  var result = { exact: [], nearby: [] };
+  var tMin = timeToMinutesK(time);
+  if (!date || tMin == null) return result;
+  var items = buildDayItems(date);
+  items.forEach(function (it) {
+    if (excludeKariId && it.kari && it.kariId === excludeKariId) return;
+    if (!it.time) return;
+    var iMin = timeToMinutesK(it.time);
+    if (iMin == null) return;
+    if (iMin === tMin) result.exact.push(it);
+    else if (Math.abs(iMin - tMin) <= 72) result.nearby.push(it);
+  });
+  return result;
+}
+// 重複チェック結果アイテムを表示用テキストに整形
+function conflictItemLabel(it) {
+  var titleText = it.title || it.kindLabel || '';
+  return it.time + ' ' + it.badge + ' ' + titleText + (it.area ? '【' + it.area + '】' : '');
+}
+// 「◯月◯日の予定を見る」リンク用：右側カレンダーをその日に切り替え、開いているモーダルは閉じる
+function jumpToDate(date) {
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('modal-overlay').style.display = 'none';
+  document.getElementById('viewDate').value = date;
+  attachDayListener(date);
+  var calSection = document.getElementById('calSection');
+  if (calSection) calSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 var viewMonthDate = null; // 月間カレンダーの表示対象月（Dateの1日）
 
 function countShitami(date) {
@@ -963,7 +1006,7 @@ function openModal(date, id, e) {
       '<input type="date" id="mMoveDate" value="' + date + '" style="flex:1.3;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' +
       '<select id="mMoveTime" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">' + generateTimeOptions() + '</select>' +
       '<button type="button" id="mMoveBtn" style="padding:8px 14px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;">変更する</button>' +
-      '</div><div id="mMoveMsg" style="font-size:12px;margin-top:4px;"></div>' +
+      '</div><div id="mMoveMsg" style="font-size:12px;margin-top:4px;white-space:pre-line;"></div>' +
       '</div>';
     document.getElementById('mMoveTime').value = e.start || '';
     document.getElementById('mMoveBtn').onclick = function () { moveCurrentSlot(); };
@@ -995,6 +1038,17 @@ function moveCurrentSlot() {
   var oldDate = currentModalRecord.date;
   var oldStart = currentModalRecord.e.start || '';
   if (newDate === oldDate && newTime === oldStart) { msgBox.textContent = '日時が変更されていません'; return; }
+
+  // 同時刻の予定（下見・個人予定・他の仮予約）があれば移動不可。自分自身は比較対象から除外。
+  var selfId = currentModalPath.split('/')[1];
+  var conf = getDayConflicts(newDate, newTime, selfId);
+  if (conf.exact.length) {
+    msgBox.style.color = '#c0392b';
+    msgBox.innerHTML = '入力できません。既に同じ日時の予定があります：<br>'
+      + conf.exact.map(function (it) { return '・' + escapeHtml(conflictItemLabel(it)); }).join('<br>');
+    return;
+  }
+
   var payload = Object.assign({}, currentModalRecord.e, { start: newTime });
   var newId = slotsRootRef().push().key;
   var updates = {};
@@ -1003,9 +1057,17 @@ function moveCurrentSlot() {
   msgBox.style.color = 'var(--muted)';
   msgBox.textContent = '変更中...';
   slotsRootRef().update(updates).then(function () {
-    closeModal();
     attachDayListener(newDate);
     document.getElementById('viewDate').value = newDate;
+    if (conf.nearby.length) {
+      // 前後1.2時間以内に予定あり：気付き表示のためモーダルは閉じずに一覧＋ジャンプリンクを出す
+      msgBox.style.color = 'var(--kari)';
+      msgBox.innerHTML = '✔ 変更しました。⚠ 前後1.2時間以内に予定があります：<br>'
+        + conf.nearby.map(function (it) { return '・' + escapeHtml(conflictItemLabel(it)); }).join('<br>')
+        + '<br><span onclick="jumpToDate(\'' + newDate + '\')" style="color:var(--accent);text-decoration:underline;cursor:pointer;">→ ' + newDate + ' の予定一覧を見る</span>';
+    } else {
+      closeModal();
+    }
   }).catch(function (e) {
     msgBox.style.color = '#c0392b';
     msgBox.textContent = '変更できませんでした：' + e.message;
@@ -1145,8 +1207,34 @@ function submitReservation() {
   if (!email && !tel) { msg.className = 'err'; msg.textContent = 'メールアドレスか電話番号のどちらかを入力してください'; return; }
   if (file && file.size > 15 * 1024 * 1024) { msg.className = 'err'; msg.textContent = '添付ファイルは15MB以内にしてください'; return; }
 
+  // 同時刻の予定（下見・個人予定・他の仮予約）が既にある候補は、この時点で弾いて入力不可にする。
+  // 前後72分（1.2時間）以内に予定がある候補は、登録自体は続行しつつ後で警告メッセージを出す。
+  var blockedCandidates = [];
+  var okCandidates = [];
+  var nearbyByDate = {}; // date -> [items]（同じ日はまとめて1つのジャンプリンクにする）
+  candidates.forEach(function (c) {
+    var conf = getDayConflicts(c.date, c.time, null);
+    if (conf.exact.length) {
+      blockedCandidates.push({ date: c.date, time: c.time, items: conf.exact });
+    } else {
+      okCandidates.push(c);
+      if (conf.nearby.length) {
+        if (!nearbyByDate[c.date]) nearbyByDate[c.date] = [];
+        nearbyByDate[c.date] = nearbyByDate[c.date].concat(conf.nearby);
+      }
+    }
+  });
+  if (okCandidates.length === 0) {
+    msg.className = 'err';
+    msg.innerHTML = '入力できません。すべての候補日時が既存の予定と重複しています：<br>'
+      + blockedCandidates.map(function (b) {
+          return b.date + ' ' + b.time + '（' + b.items.map(conflictItemLabel).join('、') + '）';
+        }).join('<br>');
+    return;
+  }
+
   btn.disabled = true;
-  var groupId = candidates.length > 1 ? rawDb.ref().push().key : null;
+  var groupId = okCandidates.length > 1 ? rawDb.ref().push().key : null;
   var uploadId = groupId || rawDb.ref().push().key;
 
   var uploadPromise = Promise.resolve({ url: '', name: '' });
@@ -1163,7 +1251,7 @@ function submitReservation() {
   }
 
   uploadPromise.then(function (attach) {
-    var promises = candidates.map(function (c) {
+    var promises = okCandidates.map(function (c) {
       var newId = rawDb.ref().push().key;
       return slotsRef(c.date).transaction(function (current) {
         current = current || {};
@@ -1197,17 +1285,31 @@ function submitReservation() {
     return Promise.all(promises);
   }).then(function (results) {
     btn.disabled = false;
-    var failed = results.filter(function (r) { return !r.committed; });
-    var okCount = results.length - failed.length;
-    if (failed.length === 0) {
-      msg.className = 'ok';
-      msg.textContent = results.length > 1 ? (results.length + '件の候補日で仮予約を登録しました。') : '仮予約を登録しました。';
-    } else if (okCount === 0) {
-      msg.className = 'err'; msg.textContent = 'すべての候補日で時間が重複していました。時間を変えてください。';
-    } else {
-      msg.className = 'err';
-      msg.textContent = okCount + '件登録しましたが、' + failed.map(function (f) { return f.date + ' ' + f.time; }).join('、') + ' は既に埋まっていたため登録できませんでした。';
+    var failedTx = results.filter(function (r) { return !r.committed; });
+    var okCount = results.length - failedTx.length;
+
+    var lines = [];
+    if (okCount > 0) {
+      lines.push(escapeHtml(results.length > 1 ? (okCount + '件の候補日で仮予約を登録しました。') : '仮予約を登録しました。'));
     }
+    if (failedTx.length > 0) {
+      lines.push(escapeHtml(failedTx.map(function (f) { return f.date + ' ' + f.time; }).join('、') + ' は登録時点で既に埋まっていたため登録できませんでした。'));
+    }
+    if (blockedCandidates.length > 0) {
+      lines.push(escapeHtml('入力不可（重複のため未登録）：' + blockedCandidates.map(function (b) {
+        return b.date + ' ' + b.time + '（' + b.items.map(conflictItemLabel).join('、') + '）';
+      }).join('、')));
+    }
+    var nearbyDates = Object.keys(nearbyByDate);
+    if (nearbyDates.length > 0) {
+      nearbyDates.forEach(function (d) {
+        lines.push('⚠ ' + escapeHtml(d + ' の前後1.2時間以内に予定あり：' + nearbyByDate[d].map(conflictItemLabel).join('、'))
+          + ' <span onclick="jumpToDate(\'' + d + '\')" style="color:var(--accent);text-decoration:underline;cursor:pointer;">→ 予定一覧を見る</span>');
+      });
+    }
+    msg.className = (okCount > 0 && failedTx.length === 0 && blockedCandidates.length === 0) ? 'ok' : 'err';
+    msg.innerHTML = lines.join('<br>');
+
     if (okCount > 0) saveContact(tantou, email, tel);
     document.getElementById('fCaseName').value = '';
     document.getElementById('fArea').value = '';
