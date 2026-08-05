@@ -436,9 +436,13 @@ function escapeHtml(s) {
 }
 
 function createDateRow(defaultDate) {
+  var wrap = document.createElement('div');
+  wrap.className = 'date-row-group';
+  wrap.style.cssText = 'margin-bottom:10px;';
+
   var row = document.createElement('div');
   row.className = 'date-row';
-  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;';
   var d = document.createElement('input');
   d.type = 'date'; d.className = 'cDate'; d.style.flex = '1.3';
   d.value = defaultDate || document.getElementById('viewDate').value;
@@ -449,10 +453,36 @@ function createDateRow(defaultDate) {
   rm.type = 'button'; rm.textContent = '×';
   rm.style.cssText = 'padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:15px;';
   rm.onclick = function () {
-    if (document.querySelectorAll('#dateRows .date-row').length > 1) row.remove();
+    if (document.querySelectorAll('#dateRows .date-row-group').length > 1) wrap.remove();
   };
   row.appendChild(d); row.appendChild(t); row.appendChild(rm);
-  return row;
+
+  // 日付・時間を選んだその場で重複／前後1.2時間チェックを表示（送信前に気付けるように）
+  var conflictBox = document.createElement('div');
+  conflictBox.className = 'date-row-conflict';
+  conflictBox.style.cssText = 'font-size:11.5px;margin-top:4px;white-space:pre-line;display:none;';
+  function updateRowConflict() {
+    var dv = d.value, tv = t.value;
+    if (!dv || !tv) { conflictBox.style.display = 'none'; return; }
+    var conf = getDayConflicts(dv, tv, null);
+    if (conf.exact.length) {
+      conflictBox.style.color = 'var(--danger)';
+      conflictBox.textContent = '⛔ 入力不可：この日時には既に予定があります：' + conf.exact.map(conflictItemLabel).join('、');
+      conflictBox.style.display = 'block';
+    } else if (conf.nearby.length) {
+      conflictBox.style.color = 'var(--kari)';
+      conflictBox.textContent = '⚠ 前後1.2時間以内に予定あり：' + conf.nearby.map(conflictItemLabel).join('、');
+      conflictBox.style.display = 'block';
+    } else {
+      conflictBox.style.display = 'none';
+    }
+  }
+  d.addEventListener('change', updateRowConflict);
+  t.addEventListener('change', updateRowConflict);
+
+  wrap.appendChild(row);
+  wrap.appendChild(conflictBox);
+  return wrap;
 }
 function addDateRow() {
   document.getElementById('dateRows').appendChild(createDateRow());
