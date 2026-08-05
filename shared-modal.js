@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版】*/
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -42,6 +42,56 @@ function getSafeValModal(c, i) {
 function formatToYMDModal(ds) {
   if (!ds) return ""; var d = String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-"); var p = d.split("-");
   if (p.length === 3) return p[0]+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[2]).padStart(2,"0"); return d;
+}
+
+// ============ 日時重複チェック（同時刻＝入力不可／前後72分＝警告のみ） ============
+function timeToMinutesModal(t) {
+  if (!t) return null;
+  var p = String(t).split(':');
+  if (p.length < 2) return null;
+  var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+// 住所文字列から簡易エリア名（区・市・郡など）を抽出。移動時間の妥当性を判断する材料として警告文に添える。
+function extractAreaModal(addr) {
+  if (!addr) return '';
+  var a = String(addr).replace(/\s+/g, '');
+  var s = a.match(/札幌市(.+?区)/); if (s) return s[1];
+  var c = a.match(/北海道(.+?市)/); if (c && c[1].indexOf('札幌') === -1) return c[1];
+  var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
+  return '';
+}
+// 指定の日付・時間について、同じ対象者の他案件(globalTasks)と仮予約(kariData)を突き合わせる。
+// exact=同時刻（入力不可）／nearby=前後72分以内（警告のみ）。selfKeyは自分自身の案件を除外するため。
+function findConflictsModal(date, time, selfKey, globalTasks, kariData) {
+  var exact = [], nearby = [];
+  var tMin = timeToMinutesModal(time);
+  if (!date || tMin == null) return { exact: exact, nearby: nearby };
+  Object.keys(globalTasks || {}).forEach(function (k) {
+    if (k === selfKey) return;
+    var o = globalTasks[k];
+    if (!o || o.date !== date || !o.time) return;
+    var oMin = timeToMinutesModal(o.time);
+    if (oMin == null) return;
+    var area = extractAreaModal(o.csvData && o.csvData[11]);
+    var label = o.time + ' ' + ((o.csvData && o.csvData[4]) ? o.csvData[4] : k) + (area ? '【' + area + '】' : '');
+    if (oMin === tMin) exact.push(label);
+    else if (Math.abs(oMin - tMin) <= 72) nearby.push(label);
+  });
+  if (kariData && kariData[date]) {
+    Object.keys(kariData[date]).forEach(function (kid) {
+      var e = kariData[date][kid];
+      if (!e || !e.start) return;
+      var eMin = timeToMinutesModal(e.start);
+      if (eMin == null) return;
+      var st = e.status === '確定' ? '✅確定' : '🟠仮予約';
+      var label = e.start + ' ' + st + '：' + (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + (e.area ? '【' + e.area + '】' : '');
+      if (eMin === tMin) exact.push(label);
+      else if (Math.abs(eMin - tMin) <= 72) nearby.push(label);
+    });
+  }
+  return { exact: exact, nearby: nearby };
 }
 
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
@@ -124,7 +174,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
-  html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;"></div>';
+  html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;white-space:pre-line;"></div>';
   var orderValInt = parseInt(obj.order, 10);
   var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
   html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div></div>';
@@ -246,52 +296,59 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   bindCheck('modal-emailSent','emailSent');
   bindCheck('modal-finalReport','finalReport');
 
-  // 日付・時間・順番（change/blurで即時）
+  // 日付・時間・順番
+  // checkTimeConflict()：現在保存されている日時について、前後72分（1.2時間）以内の予定を
+  // 警告ボックスに表示する（ブロックはしない。既に保存済みの状態を後から知らせるだけ）。
   function checkTimeConflict() {
     var warnBox = document.getElementById('modal-time-warn');
     if (!warnBox) return;
     var d = document.getElementById('modal-date').value;
     var t = document.getElementById('modal-time').value;
     if (!d || !t) { warnBox.style.display = 'none'; return; }
-    var conflicts = [];
-    Object.keys(globalTasks).forEach(function(k){
-      if (k === key) return;
-      var o = globalTasks[k];
-      if (o && o.date === d && o.time === t) {
-        var c = o.csvData;
-        conflicts.push((c && c[4]) ? c[4] : k);
-      }
-    });
-    // 仮予約(kari_yoyaku_slots)も見る。ページによって変数名が違う
-    // （today.html: kariSlots／calendar.html: kariSlotsCache）ので両対応。
-    // どちらも無いページ（admin.html等）では単に何もしない。
     var kariData = (typeof kariSlots !== 'undefined') ? kariSlots
                   : (typeof kariSlotsCache !== 'undefined') ? kariSlotsCache
                   : null;
-    if (kariData && kariData[d]) {
-      Object.keys(kariData[d]).forEach(function(kid){
-        var e = kariData[d][kid];
-        if (e && e.start === t) {
-          var st = e.status === '確定' ? '✅確定' : '🟠仮予約';
-          conflicts.push(st+'：'+(e.case_name||'')+(e.tantou?'（'+e.tantou+'）':''));
-        }
-      });
-    }
-    if (conflicts.length > 0) {
-      warnBox.textContent = '⚠ 同じ日時（'+d+' '+t+'）に他の予定があります：'+conflicts.join('、');
-      warnBox.style.display = 'block';
-    } else {
-      warnBox.style.display = 'none';
-    }
+    var res = findConflictsModal(d, t, key, globalTasks, kariData);
+    var msgs = [];
+    if (res.exact.length) msgs.push('⚠ 同じ日時（'+d+' '+t+'）に他の予定があります：'+res.exact.join('、'));
+    if (res.nearby.length) msgs.push('🕐 前後1.2時間以内に予定があります。移動時間にご注意ください：'+res.nearby.join('、'));
+    if (msgs.length) { warnBox.innerHTML = msgs.join('\n'); warnBox.style.display = 'block'; }
+    else { warnBox.style.display = 'none'; }
   }
   checkTimeConflict();
   document.getElementById('modal-date').addEventListener('change', function(){
-    saveField({date: this.value});
-    document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(this.value||"未定");
+    var newDate = this.value;
+    var t = document.getElementById('modal-time').value;
+    var kariData = (typeof kariSlots !== 'undefined') ? kariSlots
+                  : (typeof kariSlotsCache !== 'undefined') ? kariSlotsCache
+                  : null;
+    var res = findConflictsModal(newDate, t, key, globalTasks, kariData);
+    if (res.exact.length) {
+      // 同時刻の予定が既にある場合は変更不可。入力前の日付に戻す。
+      alert('⚠ 同じ日時に他の予定があります：\n' + res.exact.join('\n') + '\n\nこの日時には変更できません。別の日時を選んでください。');
+      this.value = obj.date || '';
+      checkTimeConflict();
+      return;
+    }
+    saveField({date: newDate});
+    document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+(newDate||"未定");
     checkTimeConflict();
   });
   document.getElementById('modal-time').addEventListener('change', function(){
-    saveField({time: this.value});
+    var newTime = this.value;
+    var d = document.getElementById('modal-date').value;
+    var kariData = (typeof kariSlots !== 'undefined') ? kariSlots
+                  : (typeof kariSlotsCache !== 'undefined') ? kariSlotsCache
+                  : null;
+    var res = findConflictsModal(d, newTime, key, globalTasks, kariData);
+    if (res.exact.length) {
+      // 同時刻の予定が既にある場合は変更不可。入力前の時間に戻す。
+      alert('⚠ 同じ日時に他の予定があります：\n' + res.exact.join('\n') + '\n\nこの時間には変更できません。別の時間を選んでください。');
+      this.value = obj.time || '';
+      checkTimeConflict();
+      return;
+    }
+    saveField({time: newTime});
     checkTimeConflict();
   });
   // 🔢 順：他案件の自動並べ替えは廃止。入力した数値をそのまま保存するだけ。
