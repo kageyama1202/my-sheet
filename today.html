@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-29-002 -->
+<!-- VERSION: 2026-08-07-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -409,7 +409,7 @@ merged.forEach(function(item,idx){
         inner.textContent=yoteiTime;
         if(yoteiTime){inner.style.color='#6a1b9a';inner.style.fontWeight='600';inner.style.textAlign='center';}
       }else if(colIdx===-5){
-        var shitamiTimeVal=getSafeVal(cols,16)||'';
+        var shitamiTimeVal=getSafeVal(cols,13)||'';
         inner.textContent=shitamiTimeVal;
         if(shitamiTimeVal){inner.style.color='#2e7d32';inner.style.fontWeight='600';inner.style.textAlign='center';}
       }else if(colIdx===-3){var orderVal=obj.order||'';inner.textContent=orderVal;if(orderVal!==''){inner.classList.add('order-cell');}inner.style.textAlign='center';}else if(colIdx===-2){var aiYotei=obj.ai_shitami_date||'';inner.textContent=aiYotei;if(aiYotei){if(aiYotei<today2){inner.classList.add('date-past');}else{inner.classList.add('ai-yotei-cell');}}}else{var cv=getSafeVal(cols,colIdx);var disp=cv.replace(/\n|\r/g,' '),clean=cv.replace(/\s+/g,'');if(colIdx===3&&isKubunWarn){inner.classList.add('kubun-warn');}if(colIdx===2&&isKubunWarn){inner.classList.add('kubun-warn');}
