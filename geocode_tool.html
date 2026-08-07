@@ -903,11 +903,8 @@ async function runPrecheck() {
   resultEl.innerHTML =
     '<div class="summary-strip">'
     + '<div class="chip">CSV総件数 ' + parsedRows.length + '件</div>'
-    + '<div class="chip">手配完了で除外 ' + completedSkipped + '件</div>'
-    + '<div class="chip">IDで調査済み ' + idHit + '件</div>'
-    + '<div class="chip">同一住所を過去調査済み ' + addrHit + '件</div>'
-    + '<div class="chip">バッチ内の同一住所重複 ' + batchDup + '件</div>'
-    + '<div class="chip" style="border-color:var(--survey-blue);color:var(--survey-blue);font-weight:700;">本当に新規（要API/地番照合） ' + freshTotal + '件</div>'
+    + '<div class="chip">既に判明済み（調査不要） ' + (idHit + addrHit + batchDup) + '件</div>'
+    + '<div class="chip" style="border-color:var(--survey-blue);color:var(--survey-blue);font-weight:700;">新規（要API/地番照合） ' + freshTotal + '件</div>'
     + '</div>';
 }
 
