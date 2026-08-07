@@ -196,7 +196,7 @@
       <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
         <input type="checkbox" id="skipCached" checked> Firebaseに既に地番一致/高精度/中精度の結果がある案件はスキップする
       </label>
-      <span class="meta-note" style="margin-top:0;">1件ごとに、まず<strong>地番データ(chiban.json)</strong>を複数キーで照合します。ヒットすれば地番の正確な座標で確定（<code>地番一致</code>）。ヒットしなければGeocoding APIを最大8パターンで試行し、<code>ROOFTOP</code> / <code>RANGE_INTERPOLATED</code>が出た時点で確定します。それでも低い精度の場合は国土地理院(GSI)住所検索でも照合し、2ソースが番地レベルで一致すれば「高精度」に格上げ、ズレていれば「低精度・要確認」として両方の座標を表示します。</span>
+      <span class="meta-note" style="margin-top:0;">1件ごとに、まず<strong>地番データ(chiban.json)</strong>を複数キーで照合します。ヒットすれば地番の正確な座標で確定（<code>地番一致</code>）。ヒットしなければGeocoding APIを最大8パターンで試行し、<code>ROOFTOP</code> / <code>RANGE_INTERPOLATED</code>が出た時点で確定します。それでも低い精度の場合は国土地理院(GSI)住所検索でも照合し、2ソースが番地レベルで一致すれば「高精度」に格上げ、ズレていれば「低精度・要確認」として両方の座標を表示します。同一住所が複数件ある場合は2件目以降、API呼び出しを行わず1件目の結果を使い回します。</span>
     </div>
     <div class="progress-wrap" id="progressWrap">
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
@@ -872,18 +872,36 @@ async function runAll() {
 
   var total = rowState.length;
   var skippedCount = 0;
+  var dupSkippedCount = 0;
+  // 同一住所（正規化後）が複数行にまたがる場合、2件目以降はAPIを呼ばずに
+  // 1件目の結果をそのまま使い回す。座標は住所が同じなら同じ結果になるため、
+  // わざわざ毎回Google/GSIへ問い合わせて待ち時間(sleep)を積み重ねる必要がない。
+  var addrCache = {};
   for (var i = 0; i < total; i++) {
     if (stopRequested) break;
     var row = rowState[i];
     document.getElementById("progressCurrent").textContent = row.id;
 
     var cached = cachedGeocode[row.id];
+    var addrKey = baseNormalize(row.rawAddr);
+    var dup = !cached ? addrCache[addrKey] : null;
+
     if (cached) {
       row.best = { matchedPattern: "(Firebase保存済み: " + (cached.address || "") + ")", lat: cached.lat, lng: cached.lng, precision: cached.precision || "CACHED", patternIndex: 0 };
       row.googleBest = null; row.gsi = null;
       row.triesUsed = 0; row.candidatesTotal = 0;
       row.status = cached.confidence;
       skippedCount++;
+    } else if (dup) {
+      // 住所の使い回し：オブジェクトは複製してから代入する（手動修正/GSI採用が別行と共有されないように）
+      row.best = dup.best ? Object.assign({}, dup.best, { matchedPattern: "(同一住所を使い回し) " + dup.best.matchedPattern }) : null;
+      row.googleBest = dup.googleBest ? Object.assign({}, dup.googleBest) : null;
+      row.gsi = dup.gsi ? Object.assign({}, dup.gsi) : null;
+      row.chibanCandidates = dup.chibanCandidates;
+      row.triesUsed = 0;
+      row.candidatesTotal = dup.candidatesTotal;
+      row.status = dup.status;
+      dupSkippedCount++;
     } else {
       var outcome = await geocodeWithRetries(row.rawAddr);
       row.best = outcome.best;
@@ -895,6 +913,10 @@ async function runAll() {
       row.status = classify(outcome);
     }
 
+    if (!dup) {
+      addrCache[addrKey] = { best: row.best, googleBest: row.googleBest, gsi: row.gsi, chibanCandidates: row.chibanCandidates, candidatesTotal: row.candidatesTotal, status: row.status };
+    }
+
     updateProgress(i + 1, total);
     updateRowInTable(row, i);
     updateSummary();
@@ -902,7 +924,7 @@ async function runAll() {
 
   document.getElementById("startBtn").disabled = false;
   document.getElementById("stopBtn").disabled = true;
-  document.getElementById("progressCurrent").textContent = stopRequested ? "停止しました" : ("完了（手配完了で除外: " + completedSkipped + "件 / Firebaseキャッシュでスキップ: " + skippedCount + "件）");
+  document.getElementById("progressCurrent").textContent = stopRequested ? "停止しました" : ("完了（手配完了で除外: " + completedSkipped + "件 / Firebaseキャッシュでスキップ: " + skippedCount + "件 / 同一住所の使い回し: " + dupSkippedCount + "件）");
   refreshWriteButton();
 }
 
