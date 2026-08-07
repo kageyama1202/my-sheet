@@ -188,6 +188,15 @@
     </div>
   </section>
 
+  <section data-step="STEP 2.5">
+    <h2>事前チェック（新規件数の確認）</h2>
+    <div class="row" style="margin-top:0;">
+      <button class="btn secondary" id="precheckBtn" disabled>Firebaseと照合して件数を確認</button>
+      <span class="meta-note" style="margin-top:0;">照合を始める前に、IDで調査済み・同一住所を過去に別案件で調査済み・バッチ内の住所重複を除いた「本当に新規で調査が必要な件数」を確認できます。照合の開始自体はこのチェックをしなくても可能です。</span>
+    </div>
+    <div id="precheckResult" style="margin-top:14px;"></div>
+  </section>
+
   <section data-step="STEP 3">
     <h2>照合を実行</h2>
     <div class="row" style="margin-top:0;">
@@ -790,6 +799,8 @@ function handleParsed(results) {
   colStatus.value = headers.indexOf(guessedStatus) !== -1 ? guessedStatus : "";
   document.getElementById("parseStatus").textContent = parsedRows.length + "件 読み込み完了（" + headers.length + "列）";
   document.getElementById("startBtn").disabled = parsedRows.length === 0;
+  document.getElementById("precheckBtn").disabled = parsedRows.length === 0;
+  document.getElementById("precheckResult").innerHTML = "";
 }
 
 function parseCsvText(text) {
@@ -827,6 +838,78 @@ var stopRequested = false;
 
 document.getElementById("startBtn").addEventListener("click", runAll);
 document.getElementById("stopBtn").addEventListener("click", function(){ stopRequested = true; });
+document.getElementById("precheckBtn").addEventListener("click", runPrecheck);
+
+// Firebaseの既存データ（IDキャッシュ／住所履歴）を構築する。runAll()の該当箇所と同じロジック。
+async function buildFirebaseCaches() {
+  var cachedGeocode = {};
+  var addrHistoryCache = {};
+  if (!configOk) return { cachedGeocode: cachedGeocode, addrHistoryCache: addrHistoryCache };
+  var snap = await scopedDb.ref("app_tasks").once("value");
+  var allTasks = snap.val() || {};
+  Object.keys(allTasks).forEach(function(id) {
+    var g = allTasks[id] && allTasks[id].geocode;
+    if (g && (g.confidence === "exact" || g.confidence === "high" || g.confidence === "mid")) {
+      cachedGeocode[id] = g;
+      if (g.originalAddress) {
+        var histKey = baseNormalize(g.originalAddress);
+        if (!addrHistoryCache[histKey]) addrHistoryCache[histKey] = g;
+      }
+    }
+  });
+  return { cachedGeocode: cachedGeocode, addrHistoryCache: addrHistoryCache };
+}
+
+// STEP 2.5: 照合を実行する前に、実際にAPI/地番照合が必要な「本当に新規の住所」が
+// 何件あるかを確認するための事前チェック。ネットワーク越しの処理はFirebase読み取り1回のみ。
+async function runPrecheck() {
+  var colId = document.getElementById("colId").value;
+  var colAddr = document.getElementById("colAddr").value;
+  var colStatus = document.getElementById("colStatus").value;
+  if (!colId || !colAddr) return;
+
+  var resultEl = document.getElementById("precheckResult");
+  resultEl.innerHTML = '<span class="meta-note" style="margin-top:0;">Firebaseを確認中…</span>';
+
+  var completedSkipped = 0;
+  var rows = parsedRows.map(function(r) {
+    return { id: r[colId], rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "" };
+  }).filter(function(r) {
+    if (!r.id || !r.rawAddr) return false;
+    if (colStatus && r.statusVal === "完了") { completedSkipped++; return false; }
+    return true;
+  });
+
+  var caches;
+  try {
+    caches = await buildFirebaseCaches();
+  } catch (e) {
+    console.warn("Firebase既存データの取得に失敗:", e);
+    resultEl.innerHTML = '<span class="meta-note" style="margin-top:0;color:var(--danger);">Firebaseの確認に失敗しました（通常通り照合を開始すれば問題ありません）。</span>';
+    return;
+  }
+
+  var idHit = 0, addrHit = 0, batchDup = 0, freshTotal = 0;
+  var seenAddrInBatch = {};
+  rows.forEach(function(r) {
+    var addrKey = baseNormalize(r.rawAddr);
+    if (caches.cachedGeocode[r.id]) { idHit++; return; }
+    if (caches.addrHistoryCache[addrKey]) { addrHit++; return; }
+    if (seenAddrInBatch[addrKey]) { batchDup++; return; }
+    seenAddrInBatch[addrKey] = true;
+    freshTotal++;
+  });
+
+  resultEl.innerHTML =
+    '<div class="summary-strip">'
+    + '<div class="chip">CSV総件数 ' + parsedRows.length + '件</div>'
+    + '<div class="chip">手配完了で除外 ' + completedSkipped + '件</div>'
+    + '<div class="chip">IDで調査済み ' + idHit + '件</div>'
+    + '<div class="chip">同一住所を過去調査済み ' + addrHit + '件</div>'
+    + '<div class="chip">バッチ内の同一住所重複 ' + batchDup + '件</div>'
+    + '<div class="chip" style="border-color:var(--survey-blue);color:var(--survey-blue);font-weight:700;">本当に新規（要API/地番照合） ' + freshTotal + '件</div>'
+    + '</div>';
+}
 
 async function runAll() {
   var colId = document.getElementById("colId").value;
@@ -861,18 +944,9 @@ async function runAll() {
   if (skipCached && configOk) {
     document.getElementById("progressCurrent").textContent = "Firebaseの既存データを確認中…";
     try {
-      var snap = await scopedDb.ref("app_tasks").once("value");
-      var allTasks = snap.val() || {};
-      Object.keys(allTasks).forEach(function(id) {
-        var g = allTasks[id] && allTasks[id].geocode;
-        if (g && (g.confidence === "exact" || g.confidence === "high" || g.confidence === "mid")) {
-          cachedGeocode[id] = g;
-          if (g.originalAddress) {
-            var histKey = baseNormalize(g.originalAddress);
-            if (!addrHistoryCache[histKey]) addrHistoryCache[histKey] = g;
-          }
-        }
-      });
+      var caches = await buildFirebaseCaches();
+      cachedGeocode = caches.cachedGeocode;
+      addrHistoryCache = caches.addrHistoryCache;
     } catch (e) {
       console.warn("Firebase既存データの取得に失敗（通常通り全件照合します）:", e);
     }
