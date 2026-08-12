@@ -211,6 +211,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   });
   html += '</div></div>';
 
+  // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
+  html += '<div class="modal-section"><h4 style="color:#00897b;margin-bottom:6px;">📎 添付ファイル</h4>';
+  html += '<div id="attach-list" style="font-size:12px;color:#888;margin-bottom:8px;">読込中...</div>';
+  html += '<input type="file" id="attach-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" capture="environment" style="font-size:12px;" />';
+  html += '<div id="attach-upload-status" style="font-size:11px;color:#888;margin-top:4px;"></div>';
+  html += '</div>';
+
   html += '<div style="margin-top:18px;text-align:center;">';
   html += '<button class="modal-flag-btn'+(isFlagged?' flagged':'')+'" id="modal-flag-btn">'+(isFlagged?'⚑ 注目中':'⚐ 注目')+'</button>';
   html += '<button class="modal-contact-btn'+(isNeedsContact?' active':'')+'" id="modal-contact-btn" style="margin:4px 6px;padding:5px 14px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;border:1px solid #00838f;background:'+(isNeedsContact?'#00bcd4':'#e0f7fa')+';color:'+(isNeedsContact?'#fff':'#006064')+';">'+(isNeedsContact?'📞 連絡必要中':'📞 連絡必要')+'</button>';
@@ -385,6 +392,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   }
 
+  // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
+  initCaseAttachments(key);
+
   document.getElementById('modal-close').addEventListener('click',function(){document.getElementById('modal-overlay').style.display='none';});
   document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
 }
@@ -402,6 +412,77 @@ function toggleMemoEdit() {
     if (preview) preview.style.display = 'block';
     btn.textContent = '✏️ 編集する';
   }
+}
+
+// ============ 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/） ============
+function ensureStorageSDKModal(cb) {
+  if (typeof firebase !== 'undefined' && firebase.storage) { cb(); return; }
+  var existing = document.querySelector('script[data-fbstorage]');
+  if (existing) { existing.addEventListener('load', cb); return; }
+  var s = document.createElement('script');
+  s.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js';
+  s.setAttribute('data-fbstorage', '1');
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+function initCaseAttachments(caseKey) {
+  var listBox = document.getElementById('attach-list');
+  var input = document.getElementById('attach-file-input');
+  var statusBox = document.getElementById('attach-upload-status');
+  if (!listBox || !input) return;
+
+  ensureStorageSDKModal(function () {
+    var userKey = (typeof getUserKey === 'function') ? getUserKey() : '';
+    var folderPath = 'users/' + userKey + '/case_files/' + caseKey + '/';
+    var storageRef = firebase.storage().ref(folderPath);
+
+    function refreshList() {
+      listBox.textContent = '読込中...';
+      storageRef.listAll().then(function (res) {
+        if (res.items.length === 0) { listBox.textContent = '添付ファイルはありません'; return; }
+        listBox.innerHTML = '';
+        res.items.forEach(function (itemRef) {
+          itemRef.getDownloadURL().then(function (url) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;';
+            var link = document.createElement('a');
+            link.href = url; link.target = '_blank';
+            link.style.cssText = 'color:#0056b3;font-size:12px;word-break:break-all;';
+            link.textContent = '📄 ' + itemRef.name;
+            var delBtn = document.createElement('button');
+            delBtn.textContent = '削除';
+            delBtn.style.cssText = 'margin-left:8px;font-size:11px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:3px;padding:2px 8px;cursor:pointer;flex-shrink:0;';
+            delBtn.addEventListener('click', function () {
+              if (!confirm('「' + itemRef.name + '」を削除しますか？')) return;
+              itemRef.delete().then(refreshList).catch(function (e) { alert('削除できませんでした：' + e.message); });
+            });
+            row.appendChild(link);
+            row.appendChild(delBtn);
+            listBox.appendChild(row);
+          });
+        });
+      }).catch(function (e) {
+        listBox.textContent = '読込エラー：' + e.message;
+      });
+    }
+    refreshList();
+
+    input.addEventListener('change', function () {
+      var file = input.files[0];
+      if (!file) return;
+      statusBox.textContent = '⏳ アップロード中...';
+      var fileRef = storageRef.child(Date.now() + '_' + file.name);
+      fileRef.put(file).then(function () {
+        statusBox.textContent = '✅ アップロード完了';
+        input.value = '';
+        refreshList();
+        setTimeout(function () { statusBox.textContent = ''; }, 2000);
+      }).catch(function (e) {
+        statusBox.textContent = '❌ アップロード失敗：' + e.message;
+      });
+    });
+  });
 }
 
 function escHtmlModal(s) {
