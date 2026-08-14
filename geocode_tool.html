@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-08-14-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -310,6 +311,25 @@ function kanjiVariantOfHead(headStr) {
   return headStr.replace(/(\d+)(条|丁目)/g, function(m, num, suf) {
     return arabicToKanji(Number(num)) + suf;
   });
+}
+
+/* ---------------------------------------------------------------------
+   Salesforce手配ID正規化（admin.htmlのnormalizeSfId/safeKeyと同一ロジック）
+   --------------------------------------------------------------------- */
+function normalizeSfId(raw) {
+  var id = String(raw || "").trim();
+  if (id.length === 18) return id.substring(0, 15);
+  return id;
+}
+var ID_INVALID_CHARS = /[.#$\[\]\/]/g;
+function safeKey(id) {
+  return String(id).replace(/\s+/g, "").replace(ID_INVALID_CHARS, "_");
+}
+// CSVの生ID（15桁/18桁どちらの表記もありうる）をFirebase上のキー形式に統一する。
+// admin.html側もこの関数と同一ロジックでキーを作っているため、これを通さないと
+// 同じ案件でもID表記が変わるたびに「未調査」扱いになり、キャッシュが一切効かない。
+function toFirebaseId(raw) {
+  return safeKey(normalizeSfId(raw));
 }
 
 /* ---------------------------------------------------------------------
@@ -873,7 +893,7 @@ async function runPrecheck() {
 
   var completedSkipped = 0;
   var rows = parsedRows.map(function(r) {
-    return { id: r[colId], rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "" };
+    return { id: toFirebaseId(r[colId]), rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "" };
   }).filter(function(r) {
     if (!r.id || !r.rawAddr) return false;
     if (colStatus && r.statusVal === "完了") { completedSkipped++; return false; }
@@ -922,7 +942,7 @@ async function runAll() {
 
   var completedSkipped = 0;
   rowState = parsedRows.map(function(r) {
-    return { id: r[colId], rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "", status: "pending", best: null, gsi: null, chibanCandidates: null, triesUsed: 0, candidatesTotal: 0 };
+    return { id: toFirebaseId(r[colId]), rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "", status: "pending", best: null, gsi: null, chibanCandidates: null, triesUsed: 0, candidatesTotal: 0 };
   }).filter(function(r){
     if (!r.id || !r.rawAddr) return false;
     if (colStatus && r.statusVal === "完了") { completedSkipped++; return false; }
