@@ -826,6 +826,9 @@ function getDayConflicts(date, time, excludeKariId) {
   items.forEach(function (it) {
     if (excludeKariId && it.kari && it.kariId === excludeKariId) return;
     if (!it.time) return;
+    // 終日の個人予定（例：私用、終日）は特定時刻を持たないため時刻比較できないが、
+    // その日に予定が入っていること自体を見落とさないよう、候補時刻に関わらず警告(nearby)に含める
+    if (it.personal && it.time === '終日') { result.nearby.push(it); return; }
     var iMin = timeToMinutesK(it.time);
     if (iMin == null) return;
     if (iMin === tMin) result.exact.push(it);
