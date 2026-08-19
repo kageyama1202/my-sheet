@@ -1,4 +1,5 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加】*/
+// VERSION: 2026-08-19
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -104,6 +105,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
   var siteCheckObj = obj.siteCheck || {};
+  var scheduleType = obj.scheduleType || '';
 
   // 即時保存用ヘルパー
   function saveField(updates) {
@@ -172,6 +174,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '</div>';
 
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
+
+  // 📞 連絡区分（こちらから連絡して決定 ／ 先方にて日時指定あり）※排他選択・即時保存
+  html += '<div class="modal-check-row" id="schedule-type-row" style="margin-bottom:10px;">';
+  html += '<label><input type="radio" name="modal-schedule-type" id="modal-schedule-ours" value="ours"'+(scheduleType==='ours'?' checked':'')+'> 📞 こちらから連絡して決定</label>';
+  html += '<label><input type="radio" name="modal-schedule-type" id="modal-schedule-client" value="client"'+(scheduleType==='client'?' checked':'')+'> 📅 先方にて日時指定あり</label>';
+  html += '</div>';
+
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
   html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;white-space:pre-line;"></div>';
@@ -277,6 +286,18 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     this.textContent = isNeedsContact ? '📞 連絡必要中' : '📞 連絡必要';
     saveField({needsContact: isNeedsContact});
   });
+
+  // 📞 連絡区分（こちらから連絡して決定／先方にて日時指定あり）※排他・即時保存
+  var scheduleTypeRow = document.getElementById('schedule-type-row');
+  if (scheduleTypeRow) {
+    scheduleTypeRow.addEventListener('change', function(e){
+      var t = e.target;
+      if (t && t.name === 'modal-schedule-type' && t.checked) {
+        scheduleType = t.value;
+        saveField({scheduleType: scheduleType});
+      }
+    });
+  }
 
   // 🗑 削除ボタン（確認あり。削除するとFirebase側のonTaskChangedが
   // 既存のcleanupDeletedTaskを自動で呼び、カレンダー・管理表からも消える）
