@@ -175,10 +175,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   html += '<div class="modal-section"><h4 class="green">📅 下見スケジュール</h4>';
 
-  // 📞 連絡区分（こちらから連絡して決定 ／ 先方にて日時指定あり）※排他選択・即時保存
+  // 📞 連絡区分（こちらから連絡して決定 ／ 先方にて日時指定あり）※排他選択・即時保存・解除可
   html += '<div class="modal-check-row" id="schedule-type-row" style="margin-bottom:10px;">';
   html += '<label><input type="radio" name="modal-schedule-type" id="modal-schedule-ours" value="ours"'+(scheduleType==='ours'?' checked':'')+'> 📞 こちらから連絡して決定</label>';
   html += '<label><input type="radio" name="modal-schedule-type" id="modal-schedule-client" value="client"'+(scheduleType==='client'?' checked':'')+'> 📅 先方にて日時指定あり</label>';
+  html += '<button type="button" id="modal-schedule-clear" style="margin-left:8px;font-size:11px;color:#888;background:none;border:1px solid #ccc;border-radius:3px;padding:2px 8px;cursor:pointer;">✕ 解除</button>';
   html += '</div>';
 
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
@@ -287,7 +288,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     saveField({needsContact: isNeedsContact});
   });
 
-  // 📞 連絡区分（こちらから連絡して決定／先方にて日時指定あり）※排他・即時保存
+  // 📞 連絡区分（こちらから連絡して決定／先方にて日時指定あり）※排他・即時保存・解除可
   var scheduleTypeRow = document.getElementById('schedule-type-row');
   if (scheduleTypeRow) {
     scheduleTypeRow.addEventListener('change', function(e){
@@ -296,6 +297,15 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         scheduleType = t.value;
         saveField({scheduleType: scheduleType});
       }
+    });
+  }
+  var scheduleClearBtn = document.getElementById('modal-schedule-clear');
+  if (scheduleClearBtn) {
+    scheduleClearBtn.addEventListener('click', function(){
+      var radios = document.getElementsByName('modal-schedule-type');
+      for (var ri=0; ri<radios.length; ri++) { radios[ri].checked = false; }
+      scheduleType = '';
+      saveField({scheduleType: ''});
     });
   }
 
