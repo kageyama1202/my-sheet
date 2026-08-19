@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- VERSION: 2026-08-19-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -261,17 +262,32 @@
     max-width: 480px;
     padding: 18px;
     padding-bottom: 30px;
+    max-height: 88vh;
+    overflow-y: auto;
   }
   #modal h3 { font-size: 15px; margin-bottom: 10px; }
   #modal .mrow { font-size: 13px; color: #ccc; margin-bottom: 6px; }
   #modal .mrow b { color: #fff; }
-  #modal .mbtns { display: flex; gap: 8px; margin-top: 14px; }
-  #modal button { flex: 1; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+  #modal .mbtns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  #modal .mbtns button { flex: 1 1 100px; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
   #modal .close { background: var(--surface2); color: var(--text); }
   #modal .del { background: var(--danger); color: #fff; }
   #modal .conf { background: var(--kakutei); color: #fff; }
   #modal .mail { background: var(--accent); color: #fff; }
   #modal .sms { background: #2e7d5b; color: #fff; }
+  #modal .permit { background: var(--kakutei); color: #fff; }
+  #modal .decline { background: var(--danger); color: #fff; }
+
+  .cand-act {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .cand-act:active { opacity: 0.7; }
 
   #authNote { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
   #adminBadge { display: inline-block; font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; margin-left: 6px; font-weight: 700; }
@@ -379,6 +395,9 @@
     <div id="mContactBtns" class="mbtns" style="display:none;"></div>
     <div class="mbtns">
       <button class="close" onclick="closeModal()">閉じる</button>
+      <button class="permit" id="mPermitBtn" style="display:none;" onclick="markPermit()">許可にする</button>
+      <button class="decline" id="mDeclineBtn" style="display:none;" onclick="markDecline()">断りにする</button>
+      <button class="close" id="mResetBtn" style="display:none;" onclick="resetToKari()">仮に戻す</button>
       <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
       <button class="close" id="mUnconfBtn" style="display:none;" onclick="unmarkKakutei()">確定解除</button>
       <button class="del" id="mDelBtn" style="display:none;" onclick="deleteCurrentSlot()">削除</button>
@@ -758,6 +777,13 @@ function extractArea(addr) {
   var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
   return 'その他';
 }
+// 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す
+function kariStatusBadge(status) {
+  if (status === '確定') return { badge: '✅', label: '確定' };
+  if (status === '許可') return { badge: '🟢', label: '許可' };
+  if (status === '断り') return { badge: '❌', label: '断り' };
+  return { badge: '🟠', label: '仮予約' };
+}
 function buildDayItems(date) {
   var items = [];
   Object.keys(targetTasks).forEach(function (key) {
@@ -786,13 +812,15 @@ function buildDayItems(date) {
   Object.keys(kday).forEach(function (id) {
     var e = kday[id];
     var groupTag = e.candidate_group ? '（候補' + countCandidateGroup(e.candidate_group) + '件中）' : '';
+    var sb = kariStatusBadge(e.status);
     items.push({
-      badge: e.status === '確定' ? '✅' : '🟠',
-      kindLabel: e.status === '確定' ? '確定' : '仮予約',
+      badge: sb.badge,
+      kindLabel: sb.label,
       title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + groupTag + (e.attachment_url ? ' 📎' : ''),
       area: e.area || '', time: e.start || '',
       order: '',
-      kari: true, kariDate: date, kariId: id, kariE: e
+      kari: true, kariDate: date, kariId: id, kariE: e,
+      declined: e.status === '断り'
     });
   });
   items.sort(function (a, b) {
@@ -825,6 +853,8 @@ function getDayConflicts(date, time, excludeKariId) {
   var items = buildDayItems(date);
   items.forEach(function (it) {
     if (excludeKariId && it.kari && it.kariId === excludeKariId) return;
+    // 断り済みの仮予約は「空いている」とみなし、重複判定の対象から外す
+    if (it.declined) return;
     if (!it.time) return;
     // 終日の個人予定（例：私用、終日）は特定時刻を持たないため時刻比較できないが、
     // その日に予定が入っていること自体を見落とさないよう、候補時刻に関わらず警告(nearby)に含める
@@ -915,10 +945,13 @@ function renderDayAgenda() {
     var mainText = it.kari
       ? (it.title + (it.area ? '【' + it.area + '】' : ''))
       : (it.personal ? it.title : (it.kindLabel + (it.area ? '【' + it.area + '】' : '')));
-    return '<div class="agenda-day-item" data-idx="' + idx + '">'
+    // 断り済みの仮予約は一覧から消さず、薄く・打ち消し線で表示する
+    var declinedStyle = it.declined ? ' style="opacity:0.55;"' : '';
+    var declinedTextStyle = it.declined ? ' style="text-decoration:line-through;"' : '';
+    return '<div class="agenda-day-item" data-idx="' + idx + '"' + declinedStyle + '>'
       + '<div class="adi-top"><span class="adi-tm">' + (it.time || '') + '</span>'
       + (it.order ? '<span class="adi-ord">' + it.order + '番</span>' : '') + '</div>'
-      + '<div class="adi-tt">' + it.badge + ' ' + escapeHtml(mainText) + '</div>'
+      + '<div class="adi-tt"' + declinedTextStyle + '>' + it.badge + ' ' + escapeHtml(mainText) + '</div>'
       + '</div>';
   }).join('');
   box.querySelectorAll('.agenda-day-item').forEach(function (el) {
@@ -979,6 +1012,12 @@ var allKariCounts = {}; // date(YYYY-MM-DD) -> 件数（互換のため保持、
 var allKariSlotsData = {}; // date(YYYY-MM-DD) -> {id: entry}
 function dateFromStr(s) { var p = s.split('-'); return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])); }
 function dateToStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+// メール／SMS文面用：8/20(木) のような短い日付表記
+function fmtDateShort(ds) {
+  var d = dateFromStr(ds);
+  var wd = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+  return (d.getMonth() + 1) + '/' + d.getDate() + '(' + wd + ')';
+}
 
 var currentDaySlots = {};
 function renderDayView(snap) {
@@ -1009,10 +1048,16 @@ function rowsHtml(rows) {
   }).join('');
 }
 
+// 許可／断り／仮に戻す ができるのは対象者本人 or 管理者（依頼を出した側(kari)は自分で可否を決めない）
+function canDecideStatus() {
+  return isAdmin || (myUserKey && myUserKey === targetUserKey);
+}
+
 function openModal(date, id, e) {
   currentModalPath = date + '/' + id;
   currentModalRecord = { date: date, e: e };
   var canDelete = isAdmin || isKari || (myUserKey === targetUserKey);
+  var st = e.status || '仮';
   document.getElementById('mTitle').textContent = date + ' の仮予約';
   document.getElementById('modalRows').innerHTML = rowsHtml([
     { label: '案件名', value: e.case_name || '(未入力)' },
@@ -1022,14 +1067,57 @@ function openModal(date, id, e) {
     { label: 'メール', value: e.email || '(未入力)' },
     { label: '電話番号', value: e.tel || '(未入力)' },
     { label: 'メモ', value: e.memo || '(メモなし)' },
-    { label: '状態', value: e.status || '仮' }
+    { label: '状態', value: kariStatusBadge(st).badge + ' ' + kariStatusBadge(st).label }
   ]);
-  if (e.candidate_group) {
-    document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>候補日：</b>同じ案件で他に ' + (countCandidateGroup(e.candidate_group) - 1) + ' 件の候補日があります</div>';
-  }
   if (e.attachment_url) {
     document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
   }
+
+  // 📅 同じ案件の候補日が複数ある場合、一覧表示＋その場で許可／断りを操作できるようにする
+  if (e.candidate_group) {
+    var groupId = e.candidate_group;
+    var members = [];
+    Object.keys(allKariSlotsData).forEach(function (d) {
+      Object.keys(allKariSlotsData[d] || {}).forEach(function (mid) {
+        var m = allKariSlotsData[d][mid];
+        if (m.candidate_group === groupId) members.push({ date: d, id: mid, e: m });
+      });
+    });
+    members.sort(function (a, b) { return (a.date + (a.e.start || '')).localeCompare(b.date + (b.e.start || '')); });
+    var canDec = canDecideStatus();
+    var listHtml = members.map(function (m) {
+      var mst = m.e.status || '仮';
+      var sb = kariStatusBadge(mst);
+      var isSelf = (m.date === date && m.id === id);
+      var actions = '';
+      if (canDec) {
+        if (mst !== '許可' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="許可">許可</button>';
+        if (mst !== '断り' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="断り">断り</button>';
+        if (mst === '許可' || mst === '断り') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="仮">仮に戻す</button>';
+      }
+      return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;' + (isSelf ? 'background:var(--accent-dim);' : '') + '">'
+        + '<span style="min-width:88px;">' + m.date + '</span><span style="min-width:44px;color:var(--accent);">' + (m.e.start || '') + '</span>'
+        + '<span style="min-width:56px;">' + sb.badge + sb.label + '</span>'
+        + '<span style="flex:1;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">' + actions + '</span>'
+        + '</div>';
+    }).join('');
+    document.getElementById('modalRows').innerHTML += '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);"><b>候補日一覧（同じ案件・' + members.length + '件）：</b>'
+      + '<div style="margin-top:4px;">' + listHtml + '</div>'
+      + (canDec ? '<button type="button" id="mGroupReplyBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button>' : '')
+      + (canDelete ? '<button type="button" id="mCancelGroupBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:12px;">この案件の候補をすべて削除</button>' : '')
+      + '</div>';
+    document.querySelectorAll('.cand-act').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setSlotStatus(this.getAttribute('data-d'), this.getAttribute('data-i'), this.getAttribute('data-s'));
+        closeModal();
+      });
+    });
+    var groupReplyBtn = document.getElementById('mGroupReplyBtn');
+    if (groupReplyBtn) groupReplyBtn.onclick = function () { sendGroupReply(groupId); };
+    var cancelGroupBtn = document.getElementById('mCancelGroupBtn');
+    if (cancelGroupBtn) cancelGroupBtn.onclick = function () { cancelGroup(groupId); };
+  }
+
   // 📅 日付・時間の変更（案件名・担当者・連絡先・メモ等はそのまま、日時だけ移動する）
   if (canDelete) {
     document.getElementById('modalRows').innerHTML +=
@@ -1055,10 +1143,62 @@ function openModal(date, id, e) {
   if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
 
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
-  document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && e.status !== '確定') ? 'block' : 'none';
-  document.getElementById('mUnconfBtn').style.display = (canDelete && e.status === '確定') ? 'block' : 'none';
+  document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && st !== '確定') ? 'block' : 'none';
+  document.getElementById('mUnconfBtn').style.display = (canDelete && st === '確定') ? 'block' : 'none';
+  var canDec2 = canDecideStatus();
+  document.getElementById('mPermitBtn').style.display = (canDec2 && st !== '確定' && st !== '許可') ? 'block' : 'none';
+  document.getElementById('mDeclineBtn').style.display = (canDec2 && st !== '確定' && st !== '断り') ? 'block' : 'none';
+  document.getElementById('mResetBtn').style.display = (canDec2 && (st === '許可' || st === '断り')) ? 'block' : 'none';
 
   document.getElementById('overlay').classList.add('show');
+}
+
+// 仮予約1件のstatusを更新（仮／許可／断り／確定は共通のフィールドで扱う）。cbは更新成功後に呼ばれる（連絡アプリ起動用）
+function setSlotStatus(date, id, status, cb) {
+  rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date + '/' + id).update({ status: status })
+    .then(function () { if (cb) cb(); })
+    .catch(function (e) { alert('更新できませんでした：' + e.message); });
+}
+// 許可／断りは申込者への返信が必要なアクションなので、確定と同様にステータス更新後そのまま連絡アプリを起動する。
+// （候補一覧の中の個別ボタン(cand-act)は複数候補を素早く捌く用途のため、そちらは連絡起動しない＝下のイベント委譲を参照）
+function markPermit() {
+  if (!currentModalPath) return;
+  var record = currentModalRecord;
+  var hasGroup = !!(record && record.e && record.e.candidate_group);
+  var p = currentModalPath.split('/');
+  setSlotStatus(p[0], p[1], '許可', function () {
+    closeModal();
+    if (!hasGroup && record) launchContact(record.date, Object.assign({}, record.e, { status: '許可' }));
+  });
+}
+function markDecline() {
+  if (!currentModalPath) return;
+  if (!confirm('この候補を断りにしますか？（一覧には残りますが「断り」として表示されます）')) return;
+  var record = currentModalRecord;
+  var hasGroup = !!(record && record.e && record.e.candidate_group);
+  var p = currentModalPath.split('/');
+  setSlotStatus(p[0], p[1], '断り', function () {
+    closeModal();
+    if (!hasGroup && record) launchContact(record.date, Object.assign({}, record.e, { status: '断り' }));
+  });
+}
+function resetToKari() {
+  if (!currentModalPath) return;
+  var p = currentModalPath.split('/');
+  setSlotStatus(p[0], p[1], '仮');
+  closeModal();
+}
+// 同じ案件(candidate_group)の候補日をすべて削除（申込み側の「この案件ごとキャンセル」用）
+function cancelGroup(groupId) {
+  if (!groupId) return;
+  if (!confirm('この案件の候補日をすべて削除しますか？（元に戻せません）')) return;
+  var updates = {};
+  Object.keys(allKariSlotsData).forEach(function (d) {
+    Object.keys(allKariSlotsData[d] || {}).forEach(function (mid) {
+      if (allKariSlotsData[d][mid].candidate_group === groupId) updates[d + '/' + mid] = null;
+    });
+  });
+  slotsRootRef().update(updates).then(closeModal).catch(function (e) { alert('削除できませんでした：' + e.message); });
 }
 
 function moveCurrentSlot() {
@@ -1117,6 +1257,9 @@ function openPersonalInfoModal(item) {
   document.getElementById('mDelBtn').style.display = 'none';
   document.getElementById('mConfBtn').style.display = 'none';
   document.getElementById('mUnconfBtn').style.display = 'none';
+  document.getElementById('mPermitBtn').style.display = 'none';
+  document.getElementById('mDeclineBtn').style.display = 'none';
+  document.getElementById('mResetBtn').style.display = 'none';
   document.getElementById('overlay').classList.add('show');
 }
 
@@ -1167,22 +1310,91 @@ function deleteCurrentSlot() {
     .then(closeModal)
     .catch(function (e) { alert('削除できませんでした：' + e.message); });
 }
+// ステータスに応じて件名・本文を出し分ける（社内向けなので簡潔に。単発候補のみ許可/断り時に自動起動される）
+function kariMailParts(date, e) {
+  var status = e.status || '仮';
+  var tantou = e.tantou || '';
+  var caseName = e.case_name || '';
+  var time = e.start || '';
+  var dShort = fmtDateShort(date);
+  if (status === '断り') {
+    return {
+      subject: '【現調日程】' + caseName + ' 対応不可',
+      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'
+    };
+  }
+  if (status === '許可') {
+    return {
+      subject: '【現調日程】' + caseName + ' 対応可',
+      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応可能です。\n\nよろしくお願いします。'
+    };
+  }
+  if (status === '確定') {
+    return {
+      subject: '【現調日程】' + caseName + ' 確定',
+      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\nこちらで確定します。\n\nよろしくお願いします。'
+    };
+  }
+  return {
+    subject: '【現調日程】' + caseName,
+    body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n仮予約を受け付けました。\n\nよろしくお願いします。'
+  };
+}
 function buildMailto(date, e) {
-  var subject = encodeURIComponent('【現調仮予約】' + (e.case_name || '') + ' ' + date + ' ' + (e.start || ''));
-  var body = encodeURIComponent(
-    (e.tantou || '') + ' 様\n\n' +
-    '仮予約の件、確認いたしました。\n\n' +
-    '日付：' + date + '\n時間：' + (e.start || '') + '\n案件名：' + (e.case_name || '') + '\n\n' +
-    '状態：' + (e.status || '仮') + '\n\n' +
-    'ご確認よろしくお願いいたします。'
-  );
-  return 'mailto:' + encodeURIComponent(e.email) + '?subject=' + subject + '&body=' + body;
+  var parts = kariMailParts(date, e);
+  return 'mailto:' + encodeURIComponent(e.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body);
 }
 function buildSms(date, e) {
-  var smsBody = encodeURIComponent(
-    (e.tantou || '') + '様　仮予約の件、確認いたしました。日付：' + date + ' 時間：' + (e.start || '') + ' 案件名：' + (e.case_name || '') + ' 状態：' + (e.status || '仮')
-  );
-  return 'sms:' + encodeURIComponent(e.tel) + '?body=' + smsBody;
+  var status = e.status || '仮';
+  var tantou = e.tantou || '', caseName = e.case_name || '', time = e.start || '';
+  var dShort = fmtDateShort(date);
+  var text;
+  if (status === '断り') {
+    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応不可です。他日程をご検討ください。';
+  } else if (status === '許可') {
+    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応可能です。';
+  } else if (status === '確定') {
+    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　こちらで確定します。';
+  } else {
+    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　仮予約を受け付けました。';
+  }
+  return 'sms:' + encodeURIComponent(e.tel) + '?body=' + encodeURIComponent(text);
+}
+// 候補日が複数ある案件は、1件ずつ許可/断りするたびにメールを送ると何通も届いてしまうため、
+// 候補一覧の「まとめて連絡」ボタンから、許可/断りが決まっている分をまとめて1通で送る。
+function sendGroupReply(groupId) {
+  if (!groupId) return;
+  var members = [];
+  Object.keys(allKariSlotsData).forEach(function (d) {
+    Object.keys(allKariSlotsData[d] || {}).forEach(function (mid) {
+      var m = allKariSlotsData[d][mid];
+      if (m.candidate_group === groupId) members.push({ date: d, e: m });
+    });
+  });
+  if (!members.length) return;
+  members.sort(function (a, b) { return (a.date + (a.e.start || '')).localeCompare(b.date + (b.e.start || '')); });
+  var ok = members.filter(function (m) { return m.e.status === '許可' || m.e.status === '確定'; });
+  var ng = members.filter(function (m) { return m.e.status === '断り'; });
+  if (ok.length === 0 && ng.length === 0) { alert('まだ許可／断りが決まっていません'); return; }
+  var caseName = members[0].e.case_name || '';
+  var tantou = members[0].e.tantou || '';
+  var email = '', tel = '';
+  members.forEach(function (m) { if (!email && m.e.email) email = m.e.email; if (!tel && m.e.tel) tel = m.e.tel; });
+  function fmtList(list) { return list.map(function (m) { return fmtDateShort(m.date) + ' ' + (m.e.start || ''); }).join('、'); }
+  var lines = [tantou + ' 様', '', caseName + 'の日程について', ''];
+  if (ok.length) lines.push('○対応可：' + fmtList(ok));
+  if (ng.length) lines.push('✕対応不可：' + fmtList(ng));
+  lines.push('', 'よろしくお願いします。');
+  var body = lines.join('\n');
+  var subject = '【現調日程】' + caseName + ' 回答';
+  if (email) {
+    location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  } else if (tel) {
+    var smsText = tantou + '様　' + caseName + (ok.length ? '　対応可：' + fmtList(ok) : '') + (ng.length ? '／対応不可：' + fmtList(ng) : '');
+    location.href = 'sms:' + encodeURIComponent(tel) + '?body=' + encodeURIComponent(smsText);
+  } else {
+    alert('連絡先（メール・電話）が登録されていません');
+  }
 }
 function launchContact(date, e) {
   if (e.email) location.href = buildMailto(date, e);
@@ -1290,6 +1502,8 @@ function submitReservation() {
         current = current || {};
         for (var key in current) {
           var e = current[key];
+          // 断り済みの枠は「空いている」とみなし、重複判定から除外する
+          if (e.status === '断り') continue;
           if (e.start === c.time) {
             return; // undefinedを返す＝トランザクション中止（同時刻の重複あり）
           }
