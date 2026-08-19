@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-14-001 -->
+<!-- VERSION: 2026-08-19-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -144,12 +144,30 @@
     <div class="titleblock">
       <div class="eyebrow">Sapporo Field Ops / Address Reconciliation</div>
       <h1>住所照合ツール</h1>
-      <p class="lede">法務省地番データ(chiban.json)を最優先で照合し、ヒットしなければGeocoding API→国土地理院APIの順にフォールバックします。表記ゆれ（漢数字・全角/半角・ハイフン種別）は複数パターンで正規化して吸収します。</p>
+      <p class="lede">法務省地番データ(chiban.json)を最優先で照合し、ヒットしなければGeocoding API→国土地理院APIの順にフォールバックします。表記ゆれ（漢数字・全角/半角・ハイフン種別）は複数パターンで正規化して吸収します。CSVを使わず、Firebase側でまだ一度も座標が確定していない案件だけを直接取得して照合することもできます。</p>
     </div>
     <div class="coords">43.0621°N, 141.3544°E<br>SAPPORO-SHI, HOKKAIDO</div>
   </header>
 
   <div id="configWarn"></div>
+
+  <section data-step="STEP 0">
+    <h2>Firebaseから未処理分だけを直接取得（推奨・CSV不要）</h2>
+    <p class="meta-note" style="margin-top:0;">CSVを読み込まずに、Firebase上の全案件(<code>app_tasks</code>)のうち <strong>geocodeが一度も確定していない案件</strong> だけをサーバー側のインデックスクエリで絞り込んで取得します。デフォルトでは該当分のみの通信で完結し、全件ダウンロードは発生しません。「完了」ステータスの案件と住所未入力の案件は自動で除外されます。座標が取れず失敗した案件は「fail」として記録され、以降このモードでは自動的に再取得対象から外れます（永久に失敗を繰り返し取得することはありません）。</p>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn accent" id="fbScanBtn" disabled>Firebaseから未処理案件を取得して照合開始</button>
+      <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <input type="checkbox" id="fbIncludeLow"> 低精度(要確認)の案件も含めて再照合する
+      </label>
+      <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <input type="checkbox" id="fbIncludeFail"> 過去に失敗(fail)した案件も含める（住所を修正した場合など）
+      </label>
+      <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <input type="checkbox" id="fbFullDupeCheck"> 他の案件番号での同一住所の調査結果とも突き合わせる（app_tasks全件を読むため通信量が増えます）
+      </label>
+    </div>
+    <div id="fbScanStatus" class="meta-note" style="margin-top:10px;"></div>
+  </section>
 
   <section data-step="STEP 1">
     <h2>地番データ（自動取得・任意で手動読み込みも可）</h2>
@@ -161,7 +179,7 @@
   </section>
 
   <section data-step="STEP 2">
-    <h2>CSVを読み込む</h2>
+    <h2>CSVを読み込む（任意・Firebase未同期の住所を単発で調べたい場合など）</h2>
     <div class="drop" id="dropZone">
       <strong>ここにCSVファイルをドラッグ＆ドロップ</strong>、またはクリックして選択<br>
       <input type="file" id="fileInput" accept=".csv">
@@ -199,7 +217,7 @@
   </section>
 
   <section data-step="STEP 3">
-    <h2>照合を実行</h2>
+    <h2>照合を実行（CSVから）</h2>
     <div class="row" style="margin-top:0;">
       <button class="btn accent" id="startBtn" disabled>照合を開始</button>
       <button class="btn secondary" id="stopBtn" disabled>停止</button>
@@ -236,7 +254,7 @@
     </div>
     <div class="footer-actions">
       <div class="write-controls">
-        <span class="meta-note" style="margin-top:0;">地番一致〜低精度まで、座標が取れた案件は全件書き込みます（失敗のみ対象外）</span>
+        <span class="meta-note" style="margin-top:0;">地番一致〜低精度は座標付きで、失敗(fail)は「要人力調査」の記録として書き込みます（未実行の待機中の行のみ対象外）</span>
         <button class="btn" id="writeBtn" disabled>Firebaseに書き込む</button>
       </div>
       <span class="meta-note" style="margin-top:0;" id="writeStatus"></span>
@@ -278,6 +296,10 @@ if (!firebase.apps.length) { firebase.initializeApp(FIREBASE_CONFIG); }
 // 認証はlogin.html（トークン方式）で完了済み。user-scope.jsが未ログイン時はlogin.htmlへ自動リダイレクトする。
 // scopedDb.ref('app_tasks/...') は実際には users/{ログイン中のuserKey}/app_tasks/... を指す。
 var scopedDb = scopedDatabase(firebase.database());
+
+if (configOk) {
+  document.getElementById("fbScanBtn").disabled = false;
+}
 
 /* ---------------------------------------------------------------------
    住所正規化 / 候補生成ロジック
@@ -859,8 +881,9 @@ var stopRequested = false;
 document.getElementById("startBtn").addEventListener("click", runAll);
 document.getElementById("stopBtn").addEventListener("click", function(){ stopRequested = true; });
 document.getElementById("precheckBtn").addEventListener("click", runPrecheck);
+document.getElementById("fbScanBtn").addEventListener("click", runFirebaseDirectScan);
 
-// Firebaseの既存データ（IDキャッシュ／住所履歴）を構築する。runAll()の該当箇所と同じロジック。
+// Firebaseの既存データ（IDキャッシュ／住所履歴）を構築する。runGeocodeLoop()内で使用。
 async function buildFirebaseCaches() {
   var cachedGeocode = {};
   var addrHistoryCache = {};
@@ -880,8 +903,73 @@ async function buildFirebaseCaches() {
   return { cachedGeocode: cachedGeocode, addrHistoryCache: addrHistoryCache };
 }
 
-// STEP 2.5: 照合を実行する前に、実際にAPI/地番照合が必要な「本当に新規の住所」が
-// 何件あるかを確認するための事前チェック。ネットワーク越しの処理はFirebase読み取り1回のみ。
+// STEP 0: CSVを介さず、Firebase(app_tasks)側で geocode/confidence が
+// まだ一度も書き込まれていない案件（＝一度も調べていない案件）だけをサーバー側の
+// インデックスクエリで直接取得する。全件ダウンロードではなく該当分のみが返るため、
+// 「毎回全件読み直す」ロスも「CSVを再アップロードする」手間も発生しない。
+// チェックボックスがONの場合は confidence === "low"（要確認）の案件も追加で取得する。
+async function fetchUntriedFromFirebase(includeLow, includeFail) {
+  var tasks = {};
+  var snap1 = await scopedDb.ref("app_tasks").orderByChild("geocode/confidence").equalTo(null).once("value");
+  var val1 = snap1.val() || {};
+  Object.keys(val1).forEach(function(id) { tasks[id] = val1[id]; });
+
+  if (includeLow) {
+    var snap2 = await scopedDb.ref("app_tasks").orderByChild("geocode/confidence").equalTo("low").once("value");
+    var val2 = snap2.val() || {};
+    Object.keys(val2).forEach(function(id) { tasks[id] = val2[id]; });
+  }
+  if (includeFail) {
+    var snap3 = await scopedDb.ref("app_tasks").orderByChild("geocode/confidence").equalTo("fail").once("value");
+    var val3 = snap3.val() || {};
+    Object.keys(val3).forEach(function(id) { tasks[id] = val3[id]; });
+  }
+  return tasks;
+}
+
+async function runFirebaseDirectScan() {
+  if (!configOk) return;
+  var includeLow = document.getElementById("fbIncludeLow").checked;
+  var includeFail = document.getElementById("fbIncludeFail").checked;
+  var fullDupeCheck = document.getElementById("fbFullDupeCheck").checked;
+  var statusEl = document.getElementById("fbScanStatus");
+  var btn = document.getElementById("fbScanBtn");
+  btn.disabled = true;
+  statusEl.textContent = "Firebaseから未処理案件を取得中…";
+
+  var tasks;
+  try {
+    tasks = await fetchUntriedFromFirebase(includeLow, includeFail);
+  } catch (e) {
+    console.error("Firebase未処理案件の取得に失敗:", e);
+    statusEl.textContent = "取得失敗: " + e.message + "（Realtime Databaseのルールで app_tasks 配下に .indexOn: \"geocode/confidence\" を追加すると解消する場合があります。未設定でも動作はしますが、その場合コンソールに警告が出ます）";
+    btn.disabled = false;
+    return;
+  }
+
+  var completedSkipped = 0;
+  var noAddrSkipped = 0;
+  var rows = [];
+  Object.keys(tasks).forEach(function(id) {
+    var t = tasks[id];
+    var csv = t && t.csvData;
+    if (!csv) { noAddrSkipped++; return; }
+    var statusVal = String(csv[1] || "").trim();
+    if (statusVal === "完了") { completedSkipped++; return; }
+    var addr = csv[11];
+    if (!addr) { noAddrSkipped++; return; }
+    rows.push({ id: id, rawAddr: addr });
+  });
+
+  statusEl.textContent = "取得完了: " + rows.length + "件を照合対象にします（除外: 完了" + completedSkipped + "件・住所未入力" + noAddrSkipped + "件）";
+
+  if (rows.length === 0) {
+    btn.disabled = false;
+    return;
+  }
+  await runGeocodeLoop(rows, completedSkipped, fullDupeCheck);
+}
+
 async function runPrecheck() {
   var colId = document.getElementById("colId").value;
   var colAddr = document.getElementById("colAddr").value;
@@ -934,25 +1022,38 @@ async function runAll() {
   var colStatus = document.getElementById("colStatus").value;
   if (!colId || !colAddr) return;
 
-  stopRequested = false;
-  document.getElementById("startBtn").disabled = true;
-  document.getElementById("stopBtn").disabled = false;
-  document.getElementById("resultsSection").style.display = "block";
-  document.getElementById("progressWrap").classList.add("active");
-
   var completedSkipped = 0;
-  rowState = parsedRows.map(function(r) {
-    return { id: toFirebaseId(r[colId]), rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "", status: "pending", best: null, gsi: null, chibanCandidates: null, triesUsed: 0, candidatesTotal: 0 };
+  var rows = parsedRows.map(function(r) {
+    return { id: toFirebaseId(r[colId]), rawAddr: r[colAddr], statusVal: colStatus ? String(r[colStatus] || "").trim() : "" };
   }).filter(function(r){
     if (!r.id || !r.rawAddr) return false;
     if (colStatus && r.statusVal === "完了") { completedSkipped++; return false; }
     return true;
+  }).map(function(r){ return { id: r.id, rawAddr: r.rawAddr }; });
+
+  await runGeocodeLoop(rows, completedSkipped);
+}
+
+// CSV由来／Firebase直接取得由来のどちらの行リストも、ここから先は共通処理。
+// rows: [{id, rawAddr}], completedSkippedCount: 「完了」ステータスで除外した件数（表示用）
+// cacheCheckOverride: true/falseを渡すとskipCachedチェックボックスの値を無視してその値を使う
+// （Firebase直接取得モードは、app_tasks全件ダウンロードを避けるためデフォルトfalseで呼ばれる）
+async function runGeocodeLoop(rows, completedSkippedCount, cacheCheckOverride) {
+  stopRequested = false;
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("fbScanBtn").disabled = true;
+  document.getElementById("stopBtn").disabled = false;
+  document.getElementById("resultsSection").style.display = "block";
+  document.getElementById("progressWrap").classList.add("active");
+
+  rowState = rows.map(function(r) {
+    return { id: r.id, rawAddr: r.rawAddr, status: "pending", best: null, gsi: null, chibanCandidates: null, triesUsed: 0, candidatesTotal: 0 };
   });
 
   renderTable();
   updateSummary();
 
-  var skipCached = document.getElementById("skipCached").checked;
+  var skipCached = (typeof cacheCheckOverride === "boolean") ? cacheCheckOverride : document.getElementById("skipCached").checked;
   var cachedGeocode = {};
   // ID一致ではなく「住所」で過去のFirebase結果を引けるようにするための索引。
   // 同じ物件で新しい案件(新ID)が立った場合でも、住所が既に調査済みならAPIを呼ばずに
@@ -1030,8 +1131,9 @@ async function runAll() {
   }
 
   document.getElementById("startBtn").disabled = false;
+  document.getElementById("fbScanBtn").disabled = false;
   document.getElementById("stopBtn").disabled = true;
-  document.getElementById("progressCurrent").textContent = stopRequested ? "停止しました" : ("完了（手配完了で除外: " + completedSkipped + "件 / IDキャッシュでスキップ: " + skippedCount + "件 / 同一住所の過去データでスキップ: " + addrHistSkippedCount + "件 / バッチ内の同一住所使い回し: " + dupSkippedCount + "件）");
+  document.getElementById("progressCurrent").textContent = stopRequested ? "停止しました" : ("完了（手配完了で除外: " + (completedSkippedCount || 0) + "件 / IDキャッシュでスキップ: " + skippedCount + "件 / 同一住所の過去データでスキップ: " + addrHistSkippedCount + "件 / バッチ内の同一住所使い回し: " + dupSkippedCount + "件）");
   refreshWriteButton();
 }
 
@@ -1220,12 +1322,15 @@ function escapeHtml(s) {
 }
 
 function refreshWriteButton() {
-  document.getElementById("writeBtn").disabled = !configOk || rowState.every(function(r){ return r.status === "pending" || r.status === "fail"; });
+  document.getElementById("writeBtn").disabled = !configOk || rowState.every(function(r){ return r.status === "pending"; });
 }
 
 document.getElementById("writeBtn").addEventListener("click", async function() {
-  // 座標が取れた行（exact/high/mid/low）は全件対象。fail（座標なし）のみ除外。
-  var targets = rowState.filter(function(r) { return r.best; });
+  // 座標が取れた行（exact/high/mid/low）に加え、fail（座標なし）も書き込み対象にする。
+  // fail行にもconfidence:"fail"を記録しておくことで、Firebase直接取得モードの
+  // 「geocode/confidenceが未設定＝未処理」クエリに二度とヒットしなくなり、
+  // 同じ失敗案件を永久に再取得し続ける事態を防ぐ。
+  var targets = rowState.filter(function(r) { return r.status !== "pending"; });
   if (targets.length === 0) return;
   if (!confirm(targets.length + "件をFirebase(users/" + window.getUserKey() + "/app_tasks/{id}/geocode)に書き込みます。よろしいですか？")) return;
 
@@ -1234,20 +1339,30 @@ document.getElementById("writeBtn").addEventListener("click", async function() {
   for (var i = 0; i < targets.length; i++) {
     var row = targets[i];
     try {
-      var payload = {
-        address: row.best.matchedPattern,
-        originalAddress: row.rawAddr,
-        lat: row.best.lat,
-        lng: row.best.lng,
-        precision: row.best.precision,
-        confidence: row.status,
-        triesUsed: row.triesUsed,
-        updatedAt: new Date().toISOString()
-      };
-      if (row.chibanCandidates && row.chibanCandidates.length > 0) {
-        payload.candidates = row.chibanCandidates.map(function(c) {
-          return { key: c.key, lat: c.lat, lng: c.lng };
-        });
+      var payload;
+      if (row.best) {
+        payload = {
+          address: row.best.matchedPattern,
+          originalAddress: row.rawAddr,
+          lat: row.best.lat,
+          lng: row.best.lng,
+          precision: row.best.precision,
+          confidence: row.status,
+          triesUsed: row.triesUsed,
+          updatedAt: new Date().toISOString()
+        };
+        if (row.chibanCandidates && row.chibanCandidates.length > 0) {
+          payload.candidates = row.chibanCandidates.map(function(c) {
+            return { key: c.key, lat: c.lat, lng: c.lng };
+          });
+        }
+      } else {
+        payload = {
+          confidence: "fail",
+          originalAddress: row.rawAddr,
+          triesUsed: row.triesUsed,
+          updatedAt: new Date().toISOString()
+        };
       }
       await scopedDb.ref("app_tasks/" + row.id + "/geocode").update(payload);
       done++;
