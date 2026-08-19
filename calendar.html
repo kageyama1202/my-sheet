@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-002 -->
+<!-- VERSION: 2026-08-19-003 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -125,7 +125,7 @@
     // メール／SMS文面用：8/20(木) のような短い日付表記
     function fmtDateShort(ds){var p=ds.split('-');var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));var wd=['日','月','火','水','木','金','土'][d.getDay()];return (d.getMonth()+1)+'/'+d.getDate()+'('+wd+')';}
     // 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す
-    function kariStatusBadge(status){if(status==='確定')return{badge:'✅',label:'確定'};if(status==='許可')return{badge:'🟢',label:'許可'};if(status==='断り')return{badge:'❌',label:'断り'};return{badge:'🟠',label:'仮予約'};}
+    function kariStatusBadge(status){if(status==='許可'||status==='確定')return{badge:'🟢',label:'対応可能'};if(status==='断り')return{badge:'❌',label:'対応不可'};return{badge:'🟠',label:'仮予約'};}
     // mailto:/sms:が環境によって反応しない場合の保険として、本文をクリップボードにコピーする
     function copyTextFallback(text,btnEl){
       function done(ok){if(!btnEl){if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);return;}var o=btnEl.textContent;btnEl.textContent=ok?'✓ コピーしました':'コピー失敗';setTimeout(function(){btnEl.textContent=o;},1500);if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);}
@@ -235,16 +235,14 @@
     function calKariMailParts(ev){
       var status=ev.status||'仮';var dShort=fmtDateShort(ev._dateKey);
       if(status==='断り')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応不可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'};
-      if(status==='許可')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応可能です。\n\nよろしくお願いします。'};
-      if(status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応できます。\n\nよろしくお願いします。'};
+      if(status==='許可'||status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応可能です。\n\nよろしくお願いします。'};
       return{subject:'【現調日程】'+(ev.case_name||''),body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n仮予約を受け付けました。\n\nよろしくお願いします。'};
     }
     function calKariBuildMailto(ev){var p=calKariMailParts(ev);return 'mailto:'+encodeURIComponent(ev.email)+'?subject='+encodeURIComponent(p.subject)+'&body='+encodeURIComponent(p.body);}
     function calKariBuildSms(ev){
       var status=ev.status||'仮';var dShort=fmtDateShort(ev._dateKey);var text;
       if(status==='断り')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応不可です。他日程をご検討ください。';
-      else if(status==='許可')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応可能です。';
-      else if(status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応できます。';
+      else if(status==='許可'||status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応可能です。';
       else text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　仮予約を受け付けました。';
       return 'sms:'+encodeURIComponent(ev.tel)+'?body='+encodeURIComponent(text);
     }
@@ -297,13 +295,11 @@
       if(ev.candidate_group) html+='<tr><th>候補日</th><td>同じ案件で他に '+(countCandidateGroupCal(ev.candidate_group)-1)+' 件の候補日があります</td></tr>';
       html+='</table><div id="calKariSaveMsg" style="display:none;color:#2e9e5b;font-size:12px;font-weight:600;margin-top:4px;">✓ 保存しました</div>';
       html+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">';
-      if(ev.status!=='確定'&&ev.status!=='許可') html+='<button id="calKariPermitBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">許可にする</button>';
-      if(ev.status!=='確定'&&ev.status!=='断り') html+='<button id="calKariDeclineBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#dc3545;color:#fff;cursor:pointer;">断りにする</button>';
-      if(ev.status==='許可'||ev.status==='断り') html+='<button id="calKariResetBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">仮に戻す</button>';
-      if(ev.status!=='確定') html+='<button id="calKariConfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#1a73e8;color:#fff;cursor:pointer;">確定にする</button>';
-      if(ev.status==='確定') html+='<button id="calKariUnconfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">確定解除</button>';
+      if(ev.status!=='許可'&&ev.status!=='確定') html+='<button id="calKariPermitBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">対応可能にする</button>';
+      if(ev.status!=='断り') html+='<button id="calKariDeclineBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#dc3545;color:#fff;cursor:pointer;">対応不可にする</button>';
+      if(ev.status==='許可'||ev.status==='断り'||ev.status==='確定') html+='<button id="calKariResetBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">仮に戻す</button>';
       html+='</div>';
-      if(ev.candidate_group) html+='<div style="display:flex;gap:6px;margin-top:8px;"><button id="calKariGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button><button id="calKariGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:12px;">📋 コピー</button></div>';
+      if(ev.candidate_group) html+='<div style="display:flex;gap:6px;margin-top:8px;"><button id="calKariGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 対応可否が決まった分をまとめて連絡</button><button id="calKariGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:12px;">📋 コピー</button></div>';
       html+='<div style="display:flex;gap:8px;margin-top:8px;">';
       if(ev.email) html+='<button id="calKariMailBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#1a73e8;color:#fff;cursor:pointer;">📧 メールで連絡</button>';
       if(ev.tel) html+='<button id="calKariSmsBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e7d5b;color:#fff;cursor:pointer;">💬 SMSで連絡</button>';
@@ -327,10 +323,10 @@
       document.getElementById('calKariEditTel').addEventListener('blur',function(){if(this.value!==(ev.tel||''))calKariSaveField({tel:this.value});});
       document.getElementById('calKariEditMemo').addEventListener('blur',function(){if(this.value!==(ev.memo||''))calKariSaveField({memo:this.value});});
 
-      // 候補日が複数ある案件は個別に許可/断りしてもメールを自動送信しない（まとめて連絡ボタンを使う）。
-      // 単発の候補のみ、許可/断りを押した瞬間に短文で自動送信する。
+      // 候補日が複数ある案件は個別に対応可否してもメールを自動送信しない（まとめて連絡ボタンを使う）。
+      // 単発の候補のみ、対応可否を押した瞬間に短文で自動送信する。
       var hasGroup=!!ev.candidate_group;
-      if(ev.status!=='確定'&&ev.status!=='許可'){
+      if(ev.status!=='許可'&&ev.status!=='確定'){
         document.getElementById('calKariPermitBtn').onclick=function(){
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'許可'}).then(function(){
             modalOverlay.style.display='none';
@@ -339,9 +335,9 @@
           }).catch(function(e){alert('更新できませんでした：'+e.message);});
         };
       }
-      if(ev.status!=='確定'&&ev.status!=='断り'){
+      if(ev.status!=='断り'){
         document.getElementById('calKariDeclineBtn').onclick=function(){
-          if(!confirm('この候補を断りにしますか？'))return;
+          if(!confirm('対応不可にしますか？'))return;
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'断り'}).then(function(){
             modalOverlay.style.display='none';
             reloadKariAndRenderCal();
@@ -349,26 +345,8 @@
           }).catch(function(e){alert('更新できませんでした：'+e.message);});
         };
       }
-      if(ev.status==='許可'||ev.status==='断り'){
+      if(ev.status==='許可'||ev.status==='断り'||ev.status==='確定'){
         document.getElementById('calKariResetBtn').onclick=function(){
-          database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'仮'}).then(function(){
-            modalOverlay.style.display='none';
-            reloadKariAndRenderCal();
-          }).catch(function(e){alert('更新できませんでした：'+e.message);});
-        };
-      }
-      if(ev.status!=='確定'){
-        document.getElementById('calKariConfirmBtn').onclick=function(){
-          database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'確定'}).then(function(){
-            modalOverlay.style.display='none';
-            reloadKariAndRenderCal();
-            var updated=Object.assign({},ev,{status:'確定'});
-            calKariLaunchContact(updated);
-          }).catch(function(e){alert('更新できませんでした：'+e.message);});
-        };
-      }
-      if(ev.status==='確定'){
-        document.getElementById('calKariUnconfirmBtn').onclick=function(){
           database.ref('kari_yoyaku_slots/'+ev._dateKey+'/'+ev._id).update({status:'仮'}).then(function(){
             modalOverlay.style.display='none';
             reloadKariAndRenderCal();
@@ -379,7 +357,7 @@
         document.getElementById('calKariGroupReplyBtn').onclick=function(){sendGroupReplyCal(ev.candidate_group);};
         document.getElementById('calKariGroupCopyBtn').onclick=function(){
           var parts=buildGroupReplyPartsCal(ev.candidate_group);
-          if(!parts){alert('まだ許可／断りが決まっていません');return;}
+          if(!parts){alert('まだ対応可否が決まっていません');return;}
           copyTextFallback(parts.subject+'\n\n'+parts.body,this);
         };
       }
