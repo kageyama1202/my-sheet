@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-003 -->
+<!-- VERSION: 2026-08-19-005 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -298,6 +298,7 @@
 <div id="topBar">
   <span id="adminBadge" style="display:none;">管理者</span>
   <div id="authNote" class="sub" style="margin-bottom:0;">読み込み中...</div>
+  <div id="pendingBadge" style="display:none;font-size:12px;font-weight:700;color:var(--kari);margin-top:4px;"></div>
 </div>
 
 <!-- 対象者選択画面 -->
@@ -464,6 +465,19 @@ function copyTextFallback(text, btnEl) {
     navigator.clipboard.writeText(text).then(function () { done(true); }).catch(function () { done(false); });
   } else {
     done(false);
+  }
+}
+// 営業時間（8:00〜19:00、必要ならここの数字だけ変更）外にメール/SMSを開こうとした場合、
+// 一呼吸置く確認を挟む。mailto:/sms:を開くのはあくまで下書きを開くだけで実送信はしないが、
+// 押し忘れ防止も兼ねて誤って夜間に送るのを防ぐ。OKならsendFnを実行、キャンセルなら何もしない
+// （ステータス自体は既に保存済みなので、翌朝あらためて同じボタンを押せばよい）。
+var BUSINESS_HOUR_START = 8;
+var BUSINESS_HOUR_END = 19;
+function guardSendTime(sendFn) {
+  var h = new Date().getHours();
+  if (h >= BUSINESS_HOUR_START && h < BUSINESS_HOUR_END) { sendFn(); return; }
+  if (confirm('現在営業時間外です（' + BUSINESS_HOUR_START + ':00〜' + BUSINESS_HOUR_END + ':00推奨）。\n今開くと夜間に相手に届く可能性があります。\n\nこのまま開きますか？（キャンセルすれば送信されません。翌朝あらためてこのボタンを押してください）')) {
+    sendFn();
   }
 }
 
@@ -825,10 +839,11 @@ function buildDayItems(date) {
     var e = kday[id];
     var groupTag = e.candidate_group ? '（候補' + countCandidateGroup(e.candidate_group) + '件中）' : '';
     var sb = kariStatusBadge(e.status);
+    var needsSend = (e.status === '許可' || e.status === '断り') && !e.replied;
     items.push({
       badge: sb.badge,
       kindLabel: sb.label,
-      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + groupTag + (e.attachment_url ? ' 📎' : ''),
+      title: (e.case_name || '') + (e.tantou ? '（' + e.tantou + '）' : '') + groupTag + (e.attachment_url ? ' 📎' : '') + (needsSend ? ' 📤未送信' : ''),
       area: e.area || '', time: e.start || '',
       order: '',
       kari: true, kariDate: date, kariId: id, kariE: e,
@@ -1050,7 +1065,28 @@ function subscribeUpcoming() {
     renderMonthCalendar();
     renderDayAgenda();
     renderContactOptions();
+    renderPendingBadge();
   });
+}
+// 「まだ許可/断りを決めていない」「決めたけどまだ送信していない」件数を表示する
+function renderPendingBadge() {
+  var el = document.getElementById('pendingBadge');
+  if (!el) return;
+  var decisionCount = 0, sendCount = 0;
+  Object.keys(allKariSlotsData).forEach(function (d) {
+    Object.keys(allKariSlotsData[d] || {}).forEach(function (id) {
+      var e = allKariSlotsData[d][id];
+      var st = e.status || '仮';
+      if (st === '仮') decisionCount++;
+      else if ((st === '許可' || st === '断り') && !e.replied) sendCount++;
+    });
+  });
+  if (decisionCount === 0 && sendCount === 0) { el.style.display = 'none'; return; }
+  var parts = [];
+  if (decisionCount > 0) parts.push('📩 未回答 ' + decisionCount + '件');
+  if (sendCount > 0) parts.push('📤 未送信 ' + sendCount + '件');
+  el.textContent = parts.join('　');
+  el.style.display = 'block';
 }
 
 // ============ モーダル ============
@@ -1079,7 +1115,7 @@ function openModal(date, id, e) {
     { label: 'メール', value: e.email || '(未入力)' },
     { label: '電話番号', value: e.tel || '(未入力)' },
     { label: 'メモ', value: e.memo || '(メモなし)' },
-    { label: '状態', value: kariStatusBadge(st).badge + ' ' + kariStatusBadge(st).label }
+    { label: '状態', value: kariStatusBadge(st).badge + ' ' + kariStatusBadge(st).label + (((st === '許可' || st === '断り') && !e.replied) ? '（📤未送信）' : '') }
   ]);
   if (e.attachment_url) {
     document.getElementById('modalRows').innerHTML += '<div class="mrow"><b>添付：</b><a href="' + e.attachment_url + '" target="_blank" style="color:var(--accent);">📎 ' + escapeHtml(e.attachment_name || 'ファイルを開く') + '</a></div>';
@@ -1107,9 +1143,10 @@ function openModal(date, id, e) {
         if (mst !== '断り' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="断り">対応不可</button>';
         if (mst === '許可' || mst === '断り' || mst === '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="仮">仮に戻す</button>';
       }
+      var mNeedsSend = (mst === '許可' || mst === '断り') && !m.e.replied;
       return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;' + (isSelf ? 'background:var(--accent-dim);' : '') + '">'
         + '<span style="min-width:88px;">' + m.date + '</span><span style="min-width:44px;color:var(--accent);">' + (m.e.start || '') + '</span>'
-        + '<span style="min-width:56px;">' + sb.badge + sb.label + '</span>'
+        + '<span style="min-width:56px;">' + sb.badge + sb.label + (mNeedsSend ? ' 📤' : '') + '</span>'
         + '<span style="flex:1;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">' + actions + '</span>'
         + '</div>';
     }).join('');
@@ -1129,8 +1166,9 @@ function openModal(date, id, e) {
     var groupCopyBtn = document.getElementById('mGroupCopyBtn');
     if (groupCopyBtn) groupCopyBtn.onclick = function () {
       var parts = buildGroupReplyParts(groupId);
-      if (!parts) { alert('まだ許可／断りが決まっていません'); return; }
+      if (!parts) { alert('まだ対応可否が決まっていません'); return; }
       copyTextFallback(parts.subject + '\n\n' + parts.body, this);
+      markRepliedMulti(parts.replyTargets);
     };
     var cancelGroupBtn = document.getElementById('mCancelGroupBtn');
     if (cancelGroupBtn) cancelGroupBtn.onclick = function () { cancelGroup(groupId); };
@@ -1153,16 +1191,19 @@ function openModal(date, id, e) {
 
   var contactBox = document.getElementById('mContactBtns');
   var contactHtml = '';
+  var needsSendNote = (st === '許可' || st === '断り') && !e.replied
+    ? '<div style="font-size:11px;color:var(--kari);font-weight:700;margin-bottom:4px;">📤 まだ送信していません</div>' : '';
   if (e.email) contactHtml += '<button class="mail" id="mMailBtn">📧 メールで連絡</button>';
   if (e.tel) contactHtml += '<button class="sms" id="mSmsBtn">💬 SMSで連絡</button>';
   if (e.email || e.tel) contactHtml += '<button class="close" id="mCopyBtn">📋 本文をコピー</button>';
-  contactBox.innerHTML = contactHtml;
-  contactBox.style.display = contactHtml ? 'flex' : 'none';
-  if (e.email) document.getElementById('mMailBtn').onclick = function () { location.href = buildMailto(date, e); };
-  if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
+  contactBox.innerHTML = needsSendNote + '<div style="display:flex;gap:8px;width:100%;">' + contactHtml + '</div>';
+  contactBox.style.display = (contactHtml || needsSendNote) ? 'block' : 'none';
+  if (e.email) document.getElementById('mMailBtn').onclick = function () { guardSendTime(function () { location.href = buildMailto(date, e); markReplied(date, id); }); };
+  if (e.tel) document.getElementById('mSmsBtn').onclick = function () { guardSendTime(function () { location.href = buildSms(date, e); markReplied(date, id); }); };
   if (e.email || e.tel) document.getElementById('mCopyBtn').onclick = function () {
     var parts = kariMailParts(date, e);
     copyTextFallback(parts.subject + '\n\n' + parts.body, this);
+    markReplied(date, id);
   };
 
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
@@ -1174,34 +1215,35 @@ function openModal(date, id, e) {
   document.getElementById('overlay').classList.add('show');
 }
 
-// 仮予約1件のstatusを更新（仮／許可／断り／確定は共通のフィールドで扱う）。cbは更新成功後に呼ばれる（連絡アプリ起動用）
+// 仮予約1件のstatusを更新（仮／許可／断り／確定は共通のフィールドで扱う）。
+// 許可/断り/仮への変更は「まだ送信していない」扱いにリセットする(replied:false)。cbは更新成功後に呼ばれる。
 function setSlotStatus(date, id, status, cb) {
-  rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date + '/' + id).update({ status: status })
+  rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date + '/' + id).update({ status: status, replied: false })
     .then(function () { if (cb) cb(); })
     .catch(function (e) { alert('更新できませんでした：' + e.message); });
 }
-// 許可／断りは申込者への返信が必要なアクションなので、確定と同様にステータス更新後そのまま連絡アプリを起動する。
-// （候補一覧の中の個別ボタン(cand-act)は複数候補を素早く捌く用途のため、そちらは連絡起動しない＝下のイベント委譲を参照）
+// 実際にメール/SMSを開いた・本文をコピーした時に「送信済み」マークを付ける（送信待ちバッジから消すため）
+function markReplied(date, id) {
+  rawDb.ref('users/' + targetUserKey + '/kari_yoyaku_slots/' + date + '/' + id).update({ replied: true })
+    .catch(function (e) { console.warn('replied更新失敗', e); });
+}
+function markRepliedMulti(targets) {
+  if (!targets || !targets.length) return;
+  var updates = {};
+  targets.forEach(function (t) { updates[t.date + '/' + t.id + '/replied'] = true; });
+  slotsRootRef().update(updates).catch(function (e) { console.warn('replied一括更新失敗', e); });
+}
+// 対応可否の判断とお客様への送信は分離する（判断は夜でもOK、送信は営業時間内に連絡ボタンで手動）。
 function markPermit() {
   if (!currentModalPath) return;
-  var record = currentModalRecord;
-  var hasGroup = !!(record && record.e && record.e.candidate_group);
   var p = currentModalPath.split('/');
-  setSlotStatus(p[0], p[1], '許可', function () {
-    closeModal();
-    if (!hasGroup && record) launchContact(record.date, Object.assign({}, record.e, { status: '許可' }));
-  });
+  setSlotStatus(p[0], p[1], '許可', function () { closeModal(); });
 }
 function markDecline() {
   if (!currentModalPath) return;
-  if (!confirm('この候補を断りにしますか？（一覧には残りますが「断り」として表示されます）')) return;
-  var record = currentModalRecord;
-  var hasGroup = !!(record && record.e && record.e.candidate_group);
+  if (!confirm('対応不可にしますか？（一覧には残りますが「対応不可」として表示されます）')) return;
   var p = currentModalPath.split('/');
-  setSlotStatus(p[0], p[1], '断り', function () {
-    closeModal();
-    if (!hasGroup && record) launchContact(record.date, Object.assign({}, record.e, { status: '断り' }));
-  });
+  setSlotStatus(p[0], p[1], '断り', function () { closeModal(); });
 }
 function resetToKari() {
   if (!currentModalPath) return;
@@ -1339,13 +1381,13 @@ function kariMailParts(date, e) {
   if (status === '断り') {
     return {
       subject: '【現調日程】' + caseName + ' 対応不可',
-      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'
+      body: tantou + ' 様\n\n' + caseName + '\n✕対応不可：' + dShort + ' ' + time + '\n他日程をご検討ください。\n\nよろしくお願いします。'
     };
   }
   if (status === '許可' || status === '確定') {
     return {
       subject: '【現調日程】' + caseName + ' 対応可',
-      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応可能です。\n\nよろしくお願いします。'
+      body: tantou + ' 様\n\n' + caseName + '\n○対応可：' + dShort + ' ' + time + '\n\nよろしくお願いします。'
     };
   }
   return {
@@ -1363,9 +1405,9 @@ function buildSms(date, e) {
   var dShort = fmtDateShort(date);
   var text;
   if (status === '断り') {
-    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応不可です。他日程をご検討ください。';
+    text = tantou + '様　' + caseName + '　✕対応不可：' + dShort + ' ' + time + '　他日程をご検討ください。';
   } else if (status === '許可' || status === '確定') {
-    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応可能です。';
+    text = tantou + '様　' + caseName + '　○対応可：' + dShort + ' ' + time;
   } else {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　仮予約を受け付けました。';
   }
@@ -1379,7 +1421,7 @@ function buildGroupReplyParts(groupId) {
   Object.keys(allKariSlotsData).forEach(function (d) {
     Object.keys(allKariSlotsData[d] || {}).forEach(function (mid) {
       var m = allKariSlotsData[d][mid];
-      if (m.candidate_group === groupId) members.push({ date: d, e: m });
+      if (m.candidate_group === groupId) members.push({ date: d, id: mid, e: m });
     });
   });
   if (!members.length) return null;
@@ -1397,23 +1439,19 @@ function buildGroupReplyParts(groupId) {
   if (ng.length) lines.push('✕対応不可：' + fmtList(ng));
   lines.push('', 'よろしくお願いします。');
   var smsText = tantou + '様　' + caseName + (ok.length ? '　対応可：' + fmtList(ok) : '') + (ng.length ? '／対応不可：' + fmtList(ng) : '');
-  return { subject: '【現調日程】' + caseName + ' 回答', body: lines.join('\n'), smsText: smsText, email: email, tel: tel };
+  return { subject: '【現調日程】' + caseName + ' 回答', body: lines.join('\n'), smsText: smsText, email: email, tel: tel, replyTargets: ok.concat(ng) };
 }
 function sendGroupReply(groupId) {
   if (!groupId) return;
   var parts = buildGroupReplyParts(groupId);
-  if (!parts) { alert('まだ許可／断りが決まっていません'); return; }
+  if (!parts) { alert('まだ対応可否が決まっていません'); return; }
   if (parts.email) {
-    location.href = 'mailto:' + encodeURIComponent(parts.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body);
+    guardSendTime(function () { location.href = 'mailto:' + encodeURIComponent(parts.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body); markRepliedMulti(parts.replyTargets); });
   } else if (parts.tel) {
-    location.href = 'sms:' + encodeURIComponent(parts.tel) + '?body=' + encodeURIComponent(parts.smsText);
+    guardSendTime(function () { location.href = 'sms:' + encodeURIComponent(parts.tel) + '?body=' + encodeURIComponent(parts.smsText); markRepliedMulti(parts.replyTargets); });
   } else {
     alert('連絡先（メール・電話）が登録されていません');
   }
-}
-function launchContact(date, e) {
-  if (e.email) location.href = buildMailto(date, e);
-  else if (e.tel) location.href = buildSms(date, e);
 }
 
 // ============ 新規予約（重複チェック付きトランザクション） ============
