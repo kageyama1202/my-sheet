@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-001 -->
+<!-- VERSION: 2026-08-19-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -452,6 +452,21 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
+}
+// mailto:/sms:が環境によって反応しない場合の保険として、本文をクリップボードにコピーする。btnEl渡すとボタン上に一時的に「コピーしました」を表示。
+function copyTextFallback(text, btnEl) {
+  function done(ok) {
+    if (!btnEl) { if (!ok) alert('コピーできませんでした。手動でコピーしてください：\n\n' + text); return; }
+    var original = btnEl.textContent;
+    btnEl.textContent = ok ? '✓ コピーしました' : 'コピー失敗';
+    setTimeout(function () { btnEl.textContent = original; }, 1500);
+    if (!ok) alert('コピーできませんでした。手動でコピーしてください：\n\n' + text);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }).catch(function () { done(false); });
+  } else {
+    done(false);
+  }
 }
 
 function createDateRow(defaultDate) {
@@ -1103,7 +1118,7 @@ function openModal(date, id, e) {
     }).join('');
     document.getElementById('modalRows').innerHTML += '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);"><b>候補日一覧（同じ案件・' + members.length + '件）：</b>'
       + '<div style="margin-top:4px;">' + listHtml + '</div>'
-      + (canDec ? '<button type="button" id="mGroupReplyBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button>' : '')
+      + (canDec ? '<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" id="mGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button><button type="button" id="mGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;">📋 コピー</button></div>' : '')
       + (canDelete ? '<button type="button" id="mCancelGroupBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:12px;">この案件の候補をすべて削除</button>' : '')
       + '</div>';
     document.querySelectorAll('.cand-act').forEach(function (btn) {
@@ -1114,6 +1129,12 @@ function openModal(date, id, e) {
     });
     var groupReplyBtn = document.getElementById('mGroupReplyBtn');
     if (groupReplyBtn) groupReplyBtn.onclick = function () { sendGroupReply(groupId); };
+    var groupCopyBtn = document.getElementById('mGroupCopyBtn');
+    if (groupCopyBtn) groupCopyBtn.onclick = function () {
+      var parts = buildGroupReplyParts(groupId);
+      if (!parts) { alert('まだ許可／断りが決まっていません'); return; }
+      copyTextFallback(parts.subject + '\n\n' + parts.body, this);
+    };
     var cancelGroupBtn = document.getElementById('mCancelGroupBtn');
     if (cancelGroupBtn) cancelGroupBtn.onclick = function () { cancelGroup(groupId); };
   }
@@ -1137,10 +1158,15 @@ function openModal(date, id, e) {
   var contactHtml = '';
   if (e.email) contactHtml += '<button class="mail" id="mMailBtn">📧 メールで連絡</button>';
   if (e.tel) contactHtml += '<button class="sms" id="mSmsBtn">💬 SMSで連絡</button>';
+  if (e.email || e.tel) contactHtml += '<button class="close" id="mCopyBtn">📋 本文をコピー</button>';
   contactBox.innerHTML = contactHtml;
   contactBox.style.display = contactHtml ? 'flex' : 'none';
   if (e.email) document.getElementById('mMailBtn').onclick = function () { location.href = buildMailto(date, e); };
   if (e.tel) document.getElementById('mSmsBtn').onclick = function () { location.href = buildSms(date, e); };
+  if (e.email || e.tel) document.getElementById('mCopyBtn').onclick = function () {
+    var parts = kariMailParts(date, e);
+    copyTextFallback(parts.subject + '\n\n' + parts.body, this);
+  };
 
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
   document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && st !== '確定') ? 'block' : 'none';
@@ -1331,8 +1357,8 @@ function kariMailParts(date, e) {
   }
   if (status === '確定') {
     return {
-      subject: '【現調日程】' + caseName + ' 確定',
-      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\nこちらで確定します。\n\nよろしくお願いします。'
+      subject: '【現調日程】' + caseName + ' 対応可',
+      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応できます。\n\nよろしくお願いします。'
     };
   }
   return {
@@ -1354,7 +1380,7 @@ function buildSms(date, e) {
   } else if (status === '許可') {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応可能です。';
   } else if (status === '確定') {
-    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　こちらで確定します。';
+    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応できます。';
   } else {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　仮予約を受け付けました。';
   }
@@ -1362,8 +1388,8 @@ function buildSms(date, e) {
 }
 // 候補日が複数ある案件は、1件ずつ許可/断りするたびにメールを送ると何通も届いてしまうため、
 // 候補一覧の「まとめて連絡」ボタンから、許可/断りが決まっている分をまとめて1通で送る。
-function sendGroupReply(groupId) {
-  if (!groupId) return;
+// buildGroupReplyParts()が文面組み立て（コピー機能とも共用）、sendGroupReply()がmailto/sms起動。
+function buildGroupReplyParts(groupId) {
   var members = [];
   Object.keys(allKariSlotsData).forEach(function (d) {
     Object.keys(allKariSlotsData[d] || {}).forEach(function (mid) {
@@ -1371,11 +1397,11 @@ function sendGroupReply(groupId) {
       if (m.candidate_group === groupId) members.push({ date: d, e: m });
     });
   });
-  if (!members.length) return;
+  if (!members.length) return null;
   members.sort(function (a, b) { return (a.date + (a.e.start || '')).localeCompare(b.date + (b.e.start || '')); });
   var ok = members.filter(function (m) { return m.e.status === '許可' || m.e.status === '確定'; });
   var ng = members.filter(function (m) { return m.e.status === '断り'; });
-  if (ok.length === 0 && ng.length === 0) { alert('まだ許可／断りが決まっていません'); return; }
+  if (ok.length === 0 && ng.length === 0) return null;
   var caseName = members[0].e.case_name || '';
   var tantou = members[0].e.tantou || '';
   var email = '', tel = '';
@@ -1385,13 +1411,17 @@ function sendGroupReply(groupId) {
   if (ok.length) lines.push('○対応可：' + fmtList(ok));
   if (ng.length) lines.push('✕対応不可：' + fmtList(ng));
   lines.push('', 'よろしくお願いします。');
-  var body = lines.join('\n');
-  var subject = '【現調日程】' + caseName + ' 回答';
-  if (email) {
-    location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-  } else if (tel) {
-    var smsText = tantou + '様　' + caseName + (ok.length ? '　対応可：' + fmtList(ok) : '') + (ng.length ? '／対応不可：' + fmtList(ng) : '');
-    location.href = 'sms:' + encodeURIComponent(tel) + '?body=' + encodeURIComponent(smsText);
+  var smsText = tantou + '様　' + caseName + (ok.length ? '　対応可：' + fmtList(ok) : '') + (ng.length ? '／対応不可：' + fmtList(ng) : '');
+  return { subject: '【現調日程】' + caseName + ' 回答', body: lines.join('\n'), smsText: smsText, email: email, tel: tel };
+}
+function sendGroupReply(groupId) {
+  if (!groupId) return;
+  var parts = buildGroupReplyParts(groupId);
+  if (!parts) { alert('まだ許可／断りが決まっていません'); return; }
+  if (parts.email) {
+    location.href = 'mailto:' + encodeURIComponent(parts.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body);
+  } else if (parts.tel) {
+    location.href = 'sms:' + encodeURIComponent(parts.tel) + '?body=' + encodeURIComponent(parts.smsText);
   } else {
     alert('連絡先（メール・電話）が登録されていません');
   }
