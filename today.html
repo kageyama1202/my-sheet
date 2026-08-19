@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-002 -->
+<!-- VERSION: 2026-08-19-003 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -229,22 +229,20 @@ function reloadKariAndRender(){database.ref('kari_yoyaku_slots').once('value').t
 function getKariEventsInRange(from,to){var result=[];Object.keys(kariSlots).forEach(function(dateKey){if(from&&dateKey<from)return;if(to&&dateKey>to)return;var dayEvents=kariSlots[dateKey];if(!dayEvents)return;Object.keys(dayEvents).forEach(function(id){var ev=dayEvents[id];result.push({_type:'kari',dateKey:dateKey,id:id,start:ev.start||'',case_name:ev.case_name||'',tantou:ev.tantou||'',area:ev.area||'',email:ev.email||'',tel:ev.tel||'',attachment_url:ev.attachment_url||'',attachment_name:ev.attachment_name||'',candidate_group:ev.candidate_group||'',memo:ev.memo||'',status:ev.status||'仮'});});});result.sort(function(a,b){return (a.dateKey+a.start).localeCompare(b.dateKey+b.start);});return result;}
 function countCandidateGroupToday(groupId){var c=0;Object.keys(kariSlots).forEach(function(dateKey){var day=kariSlots[dateKey];Object.keys(day).forEach(function(id){if(day[id].candidate_group===groupId)c++;});});return c;}
 // 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す（kari-yoyaku.htmlと共通の考え方）
-function kariStatusBadge(status){if(status==='確定')return{badge:'✅',label:'確定'};if(status==='許可')return{badge:'🟢',label:'許可'};if(status==='断り')return{badge:'❌',label:'断り'};return{badge:'🟠',label:'仮予約'};}
+function kariStatusBadge(status){if(status==='許可'||status==='確定')return{badge:'🟢',label:'対応可能'};if(status==='断り')return{badge:'❌',label:'対応不可'};return{badge:'🟠',label:'仮予約'};}
 
 // ステータスに応じて件名・本文を出し分ける（社内向けなので簡潔に）
 function kariMailParts(ev){
   var status=ev.status||'仮';var dShort=fmtDateShort(ev.dateKey);
   if(status==='断り')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応不可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'};
-  if(status==='許可')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応可能です。\n\nよろしくお願いします。'};
-  if(status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応できます。\n\nよろしくお願いします。'};
+  if(status==='許可'||status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応可能です。\n\nよろしくお願いします。'};
   return{subject:'【現調日程】'+(ev.case_name||''),body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n仮予約を受け付けました。\n\nよろしくお願いします。'};
 }
 function kariBuildMailto(ev){var p=kariMailParts(ev);return 'mailto:'+encodeURIComponent(ev.email)+'?subject='+encodeURIComponent(p.subject)+'&body='+encodeURIComponent(p.body);}
 function kariBuildSms(ev){
   var status=ev.status||'仮';var dShort=fmtDateShort(ev.dateKey);var text;
   if(status==='断り')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応不可です。他日程をご検討ください。';
-  else if(status==='許可')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応可能です。';
-  else if(status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応できます。';
+  else if(status==='許可'||status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応可能です。';
   else text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　仮予約を受け付けました。';
   return 'sms:'+encodeURIComponent(ev.tel)+'?body='+encodeURIComponent(text);
 }
@@ -296,13 +294,11 @@ function openKariModalToday(ev){
   if(ev.candidate_group) html+='<tr><th>候補日</th><td>同じ案件で他に '+(countCandidateGroupToday(ev.candidate_group)-1)+' 件の候補日があります</td></tr>';
   html+='</table><div id="kariSaveMsg" style="display:none;color:#2e9e5b;font-size:12px;font-weight:600;margin-top:4px;">✓ 保存しました</div>';
   html+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">';
-  if(ev.status!=='確定'&&ev.status!=='許可') html+='<button id="kariPermitBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">許可にする</button>';
-  if(ev.status!=='確定'&&ev.status!=='断り') html+='<button id="kariDeclineBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#dc3545;color:#fff;cursor:pointer;">断りにする</button>';
-  if(ev.status==='許可'||ev.status==='断り') html+='<button id="kariResetBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">仮に戻す</button>';
-  if(ev.status!=='確定') html+='<button id="kariConfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#1565c0;color:#fff;cursor:pointer;">確定にする</button>';
-  if(ev.status==='確定') html+='<button id="kariUnconfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">確定解除</button>';
+  if(ev.status!=='許可'&&ev.status!=='確定') html+='<button id="kariPermitBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#2e9e5b;color:#fff;cursor:pointer;">対応可能にする</button>';
+  if(ev.status!=='断り') html+='<button id="kariDeclineBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#dc3545;color:#fff;cursor:pointer;">対応不可にする</button>';
+  if(ev.status==='許可'||ev.status==='断り'||ev.status==='確定') html+='<button id="kariResetBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">仮に戻す</button>';
   html+='</div>';
-  if(ev.candidate_group) html+='<div style="display:flex;gap:6px;margin-top:8px;"><button id="kariGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button><button id="kariGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:12px;">📋 コピー</button></div>';
+  if(ev.candidate_group) html+='<div style="display:flex;gap:6px;margin-top:8px;"><button id="kariGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 対応可否が決まった分をまとめて連絡</button><button id="kariGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:12px;">📋 コピー</button></div>';
   html+='<div style="display:flex;gap:8px;margin-top:8px;">';
   if(ev.email) html+='<button id="kariMailBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#4f8ef7;color:#fff;cursor:pointer;">📧 メールで連絡</button>';
   if(ev.tel) html+='<button id="kariSmsBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e7d5b;color:#fff;cursor:pointer;">💬 SMSで連絡</button>';
@@ -329,10 +325,10 @@ function openKariModalToday(ev){
   document.getElementById('kariEditTel').addEventListener('blur',function(){if(this.value!==(ev.tel||''))kariSaveField({tel:this.value});});
   document.getElementById('kariEditMemo').addEventListener('blur',function(){if(this.value!==(ev.memo||''))kariSaveField({memo:this.value});});
 
-  // 候補日が複数ある案件は個別に許可/断りしてもメールを自動送信しない（まとめて連絡ボタンを使う）。
-  // 単発の候補のみ、許可/断りを押した瞬間に短文で自動送信する。
+  // 候補日が複数ある案件は個別に対応可否してもメールを自動送信しない（まとめて連絡ボタンを使う）。
+  // 単発の候補のみ、対応可否を押した瞬間に短文で自動送信する。
   var hasGroup=!!ev.candidate_group;
-  if(ev.status!=='確定'&&ev.status!=='許可'){
+  if(ev.status!=='許可'&&ev.status!=='確定'){
     document.getElementById('kariPermitBtn').onclick=function(){
       database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'許可'}).then(function(){
         document.getElementById('modal-overlay').style.display='none';
@@ -341,9 +337,9 @@ function openKariModalToday(ev){
       }).catch(function(e){alert('更新できませんでした：'+e.message);});
     };
   }
-  if(ev.status!=='確定'&&ev.status!=='断り'){
+  if(ev.status!=='断り'){
     document.getElementById('kariDeclineBtn').onclick=function(){
-      if(!confirm('この候補を断りにしますか？'))return;
+      if(!confirm('対応不可にしますか？'))return;
       database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'断り'}).then(function(){
         document.getElementById('modal-overlay').style.display='none';
         reloadKariAndRender();
@@ -351,26 +347,8 @@ function openKariModalToday(ev){
       }).catch(function(e){alert('更新できませんでした：'+e.message);});
     };
   }
-  if(ev.status==='許可'||ev.status==='断り'){
+  if(ev.status==='許可'||ev.status==='断り'||ev.status==='確定'){
     document.getElementById('kariResetBtn').onclick=function(){
-      database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'仮'}).then(function(){
-        document.getElementById('modal-overlay').style.display='none';
-        reloadKariAndRender();
-      }).catch(function(e){alert('更新できませんでした：'+e.message);});
-    };
-  }
-  if(ev.status!=='確定'){
-    document.getElementById('kariConfirmBtn').onclick=function(){
-      database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'確定'}).then(function(){
-        document.getElementById('modal-overlay').style.display='none';
-        reloadKariAndRender();
-        var updated={};for(var k in ev)updated[k]=ev[k];updated.status='確定';
-        kariLaunchContact(updated);
-      }).catch(function(e){alert('更新できませんでした：'+e.message);});
-    };
-  }
-  if(ev.status==='確定'){
-    document.getElementById('kariUnconfirmBtn').onclick=function(){
       database.ref('kari_yoyaku_slots/'+ev.dateKey+'/'+ev.id).update({status:'仮'}).then(function(){
         document.getElementById('modal-overlay').style.display='none';
         reloadKariAndRender();
@@ -381,7 +359,7 @@ function openKariModalToday(ev){
     document.getElementById('kariGroupReplyBtn').onclick=function(){sendGroupReplyToday(ev.candidate_group);};
     document.getElementById('kariGroupCopyBtn').onclick=function(){
       var parts=buildGroupReplyPartsToday(ev.candidate_group);
-      if(!parts){alert('まだ許可／断りが決まっていません');return;}
+      if(!parts){alert('まだ対応可否が決まっていません');return;}
       copyTextFallback(parts.subject+'\n\n'+parts.body,this);
     };
   }
