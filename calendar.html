@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-001 -->
+<!-- VERSION: 2026-08-19-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -126,6 +126,11 @@
     function fmtDateShort(ds){var p=ds.split('-');var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));var wd=['日','月','火','水','木','金','土'][d.getDay()];return (d.getMonth()+1)+'/'+d.getDate()+'('+wd+')';}
     // 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す
     function kariStatusBadge(status){if(status==='確定')return{badge:'✅',label:'確定'};if(status==='許可')return{badge:'🟢',label:'許可'};if(status==='断り')return{badge:'❌',label:'断り'};return{badge:'🟠',label:'仮予約'};}
+    // mailto:/sms:が環境によって反応しない場合の保険として、本文をクリップボードにコピーする
+    function copyTextFallback(text,btnEl){
+      function done(ok){if(!btnEl){if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);return;}var o=btnEl.textContent;btnEl.textContent=ok?'✓ コピーしました':'コピー失敗';setTimeout(function(){btnEl.textContent=o;},1500);if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true);}).catch(function(){done(false);});}else{done(false);}
+    }
 
     var chkSekou=document.getElementById('chkSekou');
     var chkShitami=document.getElementById('chkShitami');
@@ -231,7 +236,7 @@
       var status=ev.status||'仮';var dShort=fmtDateShort(ev._dateKey);
       if(status==='断り')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応不可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'};
       if(status==='許可')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応可能です。\n\nよろしくお願いします。'};
-      if(status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 確定',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\nこちらで確定します。\n\nよろしくお願いします。'};
+      if(status==='確定')return{subject:'【現調日程】'+(ev.case_name||'')+' 対応可',body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n対応できます。\n\nよろしくお願いします。'};
       return{subject:'【現調日程】'+(ev.case_name||''),body:(ev.tantou||'')+' 様\n\n'+(ev.case_name||'')+'\n'+dShort+' '+(ev.start||'')+'\n仮予約を受け付けました。\n\nよろしくお願いします。'};
     }
     function calKariBuildMailto(ev){var p=calKariMailParts(ev);return 'mailto:'+encodeURIComponent(ev.email)+'?subject='+encodeURIComponent(p.subject)+'&body='+encodeURIComponent(p.body);}
@@ -239,7 +244,7 @@
       var status=ev.status||'仮';var dShort=fmtDateShort(ev._dateKey);var text;
       if(status==='断り')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応不可です。他日程をご検討ください。';
       else if(status==='許可')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応可能です。';
-      else if(status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　こちらで確定します。';
+      else if(status==='確定')text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　対応できます。';
       else text=(ev.tantou||'')+'様　'+(ev.case_name||'')+'　'+dShort+' '+(ev.start||'')+'　仮予約を受け付けました。';
       return 'sms:'+encodeURIComponent(ev.tel)+'?body='+encodeURIComponent(text);
     }
@@ -250,15 +255,14 @@
     function countCandidateGroupCal(groupId){var c=0;Object.keys(kariSlotsCache).forEach(function(dateKey){var day=kariSlotsCache[dateKey];Object.keys(day).forEach(function(id){if(day[id].candidate_group===groupId)c++;});});return c;}
     // 候補日が複数ある案件は、1件ずつ許可/断りするたびにメールを送ると何通も届いてしまうため、
     // 許可/断りが決まっている分をまとめて1通で送る。
-    function sendGroupReplyCal(groupId){
-      if(!groupId)return;
+    function buildGroupReplyPartsCal(groupId){
       var members=[];
       Object.keys(kariSlotsCache).forEach(function(d){Object.keys(kariSlotsCache[d]||{}).forEach(function(mid){var m=kariSlotsCache[d][mid];if(m.candidate_group===groupId)members.push({date:d,e:m});});});
-      if(!members.length)return;
+      if(!members.length)return null;
       members.sort(function(a,b){return (a.date+(a.e.start||'')).localeCompare(b.date+(b.e.start||''));});
       var ok=members.filter(function(m){return m.e.status==='許可'||m.e.status==='確定';});
       var ng=members.filter(function(m){return m.e.status==='断り';});
-      if(ok.length===0&&ng.length===0){alert('まだ許可／断りが決まっていません');return;}
+      if(ok.length===0&&ng.length===0)return null;
       var caseName=members[0].e.case_name||'';var tantou=members[0].e.tantou||'';var email='',tel='';
       members.forEach(function(m){if(!email&&m.e.email)email=m.e.email;if(!tel&&m.e.tel)tel=m.e.tel;});
       function fmtList(list){return list.map(function(m){return fmtDateShort(m.date)+' '+(m.e.start||'');}).join('、');}
@@ -266,9 +270,15 @@
       if(ok.length)lines.push('○対応可：'+fmtList(ok));
       if(ng.length)lines.push('✕対応不可：'+fmtList(ng));
       lines.push('','よろしくお願いします。');
-      var body=lines.join('\n');var subject='【現調日程】'+caseName+' 回答';
-      if(email)location.href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-      else if(tel){var smsText=tantou+'様　'+caseName+(ok.length?'　対応可：'+fmtList(ok):'')+(ng.length?'／対応不可：'+fmtList(ng):'');location.href='sms:'+encodeURIComponent(tel)+'?body='+encodeURIComponent(smsText);}
+      var smsText=tantou+'様　'+caseName+(ok.length?'　対応可：'+fmtList(ok):'')+(ng.length?'／対応不可：'+fmtList(ng):'');
+      return{subject:'【現調日程】'+caseName+' 回答',body:lines.join('\n'),smsText:smsText,email:email,tel:tel};
+    }
+    function sendGroupReplyCal(groupId){
+      if(!groupId)return;
+      var parts=buildGroupReplyPartsCal(groupId);
+      if(!parts){alert('まだ許可／断りが決まっていません');return;}
+      if(parts.email)location.href='mailto:'+encodeURIComponent(parts.email)+'?subject='+encodeURIComponent(parts.subject)+'&body='+encodeURIComponent(parts.body);
+      else if(parts.tel)location.href='sms:'+encodeURIComponent(parts.tel)+'?body='+encodeURIComponent(parts.smsText);
       else alert('連絡先（メール・電話）が登録されていません');
     }
     function openKariModal(ev){
@@ -293,10 +303,11 @@
       if(ev.status!=='確定') html+='<button id="calKariConfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#1a73e8;color:#fff;cursor:pointer;">確定にする</button>';
       if(ev.status==='確定') html+='<button id="calKariUnconfirmBtn" style="flex:1 1 100px;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;background:#888;color:#fff;cursor:pointer;">確定解除</button>';
       html+='</div>';
-      if(ev.candidate_group) html+='<button id="calKariGroupReplyBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button>';
+      if(ev.candidate_group) html+='<div style="display:flex;gap:6px;margin-top:8px;"><button id="calKariGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:#1a73e8;color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button><button id="calKariGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:12px;">📋 コピー</button></div>';
       html+='<div style="display:flex;gap:8px;margin-top:8px;">';
       if(ev.email) html+='<button id="calKariMailBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#1a73e8;color:#fff;cursor:pointer;">📧 メールで連絡</button>';
       if(ev.tel) html+='<button id="calKariSmsBtn" style="flex:1;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:600;background:#2e7d5b;color:#fff;cursor:pointer;">💬 SMSで連絡</button>';
+      if(ev.email||ev.tel) html+='<button id="calKariCopyBtn" style="flex:1;padding:11px;border-radius:8px;border:1px solid #ccc;font-size:13px;font-weight:600;background:#fff;color:#333;cursor:pointer;">📋 本文をコピー</button>';
       html+='</div><div style="font-size:11px;color:#888;margin-top:8px;">削除は仮予約ページで行ってください</div>';
       document.getElementById('modal-body').innerHTML=html;modalOverlay.style.display='block';
 
@@ -364,9 +375,20 @@
           }).catch(function(e){alert('更新できませんでした：'+e.message);});
         };
       }
-      if(ev.candidate_group) document.getElementById('calKariGroupReplyBtn').onclick=function(){sendGroupReplyCal(ev.candidate_group);};
+      if(ev.candidate_group){
+        document.getElementById('calKariGroupReplyBtn').onclick=function(){sendGroupReplyCal(ev.candidate_group);};
+        document.getElementById('calKariGroupCopyBtn').onclick=function(){
+          var parts=buildGroupReplyPartsCal(ev.candidate_group);
+          if(!parts){alert('まだ許可／断りが決まっていません');return;}
+          copyTextFallback(parts.subject+'\n\n'+parts.body,this);
+        };
+      }
       if(ev.email) document.getElementById('calKariMailBtn').onclick=function(){location.href=calKariBuildMailto(ev);};
       if(ev.tel) document.getElementById('calKariSmsBtn').onclick=function(){location.href=calKariBuildSms(ev);};
+      if(ev.email||ev.tel) document.getElementById('calKariCopyBtn').onclick=function(){
+        var p=calKariMailParts(ev);
+        copyTextFallback(p.subject+'\n\n'+p.body,this);
+      };
     }
   </script>
 </body>
