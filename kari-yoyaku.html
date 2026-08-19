@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-002 -->
+<!-- VERSION: 2026-08-19-003 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -395,11 +395,9 @@
     <div id="mContactBtns" class="mbtns" style="display:none;"></div>
     <div class="mbtns">
       <button class="close" onclick="closeModal()">閉じる</button>
-      <button class="permit" id="mPermitBtn" style="display:none;" onclick="markPermit()">許可にする</button>
-      <button class="decline" id="mDeclineBtn" style="display:none;" onclick="markDecline()">断りにする</button>
+      <button class="permit" id="mPermitBtn" style="display:none;" onclick="markPermit()">対応可能にする</button>
+      <button class="decline" id="mDeclineBtn" style="display:none;" onclick="markDecline()">対応不可にする</button>
       <button class="close" id="mResetBtn" style="display:none;" onclick="resetToKari()">仮に戻す</button>
-      <button class="conf" id="mConfBtn" style="display:none;" onclick="markKakutei()">確定にする</button>
-      <button class="close" id="mUnconfBtn" style="display:none;" onclick="unmarkKakutei()">確定解除</button>
       <button class="del" id="mDelBtn" style="display:none;" onclick="deleteCurrentSlot()">削除</button>
     </div>
   </div>
@@ -792,11 +790,10 @@ function extractArea(addr) {
   var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
   return 'その他';
 }
-// 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す
+// 仮予約の状態(status)に応じたバッジ絵文字とラベルを返す。確定は過去データ用の互換表示（対応可能として扱う）
 function kariStatusBadge(status) {
-  if (status === '確定') return { badge: '✅', label: '確定' };
-  if (status === '許可') return { badge: '🟢', label: '許可' };
-  if (status === '断り') return { badge: '❌', label: '断り' };
+  if (status === '許可' || status === '確定') return { badge: '🟢', label: '対応可能' };
+  if (status === '断り') return { badge: '❌', label: '対応不可' };
   return { badge: '🟠', label: '仮予約' };
 }
 function buildDayItems(date) {
@@ -1106,9 +1103,9 @@ function openModal(date, id, e) {
       var isSelf = (m.date === date && m.id === id);
       var actions = '';
       if (canDec) {
-        if (mst !== '許可' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="許可">許可</button>';
-        if (mst !== '断り' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="断り">断り</button>';
-        if (mst === '許可' || mst === '断り') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="仮">仮に戻す</button>';
+        if (mst !== '許可' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="許可">対応可能</button>';
+        if (mst !== '断り' && mst !== '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="断り">対応不可</button>';
+        if (mst === '許可' || mst === '断り' || mst === '確定') actions += '<button type="button" class="cand-act" data-d="' + m.date + '" data-i="' + m.id + '" data-s="仮">仮に戻す</button>';
       }
       return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;' + (isSelf ? 'background:var(--accent-dim);' : '') + '">'
         + '<span style="min-width:88px;">' + m.date + '</span><span style="min-width:44px;color:var(--accent);">' + (m.e.start || '') + '</span>'
@@ -1118,7 +1115,7 @@ function openModal(date, id, e) {
     }).join('');
     document.getElementById('modalRows').innerHTML += '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);"><b>候補日一覧（同じ案件・' + members.length + '件）：</b>'
       + '<div style="margin-top:4px;">' + listHtml + '</div>'
-      + (canDec ? '<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" id="mGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 許可／断りが決まった分をまとめて連絡</button><button type="button" id="mGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;">📋 コピー</button></div>' : '')
+      + (canDec ? '<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" id="mGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 対応可否が決まった分をまとめて連絡</button><button type="button" id="mGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;">📋 コピー</button></div>' : '')
       + (canDelete ? '<button type="button" id="mCancelGroupBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:12px;">この案件の候補をすべて削除</button>' : '')
       + '</div>';
     document.querySelectorAll('.cand-act').forEach(function (btn) {
@@ -1169,12 +1166,10 @@ function openModal(date, id, e) {
   };
 
   document.getElementById('mDelBtn').style.display = canDelete ? 'block' : 'none';
-  document.getElementById('mConfBtn').style.display = ((canEditTarget() || isKari) && st !== '確定') ? 'block' : 'none';
-  document.getElementById('mUnconfBtn').style.display = (canDelete && st === '確定') ? 'block' : 'none';
   var canDec2 = canDecideStatus();
-  document.getElementById('mPermitBtn').style.display = (canDec2 && st !== '確定' && st !== '許可') ? 'block' : 'none';
-  document.getElementById('mDeclineBtn').style.display = (canDec2 && st !== '確定' && st !== '断り') ? 'block' : 'none';
-  document.getElementById('mResetBtn').style.display = (canDec2 && (st === '許可' || st === '断り')) ? 'block' : 'none';
+  document.getElementById('mPermitBtn').style.display = (canDec2 && st !== '許可' && st !== '確定') ? 'block' : 'none';
+  document.getElementById('mDeclineBtn').style.display = (canDec2 && st !== '断り') ? 'block' : 'none';
+  document.getElementById('mResetBtn').style.display = (canDec2 && (st === '許可' || st === '断り' || st === '確定')) ? 'block' : 'none';
 
   document.getElementById('overlay').classList.add('show');
 }
@@ -1281,8 +1276,6 @@ function openPersonalInfoModal(item) {
     { label: 'タイトル', value: item.title || '' }
   ]);
   document.getElementById('mDelBtn').style.display = 'none';
-  document.getElementById('mConfBtn').style.display = 'none';
-  document.getElementById('mUnconfBtn').style.display = 'none';
   document.getElementById('mPermitBtn').style.display = 'none';
   document.getElementById('mDeclineBtn').style.display = 'none';
   document.getElementById('mResetBtn').style.display = 'none';
@@ -1349,16 +1342,10 @@ function kariMailParts(date, e) {
       body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応不可です。他日程をご検討ください。\n\nよろしくお願いします。'
     };
   }
-  if (status === '許可') {
+  if (status === '許可' || status === '確定') {
     return {
       subject: '【現調日程】' + caseName + ' 対応可',
       body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応可能です。\n\nよろしくお願いします。'
-    };
-  }
-  if (status === '確定') {
-    return {
-      subject: '【現調日程】' + caseName + ' 対応可',
-      body: tantou + ' 様\n\n' + caseName + '\n' + dShort + ' ' + time + '\n対応できます。\n\nよろしくお願いします。'
     };
   }
   return {
@@ -1377,10 +1364,8 @@ function buildSms(date, e) {
   var text;
   if (status === '断り') {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応不可です。他日程をご検討ください。';
-  } else if (status === '許可') {
+  } else if (status === '許可' || status === '確定') {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応可能です。';
-  } else if (status === '確定') {
-    text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　対応できます。';
   } else {
     text = tantou + '様　' + caseName + '　' + dShort + ' ' + time + '　仮予約を受け付けました。';
   }
@@ -1429,24 +1414,6 @@ function sendGroupReply(groupId) {
 function launchContact(date, e) {
   if (e.email) location.href = buildMailto(date, e);
   else if (e.tel) location.href = buildSms(date, e);
-}
-
-function markKakutei() {
-  if (!currentModalPath) return;
-  var record = currentModalRecord;
-  slotsRootRef().child(currentModalPath).update({ status: '確定' })
-    .then(function () {
-      closeModal();
-      if (record) launchContact(record.date, Object.assign({}, record.e, { status: '確定' }));
-    })
-    .catch(function (e) { alert('更新できませんでした：' + e.message); });
-}
-
-function unmarkKakutei() {
-  if (!currentModalPath) return;
-  slotsRootRef().child(currentModalPath).update({ status: '仮' })
-    .then(closeModal)
-    .catch(function (e) { alert('更新できませんでした：' + e.message); });
 }
 
 // ============ 新規予約（重複チェック付きトランザクション） ============
