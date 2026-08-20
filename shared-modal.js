@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加】*/
-// VERSION: 2026-08-19
+// VERSION: 2026-08-20
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -311,10 +311,14 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   // 🗑 削除ボタン（確認あり。削除するとFirebase側のonTaskChangedが
   // 既存のcleanupDeletedTaskを自動で呼び、カレンダー・管理表からも消える）
+  // ローカルのglobalTasks/localStorageからも即座に消して、リロードなしで
+  // 一覧（today.htmlなど）にすぐ反映されるようにする。
   document.getElementById('modal-delete-btn').addEventListener('click', function(){
     var caseLabel = getSafeValModal(cols,4).trim() || key;
     if (!confirm('「'+caseLabel+'」を削除します。\nカレンダー・管理表からも自動で削除されます。\n\nこの操作は取り消せません。よろしいですか？')) return;
     firebaseDB.ref('app_tasks/'+key).remove().then(function(){
+      if (globalTasks && globalTasks[key]) { delete globalTasks[key]; }
+      if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
       document.getElementById('modal-overlay').style.display = 'none';
       if (typeof onSaveCallback === 'function') onSaveCallback();
     }).catch(function(e){
