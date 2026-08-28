@@ -1,5 +1,5 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加】*/
-// VERSION: 2026-08-20
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加】*/
+// VERSION: 2026-08-29
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -188,6 +188,21 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var orderValInt = parseInt(obj.order, 10);
   var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
   html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div></div>';
+
+  // 🔄 施工日の変更希望（定型文）：ビルダー・邸名・住所・現在日程はCSVから自動、希望日程とメモのみ手入力。
+  // コピーボタンで定型文をクリップボードへ。工務担当者名(cols[8])に完全一致する電話番号がkoumu_contactsに
+  // 登録されていれば、そのままメッセージアプリを起動できるリンクも表示する（送信は人間が行う）。
+  var changeReqKibouVal = obj.changeReqKibou || '';
+  var changeReqBikoVal = obj.changeReqBiko || '';
+  html += '<div class="modal-section"><h4 style="color:#8e24aa;margin-bottom:6px;">🔄 施工日の変更希望</h4>';
+  html += '<div class="modal-input-row"><label>希望日程:</label><input type="text" id="modal-changereq-kibou" placeholder="例：〇〇/〇〇〜〇〇" value="'+escHtmlModal(changeReqKibouVal)+'" /></div>';
+  html += '<div class="modal-input-row"><label>備考:</label><input type="text" id="modal-changereq-biko" placeholder="備考" value="'+escHtmlModal(changeReqBikoVal)+'" /></div>';
+  html += '<div style="margin-top:8px;">';
+  html += '<button type="button" id="modal-changereq-copy" style="font-size:12px;padding:6px 14px;border:1px solid #8e24aa;border-radius:4px;background:#f3e5f5;color:#6a1b9a;font-weight:bold;cursor:pointer;">📋 定型文コピー</button>';
+  html += '<a id="modal-changereq-sms" href="#" style="display:none;margin-left:8px;font-size:12px;padding:6px 14px;border-radius:4px;background:#6a1b9a;color:#fff;font-weight:bold;text-decoration:none;">💬 工務担当者へメッセージ</a>';
+  html += '</div>';
+  html += '<div id="modal-changereq-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
+  html += '</div>';
 
   var memoVal = obj.memo || '';
   var memoIsLong = memoVal.length > 300;
@@ -426,6 +441,90 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       }
     });
   }
+
+  // 🔄 施工日の変更希望（定型文コピー＋工務担当者へのメッセージ起動）
+  (function(){
+    var kibouEl = document.getElementById('modal-changereq-kibou');
+    var bikoEl = document.getElementById('modal-changereq-biko');
+    var copyBtn = document.getElementById('modal-changereq-copy');
+    var smsLink = document.getElementById('modal-changereq-sms');
+    var statusEl = document.getElementById('modal-changereq-status');
+    if (!kibouEl || !bikoEl || !copyBtn) return;
+
+    var koumuName = getSafeValModal(cols, 8).replace(/[\s\u3000]+/g, '');
+    var koumuPhone = null; // lookupKoumuPhoneModal完了後に設定される
+
+    function buildChangeReqText() {
+      var builder = getSafeValModal(cols, 5);
+      var teiName = getSafeValModal(cols, 4);
+      var addr = getSafeValModal(cols, 11).replace(/[\r\n]+/g, '');
+      var genzai = getSafeValModal(cols, 2);
+      return '施工日の変更希望\n'
+        + 'ビルダー : ' + builder + '\n'
+        + '邸名　　 : ' + teiName + '\n'
+        + '住所概略 : ' + addr + '\n'
+        + '現在日程 : ' + genzai + '\n'
+        + '希望日程 : ' + kibouEl.value + '\n'
+        + '備考　　:  ' + bikoEl.value;
+    }
+
+    // 希望日程・備考は入力欄を離れた時点で即時保存
+    var changeReqDebounce;
+    function bindChangeReqField(el, field) {
+      el.addEventListener('input', function(){
+        clearTimeout(changeReqDebounce);
+        var elAtInput = this;
+        changeReqDebounce = setTimeout(function(){
+          var upd = {}; upd[field] = elAtInput.value; saveField(upd);
+        }, 800);
+      });
+    }
+    bindChangeReqField(kibouEl, 'changeReqKibou');
+    bindChangeReqField(bikoEl, 'changeReqBiko');
+
+    // 工務担当者名(cols[8])に完全一致する電話番号をkoumu_contactsから検索（全ユーザー共通データのためscopedDatabase不使用）
+    if (koumuName && typeof firebase !== 'undefined' && firebase.database) {
+      firebase.database().ref('koumu_contacts').once('value').then(function(snap){
+        var val = snap.val() || {};
+        Object.keys(val).forEach(function(k){
+          var c = val[k];
+          if (c && c.name && c.name.replace(/[\s\u3000]+/g, '') === koumuName && c.phone) {
+            koumuPhone = c.phone;
+          }
+        });
+      }).catch(function(){ /* 読み込み失敗時は電話番号なし扱いで続行 */ });
+    }
+
+    copyBtn.addEventListener('click', function(){
+      var text = buildChangeReqText();
+      navigator.clipboard.writeText(text).then(function(){
+        if (koumuPhone) {
+          smsLink.href = 'sms:' + koumuPhone + '?body=' + encodeURIComponent(text);
+          smsLink.style.display = 'inline-block';
+          statusEl.textContent = '✔ コピーしました（工務担当者：' + koumuName + '）';
+        } else {
+          smsLink.style.display = 'none';
+          statusEl.textContent = koumuName
+            ? '✔ コピーしました（工務担当者「' + koumuName + '」の電話番号が未登録：koumu-contacts.htmlで追加してください）'
+            : '✔ コピーしました（工務担当者名が案件データに未入力です）';
+        }
+        clearTimeout(statusEl._t);
+        statusEl._t = setTimeout(function(){ statusEl.textContent = ''; }, 5000);
+
+        // 履歴用：コピーした定型文を日時付きでメモ欄末尾に自由記述として残す（自分の身を守るための記録）
+        var d = new Date();
+        var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+          + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        var memoEl = document.getElementById('modal-memo');
+        var currentMemo = memoEl ? memoEl.value : (obj.memo || '');
+        var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【施工日変更依頼 ' + stamp + '】\n' + text;
+        if (memoEl) memoEl.value = newMemo;
+        saveField({ memo: newMemo });
+      }).catch(function(e){
+        statusEl.textContent = '❌ コピーに失敗しました：' + e.message;
+      });
+    });
+  })();
 
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
