@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加】*/
 // VERSION: 2026-08-29
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -194,8 +194,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 登録されていれば、そのままメッセージアプリを起動できるリンクも表示する（送信は人間が行う）。
   var changeReqKibouVal = obj.changeReqKibou || '';
   var changeReqBikoVal = obj.changeReqBiko || '';
+  var changeReqMiteiVal = obj.changeReqMitei || false;
   html += '<div class="modal-section"><h4 style="color:#8e24aa;margin-bottom:6px;">🔄 施工日の変更希望</h4>';
-  html += '<div class="modal-input-row"><label>希望日程:</label><input type="text" id="modal-changereq-kibou" placeholder="例：〇〇/〇〇〜〇〇" value="'+escHtmlModal(changeReqKibouVal)+'" /></div>';
+  html += '<div class="modal-input-row"><label>希望日程:</label><input type="text" id="modal-changereq-kibou" placeholder="例：〇〇/〇〇〜〇〇" value="'+escHtmlModal(changeReqKibouVal)+'"'+(changeReqMiteiVal?' disabled':'')+' /></div>';
+  html += '<div class="modal-check-row" style="margin-top:0;margin-bottom:8px;"><label><input type="checkbox" id="modal-changereq-mitei"'+(changeReqMiteiVal?' checked':'')+'> 希望日程は未定（現状の施工日には間に合わない）</label></div>';
   html += '<div class="modal-input-row"><label>備考:</label><input type="text" id="modal-changereq-biko" placeholder="備考" value="'+escHtmlModal(changeReqBikoVal)+'" /></div>';
   html += '<div style="margin-top:8px;">';
   html += '<button type="button" id="modal-changereq-copy" style="font-size:12px;padding:6px 14px;border:1px solid #8e24aa;border-radius:4px;background:#f3e5f5;color:#6a1b9a;font-weight:bold;cursor:pointer;">📋 定型文コピー</button>';
@@ -446,6 +448,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   (function(){
     var kibouEl = document.getElementById('modal-changereq-kibou');
     var bikoEl = document.getElementById('modal-changereq-biko');
+    var miteiEl = document.getElementById('modal-changereq-mitei');
     var copyBtn = document.getElementById('modal-changereq-copy');
     var smsLink = document.getElementById('modal-changereq-sms');
     var statusEl = document.getElementById('modal-changereq-status');
@@ -459,13 +462,25 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       var teiName = getSafeValModal(cols, 4);
       var addr = getSafeValModal(cols, 11).replace(/[\r\n]+/g, '');
       var genzai = getSafeValModal(cols, 2);
-      return '施工日の変更希望\n'
+      var kibouLine = miteiEl && miteiEl.checked
+        ? '未定（現状の施工日には間に合わないため要相談）'
+        : kibouEl.value;
+      return 'お疲れ様です\n'
+        + '施工日の変更希望\n'
         + 'ビルダー : ' + builder + '\n'
         + '邸名　　 : ' + teiName + '\n'
         + '住所概略 : ' + addr + '\n'
         + '現在日程 : ' + genzai + '\n'
-        + '希望日程 : ' + kibouEl.value + '\n'
+        + '希望日程 : ' + kibouLine + '\n'
         + '備考　　:  ' + bikoEl.value;
+    }
+
+    // 希望日程未定チェック：ONなら日付入力を無効化（排他）。即時保存。
+    if (miteiEl) {
+      miteiEl.addEventListener('change', function(){
+        kibouEl.disabled = this.checked;
+        saveField({ changeReqMitei: this.checked });
+      });
     }
 
     // 希望日程・備考は入力欄を離れた時点で即時保存
