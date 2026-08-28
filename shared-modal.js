@@ -1,4 +1,4 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加】*/
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加】*/
 // VERSION: 2026-08-29
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -204,6 +204,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<a id="modal-changereq-sms" href="#" style="display:none;margin-left:8px;font-size:12px;padding:6px 14px;border-radius:4px;background:#6a1b9a;color:#fff;font-weight:bold;text-decoration:none;">💬 工務担当者へメッセージ</a>';
   html += '</div>';
   html += '<div id="modal-changereq-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
+  html += '</div>';
+
+  // 📞 状況連絡：施工日変更とは無関係な一般連絡用。引用する自動項目は変更依頼と同じ、自由記述の「状況」欄のみ。
+  var statusReportVal = obj.statusReportText || '';
+  html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📞 状況連絡</h4>';
+  html += '<div class="modal-input-row"><label>状況:</label><input type="text" id="modal-statusreport-text" placeholder="例：下見の日程について確認中です" value="'+escHtmlModal(statusReportVal)+'" /></div>';
+  html += '<div style="margin-top:8px;">';
+  html += '<button type="button" id="modal-statusreport-copy" style="font-size:12px;padding:6px 14px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">📋 定型文コピー</button>';
+  html += '<a id="modal-statusreport-sms" href="#" style="display:none;margin-left:8px;font-size:12px;padding:6px 14px;border-radius:4px;background:#004d40;color:#fff;font-weight:bold;text-decoration:none;">💬 工務担当者へメッセージ</a>';
+  html += '</div>';
+  html += '<div id="modal-statusreport-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
   html += '</div>';
 
   var memoVal = obj.memo || '';
@@ -533,6 +544,83 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         var memoEl = document.getElementById('modal-memo');
         var currentMemo = memoEl ? memoEl.value : (obj.memo || '');
         var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【施工日変更依頼 ' + stamp + '】\n' + text;
+        if (memoEl) memoEl.value = newMemo;
+        saveField({ memo: newMemo });
+      }).catch(function(e){
+        statusEl.textContent = '❌ コピーに失敗しました：' + e.message;
+      });
+    });
+  })();
+
+  // 📞 状況連絡（定型文コピー＋工務担当者へのメッセージ起動）：施工日変更とは独立した一般連絡用
+  (function(){
+    var textEl = document.getElementById('modal-statusreport-text');
+    var copyBtn = document.getElementById('modal-statusreport-copy');
+    var smsLink = document.getElementById('modal-statusreport-sms');
+    var statusEl = document.getElementById('modal-statusreport-status');
+    if (!textEl || !copyBtn) return;
+
+    var koumuName = getSafeValModal(cols, 8).replace(/[\s\u3000]+/g, '');
+    var koumuPhone = null;
+
+    function buildStatusReportText() {
+      var builder = getSafeValModal(cols, 5);
+      var teiName = getSafeValModal(cols, 4);
+      var addr = getSafeValModal(cols, 11).replace(/[\r\n]+/g, '');
+      var genzai = getSafeValModal(cols, 2);
+      return 'お疲れ様です\n'
+        + '状況連絡\n'
+        + 'ビルダー : ' + builder + '\n'
+        + '邸名　　 : ' + teiName + '\n'
+        + '住所概略 : ' + addr + '\n'
+        + '現在日程 : ' + genzai + '\n'
+        + '状況　　 : ' + textEl.value;
+    }
+
+    var statusReportDebounce;
+    textEl.addEventListener('input', function(){
+      clearTimeout(statusReportDebounce);
+      var elAtInput = this;
+      statusReportDebounce = setTimeout(function(){
+        saveField({ statusReportText: elAtInput.value });
+      }, 800);
+    });
+
+    if (koumuName && typeof firebase !== 'undefined' && firebase.database) {
+      firebase.database().ref('koumu_contacts').once('value').then(function(snap){
+        var val = snap.val() || {};
+        Object.keys(val).forEach(function(k){
+          var c = val[k];
+          if (c && c.name && c.name.replace(/[\s\u3000]+/g, '') === koumuName && c.phone) {
+            koumuPhone = c.phone;
+          }
+        });
+      }).catch(function(){ /* 読み込み失敗時は電話番号なし扱いで続行 */ });
+    }
+
+    copyBtn.addEventListener('click', function(){
+      var text = buildStatusReportText();
+      navigator.clipboard.writeText(text).then(function(){
+        if (koumuPhone) {
+          smsLink.href = 'sms:' + koumuPhone + '?body=' + encodeURIComponent(text);
+          smsLink.style.display = 'inline-block';
+          statusEl.textContent = '✔ コピーしました（工務担当者：' + koumuName + '）';
+        } else {
+          smsLink.style.display = 'none';
+          statusEl.textContent = koumuName
+            ? '✔ コピーしました（工務担当者「' + koumuName + '」の電話番号が未登録：koumu-contacts.htmlで追加してください）'
+            : '✔ コピーしました（工務担当者名が案件データに未入力です）';
+        }
+        clearTimeout(statusEl._t);
+        statusEl._t = setTimeout(function(){ statusEl.textContent = ''; }, 5000);
+
+        // 履歴用：状況連絡もメモ欄末尾に日時付きで残す
+        var d = new Date();
+        var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+          + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        var memoEl = document.getElementById('modal-memo');
+        var currentMemo = memoEl ? memoEl.value : (obj.memo || '');
+        var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【状況連絡 ' + stamp + '】\n' + text;
         if (memoEl) memoEl.value = newMemo;
         saveField({ memo: newMemo });
       }).catch(function(e){
