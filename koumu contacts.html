@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工務担当者リスト</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
+.header-bar{display:flex;align-items:center;gap:6px;background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 10px;position:sticky;top:0;z-index:11;}
+.header-bar .hb-title{font-size:13px;font-weight:600;color:#555;flex:1;text-align:center;}
+.hb-btn{display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#555;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+.hb-btn:active{background:#f5f5f5;}
+.section{padding:12px;padding-bottom:3rem;}
+.hint{font-size:11px;color:#aaa;padding:4px 2px 12px;line-height:1.6;}
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px;margin-bottom:10px;}
+.field-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.field-label{font-size:12px;color:#888;min-width:70px;flex-shrink:0;}
+input[type=text],input[type=tel]{flex:1;font-size:15px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;color:#1a1a1a;font-family:inherit;-webkit-appearance:none;}
+input[type=text]:focus,input[type=tel]:focus{outline:none;border-color:#aaa;background:#fff;}
+.btn-icon{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:6px 10px;cursor:pointer;color:#888;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
+.btn-icon:active{background:#f5f5f5;}
+.btn-save{font-size:13px;padding:7px 16px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.btn-save:active{background:#f5f5f5;}
+.saved-msg{font-size:11px;color:#4caf50;margin-left:10px;}
+.btn-add{width:100%;padding:12px;border:1px dashed #c0c0c0;border-radius:12px;background:#fff;color:#888;font-size:13px;cursor:pointer;margin-top:4px;-webkit-tap-highlight-color:transparent;}
+.btn-add:active{background:#f5f5f5;}
+.empty-hint{text-align:center;color:#aaa;font-size:13px;padding:2.5rem 0;line-height:1.9;}
+.loading-hint{text-align:center;color:#aaa;font-size:13px;padding:2rem 0;}
+.dup-warn{font-size:11px;color:#c0392b;margin:-4px 0 8px 78px;}
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <button class="hb-btn" onclick="goBack()"><i class="ti ti-chevron-left" style="font-size:14px"></i>戻る</button>
+  <span class="hb-title">工務担当者リスト</span>
+  <a class="hb-btn" href="today.html"><i class="ti ti-list" style="font-size:14px"></i>案件一覧</a>
+  <a class="hb-btn" href="index.html"><i class="ti ti-home" style="font-size:14px"></i>トップ</a>
+</div>
+
+<div class="section">
+  <div class="hint">「工務担当者(名称)」欄の表記と完全一致した名前で電話番号を検索します。全ユーザー共通のリストです（自分専用のデータではありません）。</div>
+  <div id="contact-list"><div class="loading-hint">読み込み中...</div></div>
+  <button class="btn-add" id="add-btn" onclick="addContact()">
+    <i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>追加
+  </button>
+</div>
+
+<script>
+// 工務担当者名→電話番号は全ユーザー共通のマスタデータのため、scopedDatabase（users/{userKey}/配下）
+// ではなく firebase.database() を直接使い、ルート直下の koumu_contacts を参照する。
+var DB_NODE = 'koumu_contacts';
+var db = null;
+var contacts = [];
+var pendingChanges = {};
+
+db = firebase.database();
+loadContacts();
+
+function loadContacts() {
+  db.ref(DB_NODE).on('value', function(snap) {
+    var val = snap.val();
+    if (val) {
+      contacts = Object.keys(val).map(function(k){ return Object.assign({fbKey:k}, val[k]); });
+      contacts.sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    } else {
+      contacts = [];
+    }
+    render();
+  }, function(err) {
+    console.error('読み込み失敗:', err);
+    document.getElementById('contact-list').innerHTML =
+      '<div class="empty-hint" style="color:#c0392b">⚠ 読み込みエラー：再ログインしてください（右下のバッジからログアウト→PIN再入力）</div>';
+  });
+}
+
+function normalizeName(s) {
+  return String(s || '').replace(/[\s\u3000]+/g, '');
+}
+function normalizePhone(raw) {
+  if (!raw) return '';
+  var s = String(raw).replace(/[\s\-\(\)\.\u200B\u200C\u200D\uFEFF]/g, '');
+  s = s.replace(/^\+81/, '0');
+  s = s.replace(/^81(?=\d{9,10})/, '0');
+  s = s.replace(/[^0-9]/g, '');
+  return s;
+}
+
+function render() {
+  var list = document.getElementById('contact-list');
+  if (!contacts.length) {
+    list.innerHTML = '<div class="empty-hint">登録がありません<br>下の「＋追加」から作成してください</div>';
+    return;
+  }
+  list.innerHTML = '';
+  var nameCount = {};
+  contacts.forEach(function(c){ var n = normalizeName(c.name); if (n) nameCount[n] = (nameCount[n]||0)+1; });
+  contacts.forEach(function(c){
+    var div = document.createElement('div');
+    div.className = 'card';
+    var isDup = normalizeName(c.name) && nameCount[normalizeName(c.name)] > 1;
+    div.innerHTML =
+      '<div class="field-row">'+
+        '<span class="field-label">工務担当者名</span>'+
+        '<input type="text" value="'+escHtml(c.name||'')+'" placeholder="例：石橋正巳" oninput="pendingChange(\''+c.fbKey+'\',\'name\',this.value)">'+
+        '<button class="btn-icon" onclick="deleteContact(\''+c.fbKey+'\')" aria-label="削除"><i class="ti ti-trash" style="font-size:15px"></i></button>'+
+      '</div>'+
+      (isDup ? '<div class="dup-warn">⚠ 同じ名前が複数登録されています</div>' : '')+
+      '<div class="field-row">'+
+        '<span class="field-label">電話番号</span>'+
+        '<input type="tel" value="'+escHtml(c.phone||'')+'" placeholder="例：09012345678" oninput="pendingChange(\''+c.fbKey+'\',\'phone\',this.value)">'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;">'+
+        '<button class="btn-save" onclick="saveContact(\''+c.fbKey+'\')"><i class="ti ti-device-floppy" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>保存</button>'+
+        '<span class="saved-msg" id="saved-'+c.fbKey+'" style="display:none"><i class="ti ti-check"></i> 保存しました</span>'+
+      '</div>';
+    list.appendChild(div);
+  });
+}
+
+function pendingChange(fbKey, field, val) {
+  pendingChanges[fbKey] = pendingChanges[fbKey] || {};
+  pendingChanges[fbKey][field] = val;
+}
+
+function saveContact(fbKey) {
+  var c = pendingChanges[fbKey] || {};
+  if (!Object.keys(c).length) return;
+  if (c.name !== undefined) c.name = normalizeName(c.name) ? c.name.trim() : '';
+  if (c.phone !== undefined) c.phone = normalizePhone(c.phone);
+  db.ref(DB_NODE+'/'+fbKey).update(c).then(function(){
+    pendingChanges[fbKey] = {};
+    var el = document.getElementById('saved-'+fbKey);
+    if (el) { el.style.display=''; setTimeout(function(){ el.style.display='none'; }, 2000); }
+  }).catch(function(e){ alert('保存エラー：'+e.message); });
+}
+
+function deleteContact(fbKey) {
+  if (!confirm('この登録を削除しますか？')) return;
+  db.ref(DB_NODE+'/'+fbKey).remove().catch(function(e){ alert('削除エラー：'+e.message); });
+}
+
+function addContact() {
+  db.ref(DB_NODE).push({ name:'', phone:'', order: Date.now() });
+}
+
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function goBack() {
+  if (document.referrer && document.referrer.indexOf(location.host) > -1) {
+    history.back();
+  } else {
+    location.href = 'today.html';
+  }
+}
+</script>
+</body>
+</html>
