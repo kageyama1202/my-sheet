@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加】*/
-// VERSION: 2026-08-29
+// VERSION: 2026-08-31
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -250,9 +250,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '</div></div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
+  // capture="environment"を外し、accept + multiple のみにする。
+  // → タップ時に「カメラで撮影／写真ライブラリから選択／ファイルを選択」の
+  //   選択肢が出るようになる（capture指定があるとカメラ直起動に固定されてしまう）。
   html += '<div class="modal-section"><h4 style="color:#00897b;margin-bottom:6px;">📎 添付ファイル</h4>';
   html += '<div id="attach-list" style="font-size:12px;color:#888;margin-bottom:8px;">読込中...</div>';
-  html += '<input type="file" id="attach-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" capture="environment" style="font-size:12px;" />';
+  html += '<input type="file" id="attach-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple style="font-size:12px;" />';
   html += '<div id="attach-upload-status" style="font-size:11px;color:#888;margin-top:4px;"></div>';
   html += '</div>';
 
@@ -706,17 +709,27 @@ function initCaseAttachments(caseKey) {
     refreshList();
 
     input.addEventListener('change', function () {
-      var file = input.files[0];
-      if (!file) return;
-      statusBox.textContent = '⏳ アップロード中...';
-      var fileRef = storageRef.child(Date.now() + '_' + file.name);
-      fileRef.put(file).then(function () {
-        statusBox.textContent = '✅ アップロード完了';
-        input.value = '';
-        refreshList();
-        setTimeout(function () { statusBox.textContent = ''; }, 2000);
-      }).catch(function (e) {
-        statusBox.textContent = '❌ アップロード失敗：' + e.message;
+      var files = input.files;
+      if (!files || files.length === 0) return;
+      statusBox.textContent = '⏳ アップロード中... (0/' + files.length + ')';
+      var done = 0, failed = 0;
+      Array.prototype.forEach.call(files, function (file) {
+        var fileRef = storageRef.child(Date.now() + '_' + file.name);
+        fileRef.put(file).then(function () {
+          done++;
+          statusBox.textContent = '⏳ アップロード中... (' + done + '/' + files.length + ')';
+          if (done + failed === files.length) {
+            statusBox.textContent = failed ? '⚠ 一部失敗しました（' + failed + '件）' : '✅ アップロード完了';
+            input.value = '';
+            refreshList();
+            setTimeout(function () { statusBox.textContent = ''; }, 2000);
+          }
+        }).catch(function (e) {
+          failed++;
+          if (done + failed === files.length) {
+            statusBox.textContent = '❌ アップロード失敗：' + e.message;
+          }
+        });
       });
     });
   });
