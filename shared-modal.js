@@ -666,6 +666,57 @@ function ensureStorageSDKModal(cb) {
   document.head.appendChild(s);
 }
 
+var IMAGE_EXT_RE_MODAL = /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i;
+
+// ライトボックス（画像を大きく表示し、左右矢印/スワイプで送る）
+function ensureLightboxModal() {
+  var el = document.getElementById('attach-lightbox');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'attach-lightbox';
+  el.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center;flex-direction:column;';
+  el.innerHTML =
+    '<div style="position:absolute;top:12px;right:16px;color:#fff;font-size:28px;cursor:pointer;z-index:2;" id="lightbox-close">&times;</div>' +
+    '<div style="position:absolute;top:12px;left:16px;color:#fff;font-size:13px;" id="lightbox-counter"></div>' +
+    '<img id="lightbox-img" style="max-width:92%;max-height:80%;object-fit:contain;" />' +
+    '<div style="margin-top:14px;color:#eee;font-size:12px;max-width:90%;word-break:break-all;text-align:center;" id="lightbox-name"></div>' +
+    '<div style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#fff;font-size:36px;cursor:pointer;padding:8px 14px;user-select:none;" id="lightbox-prev">&#8249;</div>' +
+    '<div style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#fff;font-size:36px;cursor:pointer;padding:8px 14px;user-select:none;" id="lightbox-next">&#8250;</div>';
+  document.body.appendChild(el);
+
+  var imgEl = el.querySelector('#lightbox-img');
+  var nameEl = el.querySelector('#lightbox-name');
+  var counterEl = el.querySelector('#lightbox-counter');
+  var items = [], idx = 0;
+
+  function show(i) {
+    if (!items.length) return;
+    idx = (i + items.length) % items.length;
+    imgEl.src = items[idx].url;
+    nameEl.textContent = items[idx].name;
+    counterEl.textContent = (idx + 1) + ' / ' + items.length;
+  }
+  el.open = function (list, startIndex) {
+    items = list; show(startIndex || 0);
+    el.style.display = 'flex';
+  };
+  el.querySelector('#lightbox-close').addEventListener('click', function () { el.style.display = 'none'; });
+  el.addEventListener('click', function (e) { if (e.target === el) el.style.display = 'none'; });
+  el.querySelector('#lightbox-prev').addEventListener('click', function (e) { e.stopPropagation(); show(idx - 1); });
+  el.querySelector('#lightbox-next').addEventListener('click', function (e) { e.stopPropagation(); show(idx + 1); });
+
+  // スワイプ対応
+  var touchStartX = null;
+  el.addEventListener('touchstart', function (e) { touchStartX = e.touches[0].clientX; });
+  el.addEventListener('touchend', function (e) {
+    if (touchStartX == null) return;
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if (dx > 40) show(idx - 1); else if (dx < -40) show(idx + 1);
+    touchStartX = null;
+  });
+  return el;
+}
+
 function initCaseAttachments(caseKey) {
   var listBox = document.getElementById('attach-list');
   var input = document.getElementById('attach-file-input');
@@ -682,25 +733,62 @@ function initCaseAttachments(caseKey) {
       storageRef.listAll().then(function (res) {
         if (res.items.length === 0) { listBox.textContent = '添付ファイルはありません'; return; }
         listBox.innerHTML = '';
-        res.items.forEach(function (itemRef) {
-          itemRef.getDownloadURL().then(function (url) {
+
+        var gridBox = document.createElement('div');
+        gridBox.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-bottom:8px;';
+        var fileListBox = document.createElement('div');
+
+        var urlPromises = res.items.map(function (itemRef) {
+          return itemRef.getDownloadURL().then(function (url) { return { ref: itemRef, name: itemRef.name, url: url }; });
+        });
+
+        Promise.all(urlPromises).then(function (entries) {
+          var imageEntries = entries.filter(function (e) { return IMAGE_EXT_RE_MODAL.test(e.name); });
+          var otherEntries = entries.filter(function (e) { return !IMAGE_EXT_RE_MODAL.test(e.name); });
+          var lightboxItems = imageEntries.map(function (e) { return { url: e.url, name: e.name }; });
+          var lightbox = ensureLightboxModal();
+
+          imageEntries.forEach(function (e, i) {
+            var cell = document.createElement('div');
+            cell.style.cssText = 'position:relative;';
+            var thumb = document.createElement('img');
+            thumb.src = e.url;
+            thumb.style.cssText = 'width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:4px;cursor:pointer;border:1px solid #ddd;';
+            thumb.addEventListener('click', function () { lightbox.open(lightboxItems, i); });
+            var delBtn = document.createElement('button');
+            delBtn.textContent = '×';
+            delBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;width:20px;height:20px;line-height:18px;text-align:center;padding:0;font-size:13px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:50%;cursor:pointer;';
+            delBtn.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              if (!confirm('「' + e.name + '」を削除しますか？')) return;
+              e.ref.delete().then(refreshList).catch(function (err) { alert('削除できませんでした：' + err.message); });
+            });
+            cell.appendChild(thumb);
+            cell.appendChild(delBtn);
+            gridBox.appendChild(cell);
+          });
+
+          otherEntries.forEach(function (e) {
             var row = document.createElement('div');
             row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;';
             var link = document.createElement('a');
-            link.href = url; link.target = '_blank';
+            link.href = e.url; link.target = '_blank';
             link.style.cssText = 'color:#0056b3;font-size:12px;word-break:break-all;';
-            link.textContent = '📄 ' + itemRef.name;
+            link.textContent = '📄 ' + e.name;
             var delBtn = document.createElement('button');
             delBtn.textContent = '削除';
             delBtn.style.cssText = 'margin-left:8px;font-size:11px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:3px;padding:2px 8px;cursor:pointer;flex-shrink:0;';
             delBtn.addEventListener('click', function () {
-              if (!confirm('「' + itemRef.name + '」を削除しますか？')) return;
-              itemRef.delete().then(refreshList).catch(function (e) { alert('削除できませんでした：' + e.message); });
+              if (!confirm('「' + e.name + '」を削除しますか？')) return;
+              e.ref.delete().then(refreshList).catch(function (err) { alert('削除できませんでした：' + err.message); });
             });
             row.appendChild(link);
             row.appendChild(delBtn);
-            listBox.appendChild(row);
+            fileListBox.appendChild(row);
           });
+
+          if (imageEntries.length) listBox.appendChild(gridBox);
+          if (otherEntries.length) listBox.appendChild(fileListBox);
         });
       }).catch(function (e) {
         listBox.textContent = '読込エラー：' + e.message;
