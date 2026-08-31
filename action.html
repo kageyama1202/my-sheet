@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-004 -->
+<!-- VERSION: 2026-09-01-005 -->
 <!-- 第一次構想版：本日起こすべきアクション5本柱を一発表示するページ -->
 <html lang="ja">
 <head>
@@ -144,14 +144,18 @@ function buildSmsUnsent(){
 }
 
 // ---- ④報告書未提出（下見実施済みなのに報告書提出済みに進んでいない） ----
-// SF「下見本数（予/実）」列（末尾=index14）を主判定に使用。実施数<予定数なら未提出とみなす。
-// この列がまだ取り込まれていない古いデータの案件は、localStatusベースの簡易フォールバックで拾う。
+// SF「下見本数（予/実）」列（末尾=index14）を主判定に使用：実施数<予定数（典型は"1/0"）なら未提出候補。
+// 対象とする「下見が過去にあった」判定は、SF確定日（c[12]）とアプリ側の予定日（obj.date）のどちらか一方でも
+// 過去であれば対象にする（どちらか一方しか入っていないケースがあるため）。
 function buildReportMissing(){
   var items=[];
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
-    var shitamiDate=formatYMD(getSafeVal(c,12));
-    if(!shitamiDate||shitamiDate>=todayStr)return; // 下見日が未来 or 未定は対象外
+
+    var shitamiDate=formatYMD(getSafeVal(c,12)); // SF確定下見日
+    var yoteiDate=obj.date?String(obj.date).replace(/\s+/g,''):''; // アプリ側の予定日
+    var pastDate=(shitamiDate&&shitamiDate<todayStr)?shitamiDate:((yoteiDate&&yoteiDate<todayStr)?yoteiDate:'');
+    if(!pastDate)return; // どちらも過去日でなければ対象外
 
     var localStatus=obj.localStatus||'';
     if(localStatus==='報告書提出済'||localStatus==='施工日連絡済')return; // 既に完了なら対象外
@@ -161,20 +165,20 @@ function buildReportMissing(){
     var reasonTag='';
 
     if(honsu&&honsu.indexOf('/')>-1){
-      // SF列あり：これを正として判定
+      // SF列あり：実施数<予定数（典型は "1/0"）を報告書未提出として判定
       var parts=honsu.split('/');
       var yotei=parseInt(parts[0],10),jisshi=parseInt(parts[1],10);
       if(!isNaN(yotei)&&!isNaN(jisshi)&&jisshi<yotei){
         reportMissing=true;reasonTag='下見'+honsu+'（未提出）';
       }
     }else{
-      // SF列が未取込：localStatusベースの簡易フォールバック（下見日を過ぎている時点で候補とする）
+      // SF列が未取込：localStatusベースの簡易フォールバック
       reportMissing=true;
       reasonTag=localStatus?('現在:'+localStatus+'（推定）'):'未着手（推定）';
     }
 
     if(!reportMissing)return;
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',shitamiDate:shitamiDate,reason:reasonTag,addr:getSafeVal(c,11)});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',shitamiDate:pastDate,reason:reasonTag,addr:getSafeVal(c,11)});
   });
   items.sort(function(a,b){return a.shitamiDate.localeCompare(b.shitamiDate);});
   return items;
