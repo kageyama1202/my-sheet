@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01 -->
+<!-- VERSION: 2026-09-01-002 -->
 <!-- 第一次構想版：本日起こすべきアクション5本柱を一発表示するページ -->
 <html lang="ja">
 <head>
@@ -7,6 +7,7 @@
 <title>アクション</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="user-scope.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
@@ -286,7 +287,14 @@ function openKari(date,id){
   location.href='kari-yoyaku.html?date='+encodeURIComponent(date)+'&open='+encodeURIComponent(id);
 }
 
-loadAll();
+// 認証セッションの復元が完了してからデータ取得する（未認証状態での即時アクセスによるpermission_denied対策）
+firebase.auth().onAuthStateChanged(function(user){
+  if(user){
+    loadAll();
+  }else{
+    document.getElementById('mainContent').innerHTML='<div class="err">⚠ ログインセッションが確認できません。トップページ（index.html）から入り直してください。</div>';
+  }
+});
 </script>
 </body>
 </html>
