@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-002 -->
+<!-- VERSION: 2026-09-01-004 -->
 <!-- 第一次構想版：本日起こすべきアクション5本柱を一発表示するページ -->
 <html lang="ja">
 <head>
@@ -144,6 +144,8 @@ function buildSmsUnsent(){
 }
 
 // ---- ④報告書未提出（下見実施済みなのに報告書提出済みに進んでいない） ----
+// SF「下見本数（予/実）」列（末尾=index14）を主判定に使用。実施数<予定数なら未提出とみなす。
+// この列がまだ取り込まれていない古いデータの案件は、localStatusベースの簡易フォールバックで拾う。
 function buildReportMissing(){
   var items=[];
   Object.keys(globalTasks).forEach(function(key){
@@ -152,26 +154,25 @@ function buildReportMissing(){
     if(!shitamiDate||shitamiDate>=todayStr)return; // 下見日が未来 or 未定は対象外
 
     var localStatus=obj.localStatus||'';
-    var sfStatus=getSafeVal(c,1).replace(/\s+/g,'');
-    // 既に報告書提出済み／施工日連絡済みまで進んでいれば対象外
-    if(localStatus==='報告書提出済'||localStatus==='施工日連絡済')return;
-    if(sfStatus==='完了'&&(localStatus===''||localStatus==='依頼'||localStatus==='連絡済'))return; // ローカル未着手ならこの判定では対象外（②③側で拾う想定）
+    if(localStatus==='報告書提出済'||localStatus==='施工日連絡済')return; // 既に完了なら対象外
 
-    // SF「下見本数（予/実）」列（末尾=index14）があれば優先的に使う："予/実" 形式
     var honsu=getSafeVal(c,14).replace(/\s+/g,'');
     var reportMissing=false;
     var reasonTag='';
+
     if(honsu&&honsu.indexOf('/')>-1){
+      // SF列あり：これを正として判定
       var parts=honsu.split('/');
       var yotei=parseInt(parts[0],10),jisshi=parseInt(parts[1],10);
       if(!isNaN(yotei)&&!isNaN(jisshi)&&jisshi<yotei){
-        reportMissing=true;reasonTag='下見未実施('+honsu+')';
+        reportMissing=true;reasonTag='下見'+honsu+'（未提出）';
       }
+    }else{
+      // SF列が未取込：localStatusベースの簡易フォールバック（下見日を過ぎている時点で候補とする）
+      reportMissing=true;
+      reasonTag=localStatus?('現在:'+localStatus+'（推定）'):'未着手（推定）';
     }
-    // 列が無い/判定できない場合は localStatus ベースでフォールバック
-    if(!honsu){
-      if(localStatus==='下見実施済'){reportMissing=true;reasonTag='報告書提出待ち（推定）';}
-    }
+
     if(!reportMissing)return;
     items.push({key:key,title:getSafeVal(c,4)||'名称未設定',shitamiDate:shitamiDate,reason:reasonTag,addr:getSafeVal(c,11)});
   });
@@ -179,10 +180,11 @@ function buildReportMissing(){
   return items;
 }
 
-// ---- ⑤仮予約：未回答／未送信 ----
+// ---- ⑤仮予約：未回答／未送信（本日以降のみ） ----
 function buildKariPending(){
   var items=[];
   Object.keys(kariSlotsAll).forEach(function(date){
+    if(date<todayStr)return; // 過去日は対象外
     var day=kariSlotsAll[date]||{};
     Object.keys(day).forEach(function(id){
       var e=day[id];
