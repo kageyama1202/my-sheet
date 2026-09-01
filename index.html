@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-003 -->
+<!-- VERSION: 2026-09-02-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -71,6 +71,11 @@
       <a href="viewer.html" style="font-size:12px;color:#888;text-decoration:none;border-bottom:1px dotted #aaa;">🔒 閲覧用（上役PIN）</a>
     </div>
 
+    <div style="text-align:center;margin-top:10px;">
+      <button id="clearCacheBtn" style="font-size:12px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:6px;padding:6px 14px;cursor:pointer;">🗑 キャッシュをクリア</button>
+      <div id="clearCacheMsg" style="font-size:11px;color:#888;margin-top:6px;"></div>
+    </div>
+
   </div>
 
   <script>
@@ -124,6 +129,31 @@
         btn.classList.remove('disabled');
       });
     }
+
+    // ★2026-09-02追加★
+    // 端末側の保存トラブル（容量制限・壊れかけの中途半端なキャッシュ等）を、原因調査を待たずに
+    // その場で解消できるよう、ログイン情報(userKey/userName)は残したまま、このアプリが使っている
+    // キャッシュ（appData系・personalCalendar系）だけを消せるボタンを用意する。
+    document.getElementById('clearCacheBtn').addEventListener('click', function() {
+      if (!confirm('この端末に保存されている案件データのキャッシュを削除します。\nログイン状態はそのまま残ります。\n\nよろしいですか？')) return;
+      var removed = [];
+      try {
+        var keys = Object.keys(localStorage);
+        keys.forEach(function(k) {
+          if (k === 'appData' || k.indexOf('appData_') === 0 || k.indexOf('personalCalendar_') === 0) {
+            localStorage.removeItem(k);
+            removed.push(k);
+          }
+        });
+      } catch (e) {
+        document.getElementById('clearCacheMsg').textContent = '削除中にエラー：' + e.message;
+        return;
+      }
+      document.getElementById('clearCacheMsg').textContent = removed.length
+        ? '✔ ' + removed.length + '件削除しました。再読込します...'
+        : '削除対象のキャッシュはありませんでした。再読込します...';
+      setTimeout(function() { location.reload(); }, 800);
+    });
 
     var PERSONAL_CAL_SYNC_URL = 'https://us-central1-project-6745138395263517914.cloudfunctions.net/syncPersonalCalendar';
 
