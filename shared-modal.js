@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加】*/
-// VERSION: 2026-08-31
+// VERSION: 2026-09-01
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -95,6 +95,16 @@ function findConflictsModal(date, time, selfKey, globalTasks, kariData) {
   return { exact: exact, nearby: nearby };
 }
 
+// ★2026-09-01追加★
+// localStorageの案件キャッシュキー'appData'が以前は全ユーザー共通だったため、
+// 同じ端末を複数人（複数PIN=複数userKey）で使い回すと、後からログインした人が
+// 取得したデータでキャッシュが上書きされ、先にログインしたままの人の画面にも
+// 他人の案件が混ざって見える不具合があった。index.html/today.html/calendar.htmlと
+// 同じくuserKeyごとにキャッシュキー自体を分ける。
+function modalAppDataKey() {
+  return 'appData_' + ((typeof getUserKey === 'function') ? getUserKey() : '');
+}
+
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
   var cols = obj.csvData; if (!cols) return;
   var sekouStr = getSafeValModal(cols,2).replace(/\s+/g,"")||"未定";
@@ -111,7 +121,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   function saveField(updates) {
     firebaseDB.ref('app_tasks/'+key).update(updates);
     for (var k in updates) { globalTasks[key][k] = updates[k]; }
-    if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+    if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem(modalAppDataKey(), JSON.stringify(fullData)); }
     showSavedMsg();
     if (typeof onSaveCallback === 'function') onSaveCallback();
   }
@@ -349,7 +359,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     if (!confirm('「'+caseLabel+'」を削除します。\nカレンダー・管理表からも自動で削除されます。\n\nこの操作は取り消せません。よろしいですか？')) return;
     firebaseDB.ref('app_tasks/'+key).remove().then(function(){
       if (globalTasks && globalTasks[key]) { delete globalTasks[key]; }
-      if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem('appData', JSON.stringify(fullData)); }
+      if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem(modalAppDataKey(), JSON.stringify(fullData)); }
       document.getElementById('modal-overlay').style.display = 'none';
       if (typeof onSaveCallback === 'function') onSaveCallback();
     }).catch(function(e){
