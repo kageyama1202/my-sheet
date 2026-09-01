@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-001 -->
+<!-- VERSION: 2026-09-01-003 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -15,6 +15,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Today's Agenda</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="user-scope.js"></script>
 <link rel="stylesheet" href="shared-modal.css">
@@ -364,21 +365,30 @@ function renderBathAlerts() {
 }
 
 // ==================== ② 下見実施チェック ====================
-// 対象：obj.date（アプリで編集する予定日フィールド）が今日より前で、
-// shitamiVisitedフラグが立っていない案件。CSV下見日(cols[12]/[13])は
-// 過去のインデックス取り違えバグの温床だったため使わず、本人が日々
-// モーダルで直接編集しているobj.date/obj.timeのみを基準にする。
+// 業務ルール：CSV下見日・下見時間(cols[12]/[13]、SF由来)が入っている案件は「入ったら絶対行く」扱い。
+// そのためCSV下見日を最優先の判定基準とし、アプリ入力のobj.dateは補助として併用する。
+// 対象：①CSV下見日(cols[12])が今日より前で未確認、②obj.dateが今日より前で未確認、のどちらかに該当し、
+// かつ shitamiVisitedフラグが立っていない案件。
+// 表示する「予定日」はCSV下見日があればそちらを優先表示する（アプリ入力より確度が高いため）。
+function getEffectiveShitamiDate(obj) {
+  var cols = obj.csvData;
+  var csvDate = normalizeYMD(getSafeVal(cols, 12));
+  var csvTime = getSafeVal(cols, 13);
+  if (csvDate) return { date: csvDate, time: csvTime, source: 'csv' };
+  if (obj.date) return { date: obj.date, time: obj.time || '', source: 'app' };
+  return null;
+}
 function renderVisitChecks() {
   var today = todayStr();
   var list = [];
   Object.keys(globalTasks).forEach(function(key) {
     var obj = globalTasks[key];
-    if (!obj.date) return;
-    if (obj.date >= today) return;
     if (obj.shitamiVisited) return;
-    list.push({ key: key, obj: obj });
+    var eff = getEffectiveShitamiDate(obj);
+    if (!eff || eff.date >= today) return;
+    list.push({ key: key, obj: obj, eff: eff });
   });
-  list.sort(function(a,b){ return (a.obj.date+ (a.obj.time||'')).localeCompare(b.obj.date+(b.obj.time||'')); });
+  list.sort(function(a,b){ return (a.eff.date+(a.eff.time||'')).localeCompare(b.eff.date+(b.eff.time||'')); });
 
   document.getElementById('visitCnt').textContent = list.length + '件';
   var body = document.getElementById('visitBody');
@@ -391,11 +401,12 @@ function renderVisitChecks() {
     var cols = it.obj.csvData;
     var title = getSafeVal(cols, 4).trim() || it.key;
     var addr = getSafeVal(cols, 11);
+    var srcLabel = it.eff.source === 'csv' ? '📋CSV確定' : '📅アプリ入力';
     html += '<div class="acard">';
     html += '<div class="acard-main" onclick="openModal(\''+esc(it.key)+'\')">';
     html += '<div class="acard-title">' + esc(title) + '</div>';
     html += '<div class="acard-sub">';
-    html += '<span class="lock">⏰予定 ' + fmtMD(it.obj.date) + (it.obj.time ? ' ' + esc(it.obj.time) : '') + '</span>';
+    html += '<span class="lock">⏰' + srcLabel + ' ' + fmtMD(it.eff.date) + (it.eff.time ? ' ' + esc(it.eff.time) : '') + '</span>';
     if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
     html += '</div></div>';
     html += '<div class="acard-btns">';
@@ -419,19 +430,24 @@ function markVisited(key) {
   }).catch(function(e) { alert('更新失敗：' + e.message); });
 }
 
+// CSV下見日(cols[12]/[13])はSF取込データのためアプリからはクリアしない（次回CSV取込まで残る）。
+// クリアするのはアプリ入力のobj.date/timeのみ。メモ記録と連絡必要フラグは判定元によらず共通で行う。
 function markNotVisited(key) {
   var obj = globalTasks[key];
   if (!obj) return;
   var cols = obj.csvData;
   var title = getSafeVal(cols, 4).trim() || key;
-  if (!confirm('「' + title + '」を「行けなかった」として記録します。\n予定日時をクリアし、連絡必要フラグを立てます。よろしいですか？')) return;
+  var eff = getEffectiveShitamiDate(obj);
+  var csvNote = (eff && eff.source === 'csv') ? '\n（CSV下見日はSF由来のためアプリからは自動クリアされません。SF側の更新をご確認ください）' : '';
+  if (!confirm('「' + title + '」を「行けなかった」として記録します。\nアプリ入力の予定日時をクリアし、連絡必要フラグを立てます。' + csvNote + '\n\nよろしいですか？')) return;
 
   var d = new Date();
   var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
     + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
-  var prevDate = obj.date || '未設定';
-  var prevTime = obj.time || '';
-  var noteLine = '【下見未実施 ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → 行けず（自動クリア）';
+  var prevDate = eff ? eff.date : (obj.date || '未設定');
+  var prevTime = eff ? eff.time : (obj.time || '');
+  var srcTag = (eff && eff.source === 'csv') ? '[CSV下見日]' : '[アプリ入力日]';
+  var noteLine = '【下見未実施 ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → 行けず';
   var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
   var updates = { date: '', time: '', needsContact: true, memo: newMemo, shitamiVisited: false };
 
