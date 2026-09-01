@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-003 -->
+<!-- VERSION: 2026-09-01-004 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -272,7 +272,7 @@ function loadData() {
     if (ls) {
       var ld = JSON.parse(ls);
       if (ld && ld.app_tasks) { globalTasks = ld.app_tasks; fullData = ld; }
-      if (ld && ld.app_meta) globalHeaders = ld.app_meta.headers || [];
+      if (ld && ld.app_meta) { globalHeaders = ld.app_meta.headers || []; visitCountHeaderIdx = null; }
       renderAll();
     }
   } catch(e) {}
@@ -286,6 +286,7 @@ function loadData() {
     globalTasks = tasksSnap.val() || {};
     var meta = metaSnap.val() || {};
     globalHeaders = meta.headers || globalHeaders;
+    visitCountHeaderIdx = null;
     fullData = fullData || {};
     fullData.app_tasks = globalTasks;
     fullData.app_meta = meta;
@@ -307,9 +308,53 @@ function setHeader() {
 }
 
 function renderAll() {
+  autoSyncVisitedFromReportCount();
   renderBathAlerts();
   renderVisitChecks();
   updateRouteAvailability();
+}
+
+// ==================== 下見本数(予/実)による自動確認 ====================
+// SF側レポートの「下見本数（予/実）」列（実施数=実 が1以上）が入っていれば、
+// 「実際に行った」ことがほぼ確実なため、本人に確認させるまでもなく自動でshitamiVisitedを立てる。
+// 列位置は固定インデックスではなく、ヘッダー名「下見本数」を含む列を都度検索する
+// （CSV列構成が将来変わっても壊れにくくするため）。
+var visitCountHeaderIdx = null;
+function findHeaderIndex(nameSubstr) {
+  for (var i = 0; i < globalHeaders.length; i++) {
+    if (globalHeaders[i] && String(globalHeaders[i]).indexOf(nameSubstr) >= 0) return i;
+  }
+  return -1;
+}
+function getVisitActualCount(cols) {
+  if (visitCountHeaderIdx == null) visitCountHeaderIdx = findHeaderIndex('下見本数');
+  if (visitCountHeaderIdx < 0) return null;
+  var raw = getSafeVal(cols, visitCountHeaderIdx);
+  if (!raw) return null;
+  var m = String(raw).replace(/\s+/g,'').match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!m) return null;
+  return parseInt(m[2], 10);
+}
+function autoSyncVisitedFromReportCount() {
+  var updates = {};
+  var nowIso = new Date().toISOString();
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    if (obj.shitamiVisited) return;
+    var actual = getVisitActualCount(obj.csvData);
+    if (actual != null && actual > 0) {
+      updates['app_tasks/'+key+'/shitamiVisited'] = true;
+      updates['app_tasks/'+key+'/shitamiVisitedAt'] = nowIso;
+      updates['app_tasks/'+key+'/shitamiVisitedSource'] = 'report_count';
+      obj.shitamiVisited = true;
+      obj.shitamiVisitedAt = nowIso;
+      obj.shitamiVisitedSource = 'report_count';
+    }
+  });
+  if (Object.keys(updates).length) {
+    db.ref().update(updates).catch(function(e) { console.warn('自動確認の同期に失敗：', e); });
+    persistCache();
+  }
 }
 
 function openModal(key) {
