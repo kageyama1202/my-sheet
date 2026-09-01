@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-002 -->
+<!-- VERSION: 2026-09-01-003 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -96,6 +96,17 @@
     function appDataKey() {
       return 'appData_' + getUserKey();
     }
+
+    // ★2026-09-01追加★
+    // 本日appData→appData_{userKey}へキー名を変更したが、旧'appData'キー（複数人分の
+    // 大きなデータが入ったまま）が端末に残っていると、新キー分の容量が追加で必要になり
+    // 容量オーバーの原因になる。もう誰も読まないキーなので、あれば削除して空きを作る。
+    try {
+      if (localStorage.getItem('appData') !== null) {
+        localStorage.removeItem('appData');
+        console.log('旧appDataキーを削除しました（容量確保のため）');
+      }
+    } catch (e) {}
 
     function getTodayStr() {
       var d = new Date();
