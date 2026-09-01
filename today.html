@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-23-001 -->
+<!-- VERSION: 2026-09-01 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -433,8 +433,15 @@ function loadSmsData(){
   }).catch(function(e){console.warn('app_sms_list取得失敗',e);});
 }
 
+// ★2026-09-01修正★
+// 以前はlocalStorageの'appData'キーを全ユーザー共通で読んでいたため、同じ端末を
+// 複数人（複数PIN）で使い回すと、後からログインした人が「最新データを取得」した
+// 瞬間に他人のuserKeyのデータでこのキャッシュが上書きされ、先にログインしたままの
+// 人の画面にも他人の案件が混ざって見える不具合があった。
+// index.html側もキャッシュキーをuserKey別（appData_{userKey}）に変更済みなので、
+// こちらも同じキーで読む（getUserKey()はuser-scope.jsが提供）。
 var globalHeaders=[],globalTasks={},fullData=null;
-try{var s=localStorage.getItem('appData');if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
+try{var s=localStorage.getItem('appData_'+getUserKey());if(s)fullData=JSON.parse(s);}catch(e){console.error(e);}
 if(fullData&&fullData.app_meta&&fullData.app_tasks){
   globalHeaders=fullData.app_meta.headers;
   globalTasks=fullData.app_tasks;
