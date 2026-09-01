@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-004 -->
+<!-- VERSION: 2026-09-01-005 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -455,7 +455,7 @@ function renderVisitChecks() {
     if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
     html += '</div></div>';
     html += '<div class="acard-btns">';
-    html += '<button class="abtn abtn-yes" onclick="event.stopPropagation();markVisited(\''+esc(it.key)+'\')">✅ 行った</button>';
+    html += '<button class="abtn abtn-yes" onclick="event.stopPropagation();markVisited(\''+esc(it.key)+'\')">✅ 現地下見完了</button>';
     html += '<button class="abtn abtn-no" onclick="event.stopPropagation();markNotVisited(\''+esc(it.key)+'\')">❌ 行けなかった</button>';
     html += '</div>';
     html += '</div>';
