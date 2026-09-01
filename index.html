@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01 -->
+<!-- VERSION: 2026-09-01-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -214,38 +214,82 @@
         });
         dbData.app_tasks = filtered;
 
-        try {
-          localStorage.setItem(appDataKey(), JSON.stringify(dbData));
-        } catch(e) {
-          console.warn('localStorage容量超過のため保存スキップ:', e.message);
-          var retryFiltered = {};
+        // ★2026-09-01修正★
+        // これまでは localStorage.setItem が例外を投げなければ「保存成功」とみなし、
+        // 画面には常に「✅最新データ取得完了」を表示していた。しかしiOSのブラウザ
+        // （特にホーム画面追加なしのタブ）は保存容量の上限に達すると、例外を投げずに
+        // 書き込みを黙って無視することがあり、その場合でも「成功」の表示が出てしまい、
+        // 実際にはtoday.html/calendar.html側が空のキャッシュしか読めない、という
+        // 「表示は成功・実体は失敗」の不具合があった（2026-09-01発覚）。
+        // → setItem後に必ずgetItemで読み返して、実際に保存された内容が一致するか検証する。
+        //   失敗していれば段階的にデータを削って再試行し、それでもダメなら正直に失敗を表示する。
+        function verifiedSave(obj) {
+          var json = JSON.stringify(obj);
+          try {
+            localStorage.setItem(appDataKey(), json);
+            var readBack = localStorage.getItem(appDataKey());
+            return (readBack === json);
+          } catch (e) {
+            return false;
+          }
+        }
+        function filterByCutoffDays(days) {
           var cutoff = new Date();
-          cutoff.setDate(cutoff.getDate() - 30);
+          cutoff.setDate(cutoff.getDate() - days);
           var cutoffStr = cutoff.getFullYear() + '-' +
             ('0' + (cutoff.getMonth() + 1)).slice(-2) + '-' +
             ('0' + cutoff.getDate()).slice(-2);
+          var out = {};
           Object.keys(filtered).forEach(function(key) {
             var t = filtered[key];
             var status = t.localStatus || '';
             var sekoDate = (t.csvData && t.csvData[2]) ? t.csvData[2] : '';
             var isDone = (status === '完了' || status === 'キャンセル');
             var isOld = sekoDate && sekoDate < cutoffStr;
-            if (!(isDone && isOld)) { retryFiltered[key] = t; }
+            if (!(isDone && isOld)) { out[key] = t; }
           });
-          dbData.app_tasks = retryFiltered;
-          try {
-            localStorage.setItem(appDataKey(), JSON.stringify(dbData));
-          } catch(e2) {
-            console.warn('再試行も失敗。既存キャッシュで動作継続:', e2.message);
+          return out;
+        }
+
+        var saveOk = verifiedSave(dbData);
+        var savedCount = Object.keys(dbData.app_tasks).length;
+        if (!saveOk) {
+          // 段階的にデータを削って再試行（30日→14日→3日の順で「完了済みの古い案件」を除外）
+          var cutoffs = [30, 14, 3];
+          for (var ci = 0; ci < cutoffs.length && !saveOk; ci++) {
+            var reduced = filterByCutoffDays(cutoffs[ci]);
+            var reducedData = { app_meta: dbData.app_meta, app_tasks: reduced };
+            saveOk = verifiedSave(reducedData);
+            if (saveOk) { savedCount = Object.keys(reduced).length; dbData = reducedData; }
           }
         }
 
         var now = new Date();
         var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
           now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
-        statusMsg.className = 'status success';
-        statusMsg.innerHTML = '✅ 最新データ取得完了（' + timeStr + '）';
-        enableMenu();
+
+        if (saveOk) {
+          statusMsg.className = 'status success';
+          var reducedNote = (savedCount < Object.keys(filtered).length)
+            ? '<br><span style="font-size:11px;font-weight:normal;color:#856404;">端末の容量制限のため、完了済みの古い案件を除いた' + savedCount + '件のみ保存しました</span>'
+            : '';
+          statusMsg.innerHTML = '✅ 最新データ取得完了（' + timeStr + '）' + reducedNote;
+          enableMenu();
+        } else {
+          // ★重要: ここで「案件リスト」「カレンダー」は端末キャッシュ依存のため開けない可能性が高いが、
+          // 「Today's Agenda」「今日のアクション」はこの保存に依存せずFirebaseから直接取得するため、
+          // 引き続き利用できる。ユーザーに嘘の成功表示を出さず、正直に状況を伝える。
+          statusMsg.className = 'status error';
+          statusMsg.innerHTML = '⚠️ データ取得はできましたが、この端末への保存に失敗しました（保存容量の上限の可能性）。' +
+            '<br><span style="font-size:12px;font-weight:normal;">📋案件リスト・📅カレンダーは開けない場合があります。🎯Today\'s Agenda・🔔今日のアクションはこの保存に依存しないため引き続き使えます。</span>' +
+            '<br><span style="font-size:11px;font-weight:normal;color:#856404;">直らない場合はブラウザの設定でこのサイトのデータ（Webサイトデータ／履歴とWebサイトデータ）を一度削除してから開き直してください。</span>';
+          // 案件リスト/カレンダーは開けない可能性が高いので無効のままにするが、
+          // Today's Agenda・今日のアクションはこの保存に依存しないため有効化する。
+          var agendaBtn = document.querySelector('a[href="agenda.html"]');
+          var actionBtn = document.querySelector('a[href="action.html"]');
+          if (agendaBtn) agendaBtn.classList.remove('disabled');
+          if (actionBtn) actionBtn.classList.remove('disabled');
+        }
 
         // SMS未送信チェック（認証後に監視開始）
         checkSmsPending();
