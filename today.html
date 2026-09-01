@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-002 -->
+<!-- VERSION: 2026-09-02-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -450,7 +450,39 @@ if(fullData&&fullData.app_meta&&fullData.app_tasks){
   initFilters();
   renderTable();
   loadSmsData();
-}else{document.getElementById('noDataMsg').style.display='block';}
+}else{
+  // ★2026-09-02追加★
+  // このブラウザでlocalStorageへの保存が失敗する（容量制限やサイトデータブロック設定など）
+  // 端末があり、その場合はここで永遠に「データなし」のままになってしまっていた。
+  // キャッシュが無い/読めない場合は、agenda.htmlと同じくFirebaseから直接データを取得して
+  // 画面に反映する（保存の成否に一切依存しない動作にする）。取得後、保存できる環境なら
+  // ついでにキャッシュへの保存も試みるが、失敗しても無視して動作は継続する。
+  document.getElementById('noDataMsg').innerHTML='⏳ Firebaseから読込中...';
+  document.getElementById('noDataMsg').style.display='block';
+  Promise.all([
+    database.ref('app_tasks').once('value'),
+    database.ref('app_meta').once('value')
+  ]).then(function(results){
+    var tasksSnap=results[0], metaSnap=results[1];
+    globalTasks=tasksSnap.val()||{};
+    var meta=metaSnap.val()||{};
+    globalHeaders=meta.headers||[];
+    fullData={app_meta:meta, app_tasks:globalTasks};
+    if(globalHeaders.length && Object.keys(globalTasks).length){
+      document.getElementById('noDataMsg').style.display='none';
+      initFilters();
+      renderTable();
+      loadSmsData();
+      try{localStorage.setItem('appData_'+getUserKey(), JSON.stringify(fullData));}catch(e){/*保存できなくても動作は継続*/}
+    }else{
+      document.getElementById('noDataMsg').innerHTML='⚠️ データがありません。トップメニューに戻って「CSV取込（管理者）」を行ってください。';
+      document.getElementById('noDataMsg').style.display='block';
+    }
+  }).catch(function(e){
+    document.getElementById('noDataMsg').innerHTML='❌ 通信エラー：'+e.message+'<br><span style="font-size:12px;font-weight:normal;">電波の良いところで再読み込みしてください。</span>';
+    document.getElementById('noDataMsg').style.display='block';
+  });
+}
 
 function initFilters(){
 var stMap={},kbMap={},cpMap={},arMap={};
