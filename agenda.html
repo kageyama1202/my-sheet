@@ -1,10 +1,19 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-06-16-001 -->
+<!-- VERSION: 2026-09-01-001 -->
+<!--
+  agenda.html（Today's Agenda）全面改修版
+  旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
+  代わりに以下3機能をAI呼び出しなしのローカル計算のみで実装：
+   1) 下見実施チェック：過去の下見予定について「実際に行けたか」を毎朝確認する
+   2) 本日のコース設定：本日予定の案件を、座標(あれば直線距離)＋エリア表(なければ)で
+      簡易ルート計算し、順番・到着予定時刻を提案する
+   3) お風呂(SB)21日アラート：施工日が21日以内に迫っているのに下見未実施のSB案件を警告
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3日間プラン</title>
+<title>Today's Agenda</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="user-scope.js"></script>
@@ -17,136 +26,74 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .header a{color:#60a5fa;text-decoration:none;font-size:13px;font-weight:bold;}
 .header-title{font-size:15px;font-weight:bold;color:#e2e8f0;flex:1;}
 .header-date{font-size:11px;color:#94a3b8;background:#1e293b;padding:3px 10px;border-radius:10px;}
-.btn-settings{background:rgba(255,255,255,0.1);color:#94a3b8;border:none;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;}
-.btn-settings:hover{background:rgba(255,255,255,0.2);}
-
-/* 設定モーダル */
-.settings-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9998;}
-.settings-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border:1px solid #334155;padding:20px;border-radius:10px;width:90%;max-width:380px;z-index:9999;}
-.settings-modal h3{margin:0 0 14px;font-size:15px;color:#e2e8f0;}
-.settings-modal label{font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;}
-.settings-modal input{width:100%;padding:8px 10px;background:#0f1117;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px;margin-bottom:12px;}
-.settings-modal .modal-btns{display:flex;gap:8px;}
-.settings-modal .modal-btns button{flex:1;padding:8px;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;}
+.btn-refresh{background:rgba(255,255,255,0.1);color:#94a3b8;border:none;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;}
+.btn-refresh:hover{background:rgba(255,255,255,0.2);}
 
 .status-bar{background:#0d1117;border-bottom:1px solid #1f2937;padding:7px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11px;color:#64748b;position:sticky;top:45px;z-index:99;}
 .ok{color:#34d399;}.warn{color:#f59e0b;}.err{color:#f87171;}
 
-.gen-area{padding:12px 16px;background:#111827;border-bottom:1px solid #1f2937;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-.btn-gen{background:#1d4ed8;color:#fff;border:none;padding:9px 22px;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;transition:background 0.2s;}
-.btn-gen:hover{background:#2563eb;}
-.btn-gen:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
-.gen-note{font-size:11px;color:#64748b;flex:1;}
+.section{margin:14px 14px 0;}
+.section-card{background:#111827;border:1px solid #1f2937;border-radius:10px;overflow:hidden;}
+.section-head{padding:10px 16px;font-size:13px;font-weight:bold;display:flex;align-items:center;gap:8px;}
+.section-head .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,0.1);padding:2px 9px;border-radius:10px;font-weight:normal;}
+.section-head.bath{background:#3b1d1d;border-bottom:2px solid #ef4444;color:#fca5a5;}
+.section-head.visit{background:#1e293b;border-bottom:2px solid #f59e0b;color:#fde68a;}
+.section-head.route{background:#1e3a5f;border-bottom:2px solid #3b82f6;color:#bfdbfe;}
+.section-body{padding:2px 0;}
+.section-empty{padding:16px;font-size:12px;color:#4b5563;text-align:center;}
 
-.loading-wrap{text-align:center;padding:60px 20px;}
-.spin{display:inline-block;width:26px;height:26px;border:3px solid #1e40af;border-top-color:#60a5fa;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.loading-wrap p{color:#60a5fa;font-size:14px;display:inline;vertical-align:middle;}
+.acard{padding:10px 16px;border-bottom:1px solid #1a2234;display:flex;align-items:center;gap:10px;}
+.acard:last-child{border-bottom:none;}
+.acard-main{flex:1;min-width:0;cursor:pointer;}
+.acard-main:hover .acard-title{color:#60a5fa;text-decoration:underline;}
+.acard-title{font-size:13px;font-weight:bold;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.acard-sub{font-size:11px;color:#64748b;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;}
+.acard-sub .area{color:#34d399;}
+.acard-sub .daysleft{color:#fca5a5;font-weight:bold;}
+.acard-sub .lock{color:#fbbf24;}
+.acard-btns{display:flex;gap:6px;flex-shrink:0;}
+.abtn{border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;}
+.abtn-yes{background:#1b5e20;color:#a5d6a7;border:1px solid #2e7d32;}
+.abtn-yes:hover{background:#256029;}
+.abtn-no{background:#4a1414;color:#fca5a5;border:1px solid #c62828;}
+.abtn-no:hover{background:#5c1a1a;}
 
-.summary-card{margin:14px 14px 0;background:#111827;border:1px solid #1e40af;border-radius:10px;overflow:hidden;}
-.summary-header{background:#1e3a5f;padding:10px 16px;font-size:13px;font-weight:bold;color:#bfdbfe;}
-.summary-body{padding:12px 16px;font-size:13px;color:#cbd5e1;line-height:1.8;}
+.route-toolbar{padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1f2937;}
+.btn-calc{background:#1d4ed8;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;}
+.btn-calc:hover{background:#2563eb;}
+.btn-calc:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
+.btn-save-order{background:#065f46;color:#6ee7b7;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;}
+.btn-save-order:hover{background:#047857;}
+.btn-save-order:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
+.route-note{font-size:11px;color:#64748b;flex:1;}
 
-.day-block{margin:12px 14px 0;}
-.day-label{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px 8px 0 0;font-size:13px;font-weight:bold;}
-.day-label.d0{background:#1e3a5f;border-left:4px solid #3b82f6;color:#bfdbfe;}
-.day-label.d1{background:#1a2e1a;border-left:4px solid #22c55e;color:#bbf7d0;}
-.day-label.d2{background:#2d1f3d;border-left:4px solid #a78bfa;color:#e9d5ff;}
-.day-theme{font-size:11px;color:rgba(255,255,255,0.5);font-weight:normal;}
-.day-meta{font-size:11px;background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:8px;margin-left:auto;white-space:nowrap;}
+.route-summary{margin:10px 16px 0;background:#0d1117;border:1px solid #1e40af;border-radius:8px;padding:8px 14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;}
+.route-summary span{color:#60a5fa;font-weight:bold;}
+.route-summary label{color:#64748b;}
 
-.cases-wrap{background:#111827;border-radius:0 0 8px 8px;border:1px solid #1f2937;border-top:none;overflow:hidden;margin-bottom:4px;}
-.day-notes{padding:8px 14px;font-size:11px;color:#64748b;background:#0d1117;border-top:1px solid #1f2937;}
-
-.case-card{display:flex;align-items:stretch;min-height:56px;border-bottom:1px solid #1a2234;transition:background 0.15s;}
-.case-card:last-child{border-bottom:none;}
-.case-card:hover{background:#1a2234;}
-.case-card.fixed-time{border-left:3px solid #f59e0b;}
-.case-card.urgent{border-left:3px solid #ef4444;}
-.case-card.proposed{border-left:3px solid #22c55e;}
-
-.case-num{width:32px;min-width:32px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;color:#60a5fa;background:#0d1117;}
-
-.case-times{width:58px;min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;border-right:1px solid #1f2937;}
+.rcard{display:flex;align-items:stretch;min-height:56px;border-bottom:1px solid #1a2234;}
+.rcard:last-child{border-bottom:none;}
+.rcard-num{width:32px;min-width:32px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;color:#60a5fa;background:#0d1117;}
+.rcard-times{width:58px;min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;border-right:1px solid #1f2937;}
 .t-arrive{font-size:11px;font-weight:bold;color:#fbbf24;}
 .t-leave{font-size:10px;color:#64748b;}
 .t-travel{font-size:9px;color:#475569;margin-top:2px;}
-
-.case-body{flex:1;padding:7px 8px 7px 10px;min-width:0;cursor:pointer;}
-.case-body:hover .case-title{color:#60a5fa;text-decoration:underline;}
-.case-body-plain{flex:1;padding:7px 8px 7px 10px;min-width:0;}
-
-.case-head{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:3px;}
+.rcard-body{flex:1;padding:7px 8px 7px 10px;min-width:0;cursor:pointer;}
+.rcard-body:hover .rcard-title{color:#60a5fa;text-decoration:underline;}
+.rcard-title{font-size:13px;font-weight:bold;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rcard-sub{font-size:11px;color:#64748b;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px;}
+.rcard-sub .area{color:#34d399;}
+.rcard-sub .lock{color:#fbbf24;}
+.rcard-sub .warn{color:#f87171;}
 .badge{display:inline-block;font-size:10px;font-weight:bold;padding:1px 5px;border-radius:3px;white-space:nowrap;}
-.badge-fixed{background:#78350f;color:#fde68a;}
-.badge-urgent{background:#7f1d1d;color:#fca5a5;}
-.badge-personal{background:#2d1b4e;color:#c4b5fd;}
 .badge-reform{background:#1e3a5f;color:#93c5fd;}
 .badge-new{background:#2d2a1a;color:#fbbf24;}
-.badge-proposed{background:#14532d;color:#86efac;}
-
-.case-title{font-size:13px;font-weight:bold;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.case-sub{font-size:11px;color:#64748b;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.area{color:#34d399;}
-.ai-r{color:#94a3b8;font-style:italic;}
-.lock{color:#f59e0b;}
-
-.btn-map{flex-shrink:0;align-self:center;margin:0 10px;background:#065f46;color:#6ee7b7;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;text-decoration:none;display:flex;align-items:center;gap:3px;transition:background 0.15s;}
+.badge-fixed{background:#78350f;color:#fde68a;}
+.badge-est{background:#1a2e1a;color:#86efac;}
+.btn-map{flex-shrink:0;align-self:center;margin:0 10px;background:#065f46;color:#6ee7b7;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;text-decoration:none;display:flex;align-items:center;gap:3px;}
 .btn-map:hover{background:#047857;}
 
-.deferred-block{margin:12px 14px;background:#111827;border:1px solid #374151;border-radius:8px;overflow:hidden;}
-.deferred-header{background:#1f2937;padding:8px 14px;font-size:12px;font-weight:bold;color:#9ca3af;}
-.deferred-item{padding:7px 14px;border-bottom:1px solid #1f2937;font-size:12px;color:#64748b;}
-.deferred-item:last-child{border-bottom:none;}
-.deferred-item span{color:#94a3b8;}
-
-.notes-card{margin:0 14px 14px;background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 14px;font-size:12px;color:#64748b;line-height:1.7;}
-
-.empty-msg{padding:40px;text-align:center;font-size:13px;color:#4b5563;}
-.error-msg{margin:14px;padding:14px;background:#1f0a0a;border:1px solid #7f1d1d;border-radius:8px;font-size:13px;color:#fca5a5;}
 .bottom-pad{height:40px;}
-
-/* ===== 保存ボタン ===== */
-.btn-save{background:#065f46;color:#6ee7b7;border:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;transition:background 0.2s;}
-.btn-save:hover{background:#047857;}
-.btn-save:disabled{background:#374151;color:#6b7280;cursor:not-allowed;}
-.save-notice{position:fixed;bottom:16px;right:16px;background:#065f46;color:#6ee7b7;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:bold;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
-.save-notice.show{opacity:1;}
-
-/* ===== タイムライン ===== */
-.tl-wrap{margin:14px;}
-.tl-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
-.tl-tab{padding:6px 16px;border-radius:20px;border:2px solid #1e40af;background:#111827;color:#60a5fa;font-size:12px;font-weight:bold;cursor:pointer;}
-.tl-tab.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
-.tl-empty{text-align:center;padding:30px;font-size:12px;color:#4b5563;}
-
-.tl-day{display:none;}
-.tl-day.active{display:block;}
-
-.tl-item{display:flex;gap:0;margin-bottom:0;position:relative;}
-.tl-item:not(:last-child) .tl-line::after{content:'';position:absolute;left:50%;top:28px;bottom:-8px;width:2px;background:#1e40af;transform:translateX(-50%);}
-.tl-line{width:40px;min-width:40px;display:flex;flex-direction:column;align-items:center;padding-top:6px;position:relative;}
-.tl-dot{width:14px;height:14px;border-radius:50%;border:2px solid #3b82f6;background:#0f1117;flex-shrink:0;}
-.tl-dot.fixed{border-color:#f59e0b;background:#78350f;}
-.tl-dot.urgent{border-color:#ef4444;background:#7f1d1d;}
-.tl-dot.personal{border-color:#a78bfa;background:#2d1b4e;}
-
-.tl-card{flex:1;background:#111827;border:1px solid #1f2937;border-radius:8px;margin-bottom:8px;overflow:hidden;}
-.tl-card-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #1f2937;}
-.tl-time-range{font-size:12px;font-weight:bold;color:#fbbf24;white-space:nowrap;}
-.tl-travel-badge{font-size:10px;color:#475569;background:#0d1117;padding:1px 6px;border-radius:4px;}
-.tl-card-body{padding:6px 12px 8px;}
-.tl-title{font-size:13px;font-weight:bold;color:#e2e8f0;}
-.tl-sub{font-size:11px;color:#64748b;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.tl-sub .area{color:#34d399;}
-.tl-sub .ai-r{color:#94a3b8;font-style:italic;}
-.tl-card-foot{display:flex;align-items:center;justify-content:space-between;padding:4px 12px 8px;}
-.tl-end-time{font-size:10px;color:#475569;}
-
-/* 合計バー */
-.tl-summary{background:#0d1117;border:1px solid #1e40af;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;}
-.tl-summary span{color:#60a5fa;font-weight:bold;}
-.tl-summary label{color:#64748b;}
 </style>
 </head>
 <body>
@@ -155,53 +102,45 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <div class="header-title">🗓 3日間プラン</div>
+  <div class="header-title">📅 Today's Agenda</div>
   <div class="header-date" id="headerDate">-</div>
-  <button class="btn-settings" onclick="openSettings()">⚙️ API設定</button>
-</div>
-
-<!-- 設定モーダル -->
-<div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)this.style.display='none'">
-  <div class="settings-modal">
-    <h3>⚙️ Claude API設定</h3>
-    <label>Claude APIキー（sk-ant-...）</label>
-    <input type="password" id="claudeKeyInput" placeholder="sk-ant-api03-..." />
-    <div style="font-size:11px;color:#475569;margin-bottom:12px;">localStorageに保存。サーバー送信なし。</div>
-    <div class="modal-btns">
-      <button style="background:#065f46;color:#6ee7b7;" onclick="testClaudeKey()">🧪 テスト</button>
-      <button style="background:#1d4ed8;color:#fff;" onclick="saveClaudeKey()">💾 保存</button>
-      <button style="background:#374151;color:#9ca3af;" onclick="document.getElementById('settingsOverlay').style.display='none'">閉じる</button>
-    </div>
-  </div>
+  <button class="btn-refresh" onclick="loadData()">🔄 更新</button>
 </div>
 
 <div class="status-bar">
   <span id="stMsg">読み込み中...</span>
 </div>
 
-<div class="gen-area">
-  <button class="btn-gen" id="btnGen" onclick="generatePlan()" disabled>🤖 Claudeでプラン生成</button>
-  <button class="btn-save" id="btnSave" onclick="savePlan()" disabled>💾 プラン保存</button>
-  <span class="gen-note" id="genNote">データ取得中...</span>
-</div>
-
-<div id="mainContent">
-  <div class="loading-wrap"><span class="spin"></span><p>Firebase読み込み中...</p></div>
-</div>
-
-<!-- タイムライン表示エリア -->
-<div id="timelineArea" style="display:none;">
-  <div style="margin:14px 14px 0;display:flex;align-items:center;justify-content:space-between;">
-    <div style="font-size:13px;font-weight:bold;color:#60a5fa;">📅 保存済みタイムライン</div>
-    <div style="font-size:11px;color:#475569;" id="tlSavedAt"></div>
-  </div>
-  <div class="tl-wrap">
-    <div class="tl-tabs" id="tlTabs"></div>
-    <div id="tlContent"></div>
+<!-- ① お風呂21日アラート -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-head bath">🛁 お風呂・施工日接近アラート<span class="cnt" id="bathCnt">-</span></div>
+    <div class="section-body" id="bathBody"><div class="section-empty">読込中...</div></div>
   </div>
 </div>
 
-<div class="save-notice" id="saveNotice">💾 プラン保存完了</div>
+<!-- ② 下見実施チェック -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-head visit">🚗 下見実施チェック（過去分・未確認）<span class="cnt" id="visitCnt">-</span></div>
+    <div class="section-body" id="visitBody"><div class="section-empty">読込中...</div></div>
+  </div>
+</div>
+
+<!-- ③ 本日のコース設定 -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-head route">🧭 本日のコース設定<span class="cnt" id="routeCnt">-</span></div>
+    <div class="route-toolbar">
+      <button class="btn-calc" id="btnCalc" onclick="calcRoute()" disabled>🧭 コース計算</button>
+      <button class="btn-save-order" id="btnSaveOrder" onclick="saveRouteOrder()" disabled>💾 順番を保存</button>
+      <span class="route-note" id="routeNote">データ取得中...</span>
+    </div>
+    <div id="routeSummaryWrap"></div>
+    <div class="section-body" id="routeBody"><div class="section-empty">「コース計算」を押してください。</div></div>
+  </div>
+</div>
+
 <div class="bottom-pad"></div>
 <script src="shared-modal.js"></script>
 <script>
@@ -219,13 +158,15 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 var db = scopedDatabase(firebase.database());
 
 // ==================== GLOBALS ====================
-var raw7day = null;
 var globalTasks = {};
 var globalHeaders = [];
 var fullData = null;
-var HOME = localStorage.getItem('homeAddress') || '札幌市白石区栄通18丁目4-17';
 
-// ==================== 移動時間テーブル（白石区出発・片道分） ====================
+// ==================== 定数 ====================
+// 出発地点（札幌市白石区栄通18丁目付近の概算座標。誤差は数百m程度で、
+// ルート順の目安計算にのみ使用するため厳密な番地座標でなくてよい）
+var HOME_POINT = { lat: 43.0430, lng: 141.3995 };
+
 var AREA_TABLE = [
   { keys: ['千歳','恵庭','苫小牧'],           min: 55 },
   { keys: ['当別','小樽','岩見沢','北広島'],   min: 40 },
@@ -235,7 +176,7 @@ var AREA_TABLE = [
 ];
 var DEFAULT_TRAVEL = 20;
 var STAY_MIN = 25;
-var PERSONAL_MIN = 60;
+var BATH_ALERT_DAYS = 21;
 
 function getTravelMin(addr) {
   if (!addr) return DEFAULT_TRAVEL;
@@ -246,7 +187,6 @@ function getTravelMin(addr) {
   }
   return DEFAULT_TRAVEL;
 }
-
 function trimAddr(addr) {
   if (!addr) return '';
   var a = addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');
@@ -273,621 +213,457 @@ function fmtMD(s) {
   if (!s) return '';
   return parseInt(s.slice(5,7)) + '/' + parseInt(s.slice(8,10));
 }
+function daysBetween(s1, s2) {
+  var d1 = new Date(s1 + 'T00:00:00+09:00');
+  var d2 = new Date(s2 + 'T00:00:00+09:00');
+  return Math.round((d2 - d1) / 86400000);
+}
+function normalizeYMD(ds) {
+  if (!ds) return '';
+  var d = String(ds).replace(/\s+/g,'').replace(/\//g,'-').replace(/\./g,'-');
+  var p = d.split('-');
+  if (p.length === 3) return p[0]+'-'+('0'+p[1]).slice(-2)+'-'+('0'+p[2]).slice(-2);
+  return d;
+}
+function timeToMin(t) {
+  if (!t) return null;
+  var p = String(t).split(':');
+  if (p.length < 2) return null;
+  var h = parseInt(p[0],10), m = parseInt(p[1],10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h*60+m;
+}
+function minToTime(m) {
+  m = Math.round(m);
+  var h = Math.floor(m/60), mm = m%60;
+  if (h < 0) h = 0; if (h > 29) h = 29;
+  return ('0'+h).slice(-2) + ':' + ('0'+mm).slice(-2);
+}
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function getSafeVal(cols, i) {
+  if (!cols) return '';
+  if (Array.isArray(cols)) return (cols.length > i && cols[i] != null) ? String(cols[i]) : '';
+  return '';
+}
+function mapsUrl(addr) {
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr || '');
+}
 
-// ==================== FIREBASE LOAD ====================
+// ==================== キャッシュ読み書き（他ページと同じ appData_+userKey 方式） ====================
+function persistCache() {
+  if (fullData) {
+    fullData.app_tasks = globalTasks;
+    try { localStorage.setItem(modalAppDataKey(), JSON.stringify(fullData)); } catch(e) {}
+  }
+}
+
+// ==================== データ読込 ====================
 function loadData() {
+  document.getElementById('stMsg').textContent = '読み込み中...';
+  setHeader();
+
+  // ① まずキャッシュから即表示（他ページ同様、index.html訪問済みなら鮮度が高い）
   try {
-    var ls = localStorage.getItem('appData');
+    var ls = localStorage.getItem(modalAppDataKey());
     if (ls) {
       var ld = JSON.parse(ls);
       if (ld && ld.app_tasks) { globalTasks = ld.app_tasks; fullData = ld; }
       if (ld && ld.app_meta) globalHeaders = ld.app_meta.headers || [];
+      renderAll();
     }
   } catch(e) {}
 
-  db.ref('app_action_7day').once('value').then(function(snap) {
-    raw7day = snap.val();
-    if (!raw7day || !raw7day.items || !raw7day.items.length) {
-      document.getElementById('stMsg').innerHTML = '<span class="warn">⚠ データなし。7日間抽出ページで保存してください。</span>';
-      document.getElementById('mainContent').innerHTML =
-        '<div class="empty-msg">⚠️ app_action_7dayが空です。<br>7日間行動抽出ページで「Firebase保存」を実行してください。</div>';
-      document.getElementById('genNote').textContent = 'データなし';
-      return;
-    }
-    var n = raw7day.items.length;
-    var upd = raw7day.updated ? raw7day.updated.slice(0,16).replace('T',' ') : '-';
-    document.getElementById('stMsg').innerHTML =
-      '<span class="ok">✓ ' + n + '件取得</span>　更新: ' + upd;
-    document.getElementById('genNote').textContent = n + '件（リフォーム・新築・個人予定込み）でプラン生成';
-    document.getElementById('btnGen').disabled = false;
+  // ② Firebaseから最新のapp_tasks/app_metaを取得して上書き（毎朝の確認用ページなので鮮度優先）
+  Promise.all([
+    db.ref('app_tasks').once('value'),
+    db.ref('app_meta').once('value')
+  ]).then(function(results) {
+    var tasksSnap = results[0], metaSnap = results[1];
+    globalTasks = tasksSnap.val() || {};
+    var meta = metaSnap.val() || {};
+    globalHeaders = meta.headers || globalHeaders;
+    fullData = fullData || {};
+    fullData.app_tasks = globalTasks;
+    fullData.app_meta = meta;
+    persistCache();
 
-    if (Object.keys(globalTasks).length === 0) {
-      db.ref('app_tasks').once('value').then(function(s2) { globalTasks = s2.val() || {}; });
-    }
-    setHeader();
-    document.getElementById('mainContent').innerHTML =
-      '<div class="empty-msg" style="color:#475569">「Claudeでプラン生成」を押してください。</div>';
+    var n = Object.keys(globalTasks).length;
+    document.getElementById('stMsg').innerHTML = '<span class="ok">✓ ' + n + '件取得</span>';
+    document.getElementById('btnCalc').disabled = false;
+    document.getElementById('routeNote').textContent = '本日予定の案件が対象です';
+    renderAll();
   }).catch(function(e) {
-    document.getElementById('stMsg').innerHTML = '<span class="err">❌ ' + e.message + '</span>';
+    document.getElementById('stMsg').innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
   });
 }
 
 function setHeader() {
   var t = todayStr();
-  document.getElementById('headerDate').textContent =
-    fmtMD(t)+'('+wday(t)+')〜'+fmtMD(addDays(t,2))+'('+wday(addDays(t,2))+')';
+  document.getElementById('headerDate').textContent = fmtMD(t)+'('+wday(t)+')';
+}
+
+function renderAll() {
+  renderBathAlerts();
+  renderVisitChecks();
+  updateRouteAvailability();
 }
 
 function openModal(key) {
   if (!globalTasks[key]) return;
-  openCaseModal(key, globalTasks[key], globalHeaders, globalTasks, fullData, db, function() {});
+  openCaseModal(key, globalTasks[key], globalHeaders, globalTasks, fullData, db, function() { renderAll(); });
 }
 
-// ==================== プロンプト構築 ====================
-function getDayType(s) {
-  var HOLIDAYS = [
-    '2025-01-01','2025-01-13','2025-02-11','2025-02-24','2025-03-21',
-    '2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-07-21',
-    '2025-08-11','2025-09-15','2025-09-23','2025-10-13','2025-11-03','2025-11-23',
-    '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20',
-    '2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-07-20',
-    '2026-08-11','2026-09-21','2026-09-23','2026-10-12','2026-11-03','2026-11-23'
-  ];
-  var dow = new Date(s + 'T00:00:00+09:00').getDay();
-  if (HOLIDAYS.indexOf(s) >= 0) return '祝日（外回り禁止）';
-  if (dow === 0) return '日曜（外回り禁止）';
-  if (dow === 6) return '土曜（原則外回り回避・要確認）';
-  return '平日（通常稼働）';
-}
-
-function getShitamiInfo(item) {
-  var csvDate = '', csvTime = '', fbDate = '', fbTime = '';
-  if (item.key && globalTasks[item.key]) {
-    var t = globalTasks[item.key];
-    var c = t.csvData || [];
-    csvDate = (c[15] ? String(c[15]).replace(/\s+/g,'') : '');
-    csvTime = (c[16] ? String(c[16]).replace(/\s+/g,'') : '');
-    fbDate  = (t.date  ? String(t.date).replace(/\s+/g,'')  : '');
-    fbTime  = (t.time  ? String(t.time).replace(/\s+/g,'')  : '');
-  }
-  return {
-    csvDate: csvDate, csvTime: csvTime,
-    fbDate:  fbDate,  fbTime:  fbTime,
-    fixedDate: csvDate || fbDate,
-    fixedTime: csvTime || fbTime,
-    isCSVFixed: !!(csvDate),
-    isFBFixed:  !!(fbDate && !csvDate)
-  };
-}
-
-function buildPrompt() {
+// ==================== ① お風呂21日アラート ====================
+// 対象：工事区分名(C3列=cols[3])に「SB」を含み、施工日(C2列=cols[2])が
+// 今日から21日以内、かつ shitamiVisited フラグが立っていない案件。
+// 「下見日が入力済みか」ではなく「実際に行けたか(shitamiVisited)」で判定する
+// ＝日程だけ入って現地訪問できていないケースを拾うのが目的。
+function renderBathAlerts() {
   var today = todayStr();
-  var d0 = today, d1 = addDays(today,1), d2 = addDays(today,2);
-  var items = raw7day.items || [];
-  var lines = [];
-
-  for (var i = 0; i < items.length; i++) {
-    var it = items[i];
-    var travel = getTravelMin(it.addr);
-    var stay = (it.type === 'personal') ? PERSONAL_MIN : STAY_MIN;
-    var areaShort = trimAddr(it.addr);
-    var isPersonal = (it.type === 'personal');
-    var isUrgent   = (it.type === 'alert');
-    var isReform   = (it.type === 'reform');
-
-    var si = getShitamiInfo(it);
-    var fixedDate = si.fixedDate || it.date || '';
-    var fixedTime = si.fixedTime || it.time || '';
-    var isTimeFixed = !!(fixedTime);
-    var isDateFixed = !!(fixedDate);
-
-    var tag = '';
-    if (isPersonal) {
-      tag = '[個人予定・日時絶対固定]';
-    } else if (isReform) {
-      if (si.isCSVFixed) tag = '[ﾘ リフォーム・CSV確定日時・最優先固定]';
-      else if (si.isFBFixed) tag = '[ﾘ リフォーム・アプリ入力日時・優先固定]';
-      else if (isDateFixed)  tag = '[ﾘ リフォーム・日付確定]';
-      else                   tag = '[ﾘ リフォーム・日程未定・要調整]';
-    } else if (isUrgent) {
-      tag = '[新 緊急・訪問必要]';
-    } else {
-      tag = '[新 新築下見・日程調整可]';
-    }
-
-    var line = tag;
-    line += ' id=' + (it.id || '');
-    line += ' / 区分=' + (isReform ? 'ﾘ(リフォーム)' : isPersonal ? '個人' : '新(新築)');
-    line += ' / ' + (it.title || '');
-    if (si.csvDate) line += ' / CSV確定日=' + si.csvDate;
-    if (si.csvTime) line += ' / CSV確定時間=' + si.csvTime + '【変更禁止】';
-    if (si.fbDate && !si.csvDate) line += ' / アプリ入力日=' + si.fbDate + '(参考優先)';
-    if (si.fbTime && !si.csvTime) line += ' / アプリ入力時間=' + si.fbTime + '(参考優先)';
-    if (!si.csvDate && !si.fbDate && it.date) line += ' / 抽出元日付=' + it.date;
-    if (!si.csvTime && !si.fbTime && it.time) line += ' / 抽出元時間=' + it.time;
-    line += ' / エリア=' + (areaShort || '不明') + ' (' + (it.addr || '') + ')';
-    line += ' / 移動=' + travel + '分(片道) / 滞在=' + stay + '分';
-    if (it.reason) line += ' / 理由=' + it.reason;
-    if (it.company) line += ' / 担当=' + it.company;
-    lines.push(line);
-  }
-
-  return (
-'# Kの3日間下見プラン生成\n\n' +
-'## 基本情報\n' +
-'今日=' + d0 + '(' + wday(d0) + ') ' + getDayType(d0) + '\n' +
-'明日=' + d1 + '(' + wday(d1) + ') ' + getDayType(d1) + '\n' +
-'明後日=' + d2 + '(' + wday(d2) + ') ' + getDayType(d2) + '\n' +
-'出発地点: 白石区栄通18丁目（札幌市白石区）\n\n' +
-'## 曜日・祝日ルール（厳守）\n' +
-'・平日: 通常外回り可\n' +
-'・土曜: 原則外回り回避。よほど緊急でない限り自宅作業。\n' +
-'  → 土曜が含まれる場合は、外回りが必要か判断しnotesに「土曜確認: 〜が必要です。外回りしますか？」と記載\n' +
-'・日曜・祝日: 外回り絶対不可。下見案件を割り当て禁止\n' +
-'・例外: [日時絶対固定]タグは曜日に関係なくその時間に配置（先方指定のため）\n\n' +
-'## 下見日時の優先順位（重要）\n' +
-'1. CSV確定日時（[CSV確定日=][CSV確定時間=]）→ 最優先・絶対固定・変更禁止\n' +
-'2. アプリ入力日時（[アプリ入力日=][アプリ入力時間=]）→ 優先参考・基本その日その時間で組む\n' +
-'3. 抽出元日付（7日間抽出の元日付）→ 参考程度\n' +
-'4. 日時なし → 自由にエリア効率で提案\n\n' +
-'## 移動時間の目安（白石区から片道）\n' +
-'白石・厚別・豊平・東区・中央区・北区: 15分\n' +
-'手稲・清田・南区・西区: 20分\n' +
-'江別・石狩: 30分\n' +
-'北広島・小樽・当別・岩見沢: 40分\n' +
-'千歳・恵庭・苫小牧: 55分\n\n' +
-'## プランニングの順序（必ずこの順で）\n' +
-'STEP1: リフォーム確定下見（[ﾘ リフォーム・CSV確定][ﾘ リフォーム・アプリ入力]）を各日の「柱」として配置\n' +
-'STEP2: 個人予定（[個人予定]）を時間固定で配置\n' +
-'STEP3: 柱のある日に同エリア・近隣の新築案件を引き寄せる\n' +
-'STEP4: 緊急案件（[新 緊急]）を平日の早い日に配置\n' +
-'STEP5: 残り新築案件をエリア効率で振り分け\n' +
-'STEP6: 日曜・祝日の案件は全て別日へ移動。土曜は要確認\n\n' +
-'## 絶対ルール\n' +
-'1. CSV確定時間は変更禁止。その時間帯を必ず空ける\n' +
-'2. アプリ入力日時がある案件は基本その日その時間で組む（やむを得ない場合のみ変更可・notesに理由記載）\n' +
-'3. 同エリアは同じ日にまとめる\n' +
-'4. 1日の合計（移動+滞在）が480分を超えない\n' +
-'5. 遠方（55分）は1日2件まで\n' +
-'6. 日曜・祝日に下見案件を割り当て禁止\n\n' +
-'## 全案件リスト（' + items.length + '件）\n' +
-lines.join('\n') + '\n\n' +
-'## 出力形式（JSONのみ・前置き不要・コードブロック不要）\n' +
-'{\n' +
-'  "summary": "3日間プランの全体方針（2〜3文）",\n' +
-'  "saturday_confirm": "土曜が含まれる場合の確認メッセージ（なければ空文字）",\n' +
-'  "days": [\n' +
-'    {\n' +
-'      "date": "YYYY-MM-DD",\n' +
-'      "label": "今日 or 明日 or 明後日",\n' +
-'      "day_type": "平日 or 土曜 or 日曜・祝日",\n' +
-'      "theme": "その日のテーマ（例: ﾘ確定+白石エリア集中）",\n' +
-'      "cases": [\n' +
-'        {\n' +
-'          "order": 1,\n' +
-'          "id": "元のidフィールド値そのまま",\n' +
-'          "arrive": "09:00",\n' +
-'          "leave": "09:25",\n' +
-'          "travel_from_prev": 15,\n' +
-'          "reason": "この順にした理由（20字以内）"\n' +
-'        }\n' +
-'      ],\n' +
-'      "total_min": 120,\n' +
-'      "end_time": "11:00",\n' +
-'      "notes": "この日の注意点・土曜確認メッセージ等"\n' +
-'    }\n' +
-'  ],\n' +
-'  "deferred": [\n' +
-'    { "id": "元のid", "title": "タイトル", "reason": "入れなかった理由" }\n' +
-'  ],\n' +
-'  "notes": "全体補足"\n' +
-'}'
-  );
-}
-
-// ==================== Claude API呼び出し ====================
-function generatePlan() {
-  var claudeKey = localStorage.getItem('claudeApiKey');
-  if (!claudeKey) {
-    document.getElementById('mainContent').innerHTML =
-      '<div class="error-msg">⚠ Claude APIキー未設定。sogo.html のAPI設定から登録してください。<br>' +
-      '<small style="color:#9ca3af">設定 → Claude APIキーを入力して保存</small></div>';
-    return;
-  }
-  if (!raw7day || !raw7day.items || !raw7day.items.length) {
-    document.getElementById('mainContent').innerHTML =
-      '<div class="error-msg">⚠ データなし。7日間行動抽出ページで保存してください。</div>';
-    return;
-  }
-  var btn = document.getElementById('btnGen');
-  btn.disabled = true;
-  btn.textContent = '⏳ 生成中...';
-  document.getElementById('mainContent').innerHTML =
-    '<div class="loading-wrap"><span class="spin"></span><p>Claudeがエリア・時間を計算中...</p></div>';
-
-  fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': claudeKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: 'あなたは施工スケジューリングのエキスパートです。JSONのみ出力してください。前置き・後置き・マークダウンコードブロック不要。純粋なJSONのみ返してください。',
-      messages: [{ role: 'user', content: buildPrompt() }]
-    })
-  }).then(function(r){ return r.json(); })
-  .then(function(data){
-    btn.disabled = false;
-    btn.textContent = '🔄 再生成';
-    if (!data.content || !data.content[0]) {
-      throw new Error('APIレスポンス異常: ' + JSON.stringify(data).slice(0,300));
-    }
-    var raw = data.content[0].text;
-    var stopReason = data.stop_reason || '';
-    if (stopReason !== 'end_turn') {
-      document.getElementById('mainContent').innerHTML =
-        '<div class="error-msg">⚠ 生成途中で停止（' + esc(stopReason) + '）。再生成してください。</div>' +
-        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭600文字）:</b>' +
-        '<br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,600)) + '</pre></div>';
-      return;
-    }
-    try {
-      renderPlan(parseJson(raw));
-    } catch(pe) {
-      document.getElementById('mainContent').innerHTML =
-        '<div class="error-msg">❌ JSONパースエラー: ' + esc(pe.message) + '</div>' +
-        '<div class="notes-card" style="margin-top:8px"><b style="color:#e2e8f0">生レスポンス（先頭800文字）:</b>' +
-        '<br><pre style="white-space:pre-wrap;font-size:10px;color:#94a3b8;margin-top:6px">' + esc(raw.slice(0,800)) + '</pre></div>';
-    }
-  }).catch(function(e){
-    btn.disabled = false;
-    btn.textContent = '🤖 Claudeでプラン生成';
-    document.getElementById('mainContent').innerHTML =
-      '<div class="error-msg">❌ エラー: ' + esc(e.message) + '</div>';
+  var list = [];
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    var cols = obj.csvData;
+    if (!cols) return;
+    var kubun = getSafeVal(cols, 3);
+    if (kubun.indexOf('SB') === -1) return;
+    var sekoRaw = getSafeVal(cols, 2);
+    var seko = normalizeYMD(sekoRaw);
+    if (!seko) return;
+    var diff = daysBetween(today, seko);
+    if (diff < 0 || diff > BATH_ALERT_DAYS) return;
+    if (obj.shitamiVisited) return;
+    list.push({ key: key, obj: obj, cols: cols, seko: seko, diff: diff });
   });
-}
+  list.sort(function(a,b){ return a.diff - b.diff; });
 
-function parseJson(raw) {
-  var s = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-  var bs = s.indexOf('{'), be = s.lastIndexOf('}');
-  if (bs !== -1 && be > bs) s = s.slice(bs, be+1);
-  return JSON.parse(s);
-}
-
-// ==================== IDからitem取得 ====================
-function getItem(id) {
-  if (!raw7day || !raw7day.items) return null;
-  for (var i = 0; i < raw7day.items.length; i++) {
-    if (raw7day.items[i].id === id) return raw7day.items[i];
-  }
-  return null;
-}
-
-function mapsUrl(addr) {
-  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr || '');
-}
-
-// ==================== RENDER ====================
-function renderPlan(plan) {
-  if (!plan || !plan.days) {
-    document.getElementById('mainContent').innerHTML =
-      '<div class="error-msg">❌ プラン解析失敗。再生成してください。</div>';
+  document.getElementById('bathCnt').textContent = list.length + '件';
+  var body = document.getElementById('bathBody');
+  if (list.length === 0) {
+    body.innerHTML = '<div class="section-empty">🎉 該当なし（21日以内・未実施のお風呂案件はありません）</div>';
     return;
   }
-  var today = todayStr();
   var html = '';
+  list.forEach(function(it) {
+    var title = getSafeVal(it.cols, 4).trim() || it.key;
+    var addr = getSafeVal(it.cols, 11);
+    var diffLabel = it.diff === 0 ? '本日施工日' : it.diff + '日後';
+    html += '<div class="acard">';
+    html += '<div class="acard-main" onclick="openModal(\''+esc(it.key)+'\')">';
+    html += '<div class="acard-title">' + esc(title) + '</div>';
+    html += '<div class="acard-sub">';
+    html += '<span class="daysleft">🔨 施工日 ' + fmtMD(it.seko) + '（' + diffLabel + '）</span>';
+    if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
+    html += '</div></div>';
+    html += '</div>';
+  });
+  body.innerHTML = html;
+}
 
-  if (plan.summary) {
-    html += '<div class="summary-card">' +
-      '<div class="summary-header">🤖 Claudeプラン概要</div>' +
-      '<div class="summary-body">' + esc(plan.summary) + '</div></div>';
+// ==================== ② 下見実施チェック ====================
+// 対象：obj.date（アプリで編集する予定日フィールド）が今日より前で、
+// shitamiVisitedフラグが立っていない案件。CSV下見日(cols[12]/[13])は
+// 過去のインデックス取り違えバグの温床だったため使わず、本人が日々
+// モーダルで直接編集しているobj.date/obj.timeのみを基準にする。
+function renderVisitChecks() {
+  var today = todayStr();
+  var list = [];
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    if (!obj.date) return;
+    if (obj.date >= today) return;
+    if (obj.shitamiVisited) return;
+    list.push({ key: key, obj: obj });
+  });
+  list.sort(function(a,b){ return (a.obj.date+ (a.obj.time||'')).localeCompare(b.obj.date+(b.obj.time||'')); });
+
+  document.getElementById('visitCnt').textContent = list.length + '件';
+  var body = document.getElementById('visitBody');
+  if (list.length === 0) {
+    body.innerHTML = '<div class="section-empty">✅ 未確認の過去予定はありません</div>';
+    return;
+  }
+  var html = '';
+  list.forEach(function(it) {
+    var cols = it.obj.csvData;
+    var title = getSafeVal(cols, 4).trim() || it.key;
+    var addr = getSafeVal(cols, 11);
+    html += '<div class="acard">';
+    html += '<div class="acard-main" onclick="openModal(\''+esc(it.key)+'\')">';
+    html += '<div class="acard-title">' + esc(title) + '</div>';
+    html += '<div class="acard-sub">';
+    html += '<span class="lock">⏰予定 ' + fmtMD(it.obj.date) + (it.obj.time ? ' ' + esc(it.obj.time) : '') + '</span>';
+    if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
+    html += '</div></div>';
+    html += '<div class="acard-btns">';
+    html += '<button class="abtn abtn-yes" onclick="event.stopPropagation();markVisited(\''+esc(it.key)+'\')">✅ 行った</button>';
+    html += '<button class="abtn abtn-no" onclick="event.stopPropagation();markNotVisited(\''+esc(it.key)+'\')">❌ 行けなかった</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+  body.innerHTML = html;
+}
+
+function markVisited(key) {
+  var obj = globalTasks[key];
+  if (!obj) return;
+  var nowIso = new Date().toISOString();
+  db.ref('app_tasks/'+key).update({ shitamiVisited: true, shitamiVisitedAt: nowIso }).then(function() {
+    obj.shitamiVisited = true;
+    obj.shitamiVisitedAt = nowIso;
+    persistCache();
+    renderVisitChecks();
+  }).catch(function(e) { alert('更新失敗：' + e.message); });
+}
+
+function markNotVisited(key) {
+  var obj = globalTasks[key];
+  if (!obj) return;
+  var cols = obj.csvData;
+  var title = getSafeVal(cols, 4).trim() || key;
+  if (!confirm('「' + title + '」を「行けなかった」として記録します。\n予定日時をクリアし、連絡必要フラグを立てます。よろしいですか？')) return;
+
+  var d = new Date();
+  var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+    + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+  var prevDate = obj.date || '未設定';
+  var prevTime = obj.time || '';
+  var noteLine = '【下見未実施 ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → 行けず（自動クリア）';
+  var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
+  var updates = { date: '', time: '', needsContact: true, memo: newMemo, shitamiVisited: false };
+
+  db.ref('app_tasks/'+key).update(updates).then(function() {
+    for (var k in updates) obj[k] = updates[k];
+    persistCache();
+    renderVisitChecks();
+    updateRouteAvailability();
+  }).catch(function(e) { alert('更新失敗：' + e.message); });
+}
+
+// ==================== ③ 本日のコース設定 ====================
+function getUsableGeo(obj) {
+  var g = obj.geocode;
+  if (!g || g.lat == null || g.lng == null) return null;
+  if (g.confidence === 'low' || g.confidence === 'fail') return null;
+  return { lat: g.lat, lng: g.lng };
+}
+function haversineKm(lat1,lng1,lat2,lng2) {
+  var R = 6371;
+  var dLat = (lat2-lat1) * Math.PI/180;
+  var dLng = (lng2-lng1) * Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  var c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+// 2点間の移動時間目安（分）。両方に使える座標があれば直線距離×道なり補正÷平均時速で概算。
+// どちらか座標が使えない場合は、従来のエリア表（自宅からの目安）にフォールバックする
+// （エリア表はもともと「自宅からの距離」しか表現できないため、区間移動としては粗い近似）。
+function travelMinBetween(fromPt, toObj) {
+  var toGeo = getUsableGeo(toObj);
+  if (fromPt && toGeo) {
+    var km = haversineKm(fromPt.lat, fromPt.lng, toGeo.lat, toGeo.lng);
+    var roadKm = km * 1.3;
+    var min = Math.round(roadKm / 25 * 60);
+    return Math.max(5, min);
+  }
+  var addr = getSafeVal(toObj.csvData, 11);
+  return getTravelMin(addr);
+}
+
+function buildTodayCases() {
+  var today = todayStr();
+  var list = [];
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    if (obj.date !== today) return;
+    var cols = obj.csvData;
+    var geo = getUsableGeo(obj);
+    list.push({
+      key: key,
+      obj: obj,
+      title: getSafeVal(cols, 4).trim() || key,
+      addr: getSafeVal(cols, 11),
+      kubun: getSafeVal(cols, 3),
+      fixedTime: obj.time || null,
+      hasGeo: !!geo,
+      lat: geo ? geo.lat : null,
+      lng: geo ? geo.lng : null,
+      stayMin: STAY_MIN
+    });
+  });
+  return list;
+}
+
+// 挿入法（nearest insertion）：時間固定の案件を骨格とし、
+// 自由（時間未指定）案件は挿入コスト（追加移動距離）が最小になる位置に順次挿入する。
+function planTodayRoute(items) {
+  var fixed = items.filter(function(it){ return !!it.fixedTime; })
+                    .sort(function(a,b){ return a.fixedTime.localeCompare(b.fixedTime); });
+  var free = items.filter(function(it){ return !it.fixedTime; });
+
+  var route = [{ virtual: true, point: HOME_POINT }].concat(fixed);
+
+  function ptOf(node) {
+    if (node.virtual) return node.point;
+    if (node.hasGeo) return { lat: node.lat, lng: node.lng };
+    return null;
+  }
+  function roughKm(fromNode, toNode) {
+    var p1 = ptOf(fromNode), p2 = ptOf(toNode);
+    if (p1 && p2) return haversineKm(p1.lat, p1.lng, p2.lat, p2.lng);
+    // 座標が使えない側はエリア表の分数を距離の代わりに使う（時速25km換算で粗く逆算）
+    var addr = toNode.virtual ? '' : toNode.addr;
+    return getTravelMin(addr) / 60 * 25;
   }
 
-  var dayClasses = ['d0','d1','d2'];
+  free.forEach(function(cand) {
+    var bestIdx = route.length, bestCost = Infinity;
+    for (var i = 1; i <= route.length; i++) {
+      var prev = route[i-1];
+      var next = (i < route.length) ? route[i] : null;
+      var dPrevCand = roughKm(prev, cand);
+      var cost;
+      if (next) {
+        var dCandNext = roughKm(cand, next);
+        var dPrevNext = roughKm(prev, next);
+        cost = dPrevCand + dCandNext - dPrevNext;
+      } else {
+        cost = dPrevCand;
+      }
+      if (cost < bestCost) { bestCost = cost; bestIdx = i; }
+    }
+    route.splice(bestIdx, 0, cand);
+  });
 
-  for (var di = 0; di < plan.days.length && di < 3; di++) {
-    var day = plan.days[di];
-    var dc = dayClasses[di] || 'd2';
-    var dateStr = day.date || addDays(today, di);
-    var labelStr = esc(day.label || '') + ' ' + fmtMD(dateStr) + '(' + wday(dateStr) + ')';
+  return route.filter(function(r){ return !r.virtual; });
+}
 
-    html += '<div class="day-block">';
-    html += '<div class="day-label ' + dc + '">';
-    html += '<span>' + labelStr + '</span>';
-    if (day.theme) html += '<span class="day-theme">— ' + esc(day.theme) + '</span>';
-    html += '<span class="day-meta">' + esc(String(day.total_min || '-')) + '分　〜' + esc(day.end_time || '') + '</span>';
-    html += '</div>';
-    html += '<div class="cases-wrap">';
-
-    if (!day.cases || day.cases.length === 0) {
-      html += '<div style="padding:14px 16px;font-size:12px;color:#4b5563;">この日の予定なし</div>';
-    } else {
-      for (var ci = 0; ci < day.cases.length; ci++) {
-        var cas = day.cases[ci];
-        var item = getItem(cas.id);
-        if (!item) continue;
-
-        var isPersonal = (item.type === 'personal');
-        var isFixed    = !!(item.time);
-        var isUrgent   = (item.type === 'alert');
-        var isReform   = (item.type === 'reform');
-
-        var cardCls = 'case-card';
-        if (isPersonal || (isFixed && isReform)) cardCls += ' fixed-time';
-        else if (isUrgent) cardCls += ' urgent';
-        else cardCls += ' proposed';
-
-        var badges = '';
-        if (isPersonal)       badges += '<span class="badge badge-personal">📅 個人予定</span>';
-        else if (isReform)    badges += '<span class="badge badge-reform">ﾘ リフォーム</span>';
-        else if (item.type === 'newbuild') badges += '<span class="badge badge-new">新 新築</span>';
-        else if (isUrgent)    badges += '<span class="badge badge-urgent">⚠ 緊急</span>';
-        if (isFixed)          badges += '<span class="badge badge-fixed">🔒 時間固定</span>';
-        else if (!isPersonal) badges += '<span class="badge badge-proposed">✦ AI提案</span>';
-
-        var travelMin = cas.travel_from_prev || getTravelMin(item.addr);
-        var hasKey = !!(item.key && globalTasks[item.key]);
-
-        html += '<div class="' + cardCls + '">';
-        html += '<div class="case-num">' + (cas.order || ci+1) + '</div>';
-        html += '<div class="case-times">';
-        html += '<div class="t-arrive">' + esc(cas.arrive || '') + '</div>';
-        html += '<div class="t-leave">〜' + esc(cas.leave || '') + '</div>';
-        html += '<div class="t-travel">移' + travelMin + '分</div>';
-        html += '</div>';
-
-        if (hasKey) {
-          html += '<div class="case-body" data-key="' + esc(item.key) + '" onclick="openModal(this.dataset.key)">';
-        } else {
-          html += '<div class="case-body-plain">';
-        }
-        html += '<div class="case-head">' + badges + '</div>';
-        html += '<div class="case-title">' + esc(item.title || '') + '</div>';
-        html += '<div class="case-sub">';
-        if (item.addr) html += '<span class="area">📍' + esc(trimAddr(item.addr)) + '</span>';
-        if (isFixed)   html += '<span class="lock">⏰' + esc(item.time) + '</span>';
-        if (item.company) html += '<span>' + esc(item.company) + '</span>';
-        if (cas.reason) html += '<span class="ai-r">' + esc(cas.reason) + '</span>';
-        html += '</div>';
-        html += '</div>';
-
-        if (item.addr) {
-          html += '<a class="btn-map" href="' + mapsUrl(item.addr) + '" target="_blank" rel="noopener">🗺 MAP</a>';
-        }
-        html += '</div>';
+function simulateTimeline(route) {
+  var startMin = 8*60+30;
+  if (route.length && route[0].fixedTime) {
+    var ft = timeToMin(route[0].fixedTime);
+    if (ft != null && ft < startMin) startMin = ft;
+  }
+  var curTime = startMin;
+  var curPt = HOME_POINT;
+  var result = [];
+  route.forEach(function(item) {
+    var fromPt = curPt;
+    var travel = travelMinBetween(fromPt, item.obj);
+    var arrive = curTime + travel;
+    var warn = '';
+    if (item.fixedTime) {
+      var ft = timeToMin(item.fixedTime);
+      if (ft != null) {
+        if (arrive > ft + 5) warn = '⏰予定(' + item.fixedTime + ')より遅れる可能性';
+        arrive = ft;
       }
     }
-
-    if (day.notes) html += '<div class="day-notes">💡 ' + esc(day.notes) + '</div>';
-    html += '</div></div>';
-  }
-
-  if (plan.deferred && plan.deferred.length > 0) {
-    html += '<div class="deferred-block">';
-    html += '<div class="deferred-header">📋 3日間に入らなかった案件（' + plan.deferred.length + '件）</div>';
-    for (var i = 0; i < plan.deferred.length; i++) {
-      var def = plan.deferred[i];
-      var defItem = getItem(def.id);
-      html += '<div class="deferred-item">';
-      html += esc((defItem && defItem.title) || def.title || def.id);
-      if (def.reason) html += ' — <span>' + esc(def.reason) + '</span>';
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-
-  if (plan.notes) {
-    html += '<div class="notes-card">📝 ' + esc(plan.notes) + '</div>';
-  }
-
-  html += '<div class="bottom-pad"></div>';
-  document.getElementById('mainContent').innerHTML = html;
-
-  currentPlan = plan;
-  document.getElementById('btnSave').disabled = false;
+    var leave = arrive + item.stayMin;
+    result.push({ item: item, travel: travel, arrive: arrive, leave: leave, warn: warn });
+    curTime = leave;
+    if (item.hasGeo) curPt = { lat: item.lat, lng: item.lng };
+  });
+  return result;
 }
 
-// ==================== プラン保存 ====================
-var currentPlan = null;
+var currentRoute = null;
 
-function savePlan() {
-  if (!currentPlan) return;
-  var btn = document.getElementById('btnSave');
+function calcRoute() {
+  var items = buildTodayCases();
+  document.getElementById('routeCnt').textContent = items.length + '件';
+  if (items.length === 0) {
+    document.getElementById('routeBody').innerHTML = '<div class="section-empty">本日(obj.date=今日)の予定案件がありません</div>';
+    document.getElementById('routeSummaryWrap').innerHTML = '';
+    document.getElementById('btnSaveOrder').disabled = true;
+    return;
+  }
+  var route = planTodayRoute(items);
+  var timeline = simulateTimeline(route);
+  currentRoute = timeline;
+  renderRoute(timeline);
+  document.getElementById('btnSaveOrder').disabled = false;
+}
+
+function renderRoute(timeline) {
+  var totalMin = 0;
+  timeline.forEach(function(r){ totalMin += r.travel + r.item.stayMin; });
+  var endTime = timeline.length ? minToTime(timeline[timeline.length-1].leave) : '-';
+  document.getElementById('routeSummaryWrap').innerHTML =
+    '<div class="route-summary">' +
+    '<div><label>件数 </label><span>' + timeline.length + '件</span></div>' +
+    '<div><label>合計(移動+滞在) </label><span>' + totalMin + '分</span></div>' +
+    '<div><label>終了予定 </label><span>' + endTime + '</span></div>' +
+    '</div>';
+
+  var html = '';
+  timeline.forEach(function(r, i) {
+    var item = r.item;
+    var isReform = item.kubun.indexOf('ﾘ') >= 0;
+    var badges = isReform ? '<span class="badge badge-reform">ﾘ リフォーム</span>' : '<span class="badge badge-new">新 新築</span>';
+    badges += item.fixedTime ? '<span class="badge badge-fixed">🔒 時間固定</span>' : '<span class="badge badge-est">✦ 提案順</span>';
+
+    html += '<div class="rcard">';
+    html += '<div class="rcard-num">' + (i+1) + '</div>';
+    html += '<div class="rcard-times">';
+    html += '<div class="t-arrive">' + minToTime(r.arrive) + '</div>';
+    html += '<div class="t-leave">〜' + minToTime(r.leave) + '</div>';
+    html += '<div class="t-travel">移' + r.travel + '分</div>';
+    html += '</div>';
+    html += '<div class="rcard-body" onclick="openModal(\''+esc(item.key)+'\')">';
+    html += '<div style="margin-bottom:3px;">' + badges + '</div>';
+    html += '<div class="rcard-title">' + esc(item.title) + '</div>';
+    html += '<div class="rcard-sub">';
+    if (item.addr) html += '<span class="area">📍' + esc(trimAddr(item.addr)) + '</span>';
+    if (item.fixedTime) html += '<span class="lock">⏰' + esc(item.fixedTime) + '</span>';
+    if (r.warn) html += '<span class="warn">' + esc(r.warn) + '</span>';
+    html += '</div></div>';
+    if (item.addr) html += '<a class="btn-map" href="' + mapsUrl(item.addr) + '" target="_blank" rel="noopener">🗺 MAP</a>';
+    html += '</div>';
+  });
+  document.getElementById('routeBody').innerHTML = html;
+}
+
+function saveRouteOrder() {
+  if (!currentRoute || !currentRoute.length) return;
+  var btn = document.getElementById('btnSaveOrder');
   btn.disabled = true;
   btn.textContent = '保存中...';
 
-  var saveData = {
-    saved_at: new Date().toISOString(),
-    plan: currentPlan,
-    items_snapshot: raw7day ? raw7day.items : []
-  };
+  var updates = {};
+  currentRoute.forEach(function(r, i) {
+    updates['app_tasks/' + r.item.key + '/order'] = i + 1;
+  });
 
-  db.ref('app_action_plan').set(saveData).then(function() {
+  db.ref().update(updates).then(function() {
+    currentRoute.forEach(function(r, i) {
+      globalTasks[r.item.key].order = i + 1;
+    });
+    persistCache();
+    btn.textContent = '💾 順番を保存';
     btn.disabled = false;
-    btn.textContent = '💾 プラン保存';
-    var n = document.getElementById('saveNotice');
-    n.classList.add('show');
-    setTimeout(function(){ n.classList.remove('show'); }, 2500);
-    renderTimeline(saveData);
+    alert('順番を保存しました（' + currentRoute.length + '件）');
   }).catch(function(e) {
+    btn.textContent = '💾 順番を保存';
     btn.disabled = false;
-    btn.textContent = '💾 プラン保存';
-    alert('保存失敗: ' + e.message);
+    alert('保存失敗：' + e.message);
   });
 }
 
-// ==================== タイムライン描画 ====================
-function renderTimeline(saveData) {
-  if (!saveData || !saveData.plan || !saveData.plan.days) return;
-  var plan = saveData.plan;
-  var items = saveData.items_snapshot || [];
-
-  var itemMap = {};
-  for (var i = 0; i < items.length; i++) itemMap[items[i].id] = items[i];
-
-  var tlArea = document.getElementById('timelineArea');
-  var tlTabs = document.getElementById('tlTabs');
-  var tlContent = document.getElementById('tlContent');
-  var tlSavedAt = document.getElementById('tlSavedAt');
-
-  var savedAt = saveData.saved_at ? saveData.saved_at.slice(0,16).replace('T',' ') : '';
-  tlSavedAt.textContent = '保存: ' + savedAt;
-
-  tlTabs.innerHTML = '';
-  tlContent.innerHTML = '';
-
-  for (var di = 0; di < plan.days.length && di < 3; di++) {
-    var day = plan.days[di];
-    var dateStr = day.date || '';
-    var tabLabel = (day.label || '') + ' ' + fmtMD(dateStr) + '(' + wday(dateStr) + ')';
-
-    var tabBtn = document.createElement('button');
-    tabBtn.className = 'tl-tab' + (di === 0 ? ' active' : '');
-    tabBtn.textContent = tabLabel;
-    tabBtn.setAttribute('data-di', di);
-    tabBtn.onclick = (function(idx) {
-      return function() {
-        var tabs = document.querySelectorAll('.tl-tab');
-        var days = document.querySelectorAll('.tl-day');
-        for (var t = 0; t < tabs.length; t++) tabs[t].classList.remove('active');
-        for (var d = 0; d < days.length; d++) days[d].classList.remove('active');
-        this.classList.add('active');
-        document.getElementById('tl-day-' + idx).classList.add('active');
-      };
-    })(di);
-    tlTabs.appendChild(tabBtn);
-
-    var dayDiv = document.createElement('div');
-    dayDiv.className = 'tl-day' + (di === 0 ? ' active' : '');
-    dayDiv.id = 'tl-day-' + di;
-
-    var cases = day.cases || [];
-    if (cases.length === 0) {
-      dayDiv.innerHTML = '<div class="tl-empty">この日の予定なし</div>';
-    } else {
-      var sumHtml = '<div class="tl-summary">' +
-        '<div><label>合計 </label><span>' + (day.total_min || '-') + '分</span></div>' +
-        '<div><label>終了予定 </label><span>' + esc(day.end_time || '-') + '</span></div>' +
-        '<div><label>テーマ </label><span>' + esc(day.theme || '-') + '</span></div>' +
-        '</div>';
-
-      var tlHtml = '';
-      for (var ci = 0; ci < cases.length; ci++) {
-        var cas = cases[ci];
-        var item = itemMap[cas.id];
-        if (!item) continue;
-
-        var isPersonal = (item.type === 'personal');
-        var isFixed    = !!(item.time);
-        var isUrgent   = (item.type === 'alert');
-        var isReform   = (item.type === 'reform');
-
-        var dotCls = 'tl-dot';
-        if (isPersonal) dotCls += ' personal';
-        else if (isFixed && isReform) dotCls += ' fixed';
-        else if (isUrgent) dotCls += ' urgent';
-
-        var badges = '';
-        if (isReform)          badges += '<span class="badge badge-reform">ﾘ</span> ';
-        else if (item.type === 'newbuild') badges += '<span class="badge badge-new">新</span> ';
-        else if (isUrgent)     badges += '<span class="badge badge-urgent">⚠</span> ';
-        else if (isPersonal)   badges += '<span class="badge badge-personal">📅</span> ';
-        if (isFixed)           badges += '<span class="badge badge-fixed">🔒</span> ';
-
-        var travelMin = cas.travel_from_prev || getTravelMin(item.addr);
-        var mapBtn = item.addr ?
-          '<a class="btn-map" href="' + mapsUrl(item.addr) + '" target="_blank" rel="noopener" style="font-size:10px;padding:3px 7px;">🗺 MAP</a>' : '';
-
-        tlHtml += '<div class="tl-item">' +
-          '<div class="tl-line"><div class="' + dotCls + '"></div></div>' +
-          '<div class="tl-card">' +
-            '<div class="tl-card-head">' +
-              '<span class="tl-time-range">' + esc(cas.arrive || '') + ' 〜 ' + esc(cas.leave || '') + '</span>' +
-              (ci > 0 ? '<span class="tl-travel-badge">移動' + travelMin + '分</span>' : '<span class="tl-travel-badge">出発</span>') +
-            '</div>' +
-            '<div class="tl-card-body">' +
-              '<div class="tl-title">' + badges + esc(item.title || '') + '</div>' +
-              '<div class="tl-sub">' +
-                (item.addr ? '<span class="area">📍' + esc(trimAddr(item.addr)) + '</span>' : '') +
-                (isFixed ? '<span class="lock">⏰' + esc(item.time) + '</span>' : '') +
-                (item.company ? '<span>' + esc(item.company) + '</span>' : '') +
-                (cas.reason ? '<span class="ai-r">' + esc(cas.reason) + '</span>' : '') +
-              '</div>' +
-            '</div>' +
-            '<div class="tl-card-foot">' +
-              '<span class="tl-end-time">退出 ' + esc(cas.leave || '') + '</span>' +
-              mapBtn +
-            '</div>' +
-          '</div>' +
-        '</div>';
-      }
-
-      if (day.notes) {
-        tlHtml += '<div class="day-notes" style="margin-top:4px;">💡 ' + esc(day.notes) + '</div>';
-      }
-
-      dayDiv.innerHTML = sumHtml + tlHtml;
-    }
-    tlContent.appendChild(dayDiv);
-  }
-
-  tlArea.style.display = 'block';
-  tlArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// ==================== 保存済みプラン読み込み ====================
-function loadSavedPlan() {
-  db.ref('app_action_plan').once('value').then(function(snap) {
-    var saved = snap.val();
-    if (saved && saved.plan) {
-      renderTimeline(saved);
-    }
-  }).catch(function(e) { console.warn('保存済みプラン取得失敗', e); });
-}
-
-// ==================== API設定 ====================
-function openSettings(){
-  document.getElementById('claudeKeyInput').value = localStorage.getItem('claudeApiKey') || '';
-  document.getElementById('settingsOverlay').style.display = 'block';
-}
-function saveClaudeKey(){
-  var k = document.getElementById('claudeKeyInput').value.trim();
-  if(!k){alert('キーを入力してください');return;}
-  localStorage.setItem('claudeApiKey', k);
-  document.getElementById('settingsOverlay').style.display = 'none';
-  alert('保存しました');
-}
-function testClaudeKey(){
-  var k = document.getElementById('claudeKeyInput').value.trim();
-  if(!k){alert('キーを入力してください');return;}
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key':k,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:10,messages:[{role:'user',content:'OK'}]})
-  }).then(function(r){return r.json();}).then(function(d){
-    if(d.content&&d.content[0])alert('✅ 有効なAPIキーです');
-    else if(d.error)alert('❌ '+d.error.message);
-    else alert('⚠️ 不明: '+JSON.stringify(d));
-  }).catch(function(e){alert('❌ '+e.message);});
+function updateRouteAvailability() {
+  var today = todayStr();
+  var n = 0;
+  Object.keys(globalTasks).forEach(function(key) {
+    if (globalTasks[key].date === today) n++;
+  });
+  document.getElementById('routeCnt').textContent = n + '件';
 }
 
 // ==================== INIT ====================
-setHeader();
 loadData();
-loadSavedPlan();
 </script>
 </body>
 </html>
