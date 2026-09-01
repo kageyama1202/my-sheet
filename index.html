@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-29 -->
+<!-- VERSION: 2026-09-01 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -86,6 +86,17 @@
     if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     var database = scopedDatabase(firebase.database());
 
+    // ★2026-09-01追加★
+    // localStorageの案件キャッシュキーは以前 'appData' 固定だったため、同じ端末を
+    // 複数人（複数PIN=複数userKey）で使い回すと、後からログインした人が「最新データを
+    // 取得」した瞬間に他人のuserKeyのデータで上書きされ、先にログインしたままの人の
+    // 画面にも他人の案件が混ざって見える不具合があった。
+    // userKeyごとにキャッシュキー自体を分けることで、端末を共用してもログイン中の
+    // userKeyのキャッシュだけを読み書きするようにする（ログイン操作自体は変更なし）。
+    function appDataKey() {
+      return 'appData_' + getUserKey();
+    }
+
     function getTodayStr() {
       var d = new Date();
       return d.getFullYear() + '-' +
@@ -168,7 +179,7 @@
         var dbData = snapshot.val();
         if (!dbData || !dbData.app_meta || !dbData.app_tasks) {
           var cached = null;
-          try { cached = localStorage.getItem('appData'); } catch(e) {}
+          try { cached = localStorage.getItem(appDataKey()); } catch(e) {}
           if (!cached) {
             statusMsg.className = 'status error';
             statusMsg.innerHTML = '⚠️ データがありません。<br><span style="font-size:12px; font-weight:normal;">下の「CSV取込（管理者）」からCSVをアップロードしてください。</span>';
@@ -204,7 +215,7 @@
         dbData.app_tasks = filtered;
 
         try {
-          localStorage.setItem('appData', JSON.stringify(dbData));
+          localStorage.setItem(appDataKey(), JSON.stringify(dbData));
         } catch(e) {
           console.warn('localStorage容量超過のため保存スキップ:', e.message);
           var retryFiltered = {};
@@ -223,7 +234,7 @@
           });
           dbData.app_tasks = retryFiltered;
           try {
-            localStorage.setItem('appData', JSON.stringify(dbData));
+            localStorage.setItem(appDataKey(), JSON.stringify(dbData));
           } catch(e2) {
             console.warn('再試行も失敗。既存キャッシュで動作継続:', e2.message);
           }
@@ -242,7 +253,7 @@
       }).catch(function(error) {
         console.error('Firebase取得エラー:', error);
         var cached = null;
-        try { cached = localStorage.getItem('appData'); } catch(e) {}
+        try { cached = localStorage.getItem(appDataKey()); } catch(e) {}
         if (cached) {
           statusMsg.className = 'status success';
           statusMsg.innerHTML = '⚠️ 通信エラー（前回キャッシュで動作中）';
@@ -259,7 +270,7 @@
 
       // ② キャッシュがあれば即メニュー有効化
       var cached = null;
-      try { cached = localStorage.getItem('appData'); } catch(e) {}
+      try { cached = localStorage.getItem(appDataKey()); } catch(e) {}
       if (cached) {
         enableMenu();
         var statusMsg = document.getElementById('statusMsg');
