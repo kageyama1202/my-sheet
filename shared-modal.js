@@ -209,7 +209,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div id="modal-visited-status" style="font-size:12px;color:#888;margin-bottom:8px;">'
     + (isVisited ? ('✅ 実施済み' + (obj.shitamiVisitedAt ? '（' + String(obj.shitamiVisitedAt).slice(0,16).replace('T',' ') + '）' : '')) : '未確認')
     + '</div>';
-  html += '<button type="button" id="modal-visited-yes" style="font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;margin-right:6px;">✅ 行った</button>';
+  html += '<button type="button" id="modal-visited-yes" style="font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;margin-right:6px;">✅ 現地下見完了</button>';
   html += '<button type="button" id="modal-visited-no" style="font-size:12px;padding:6px 14px;border:1px solid #c62828;border-radius:4px;background:#ffebee;color:#b71c1c;font-weight:bold;cursor:pointer;">❌ 行けなかった</button>';
   html += '</div>';
 
