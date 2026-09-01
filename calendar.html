@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-005 -->
+<!-- VERSION: 2026-09-01 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -116,6 +116,15 @@
     // 匿名認証
     // 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
 
+    // ★2026-09-01追加★
+    // localStorageのキャッシュキー('appData'・'personalCalendar')が以前は全ユーザー共通
+    // だったため、同じ端末を複数人（複数PIN=複数userKey）で使い回すと、後からログインした
+    // 人が取得したデータで上書きされ、先にログインしたままの人の画面にも他人の案件が
+    // 混ざって見える不具合があった。index.html/today.htmlと同じくuserKeyごとに
+    // キャッシュキー自体を分ける（ログイン操作自体は変更なし）。
+    function appDataKey(){return 'appData_'+getUserKey();}
+    function personalCalKey(){return 'personalCalendar_'+getUserKey();}
+
     function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
     function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
     function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
@@ -148,15 +157,15 @@
     var dayListOverlay=document.getElementById('dayListOverlay');
 
     var globalHeaders=[],globalTasks={},fullData=null;
-    try{var _s=localStorage.getItem('appData');if(_s)fullData=JSON.parse(_s);}catch(e){console.error(e);}
+    try{var _s=localStorage.getItem(appDataKey());if(_s)fullData=JSON.parse(_s);}catch(e){console.error(e);}
     if(fullData&&fullData.app_meta&&fullData.app_tasks){globalHeaders=fullData.app_meta.headers;globalTasks=fullData.app_tasks;}
     else{document.getElementById('noDataMsg').style.display='block';document.getElementById('calWrapper').style.display='none';}
 
     var todayStr=getTodayStr();
     var personalCalCache={};
-    try{var _pc=localStorage.getItem('personalCalendar');if(_pc)personalCalCache=JSON.parse(_pc);}catch(e){}
+    try{var _pc=localStorage.getItem(personalCalKey());if(_pc)personalCalCache=JSON.parse(_pc);}catch(e){}
     database.ref('personal_calendar').once('value').then(function(snap){
-      if(snap.val()){personalCalCache=snap.val();try{localStorage.setItem('personalCalendar',JSON.stringify(personalCalCache));}catch(e){}}
+      if(snap.val()){personalCalCache=snap.val();try{localStorage.setItem(personalCalKey(),JSON.stringify(personalCalCache));}catch(e){}}
       renderCal();
     });
 
