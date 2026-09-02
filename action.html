@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-005 -->
+<!-- VERSION: 2026-09-02-001 -->
 <!-- 第一次構想版：本日起こすべきアクション5本柱を一発表示するページ -->
 <html lang="ja">
 <head>
@@ -37,12 +37,14 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .action-card.report{border-left-color:#ef4444;}
 .action-card.kari{border-left-color:#f0a500;}
 .action-card.shitami{border-left-color:#4a90d9;}
+.action-card.done{opacity:0.4;}
 .card-top-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
 .card-time{font-size:11px;font-weight:bold;color:#ffd166;}
 .card-title{font-size:13px;font-weight:bold;color:#e0e6f0;flex:1;word-break:break-all;}
 .card-sub{font-size:11px;color:#8a92a6;line-height:1.5;}
 .card-sub .addr{color:#52b788;}
 .card-sub .tag{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;background:#2d1b4e;color:#c4b5fd;margin-right:4px;}
+.card-sub .tag.done-tag{background:#1b3a2e;color:#6ee7b7;}
 
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
 .err{text-align:center;padding:20px;color:#ef4444;font-size:12px;}
@@ -109,7 +111,7 @@ function buildTodayShitami(){
     var shitamiDate=formatYMD(getSafeVal(c,12))||(obj.date?String(obj.date).replace(/\s+/g,''):'');
     if(shitamiDate!==todayStr)return;
     var shitamiTime=getSafeVal(c,13)||obj.time||'';
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,visited:!!obj.shitamiVisited});
   });
   items.sort(function(a,b){
     var oa=parseInt(a.order,10);var ob=parseInt(b.order,10);
@@ -237,11 +239,13 @@ function render(){
   var html='';
 
   html+=sectionHtml('shitami','📋','本日の下見予定',todayShitami,function(item){
-    return '<div class="action-card shitami" onclick="openTask(\''+escHtml(item.key)+'\')">'
+    return '<div class="action-card shitami'+(item.visited?' done':'')+'" onclick="openTask(\''+escHtml(item.key)+'\')">'
       +'<div class="card-top-row">'
       +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
       +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
-      +'<div class="card-sub">'+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'
+      +'<div class="card-sub">'
+      +(item.visited?'<span class="tag done-tag">✅ 完了</span>':'')
+      +(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'
       +'</div>';
   });
 
