@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加】*/
-// VERSION: 2026-09-01
+// VERSION: 2026-09-02
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -209,8 +209,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div id="modal-visited-status" style="font-size:12px;color:#888;margin-bottom:8px;">'
     + (isVisited ? ('✅ 実施済み' + (obj.shitamiVisitedAt ? '（' + String(obj.shitamiVisitedAt).slice(0,16).replace('T',' ') + '）' : '')) : '未確認')
     + '</div>';
-  html += '<button type="button" id="modal-visited-yes" style="font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;margin-right:6px;">✅ 現地下見完了</button>';
-  html += '<button type="button" id="modal-visited-no" style="font-size:12px;padding:6px 14px;border:1px solid #c62828;border-radius:4px;background:#ffebee;color:#b71c1c;font-weight:bold;cursor:pointer;">❌ 行けなかった</button>';
+  html += '<button type="button" id="modal-visited-yes" style="font-size:12px;padding:6px 12px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;margin-right:6px;margin-bottom:4px;">✅ 現地下見完了</button>';
+  html += '<button type="button" id="modal-visited-revisit" style="font-size:12px;padding:6px 12px;border:1px solid #ef6c00;border-radius:4px;background:#fff3e0;color:#e65100;font-weight:bold;cursor:pointer;margin-right:6px;margin-bottom:4px;">🔁 再訪問が必要</button>';
+  html += '<button type="button" id="modal-visited-no" style="font-size:12px;padding:6px 12px;border:1px solid #c62828;border-radius:4px;background:#ffebee;color:#b71c1c;font-weight:bold;cursor:pointer;margin-bottom:4px;">❌ 行けなかった</button>';
   html += '</div>';
 
   // 🔄 施工日の変更希望（定型文）：ビルダー・邸名・住所・現在日程はCSVから自動、希望日程とメモのみ手入力。
@@ -351,29 +352,35 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var st = document.getElementById('modal-visited-status');
     if (st) st.textContent = '✅ 実施済み（' + nowIso.slice(0,16).replace('T',' ') + '）';
   });
-  document.getElementById('modal-visited-no').addEventListener('click', function(){
-    if (!confirm('この下見を「行けなかった」として記録します。\n予定日時をクリアし、連絡必要フラグを立てます。よろしいですか？')) return;
+  function buildStamp() {
     var d = new Date();
-    var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+    return d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
       + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+  }
+  function clearScheduleWithMemo(label) {
+    var stamp = buildStamp();
     var prevDate = obj.date || '未設定';
     var prevTime = obj.time || '';
     var memoElNow = document.getElementById('modal-memo');
     var currentMemo = memoElNow ? memoElNow.value : (obj.memo || '');
-    var noteLine = '【下見未実施 ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → 行けず（自動クリア）';
+    var noteLine = '【' + label + ' ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア';
     var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + noteLine;
     if (memoElNow) memoElNow.value = newMemo;
-    isVisited = false;
-    saveField({ date: '', time: '', needsContact: true, memo: newMemo, shitamiVisited: false });
+    saveField({ date: '', time: '', memo: newMemo });
     var dEl = document.getElementById('modal-date'); if (dEl) dEl.value = '';
     var tEl = document.getElementById('modal-time'); if (tEl) tEl.value = '';
-    isNeedsContact = true;
-    var contactBtn = document.getElementById('modal-contact-btn');
-    if (contactBtn) { contactBtn.classList.add('active'); contactBtn.textContent = '📞 連絡必要中'; contactBtn.style.background = '#00bcd4'; contactBtn.style.color = '#fff'; }
     var st = document.getElementById('modal-visited-status');
-    if (st) st.textContent = '未確認（' + stamp + ' 行けず記録）';
+    if (st) st.textContent = '未確認（' + stamp + ' ' + label + '）';
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 未定';
     checkTimeConflict();
+  }
+  document.getElementById('modal-visited-revisit').addEventListener('click', function(){
+    if (!confirm('現地には行ったが「再訪問が必要」として記録します。\n予定日時をクリアします。よろしいですか？')) return;
+    clearScheduleWithMemo('再訪問必要');
+  });
+  document.getElementById('modal-visited-no').addEventListener('click', function(){
+    if (!confirm('この下見を「行けなかった」として記録します。\n予定日時をクリアします。よろしいですか？')) return;
+    clearScheduleWithMemo('下見未実施');
   });
 
   // 📞 連絡区分（こちらから連絡して決定／先方にて日時指定あり）※排他・即時保存・解除可
