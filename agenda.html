@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-02-002 -->
+<!-- VERSION: 2026-09-02-003 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -76,6 +76,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 .rcard{display:flex;align-items:stretch;min-height:56px;border-bottom:1px solid #1a2234;}
 .rcard:last-child{border-bottom:none;}
+.rcard.rcard-done{opacity:0.4;}
 .rcard-num{width:32px;min-width:32px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;color:#60a5fa;background:#0d1117;}
 .rcard-times{width:58px;min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;border-right:1px solid #1f2937;}
 .t-arrive{font-size:11px;font-weight:bold;color:#fbbf24;}
@@ -569,7 +570,8 @@ function buildTodayCases() {
       hasGeo: !!geo,
       lat: geo ? geo.lat : null,
       lng: geo ? geo.lng : null,
-      stayMin: STAY_MIN
+      stayMin: STAY_MIN,
+      visited: !!obj.shitamiVisited
     });
   });
   return list;
@@ -683,8 +685,9 @@ function renderRoute(timeline) {
     var isReform = item.kubun.indexOf('ﾘ') >= 0;
     var badges = isReform ? '<span class="badge badge-reform">ﾘ リフォーム</span>' : '<span class="badge badge-new">新 新築</span>';
     badges += item.fixedTime ? '<span class="badge badge-fixed">🔒 時間固定</span>' : '<span class="badge badge-est">✦ 提案順</span>';
+    if (item.visited) badges += '<span class="badge badge-est" style="background:#1b3a2e;color:#6ee7b7;">✅ 完了</span>';
 
-    html += '<div class="rcard">';
+    html += '<div class="rcard' + (item.visited ? ' rcard-done' : '') + '">';
     html += '<div class="rcard-num">' + (i+1) + '</div>';
     html += '<div class="rcard-times">';
     html += '<div class="t-arrive">' + minToTime(r.arrive) + '</div>';
