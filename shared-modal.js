@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加】*/
-// VERSION: 2026-09-02
+// VERSION: 2026-09-02-002
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -366,9 +366,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var noteLine = '【' + label + ' ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア';
     var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + noteLine;
     if (memoElNow) memoElNow.value = newMemo;
-    saveField({ date: '', time: '', memo: newMemo });
+    saveField({ date: '', time: '', order: '', memo: newMemo });
     var dEl = document.getElementById('modal-date'); if (dEl) dEl.value = '';
     var tEl = document.getElementById('modal-time'); if (tEl) tEl.value = '';
+    var oEl = document.getElementById('modal-order'); if (oEl) oEl.value = '';
     var st = document.getElementById('modal-visited-status');
     if (st) st.textContent = '未確認（' + stamp + ' ' + label + '）';
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 未定';
