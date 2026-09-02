@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-02-001 -->
+<!-- VERSION: 2026-09-02-002 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -484,7 +484,7 @@ function clearScheduleWithMemo(key, label) {
   var csvNote = (eff && eff.source === 'csv') ? '（CSV下見日はSF側の更新が必要）' : '';
   var noteLine = '【' + label + ' ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア' + csvNote;
   var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
-  var updates = { date: '', time: '', memo: newMemo };
+  var updates = { date: '', time: '', order: '', memo: newMemo };
 
   db.ref('app_tasks/'+key).update(updates).then(function() {
     for (var k in updates) obj[k] = updates[k];
