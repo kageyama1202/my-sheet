@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-01-005 -->
+<!-- VERSION: 2026-09-02-001 -->
 <!--
   agenda.html（Today's Agenda）全面改修版
   旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
@@ -52,10 +52,12 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .acard-sub .area{color:#34d399;}
 .acard-sub .daysleft{color:#fca5a5;font-weight:bold;}
 .acard-sub .lock{color:#fbbf24;}
-.acard-btns{display:flex;gap:6px;flex-shrink:0;}
+.acard-btns{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:180px;}
 .abtn{border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;}
 .abtn-yes{background:#1b5e20;color:#a5d6a7;border:1px solid #2e7d32;}
 .abtn-yes:hover{background:#256029;}
+.abtn-revisit{background:#4a2c00;color:#ffcc80;border:1px solid #ef6c00;}
+.abtn-revisit:hover{background:#5c3800;}
 .abtn-no{background:#4a1414;color:#fca5a5;border:1px solid #c62828;}
 .abtn-no:hover{background:#5c1a1a;}
 
@@ -456,6 +458,7 @@ function renderVisitChecks() {
     html += '</div></div>';
     html += '<div class="acard-btns">';
     html += '<button class="abtn abtn-yes" onclick="event.stopPropagation();markVisited(\''+esc(it.key)+'\')">✅ 現地下見完了</button>';
+    html += '<button class="abtn abtn-revisit" onclick="event.stopPropagation();markRevisitNeeded(\''+esc(it.key)+'\')">🔁 再訪問必要</button>';
     html += '<button class="abtn abtn-no" onclick="event.stopPropagation();markNotVisited(\''+esc(it.key)+'\')">❌ 行けなかった</button>';
     html += '</div>';
     html += '</div>';
@@ -463,6 +466,33 @@ function renderVisitChecks() {
   body.innerHTML = html;
 }
 
+// CSV下見日(cols[12]/[13])はSF取込データのためアプリからはクリアしない（次回CSV取込まで残る）。
+// クリアするのはアプリ入力のobj.date/timeのみ。連絡必要フラグ(needsContact)は使わない方針。
+function buildStamp() {
+  var d = new Date();
+  return d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+    + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+}
+function clearScheduleWithMemo(key, label) {
+  var obj = globalTasks[key];
+  if (!obj) return;
+  var stamp = buildStamp();
+  var eff = getEffectiveShitamiDate(obj);
+  var prevDate = eff ? eff.date : (obj.date || '未設定');
+  var prevTime = eff ? eff.time : (obj.time || '');
+  var srcTag = (eff && eff.source === 'csv') ? '[CSV下見日]' : '[アプリ入力日]';
+  var csvNote = (eff && eff.source === 'csv') ? '（CSV下見日はSF側の更新が必要）' : '';
+  var noteLine = '【' + label + ' ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア' + csvNote;
+  var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
+  var updates = { date: '', time: '', memo: newMemo };
+
+  db.ref('app_tasks/'+key).update(updates).then(function() {
+    for (var k in updates) obj[k] = updates[k];
+    persistCache();
+    renderVisitChecks();
+    updateRouteAvailability();
+  }).catch(function(e) { alert('更新失敗：' + e.message); });
+}
 function markVisited(key) {
   var obj = globalTasks[key];
   if (!obj) return;
@@ -474,34 +504,21 @@ function markVisited(key) {
     renderVisitChecks();
   }).catch(function(e) { alert('更新失敗：' + e.message); });
 }
-
-// CSV下見日(cols[12]/[13])はSF取込データのためアプリからはクリアしない（次回CSV取込まで残る）。
-// クリアするのはアプリ入力のobj.date/timeのみ。メモ記録と連絡必要フラグは判定元によらず共通で行う。
+function markRevisitNeeded(key) {
+  var obj = globalTasks[key];
+  if (!obj) return;
+  var cols = obj.csvData;
+  var title = getSafeVal(cols, 4).trim() || key;
+  if (!confirm('「' + title + '」は現地には行ったが「再訪問が必要」として記録します。\n予定日時をクリアします。よろしいですか？')) return;
+  clearScheduleWithMemo(key, '再訪問必要');
+}
 function markNotVisited(key) {
   var obj = globalTasks[key];
   if (!obj) return;
   var cols = obj.csvData;
   var title = getSafeVal(cols, 4).trim() || key;
-  var eff = getEffectiveShitamiDate(obj);
-  var csvNote = (eff && eff.source === 'csv') ? '\n（CSV下見日はSF由来のためアプリからは自動クリアされません。SF側の更新をご確認ください）' : '';
-  if (!confirm('「' + title + '」を「行けなかった」として記録します。\nアプリ入力の予定日時をクリアし、連絡必要フラグを立てます。' + csvNote + '\n\nよろしいですか？')) return;
-
-  var d = new Date();
-  var stamp = d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
-    + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
-  var prevDate = eff ? eff.date : (obj.date || '未設定');
-  var prevTime = eff ? eff.time : (obj.time || '');
-  var srcTag = (eff && eff.source === 'csv') ? '[CSV下見日]' : '[アプリ入力日]';
-  var noteLine = '【下見未実施 ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → 行けず';
-  var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
-  var updates = { date: '', time: '', needsContact: true, memo: newMemo, shitamiVisited: false };
-
-  db.ref('app_tasks/'+key).update(updates).then(function() {
-    for (var k in updates) obj[k] = updates[k];
-    persistCache();
-    renderVisitChecks();
-    updateRouteAvailability();
-  }).catch(function(e) { alert('更新失敗：' + e.message); });
+  if (!confirm('「' + title + '」を「行けなかった」として記録します。\n予定日時をクリアします。よろしいですか？')) return;
+  clearScheduleWithMemo(key, '下見未実施');
 }
 
 // ==================== ③ 本日のコース設定 ====================
