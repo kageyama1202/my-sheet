@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-005 -->
+<!-- VERSION: 2026-09-02-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1152,7 +1152,7 @@ function openModal(date, id, e) {
     }).join('');
     document.getElementById('modalRows').innerHTML += '<div class="mrow" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);"><b>候補日一覧（同じ案件・' + members.length + '件）：</b>'
       + '<div style="margin-top:4px;">' + listHtml + '</div>'
-      + (canDec ? '<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" id="mGroupReplyBtn" style="flex:2;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 対応可否が決まった分をまとめて連絡</button><button type="button" id="mGroupCopyBtn" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;">📋 コピー</button></div>' : '')
+      + (canDec ? '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"><button type="button" id="mGroupMailBtn" style="flex:1 1 100px;padding:9px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;">📧 メールでまとめて連絡</button><button type="button" id="mGroupSmsBtn" style="flex:1 1 100px;padding:9px;border-radius:6px;border:none;background:#2e7d5b;color:#fff;cursor:pointer;font-size:12px;">💬 SMSでまとめて連絡</button><button type="button" id="mGroupCopyBtn" style="flex:1 1 80px;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;">📋 コピー</button></div>' : '')
       + (canDelete ? '<button type="button" id="mCancelGroupBtn" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:12px;">この案件の候補をすべて削除</button>' : '')
       + '</div>';
     document.querySelectorAll('.cand-act').forEach(function (btn) {
@@ -1161,8 +1161,10 @@ function openModal(date, id, e) {
         closeModal();
       });
     });
-    var groupReplyBtn = document.getElementById('mGroupReplyBtn');
-    if (groupReplyBtn) groupReplyBtn.onclick = function () { sendGroupReply(groupId); };
+    var groupMailBtn = document.getElementById('mGroupMailBtn');
+    if (groupMailBtn) groupMailBtn.onclick = function () { sendGroupReply(groupId, 'mail'); };
+    var groupSmsBtn = document.getElementById('mGroupSmsBtn');
+    if (groupSmsBtn) groupSmsBtn.onclick = function () { sendGroupReply(groupId, 'sms'); };
     var groupCopyBtn = document.getElementById('mGroupCopyBtn');
     if (groupCopyBtn) groupCopyBtn.onclick = function () {
       var parts = buildGroupReplyParts(groupId);
@@ -1441,16 +1443,16 @@ function buildGroupReplyParts(groupId) {
   var smsText = tantou + '様　' + caseName + (ok.length ? '　対応可：' + fmtList(ok) : '') + (ng.length ? '／対応不可：' + fmtList(ng) : '');
   return { subject: '【現調日程】' + caseName + ' 回答', body: lines.join('\n'), smsText: smsText, email: email, tel: tel, replyTargets: ok.concat(ng) };
 }
-function sendGroupReply(groupId) {
+function sendGroupReply(groupId, mode) {
   if (!groupId) return;
   var parts = buildGroupReplyParts(groupId);
   if (!parts) { alert('まだ対応可否が決まっていません'); return; }
-  if (parts.email) {
-    guardSendTime(function () { location.href = 'mailto:' + encodeURIComponent(parts.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body); markRepliedMulti(parts.replyTargets); });
-  } else if (parts.tel) {
+  if (mode === 'sms') {
+    if (!parts.tel) { alert('電話番号が登録されていません'); return; }
     guardSendTime(function () { location.href = 'sms:' + encodeURIComponent(parts.tel) + '?body=' + encodeURIComponent(parts.smsText); markRepliedMulti(parts.replyTargets); });
   } else {
-    alert('連絡先（メール・電話）が登録されていません');
+    if (!parts.email) { alert('メールアドレスが登録されていません'); return; }
+    guardSendTime(function () { location.href = 'mailto:' + encodeURIComponent(parts.email) + '?subject=' + encodeURIComponent(parts.subject) + '&body=' + encodeURIComponent(parts.body); markRepliedMulti(parts.replyTargets); });
   }
 }
 
