@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-02-003 -->
+<!-- VERSION: 2026-09-04-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -72,6 +72,8 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .nosekou-toggle.inactive{background:#fff;border-color:#999;color:#888;}
 .contact-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #00838f;background:#e0f7fa;font-weight:bold;color:#006064;}
 .contact-toggle.active{background:#00bcd4;border-color:#006064;color:#fff;}
+.visited-toggle{font-size:10px;padding:1px 7px;cursor:pointer;border-radius:3px;border:1px solid #6d4c00;background:#fff8e1;font-weight:bold;color:#6d4c00;}
+.visited-toggle.active{background:#ffb300;border-color:#6d4c00;color:#fff;}
 .yotei-cell{color:#7b1fa2;font-weight:700;font-size:10.5px;}
 .ai-yotei-cell{color:#ff6b00;font-weight:700;background:#fff8e1;font-size:10.5px;}
 .order-cell{color:#1565c0;font-weight:700;background:#e3f2fd;font-size:10.5px;}
@@ -146,7 +148,7 @@ tr.visit-check-row:hover { background-color: #ffecb3 !important; animation: none
 </div>
 <div class="filter-panel">
 <div class="filter-row"><span class="filter-label">📅 期間</span><div class="date-area"><input type="date" id="dateFrom" /><span>〜</span><input type="date" id="dateTo" /><button class="sm-btn" id="dateToday">今日</button><button class="sm-btn" id="dateWeek">1週間</button><button class="sm-btn" id="dateMonth">1ヶ月</button><button class="sm-btn" id="dateFuture">今日以降</button><button class="sm-btn" id="dateClear">全期間</button></div><div class="filter-checks"><label><input type="checkbox" id="chkSekou" checked> 施工日</label><label><input type="checkbox" id="chkShitami"> 下見日</label><label><input type="checkbox" id="chkYotei"> 下見予定日</label><label><input type="checkbox" id="chkAiYotei"> AI予定</label></div></div>
-<div class="filter-row"><span class="filter-label">📌 状態</span><div class="filter-checks" id="statusFilters"></div><button class="kanryo-toggle" id="kanryoToggle">完了も表示</button>&nbsp;<button class="nosekou-toggle" id="nosekouToggle">✔ 施工日なし表示</button>&nbsp;<button class="contact-toggle" id="contactToggle">📞 連絡必要のみ</button></div>
+<div class="filter-row"><span class="filter-label">📌 状態</span><div class="filter-checks" id="statusFilters"></div><button class="kanryo-toggle" id="kanryoToggle">完了も表示</button>&nbsp;<button class="nosekou-toggle" id="nosekouToggle">✔ 施工日なし表示</button>&nbsp;<button class="contact-toggle" id="contactToggle">📞 連絡必要のみ</button>&nbsp;<button class="visited-toggle" id="visitedToggle">🚗 下見完了を非表示</button></div>
 <div class="filter-row"><span class="filter-label">🏷 区分</span><div class="filter-checks" id="kubunFilters"></div></div>
 <div class="filter-row"><span class="filter-label">🏢 会社</span><div class="filter-checks" id="companyFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="companyToggle">▶ 展開</span></div>
 <div class="filter-row"><span class="filter-label">📍 地域</span><div class="filter-checks" id="areaFilters" style="max-height:20px;overflow:hidden;"></div><span class="filter-toggle" id="areaToggle">▶ 展開</span></div>
@@ -232,6 +234,8 @@ var showNoSekou=true;
 document.getElementById('nosekouToggle').addEventListener('click',function(){showNoSekou=!showNoSekou;if(showNoSekou){this.classList.remove('inactive');this.textContent='✔ 施工日なし表示';}else{this.classList.add('inactive');this.textContent='施工日なし非表示';}renderTable();});
 var showContactOnly=false;
 document.getElementById('contactToggle').addEventListener('click',function(){showContactOnly=!showContactOnly;this.classList.toggle('active',showContactOnly);this.textContent=showContactOnly?'📞 連絡必要表示中':'📞 連絡必要のみ';renderTable();});
+var hideVisited=false;
+document.getElementById('visitedToggle').addEventListener('click',function(){hideVisited=!hideVisited;this.classList.toggle('active',hideVisited);this.textContent=hideVisited?'🚗 下見完了を非表示中':'🚗 下見完了を非表示';renderTable();});
 
 var personalEvents={};
 database.ref('personal_calendar').once('value').then(function(snap){personalEvents=snap.val()||{};renderTable();}).catch(function(e){console.warn('personal_calendar取得失敗',e);});
@@ -532,7 +536,7 @@ var deadline10Date=addDays(today,10);var deadline21Date=addDays(today,21);
 var trH=document.createElement('tr');var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
 for(var hi=0;hi<displayCols.length;hi++){var h=document.createElement('th');h.className=colClasses[hi+1]||'';if(displayCols[hi]===-1){h.textContent='下見予定日';}else if(displayCols[hi]===-4){h.textContent='時間';h.style.background='#f3e5f5';h.style.color='#6a1b9a';}else if(displayCols[hi]===-5){h.textContent='時間';h.style.background='#e8f5e9';h.style.color='#2e7d32';}else if(displayCols[hi]===-3){h.textContent='順';h.style.background='#e3f2fd';h.style.color='#1565c0';}else if(displayCols[hi]===-6){h.textContent='下';h.title='現地下見完了チェック';}else if(displayCols[hi]===-7){h.textContent='コ';h.title='こちらから連絡して決定';}else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}trH.appendChild(h);}
 thead.appendChild(trH);
-var valid=Object.keys(globalTasks).filter(function(key){var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;var status=getSafeVal(cols,1).replace(/\s+/g,"");var sekouDate=formatToYMD(getSafeVal(cols,2));if(sekouDate===''){if(!showNoSekou)return false;}else{if(sekouDate<today&&!showKanryo)return false;}if(status==="完了"&&!showKanryo)return false;if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;if(showContactOnly&&!obj.needsContact)return false;
+var valid=Object.keys(globalTasks).filter(function(key){var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;var status=getSafeVal(cols,1).replace(/\s+/g,"");var sekouDate=formatToYMD(getSafeVal(cols,2));if(sekouDate===''){if(!showNoSekou)return false;}else{if(sekouDate<today&&!showKanryo)return false;}if(status==="完了"&&!showKanryo)return false;if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;if(showContactOnly&&!obj.needsContact)return false;if(hideVisited&&obj.shitamiVisited)return false;
     if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&sekouDate!==''&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(sekouDate===''&&showNoSekou)dm=true;if(!dm)return false;}return true;});
 valid.sort(function(a,b){function eff(obj){var c=obj.csvData;var yD=formatToYMD(obj.date||'');var aiD=formatToYMD(obj.ai_shitami_date||'');var sdD=formatToYMD(getSafeVal(c,12));var skD=formatToYMD(getSafeVal(c,2));if(skD==='')return'9999-99-99';if(cY&&yD)return yD;if(cAI&&aiD)return aiD;if(cD&&sdD)return sdD;return skD;}return eff(globalTasks[a]).localeCompare(eff(globalTasks[b]));});
 var personalInRange=getPersonalEventsInRange(from||null,to||null);
