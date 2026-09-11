@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-04-001 -->
+<!-- VERSION: 2026-09-11-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -201,6 +201,21 @@ function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c
 function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
 function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
 function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s=a.match(/札幌市(.+?区)/);if(s)return s[1];var c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];var t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
+// ★2026-09-11追加★
+// グレー表示（下見完了系）の判定を、SF側の「手配ステータス」テキスト(下見完了/下見実施中)から
+// CSV列cols[14]「下見本数（予/実）」（例："1/1"）の実数ベースに変更。
+// テキストのステータスは実態と合っていないことがあり、本数(予定件数に対する実施件数)を
+// 数えた方が「本当に下見が完了しているか」を正確に判定できるとの方針。
+// 形式は「予/実」の文字列（例:"1/1","2/0","3/1"）。予・実いずれかが数値化できない/空欄なら
+// 判定不能としてnullを返す（=このロジックによるグレー表示はしない）。
+function parseShitamiCount(raw){
+  if(!raw)return null;
+  var s=String(raw).trim();
+  if(s==='')return null;
+  var m=s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if(!m)return null;
+  return{yotei:parseInt(m[1],10),jissi:parseInt(m[2],10)};
+}
 function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
 function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
@@ -550,7 +565,7 @@ merged.forEach(function(item,idx){
   if(item._type==='personal'){var ev=item.ev;var tr=document.createElement('tr');tr.className='personal-row';var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.innerHTML='<span class="personal-badge">📅</span>';tr.appendChild(tdNo);var tdMain=document.createElement('td');tdMain.colSpan=displayCols.length;tdMain.style.padding='4px 8px';tdMain.style.color='#4a148c';tdMain.style.fontWeight='bold';tdMain.style.fontSize='12px';var timeStr=ev.allDay?'終日':(fmtTime(ev.start)+(ev.end?'〜'+fmtTime(ev.end):''));var locStr=ev.location?'　📍'+ev.location:'';tdMain.textContent=ev.dateKey+'　'+timeStr+'　'+ev.title+locStr;tr.appendChild(tdMain);tbody.appendChild(tr);}
   else if(item._type==='kari'){var ev=item.ev;var sb=kariStatusBadge(ev.status);var needsSend=(ev.status==='許可'||ev.status==='断り')&&!ev.replied;var tr=document.createElement('tr');tr.className='personal-row';tr.style.cursor='pointer';if(ev.status==='断り')tr.style.opacity='0.55';var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.innerHTML='<span class="personal-badge" style="color:#e65100;">'+sb.badge+'</span>';tr.appendChild(tdNo);var tdMain=document.createElement('td');tdMain.colSpan=displayCols.length;tdMain.style.padding='4px 8px';tdMain.style.color='#e65100';tdMain.style.fontWeight='bold';tdMain.style.fontSize='12px';if(ev.status==='断り')tdMain.style.textDecoration='line-through';var memoStr=ev.memo?'　'+ev.memo:'';var areaStr=ev.area?'【'+ev.area+'】':'';var groupStr=ev.candidate_group?'（候補'+countCandidateGroupToday(ev.candidate_group)+'件中）':'';var sendStr=needsSend?' 📤未送信':'';tdMain.textContent=ev.dateKey+'　'+ev.start+'　['+sb.badge+sb.label+sendStr+']　'+ev.case_name+areaStr+groupStr+'（'+ev.tantou+'）'+memoStr;tr.appendChild(tdMain);tr.addEventListener('click',function(){openKariModalToday(ev);});tbody.appendChild(tr);}
   else{
-    taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var tr=document.createElement("tr");
+    taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var shitamiCount=parseShitamiCount(getSafeVal(cols,14));var tr=document.createElement("tr");
     tr.setAttribute('data-search-full',(Array.isArray(cols)?cols.join(' '):''));
     var isSmsPending=!!smsPendingKeys[key];
     // ★2026-09-02追加★ agenda.htmlの「下見実施チェック」と同じ判定：CSV下見日(cols[12])か
@@ -558,7 +573,7 @@ merged.forEach(function(item,idx){
     var csvShitamiDateChk=formatToYMD(getSafeVal(cols,12));
     var appDateChk=formatToYMD(obj.date||'');
     var isVisitUnconfirmed=!obj.shitamiVisited&&((csvShitamiDateChk&&csvShitamiDateChk<todayStr)||(appDateChk&&appDateChk<todayStr));
-    if(obj.flagged){tr.classList.add('flagged-row');}else if(obj.needsContact){tr.classList.add('needs-contact-row');}else if(isSmsPending){tr.classList.add('sms-pending-row');}else if(isVisitUnconfirmed){tr.classList.add('visit-check-row');}else if(isNoSekou){tr.className='nosekou-row';}else if(statusStr2==='下見完了'){tr.className='shitami-done-row';}else if(statusStr2==='下見実施中'){tr.className='shitami-jisshi-row';}
+    if(obj.flagged){tr.classList.add('flagged-row');}else if(obj.needsContact){tr.classList.add('needs-contact-row');}else if(isSmsPending){tr.classList.add('sms-pending-row');}else if(isVisitUnconfirmed){tr.classList.add('visit-check-row');}else if(isNoSekou){tr.className='nosekou-row';}else if(shitamiCount&&shitamiCount.yotei>0&&shitamiCount.jissi>=shitamiCount.yotei){tr.className='shitami-done-row';}else if(shitamiCount&&shitamiCount.jissi>0&&shitamiCount.jissi<shitamiCount.yotei){tr.className='shitami-jisshi-row';}
     var today2=getTodayStr();var shitamiDateStr=formatToYMD(getSafeVal(cols,12));var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');var isKubunWarn=(getSafeVal(cols,3).replace(/\s+/g,'')==='ﾘ'&&shitamiDateStr==='');var isReportMissing=(shitamiDateStr!==''&&shitamiDateStr<today2&&(statusStr==='依頼'||statusStr==='下見日程確定'));var yoteiStr=formatToYMD(obj.date||'');var isYoteiPastNoShitami=(yoteiStr!==''&&yoteiStr<today2&&shitamiDateStr==='');
     var tdNo=document.createElement('td');tdNo.className='col-no';
     if(obj.flagged){tdNo.innerHTML='<span style="color:#f9a825;font-size:14px;">⚑</span>';}else if(obj.needsContact){tdNo.innerHTML='<span style="color:#006064;font-size:13px;">📞</span>';}else if(isSmsPending){tdNo.innerHTML='<span style="color:#5d4037;font-size:13px;">💬</span>';}else if(isVisitUnconfirmed){tdNo.innerHTML='<span style="color:#e65100;font-size:13px;">🚗</span>';}else if(isNoSekou){tdNo.innerHTML='<span class="nosekou-badge">未</span>';}else{tdNo.textContent=obj.seqNo||(taskCount);tdNo.style.color='#888';}
