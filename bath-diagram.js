@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-009
+// VERSION: 2026-09-13-010
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -143,44 +143,58 @@ function buildBathDiagramSVG(sc) {
   var yKankisenTop = segY(agari + (furo||0) + (kankisen||0));
   var yTenjou = tenjou ? segY(tenjou) : yKankisenTop;
 
-  // ★2026-09-13変更★ 各区画の数値は「その区画の右上」に寄せる(以前は縦中央寄せで、
-  // どの数値がどの区画のものか一見わかりにくかったため)。ラベルは各rectの上端に揃える。
+  // ★2026-09-13変更★ 各ラベルの位置が近すぎて文字が重なるケース(換気扇・クリア・ダクトなど)が
+  // あったため、まず区画(色付きの帯)だけ先に描画し、ラベル文字は一旦「候補位置」を集めて
+  // Y座標順に並べ替えたうえで、隣同士が最低15px以上離れるように自動でずらしてから描画する。
+  var labelItems = [];
+
   // 床上がり
   if (agari) {
     svg += '<rect x="'+rx+'" y="'+yAgariTop+'" width="'+hBoxW+'" height="'+(baseY-yAgariTop)+'" fill="#e0e0e0" stroke="#888" stroke-width="1"/>';
-    svg += '<text x="'+labelX+'" y="'+(yAgariTop+12)+'" font-size="12" fill="#666">床上がり高さ：'+agari+'</text>';
+    labelItems.push({ y: yAgariTop+12, text: '床上がり高さ：'+agari, color: '#666' });
   }
   // 風呂の高さ(製品)
   if (furo) {
     svg += '<rect x="'+rx+'" y="'+yFuroTop+'" width="'+hBoxW+'" height="'+(yAgariTop-yFuroTop)+'" fill="#dcecec" stroke="#00695c" stroke-width="1.3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yFuroTop+12)+'" font-size="12" fill="#00695c">風呂の高さ：'+furo+'</text>';
+    labelItems.push({ y: yFuroTop+12, text: '風呂の高さ：'+furo, color: '#00695c' });
   }
   // 換気扇の高さ
   if (kankisen) {
     svg += '<rect x="'+rx+'" y="'+yKankisenTop+'" width="'+hBoxW+'" height="'+(yFuroTop-yKankisenTop)+'" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yKankisenTop+12)+'" font-size="12" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
+    labelItems.push({ y: yKankisenTop+12, text: '換気扇高さ：'+kankisen, color: '#ef6c00' });
   }
   // ★2026-09-13追加★ 排気ダクト(φ100)センター高さ：換気扇センターに接続する位置の目印として、
-  // 床からの高さ(pxScale換算)に丸印＋点線を表示。他の区画と重なる可能性があるため、まずは目立つ紫色で。
+  // 床からの高さ(pxScale換算)に丸印＋点線を表示。
   if (duct) {
     var yDuct = baseY - duct * pxScale;
     svg += '<line x1="'+(rx-15)+'" y1="'+yDuct+'" x2="'+(rx+hBoxW+15)+'" y2="'+yDuct+'" stroke="#6a1b9a" stroke-width="1" stroke-dasharray="2,2"/>';
     svg += '<circle cx="'+(rx+hBoxW/2)+'" cy="'+yDuct+'" r="4" fill="#fff" stroke="#6a1b9a" stroke-width="1.5"/>';
-    svg += '<text x="'+labelX+'" y="'+(yDuct+4)+'" font-size="12" fill="#6a1b9a">排気ダクト(φ100)センター：'+duct+'</text>';
+    labelItems.push({ y: yDuct+4, text: '排気ダクト(φ100)センター：'+duct, color: '#6a1b9a' });
   }
   // 天井とのクリア
   if (clear !== null && tenjou) {
     svg += '<rect x="'+rx+'" y="'+yTenjou+'" width="'+hBoxW+'" height="'+(yKankisenTop-yTenjou)+'" fill="#fff" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yTenjou+12)+'" font-size="12" fill="#c0392b">天井とのクリア：'+clear+'</text>';
+    labelItems.push({ y: yTenjou+12, text: '天井とのクリア：'+clear, color: '#c0392b' });
   }
+  // 床構成(区画ではないが、床上がりラベルと近接しやすいので同じ衝突回避の対象に含める)
+  labelItems.push({ y: baseY+16, text: '床構成'+(sc.bathYukaKousei?'：'+escHtmlModal(sc.bathYukaKousei):''), color: '#555' });
+
+  // Y座標順に並べ替えて、隣り合うラベルの間隔が最低15pxになるよう下方向にずらす
+  labelItems.sort(function(a, b){ return a.y - b.y; });
+  var labelCursor = -Infinity;
+  labelItems.forEach(function(item){
+    item.drawY = Math.max(item.y, labelCursor + 15);
+    labelCursor = item.drawY;
+  });
+  labelItems.forEach(function(item){
+    svg += '<text x="'+labelX+'" y="'+item.drawY+'" font-size="12" fill="'+item.color+'">'+item.text+'</text>';
+  });
+
   // 天井ライン
   svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+lineEndX+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
   svg += '<text x="'+(rx-30)+'" y="'+(yTenjou-6)+'" text-anchor="end" font-size="12" fill="#555">天井高さ'+(tenjou?'：'+tenjou:'')+'</text>';
   // 床ライン
   svg += '<line x1="'+(rx-20)+'" y1="'+baseY+'" x2="'+lineEndX+'" y2="'+baseY+'" stroke="#333" stroke-width="1"/>';
-  // ★2026-09-13変更★ 床構成は中央(rx-30・右寄せ)だと左の平面図側にはみ出して見えていたため、
-  // 右側の数値ラベル列(labelX)に統一して「右の欄」に収める。
-  svg += '<text x="'+labelX+'" y="'+(baseY+16)+'" font-size="12" fill="#555">床構成'+(sc.bathYukaKousei?'：'+escHtmlModal(sc.bathYukaKousei):'')+'</text>';
 
   // 脱衣室高さ(別ブラケット・左側)
   if (datsui) {
