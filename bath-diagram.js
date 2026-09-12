@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-004
+// VERSION: 2026-09-13-006
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -49,12 +49,14 @@ function buildBathDiagramSVG(sc) {
   svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">奥行き'+(okuyuki?'：'+okuyuki:'')+'</text>';
 
   // 勝手(ドアの開き)：右勝手/左勝手のどちらか一方だけ描く
-  // ★2026-09-13変更★ 弧の半径が固定48pxで部屋の大きさに対して小さすぎたため、
-  // 標準的なドア扉幅(650mm想定)を間口/奥行きと同じスケール(outerBox.scale)で換算した実寸ベースに変更。
+  // ★2026-09-13変更★ 「650mm想定」という仮定値をやめ、現場チェックの実測値「開口寸法(額縁開口)」
+  // (bathKaikou)を間口/奥行きと同じスケール(outerBox.scale)で換算した正真の実寸ベースに変更。
+  // 未入力の場合のみ650mmを暫定値として使う。
   var doorPos = sc.bathDoorPosition || '';
   var doorY = oy + oh;
-  var DOOR_LEAF_MM = 650;
-  var doorR = Math.min(90, Math.max(24, DOOR_LEAF_MM * outerBox.scale));
+  var kaikou = numModal(sc.bathKaikou);
+  var doorWidthMM = kaikou || 650;
+  var doorR = Math.max(15, doorWidthMM * outerBox.scale);
   var doorRatio = doorR / 48; // 元の描画比率(縦40:横30:8)を維持したまま拡大縮小するための係数
   // ★2026-09-13変更★ ドアの開閉線・「右勝手/左勝手」ラベルの下側に、
   // 平面図メモ(石膏ボード・設置方法)の文字がめり込んで重なっていたため、
@@ -94,10 +96,13 @@ function buildBathDiagramSVG(sc) {
   // 平面図(左上)の下、ドア図形と重ならない位置(planNoteStartY)にまとめて表示する。
   var planNoteLines = [];
   if (sekkou.length) planNoteLines.push({ text: '石膏ボード：'+sekkou.join('・'), color: '#8e24aa' });
-  if (sc.bathSetchiHouhou) planNoteLines.push({ text: '設置方法：'+sc.bathSetchiHouhou, color: '#555' });
+  if (sc.bathSetchiHouhou) planNoteLines.push({ text: '設置方法：'+sc.bathSetchiHouhou, color: '#555', size: 13 });
   if (sc.bathWakuzaiAtsumi) planNoteLines.push({ text: '枠材の厚み：'+sc.bathWakuzaiAtsumi, color: '#555' });
-  planNoteLines.forEach(function(item, i){
-    svg += '<text x="'+ix+'" y="'+(planNoteStartY+i*18)+'" font-size="11" fill="'+item.color+'">'+escHtmlModal(item.text)+'</text>';
+  var planNoteY = planNoteStartY;
+  planNoteLines.forEach(function(item){
+    var fsize = item.size || 11;
+    svg += '<text x="'+ix+'" y="'+planNoteY+'" font-size="'+fsize+'" fill="'+item.color+'">'+escHtmlModal(item.text)+'</text>';
+    planNoteY += fsize + 7;
   });
 
   // ---------- 右上：高さ関係（断面） ----------
@@ -171,15 +176,18 @@ function buildBathDiagramSVG(sc) {
     svg += '<text x="'+(rx-80)+'" y="'+((baseY+yDatsuiTop)/2)+'" text-anchor="end" font-size="11" fill="#5c6bc0" transform="rotate(0)">脱衣室高さ：'+datsui+'</text>';
   }
 
-  // スラブ寸法＋上下総寸法（床の下側。実寸スケールではなく見やすさ優先の固定オフセット）
+  // スラブ寸法＋上下総寸法（床の下側。★2026-09-13変更★ 他の高さ要素と同じpxScaleを使い、
+  // 見やすさ優先の固定オフセットをやめて実寸スケール描画に変更）
   if (slab) {
-    var ySlab = baseY + 35;
+    var ySlab = baseY + slab * pxScale;
     svg += '<line x1="'+(rx-20)+'" y1="'+ySlab+'" x2="'+lineEndX+'" y2="'+ySlab+'" stroke="#333" stroke-width="1"/>';
     svg += '<text x="'+(rx-30)+'" y="'+(ySlab+13)+'" text-anchor="end" font-size="12" fill="#555">スラブ寸法：'+slab+'</text>';
     svg += '<line x1="'+bracketX+'" y1="'+yTenjou+'" x2="'+bracketX+'" y2="'+ySlab+'" stroke="#00695c" stroke-width="1"/>';
-    svg += '<text x="'+(bracketX+10)+'" y="'+((yTenjou+ySlab)/2-6)+'" font-size="11" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
+    // ★2026-09-13変更★ ブラケットの右に文字を置くとキャンバス右端で見切れることがあったため、
+    // ブラケットの左側(text-anchor:end)に寄せる。
+    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="11" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
     if (totalJissoku !== null) {
-      svg += '<text x="'+(bracketX+10)+'" y="'+((yTenjou+ySlab)/2+10)+'" font-size="11" fill="#c0392b">実測：'+totalJissoku+'</text>';
+      svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="11" fill="#c0392b">実測：'+totalJissoku+'</text>';
     }
   }
 
@@ -199,15 +207,30 @@ function buildBathDiagramSVG(sc) {
   });
 
   // ---------- 右下：窓位置 ----------
-  var wx = 695, wy = MY+40, wallW = 260, wallH = 260;
-  svg += '<text x="'+(wx+wallW/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="13" fill="#333">窓位置</text>';
-  svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
+  // ★2026-09-13変更★ 窓の上下左右の離れ寸法が全て入力されていれば、そこから壁の実寸(幅・高さ)を
+  // 逆算し、間口/奥行き(左上)と同じ考え方(fitBoxModal)で実寸スケール描画にする。
+  // 一部でも未入力の場合は、従来通りの簡易配置(260×260固定枠に対する割合表示)にフォールバックする。
   var madoW = numModal(sc.bathMadoW), madoH = numModal(sc.bathMadoH), madoD = numModal(sc.bathMadoD);
   var madoUe = numModal(sc.bathMadoUe), madoShita = numModal(sc.bathMadoShita), madoHidari = numModal(sc.bathMadoHidari), madoMigi = numModal(sc.bathMadoMigi);
-  var mW = madoW ? Math.min(wallW*0.6, madoW*0.15) : wallW*0.35;
-  var mH = madoH ? Math.min(wallH*0.6, madoH*0.15) : wallH*0.35;
-  var mx1 = wx + (madoHidari!=null && madoMigi!=null ? (madoHidari/(madoHidari+madoMigi))*(wallW-mW) : (wallW-mW)/2);
-  var my1 = wy + (madoUe!=null && madoShita!=null ? (madoUe/(madoUe+madoShita))*(wallH-mH) : (wallH-mH)/2);
+  var madoScaleReady = madoW!=null && madoH!=null && madoUe!=null && madoShita!=null && madoHidari!=null && madoMigi!=null;
+  var wallWidthMM = madoScaleReady ? (madoHidari+madoW+madoMigi) : null;
+  var wallHeightMM = madoScaleReady ? (madoUe+madoH+madoShita) : null;
+  var winBox = madoScaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 260, 260) : { w: 260, h: 260, scale: null };
+  var wx = 695, wy = MY+40, wallW = winBox.w, wallH = winBox.h;
+  svg += '<text x="'+(wx+wallW/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="13" fill="#333">窓位置'+(madoScaleReady?'':'（概算配置）')+'</text>';
+  svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
+  var mW, mH, mx1, my1;
+  if (madoScaleReady) {
+    mW = madoW * winBox.scale;
+    mH = madoH * winBox.scale;
+    mx1 = wx + madoHidari * winBox.scale;
+    my1 = wy + madoUe * winBox.scale;
+  } else {
+    mW = madoW ? Math.min(wallW*0.6, madoW*0.15) : wallW*0.35;
+    mH = madoH ? Math.min(wallH*0.6, madoH*0.15) : wallH*0.35;
+    mx1 = wx + (madoHidari!=null && madoMigi!=null ? (madoHidari/(madoHidari+madoMigi))*(wallW-mW) : (wallW-mW)/2);
+    my1 = wy + (madoUe!=null && madoShita!=null ? (madoUe/(madoUe+madoShita))*(wallH-mH) : (wallH-mH)/2);
+  }
   svg += '<rect x="'+mx1+'" y="'+my1+'" width="'+mW+'" height="'+mH+'" fill="#dcecec" stroke="#004d40" stroke-width="1.5"/>';
   svg += '<line x1="'+wx+'" y1="'+(my1+mH/2)+'" x2="'+mx1+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
   svg += '<line x1="'+(mx1+mW)+'" y1="'+(my1+mH/2)+'" x2="'+(wx+wallW)+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
