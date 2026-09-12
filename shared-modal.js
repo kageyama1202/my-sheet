@@ -1,30 +1,114 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加】*/
-// VERSION: 2026-09-02-002
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
+// VERSION: 2026-09-12-004
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
-var SITECHECK_GROUPS = [
+// ★2026-09-12追加★ 現場チェックのキッチン用グループ。項目は従来通り(フィールドキーは既存データ互換のため変更なし)。
+// { label, field, type }: type省略時は'text'。'number'/'select'(要options)/'multi'(要options・複数選択)に対応。
+var SITECHECK_GROUPS_KITCHEN = [
   { title: '床暖まわり', items: [
-    ['床暖','yukadan'],['巾木厚さ','habakiAtsusa'],['搬入時刻','hannyuJikoku'],
-    ['電動シャッター','dendouShutter'],['追い焚き有無','oidaki'],
-    ['角依頼(屋さん合番)','kadoIraiYasan'],['依頼状況','iraiJoukyou'],
-    ['クラウド報告','cloudHoukoku'],['施工日確認(帳場さん)','sekoKakuninBanba']
+    { label:'床暖', field:'yukadan' }, { label:'巾木厚さ', field:'habakiAtsusa' }, { label:'搬入時刻', field:'hannyuJikoku' },
+    { label:'電動シャッター', field:'dendouShutter' }, { label:'追い焚き有無', field:'oidaki' },
+    { label:'角依頼(屋さん合番)', field:'kadoIraiYasan' }, { label:'依頼状況', field:'iraiJoukyou' },
+    { label:'クラウド報告', field:'cloudHoukoku' }, { label:'施工日確認(帳場さん)', field:'sekoKakuninBanba' }
   ]},
   { title: '養生まわり', items: [
-    ['養生','yousei'],['図面吊戸棚高','zumenTsuridanaTakasa'],['図面天井高','zumenTenjouTakasa'],
-    ['レンジフード変更','rangeHoodHenkou'],['天井高さ','tenjouTakasa'],['施工日確認(相手)','sekoKakuninAite']
+    { label:'養生', field:'yousei' }, { label:'図面吊戸棚高', field:'zumenTsuridanaTakasa' }, { label:'図面天井高', field:'zumenTenjouTakasa' },
+    { label:'レンジフード変更', field:'rangeHoodHenkou' }, { label:'天井高さ', field:'tenjouTakasa' }, { label:'施工日確認(相手)', field:'sekoKakuninAite' }
   ]},
   { title: '窓台まわり', items: [
-    ['窓台高さ','madodaiTakasa'],['天吊りフード','tentsuriHood'],['ニッチ','nicchi'],
-    ['SK下がり壁','skSagariKabe'],['CB下がり壁','cbSagariKabe'],['設備','setsubi'],
-    ['KP貼り方','kpHarikata'],['コンセント','consent'],['ダクト','duct']
+    { label:'窓台高さ', field:'madodaiTakasa' }, { label:'天吊りフード', field:'tentsuriHood' }, { label:'ニッチ', field:'nicchi' },
+    { label:'SK下がり壁', field:'skSagariKabe' }, { label:'CB下がり壁', field:'cbSagariKabe' }, { label:'設備', field:'setsubi' },
+    { label:'KP貼り方', field:'kpHarikata' }, { label:'コンセント', field:'consent' }, { label:'ダクト', field:'duct' }
   ]},
   { title: '大工完了まわり', items: [
-    ['大工完了','daikuKanryo'],['搬入経路','hannyuKeiro'],['パネルカット','panelCut'],
-    ['駐車スペース','chuushaSpace'],['写メ','shame'],['キーBOX','keyBox'],
-    ['SK下地','skShita'],['天板下地','tenbanShita'],['CB下地','cbShita']
+    { label:'大工完了', field:'daikuKanryo' }, { label:'搬入経路', field:'hannyuKeiro' }, { label:'パネルカット', field:'panelCut' },
+    { label:'駐車スペース', field:'chuushaSpace' }, { label:'写メ', field:'shame' }, { label:'キーBOX', field:'keyBox' },
+    { label:'SK下地', field:'skShita' }, { label:'天板下地', field:'tenbanShita' }, { label:'CB下地', field:'cbShita' }
   ]}
 ];
+
+// ★2026-09-12追加★ 現場チェックの浴室用グループ。
+var SITECHECK_GROUPS_BATH = [
+  { title: '間口・開口', items: [
+    { label:'ドア位置', field:'bathDoorPosition', type:'select', options:['右','左'] },
+    { label:'間口', field:'bathMaguchi', type:'number' },
+    { label:'奥行き(浴槽側)', field:'bathOkuyuki', type:'number' },
+    { label:'製品間口', field:'bathSeihinMaguchi', type:'number' },
+    { label:'製品奥行き', field:'bathSeihinOkuyuki', type:'number' },
+    { label:'開口寸法(額縁開口)', field:'bathKaikou', type:'number' },
+    { label:'リモコン開口 有無', field:'bathRemoconUmu', type:'select', options:['有','無'] },
+    { label:'リモコン開口 メモ', field:'bathRemoconMemo' },
+    { label:'ハンドバー設置方法', field:'bathHandbarHouhou', type:'select', options:['図面通り','要確認'] }
+  ]},
+  { title: '石膏ボード', items: [
+    { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['右','左','正面','ドア横'] }
+  ]},
+  { title: '高さ・床構成', items: [
+    { label:'高さ', field:'bathTakasa', type:'number' },
+    { label:'風呂の高さ', field:'bathFuroTakasa', type:'number' },
+    { label:'換気扇の高さ', field:'bathKankisenTakasa', type:'number' },
+    { label:'枠材の厚み', field:'bathWakuzaiAtsumi', type:'number' },
+    { label:'設置方法', field:'bathSetchiHouhou' },
+    { label:'床構成', field:'bathYukaKousei' },
+    { label:'スラブ〜床面高さ', field:'bathSlabYukaTakasa', type:'number' },
+    { label:'床合わせ', field:'bathYukaAwase', type:'select', options:['○','✕'] }
+  ]},
+  { title: '窓', items: [
+    { label:'窓幅(W)', field:'bathMadoW', type:'number' },
+    { label:'窓高さ(H)', field:'bathMadoH', type:'number' },
+    { label:'窓奥行(D)', field:'bathMadoD', type:'number' },
+    { label:'位置:上', field:'bathMadoUe', type:'number' },
+    { label:'位置:下', field:'bathMadoShita', type:'number' },
+    { label:'位置:左', field:'bathMadoHidari', type:'number' },
+    { label:'位置:右', field:'bathMadoMigi', type:'number' }
+  ]},
+  { title: 'ダクト・吊り金具', items: [
+    { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
+    { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
+    { label:'吊り金具(型)', field:'bathTsuriKanaguSize', type:'select', options:['S','SN','M','L'] },
+    { label:'吊り金具 現地入れ', field:'bathTsuriKanaguGenchi', type:'select', options:['○','✕'] }
+  ]},
+  { title: 'メモ・連絡事項', items: [
+    { label:'メモ・連絡事項', field:'bathMemoRenraku' }
+  ]}
+];
+
+// ★2026-09-12追加★ 現場チェックのタブ(キッチン/浴室)を1つのHTML文字列に組み立てる共通レンダラー。
+// siteCheckObjは案件のsiteCheckデータ全体(キッチン/浴室のフィールドが混在して入っている想定)。
+function renderSiteCheckGroups(groups, siteCheckObj) {
+  var html = '';
+  groups.forEach(function(group){
+    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
+    group.items.forEach(function(item){
+      var label = item.label, fkey = item.field, type = item.type || 'text';
+      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
+      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
+      if (type === 'select') {
+        html += '<select class="sitecheck-input" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;background:#fff;">';
+        html += '<option value=""'+(v===''?' selected':'')+'>--</option>';
+        (item.options||[]).forEach(function(opt){
+          html += '<option value="'+opt+'"'+(v===opt?' selected':'')+'>'+opt+'</option>';
+        });
+        html += '</select>';
+      } else if (type === 'multi') {
+        var savedArr = v ? String(v).split(',') : [];
+        html += '<div class="sitecheck-multi" data-field="'+fkey+'" style="display:flex;flex-wrap:wrap;gap:4px 8px;padding:4px 0;">';
+        (item.options||[]).forEach(function(opt){
+          var checked = savedArr.indexOf(opt) !== -1 ? ' checked' : '';
+          html += '<label style="font-size:11px;color:#333;white-space:nowrap;"><input type="checkbox" class="sitecheck-multi-cb" value="'+opt+'"'+checked+'> '+opt+'</label>';
+        });
+        html += '</div>';
+      } else {
+        html += '<input type="'+(type==='number'?'number':'text')+'" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtmlModal(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" />';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
 
 function normalizePhoneModal(raw) {
   if (!raw) return "";
@@ -258,20 +342,20 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</div>';
 
-  // 🛠️ 現場チェック（メモとは別。テキスト入力・項目離脱時に即時保存）
+  // 🛠️ 現場チェック（メモとは別。テキスト入力・項目離脱時に即時保存。キッチン/浴室をタブで手動切替）
+  // タブの選択状態はこの案件のsiteCheckLastTabに保存し、次回モーダルを開いた時も直前のタブを復元する。
+  var siteCheckLastTab = (siteCheckObj.__lastTab === 'bath') ? 'bath' : 'kitchen';
   html += '<div class="modal-section"><h4 style="color:#e65100;margin-bottom:6px;">🛠️ 現場チェック</h4>';
+  html += '<div style="margin-bottom:8px;">';
+  html += '<button type="button" class="sitecheck-tab-btn" data-tab="kitchen" style="font-size:12px;padding:6px 14px;border-radius:4px 0 0 4px;border:1px solid #e65100;cursor:pointer;'
+    + (siteCheckLastTab==='kitchen' ? 'background:#e65100;color:#fff;font-weight:bold;' : 'background:#fff;color:#e65100;')
+    + '">🍳 キッチン</button>';
+  html += '<button type="button" class="sitecheck-tab-btn" data-tab="bath" style="font-size:12px;padding:6px 14px;border-radius:0 4px 4px 0;border:1px solid #e65100;border-left:none;cursor:pointer;'
+    + (siteCheckLastTab==='bath' ? 'background:#e65100;color:#fff;font-weight:bold;' : 'background:#fff;color:#e65100;')
+    + '">🛁 浴室</button>';
+  html += '</div>';
   html += '<div id="sitecheck-area">';
-  SITECHECK_GROUPS.forEach(function(group){
-    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
-    group.items.forEach(function(item){
-      var label = item[0], fkey = item[1];
-      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
-      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
-      html += '<input type="text" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtmlModal(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" /></div>';
-    });
-    html += '</div>';
-  });
+  html += renderSiteCheckGroups(siteCheckLastTab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
   html += '</div></div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
@@ -510,18 +594,53 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   }
 
-  // 🛠️ 現場チェック（各項目、離脱時に即時保存。イベント委譲で1リスナー）
+  // 🛠️ 現場チェック（テキスト/数値は離脱時、選択系(select・複数選択)は選択時に即時保存。イベント委譲で1リスナー）
   var sitecheckArea = document.getElementById('sitecheck-area');
   if (sitecheckArea) {
     sitecheckArea.addEventListener('focusout', function(e){
       var t = e.target;
-      if (t && t.classList && t.classList.contains('sitecheck-input')) {
+      if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
         var fkey = t.getAttribute('data-field');
         siteCheckObj[fkey] = t.value;
         saveField({siteCheck: siteCheckObj});
       }
     });
+    sitecheckArea.addEventListener('change', function(e){
+      var t = e.target;
+      if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName === 'SELECT') {
+        var fkey = t.getAttribute('data-field');
+        siteCheckObj[fkey] = t.value;
+        saveField({siteCheck: siteCheckObj});
+      } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
+        var group = t.closest('.sitecheck-multi');
+        if (group) {
+          var fkey2 = group.getAttribute('data-field');
+          var checkedVals = Array.prototype.slice.call(group.querySelectorAll('.sitecheck-multi-cb:checked')).map(function(cb){ return cb.value; });
+          siteCheckObj[fkey2] = checkedVals.join(',');
+          saveField({siteCheck: siteCheckObj});
+        }
+      }
+    });
   }
+
+  // 🍳/🛁 現場チェックのタブ切替（キッチン⇔浴室）。切替時にそのタブの入力欄一式を再描画し、
+  // 直前に開いていたタブをsiteCheck.__lastTabとして保存(次回モーダルを開いた時に復元するため)。
+  document.querySelectorAll('.sitecheck-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var tab = this.getAttribute('data-tab');
+      siteCheckObj.__lastTab = tab;
+      saveField({siteCheck: siteCheckObj});
+      document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
+        var active = b.getAttribute('data-tab') === tab;
+        b.style.background = active ? '#e65100' : '#fff';
+        b.style.color = active ? '#fff' : '#e65100';
+        b.style.fontWeight = active ? 'bold' : 'normal';
+      });
+      if (sitecheckArea) {
+        sitecheckArea.innerHTML = renderSiteCheckGroups(tab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
+      }
+    });
+  });
 
   // 🔄 施工日の変更希望（定型文コピー＋工務担当者へのメッセージ起動）
   (function(){
