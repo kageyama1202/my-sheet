@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-001
+// VERSION: 2026-09-13-002
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -61,6 +61,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'上下総寸法(実測値・解体後計測)', field:'bathJougeSousunpouJissoku', type:'number' }
   ]},
   { title: '窓', items: [
+    { label:'窓がある面', field:'bathMadoMen', type:'select', options:['正面','右面','左面'] },
     { label:'窓幅(W)', field:'bathMadoW', type:'number' },
     { label:'窓高さ(H)', field:'bathMadoH', type:'number' },
     { label:'窓奥行(D)', field:'bathMadoD', type:'number' },
