@@ -1,27 +1,15 @@
-/* bath-diagram.js — 浴室現場チェックの図面SVG生成＋PDF化ライブラリ読込【新規分離】
-   shared-modal.js内「📐 浴室図面」の図面PDF作成ボタンから、
+/* bath-diagram.js — 浴室現場チェックの図面SVG生成【新規分離】
+   shared-modal.js内「📐 浴室図面」の「図面を表示」ボタンから、
    ensureBathDiagramLibModal()によってボタンクリック時にのみ動的読込される。
-   ここに定義する関数(buildBathDiagramSVG / ensurePdfLibsModal / numModal / fitBoxModal)は
+   ここに定義する関数(buildBathDiagramSVG / numModal / fitBoxModal)は
    グローバルにぶら下がり、shared-modal.js側から直接呼び出される想定。
    escHtmlModal()はshared-modal.js側にある想定(このファイルは常にshared-modal.jsの後に読み込まれる)。
+   ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
+   html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-12-001
+// VERSION: 2026-09-13-002
 
-// ============ 📐 浴室図面（4象限レイアウトのSVG生成 + PDF化） ============
-function ensurePdfLibsModal(cb) {
-  var need = [];
-  if (typeof html2canvas === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  if (typeof window.jspdf === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if (need.length === 0) { cb(); return; }
-  var loaded = 0;
-  need.forEach(function(src){
-    var s = document.createElement('script');
-    s.src = src;
-    s.onload = function(){ loaded++; if (loaded === need.length) cb(); };
-    document.head.appendChild(s);
-  });
-}
-
+// ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
   var n = parseFloat(v);
   return isNaN(n) ? (def === undefined ? null : def) : n;
@@ -39,7 +27,9 @@ function fitBoxModal(w, d, maxW, maxH) {
 function buildBathDiagramSVG(sc) {
   sc = sc || {};
   var W = 1150, H = 900, MX = 500, MY = 450;
-  var svg = '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" font-family="\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif">';
+  // ★2026-09-13変更★ width/heightは指定せず100%+preserveAspectRatioにして、
+  // モーダルのプレビュー幅に自動で収まるようにする(スクショで全面を撮れるようにするため)。
+  var svg = '<svg width="100%" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" font-family="\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif" style="display:block;">';
   svg += '<rect width="'+W+'" height="'+H+'" fill="#fdfaf3"/>';
   svg += '<line x1="'+MX+'" y1="0" x2="'+MX+'" y2="'+H+'" stroke="#c0392b" stroke-width="2"/>';
   svg += '<line x1="0" y1="'+MY+'" x2="'+W+'" y2="'+MY+'" stroke="#c0392b" stroke-width="2"/>';
@@ -59,18 +49,23 @@ function buildBathDiagramSVG(sc) {
   svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">奥行き'+(okuyuki?'：'+okuyuki:'')+'</text>';
 
   // 勝手(ドアの開き)：右勝手/左勝手のどちらか一方だけ描く
+  // ★2026-09-13変更★ 弧の半径が固定48pxで部屋の大きさに対して小さすぎたため、
+  // 標準的なドア扉幅(650mm想定)を間口/奥行きと同じスケール(outerBox.scale)で換算した実寸ベースに変更。
   var doorPos = sc.bathDoorPosition || '';
   var doorY = oy + oh;
+  var DOOR_LEAF_MM = 650;
+  var doorR = Math.min(90, Math.max(24, DOOR_LEAF_MM * outerBox.scale));
+  var doorRatio = doorR / 48; // 元の描画比率(縦40:横30:8)を維持したまま拡大縮小するための係数
   if (doorPos === '右') {
-    svg += '<path d="M'+(ox+ow)+','+(doorY-40)+' L'+(ox+ow)+','+(doorY+30)+'" stroke="#222" stroke-width="2"/>';
-    svg += '<path d="M'+(ox+ow)+','+(doorY+30)+' L'+(ox+ow-40)+','+(doorY-8)+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+(ox+ow)+','+(doorY-40)+' A48,48 0 0 0 '+(ox+ow-40)+','+(doorY-8)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
-    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+45)+'" font-size="12" fill="#c0392b">右勝手</text>';
+    svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' L'+(ox+ow)+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
+    svg += '<path d="M'+(ox+ow)+','+(doorY+30*doorRatio)+' L'+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
+    svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 0 '+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">右勝手</text>';
   } else if (doorPos === '左') {
-    svg += '<path d="M'+ox+','+(doorY-40)+' L'+ox+','+(doorY+30)+'" stroke="#222" stroke-width="2"/>';
-    svg += '<path d="M'+ox+','+(doorY+30)+' L'+(ox+40)+','+(doorY-8)+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+ox+','+(doorY-40)+' A48,48 0 0 1 '+(ox+40)+','+(doorY-8)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
-    svg += '<text x="'+(ox-70)+'" y="'+(doorY+45)+'" font-size="12" fill="#c0392b">左勝手</text>';
+    svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' L'+ox+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
+    svg += '<path d="M'+ox+','+(doorY+30*doorRatio)+' L'+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
+    svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 1 '+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<text x="'+(ox-70)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">左勝手</text>';
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+45)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
   }
@@ -115,25 +110,27 @@ function buildBathDiagramSVG(sc) {
   var yKankisenTop = segY(agari + (furo||0) + (kankisen||0));
   var yTenjou = tenjou ? segY(tenjou) : yKankisenTop;
 
+  // ★2026-09-13変更★ 各区画の数値は「その区画の右上」に寄せる(以前は縦中央寄せで、
+  // どの数値がどの区画のものか一見わかりにくかったため)。ラベルは各rectの上端に揃える。
   // 床上がり
   if (agari) {
     svg += '<rect x="'+rx+'" y="'+yAgariTop+'" width="26" height="'+(baseY-yAgariTop)+'" fill="#e0e0e0" stroke="#888" stroke-width="1"/>';
-    svg += '<text x="'+(rx+34)+'" y="'+((yAgariTop+baseY)/2+4)+'" font-size="11" fill="#666">床上がり高さ：'+agari+'</text>';
+    svg += '<text x="'+(rx+34)+'" y="'+(yAgariTop+11)+'" font-size="11" fill="#666">床上がり高さ：'+agari+'</text>';
   }
   // 風呂の高さ(製品)
   if (furo) {
     svg += '<rect x="'+rx+'" y="'+yFuroTop+'" width="26" height="'+(yAgariTop-yFuroTop)+'" fill="#dcecec" stroke="#00695c" stroke-width="1.3"/>';
-    svg += '<text x="'+(rx+34)+'" y="'+((yFuroTop+yAgariTop)/2+4)+'" font-size="11" fill="#00695c">風呂の高さ：'+furo+'</text>';
+    svg += '<text x="'+(rx+34)+'" y="'+(yFuroTop+11)+'" font-size="11" fill="#00695c">風呂の高さ：'+furo+'</text>';
   }
   // 換気扇の高さ
   if (kankisen) {
     svg += '<rect x="'+rx+'" y="'+yKankisenTop+'" width="26" height="'+(yFuroTop-yKankisenTop)+'" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.3"/>';
-    svg += '<text x="'+(rx+34)+'" y="'+((yKankisenTop+yFuroTop)/2+4)+'" font-size="11" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
+    svg += '<text x="'+(rx+34)+'" y="'+(yKankisenTop+11)+'" font-size="11" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
   }
   // 天井とのクリア
   if (clear !== null && tenjou) {
     svg += '<rect x="'+rx+'" y="'+yTenjou+'" width="26" height="'+(yKankisenTop-yTenjou)+'" fill="#fff" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>';
-    svg += '<text x="'+(rx+34)+'" y="'+((yTenjou+yKankisenTop)/2+4)+'" font-size="11" fill="#c0392b">天井とのクリア：'+clear+'</text>';
+    svg += '<text x="'+(rx+34)+'" y="'+(yTenjou+11)+'" font-size="11" fill="#c0392b">天井とのクリア：'+clear+'</text>';
   }
   // 天井ライン
   svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+(rx+260)+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
