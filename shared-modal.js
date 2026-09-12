@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-003
+// VERSION: 2026-09-13-004
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -909,6 +909,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var reportFieldLabels = {
       bathMaguchi: '間口', bathOkuyuki: '奥行き', bathTenjouTakasa: '天井高さ',
       bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
+      bathWakuzaiAtsumi: '枠材の厚み',
       bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
       bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
     };
@@ -919,7 +920,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       ensureReportParserLibModal(function(){
         var result = parseSBReportText(text);
         var keys = Object.keys(result.fields);
-        if (!keys.length && !result.memoLines.length) {
+        if (!keys.length && !result.memoLines.length && !result.bathMemoAppend) {
           previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
           return;
         }
@@ -930,12 +931,22 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         result.memoLines.forEach(function(m){
           html += '<div>・メモに追記：'+escHtmlModal(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
         });
+        if (result.bathMemoAppend) {
+          html += '<div>・図面メモ(左下)に追記：'+escHtmlModal(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
+        }
         html += '</div>';
         html += '<button type="button" id="report-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
         previewEl.innerHTML = html;
 
         document.getElementById('report-apply-btn').addEventListener('click', function(){
           Object.keys(result.fields).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
+          // ★2026-09-13変更★ 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
+          // こちらは職人さんがスクショで見る図面そのものに載るため、現場向けの伝達事項の置き場として適切。
+          if (result.bathMemoAppend) {
+            var stampBath = buildStamp();
+            var currentBathMemo = siteCheckObj.bathMemoRenraku || '';
+            siteCheckObj.bathMemoRenraku = (currentBathMemo ? currentBathMemo + '\n\n' : '') + '【報告書取込 ' + stampBath + '】\n' + result.bathMemoAppend;
+          }
           var updates = { siteCheck: siteCheckObj };
           if (result.memoLines.length) {
             var stamp = buildStamp();
