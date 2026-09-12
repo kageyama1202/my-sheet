@@ -7,7 +7,7 @@
    あくまで「候補」を返すだけで、実際にフォームへ反映・保存するかはshared-modal.js側の
    確認ボタンを押してから。誤読み取りでいきなり上書きしないための安全策。
 */
-// VERSION: 2026-09-13-001
+// VERSION: 2026-09-13-002
 
 function parseSBReportText(text) {
   if (!text) return { fields: {}, memoLines: [] };
@@ -31,6 +31,11 @@ function parseSBReportText(text) {
 
   var setchi = grab(/ＳＢ設置位置\s*(.+?)(?=ドア開口|脱衣場|$)/);
   if (setchi) fields.bathSetchiHouhou = setchi;
+
+  // ★2026-09-13追加★ 設置位置の文中に「枠20見て」のように枠材の厚み(mm)が
+  // 埋め込まれているケースが多いため、そこから枠材の厚みも別途抜き出す。
+  var wakuMatch = (setchi || t).match(/枠\s*(\d+)/);
+  if (wakuMatch) fields.bathWakuzaiAtsumi = wakuMatch[1];
 
   var yukaKousei = grab(/ドアアングル納め位置（詳細[：:]基準）\s*(.+?)(?=土間状況|$)/);
   if (yukaKousei) fields.bathYukaKousei = yukaKousei;
@@ -65,11 +70,14 @@ function parseSBReportText(text) {
   }
 
   // 特記事項・伝達事項はフィールドに対応するものがないため、メモ・連絡事項への追記候補として返す
+  // 特記事項・伝達事項はフィールドに対応するものがないため、メモへの追記候補として返す。
+  // ★2026-09-13変更★ 伝達事項は現場の職人さんが見る「4分割図面」の左下メモ(bathMemoRenraku)に、
+  // 特記事項は社内向けの一般メモ(モーダルのメモ・連絡事項欄)に、と行き先を分ける。
   var tokkiJikou = grab(/【特記事項】\s*(.+?)(?=【施工エンジニアへの伝達事項】|$)/);
   if (tokkiJikou) memoLines.push('【報告書:特記事項】' + tokkiJikou);
 
   var dentatsu = grab(/【施工エンジニアへの伝達事項】\s*(.+?)(?=商品変更|$)/);
-  if (dentatsu) memoLines.push('【報告書:施工エンジニアへの伝達事項】' + dentatsu);
+  var bathMemoAppend = dentatsu ? ('【報告書:伝達事項】' + dentatsu) : null;
 
-  return { fields: fields, memoLines: memoLines };
+  return { fields: fields, memoLines: memoLines, bathMemoAppend: bathMemoAppend };
 }
