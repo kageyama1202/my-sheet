@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-12-008
+// VERSION: 2026-09-12-010
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -49,6 +49,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'脱衣室高さ', field:'bathDatsuishitsuTakasa', type:'number' },
     { label:'風呂の高さ(製品)', field:'bathFuroTakasa', type:'number' },
     { label:'換気扇の高さ', field:'bathKankisenTakasa', type:'number' },
+    { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
     { label:'枠材の厚み', field:'bathWakuzaiAtsumi', type:'number' },
     { label:'設置方法', field:'bathSetchiHouhou' },
     { label:'床構成', field:'bathYukaKousei' },
@@ -68,8 +69,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'位置:左', field:'bathMadoHidari', type:'number' },
     { label:'位置:右', field:'bathMadoMigi', type:'number' }
   ]},
-  { title: 'ダクト・吊り金具', items: [
-    { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
+  { title: '吊り金具', items: [
     { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
     { label:'吊り金具(型)', field:'bathTsuriKanaguSize', type:'select', options:['S','SN','M','L'] },
     { label:'吊り金具 現地入れ', field:'bathTsuriKanaguGenchi', type:'select', options:['○','✕'] }
@@ -1222,6 +1222,7 @@ function buildBathDiagramSVG(sc) {
   // 床上がり
   if (agari) {
     svg += '<rect x="'+rx+'" y="'+yAgariTop+'" width="26" height="'+(baseY-yAgariTop)+'" fill="#e0e0e0" stroke="#888" stroke-width="1"/>';
+    svg += '<text x="'+(rx+34)+'" y="'+((yAgariTop+baseY)/2+4)+'" font-size="11" fill="#666">床上がり高さ：'+agari+'</text>';
   }
   // 風呂の高さ(製品)
   if (furo) {
