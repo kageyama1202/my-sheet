@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-003
+// VERSION: 2026-09-13-004
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -56,18 +56,25 @@ function buildBathDiagramSVG(sc) {
   var DOOR_LEAF_MM = 650;
   var doorR = Math.min(90, Math.max(24, DOOR_LEAF_MM * outerBox.scale));
   var doorRatio = doorR / 48; // 元の描画比率(縦40:横30:8)を維持したまま拡大縮小するための係数
+  // ★2026-09-13変更★ ドアの開閉線・「右勝手/左勝手」ラベルの下側に、
+  // 平面図メモ(石膏ボード・設置方法)の文字がめり込んで重なっていたため、
+  // メモ開始Y座標をドア図形の最下端より確実に下へ逃がす。
+  var planNoteStartY = oy + oh + 40;
   if (doorPos === '右') {
     svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' L'+(ox+ow)+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+(ox+ow)+','+(doorY+30*doorRatio)+' L'+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
     svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 0 '+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
     svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">右勝手</text>';
+    planNoteStartY = Math.max(planNoteStartY, doorY + 45*doorRatio + 20);
   } else if (doorPos === '左') {
     svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' L'+ox+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+ox+','+(doorY+30*doorRatio)+' L'+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
     svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 1 '+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
     svg += '<text x="'+(ox-70)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">左勝手</text>';
+    planNoteStartY = Math.max(planNoteStartY, doorY + 45*doorRatio + 20);
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+45)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
+    planNoteStartY = Math.max(planNoteStartY, doorY + 45 + 20);
   }
 
   // 石膏ボード部分：選択された壁面ごとに強調線＋ラベル
@@ -83,22 +90,17 @@ function buildBathDiagramSVG(sc) {
     if (!seg) return;
     svg += '<line x1="'+seg.x1+'" y1="'+seg.y1+'" x2="'+seg.x2+'" y2="'+seg.y2+'" stroke="#8e24aa" stroke-width="6" stroke-linecap="round" opacity="0.85"/>';
   });
-  // ★2026-09-13変更★ 設置方法はドア枠の話なので、メモ欄(左下)ではなく平面図(左上)の下に表示する。
-  // 石膏ボード行と縦に並べる(どちらか一方だけでも詰まって表示されるようにインデックスで管理)。
+  // ★2026-09-13変更★ 設置方法・枠材の厚みはドア枠(開口)の話なので、メモ欄(左下)ではなく
+  // 平面図(左上)の下、ドア図形と重ならない位置(planNoteStartY)にまとめて表示する。
   var planNoteLines = [];
   if (sekkou.length) planNoteLines.push({ text: '石膏ボード：'+sekkou.join('・'), color: '#8e24aa' });
   if (sc.bathSetchiHouhou) planNoteLines.push({ text: '設置方法：'+sc.bathSetchiHouhou, color: '#555' });
+  if (sc.bathWakuzaiAtsumi) planNoteLines.push({ text: '枠材の厚み：'+sc.bathWakuzaiAtsumi, color: '#555' });
   planNoteLines.forEach(function(item, i){
-    svg += '<text x="'+ix+'" y="'+(iy+ih+40+i*18)+'" font-size="11" fill="'+item.color+'">'+escHtmlModal(item.text)+'</text>';
+    svg += '<text x="'+ix+'" y="'+(planNoteStartY+i*18)+'" font-size="11" fill="'+item.color+'">'+escHtmlModal(item.text)+'</text>';
   });
 
   // ---------- 右上：高さ関係（断面） ----------
-  var rx = 640;
-  // ★2026-09-13変更★ 「写真のような幅広感」用に区画の幅を26px→90pxに拡大。
-  var hBoxW = 90;
-  var labelX = rx + hBoxW + 8;
-  var lineEndX = rx + hBoxW + 230;
-  var bracketX = rx + hBoxW + 254;
   var tenjou = numModal(sc.bathTenjouTakasa);
   var datsui = numModal(sc.bathDatsuishitsuTakasa);
   var furo = numModal(sc.bathFuroTakasa);
@@ -112,6 +114,17 @@ function buildBathDiagramSVG(sc) {
   var totalMM = tenjou || ((furo||0)+(kankisen||0)+(agari||0)+(clear||0)) || 2400;
   var pxScale = 300 / totalMM;
   var baseY = 400; // 床(0mm)の位置
+
+  // ★2026-09-13変更★
+  // ・右側に余白が空きすぎていたため、断面全体を右へ詰める(rx: 640→680)。左側はドアがある想定の余白として確保。
+  // ・箱の幅は固定90pxではなく、間口(または製品間口)の実測値を高さと同じ縮尺(pxScale)で換算し、
+  //   「入力値に合わせたワイド感」になるようにする。ただしラベル文字の表示スペースを確保するため60〜220pxにクランプ。
+  var rx = 680;
+  var widthSourceMM = maguchi || seiMaguchi || 1600;
+  var hBoxW = Math.min(220, Math.max(60, Math.round(widthSourceMM * pxScale)));
+  var labelX = rx + hBoxW + 10;
+  var lineEndX = labelX + 170;
+  var bracketX = labelX + 195;
 
   function segY(mmFromFloor) { return baseY - mmFromFloor * pxScale; }
 
@@ -181,7 +194,6 @@ function buildBathDiagramSVG(sc) {
   if (sc.bathRemoconUmu) extraNotes.push('リモコン開口：'+sc.bathRemoconUmu + (sc.bathRemoconMemo?'（'+sc.bathRemoconMemo+'）':''));
   if (sc.bathHandbarHouhou) extraNotes.push('ハンドバー：'+sc.bathHandbarHouhou);
   if (sc.bathTsuriKanaguKubun || sc.bathTsuriKanaguSize) extraNotes.push('吊り金具：'+(sc.bathTsuriKanaguKubun||'?')+' / '+(sc.bathTsuriKanaguSize||'?')+' / 現地入れ'+(sc.bathTsuriKanaguGenchi||'?'));
-  if (sc.bathWakuzaiAtsumi) extraNotes.push('枠材の厚み：'+sc.bathWakuzaiAtsumi);
   extraNotes.forEach(function(line, i){
     svg += '<text x="30" y="'+(MY+64+(memoLines.length+i+1)*16)+'" font-size="11" fill="#666">'+escHtmlModal(line)+'</text>';
   });
