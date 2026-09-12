@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-12-011
+// VERSION: 2026-09-13-001
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -365,12 +365,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += renderSiteCheckGroups(siteCheckLastTab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
   html += '</div></div>';
 
-  // ★2026-09-12追加★ 📐 浴室図面：現場チェック(浴室タブ)で入力した数値を4象限レイアウトのSVGに反映し、PDF化するボタン。
-  // まずモーダル内で完結させる方針(重くなれば別HTMLへ切り出す想定)。
+  // ★2026-09-12追加★ 📐 浴室図面：現場チェック(浴室タブ)で入力した数値を4象限レイアウトのSVGに反映して画面表示するボタン。
+  // ★2026-09-13変更★ PDF化はやめ、モーダル内にSVGをそのまま表示する方式に変更(セールスフォースへはスクショで登録する運用のため)。
   html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 浴室図面</h4>';
-  html += '<button type="button" id="bath-diagram-pdf-btn" style="font-size:12px;padding:8px 16px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">📄 図面PDF作成(浴室)</button>';
+  html += '<button type="button" id="bath-diagram-show-btn" style="font-size:12px;padding:8px 16px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">🖼 図面を表示(スクショ用)</button>';
   html += '<div id="bath-diagram-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
-  html += '<div id="bath-diagram-preview" style="margin-top:10px;"></div>';
+  html += '<div id="bath-diagram-preview" style="margin-top:10px;max-width:100%;overflow-x:auto;"></div>';
   html += '</div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
@@ -891,34 +891,19 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
 
-  // 📐 浴室図面PDF作成（bath-diagram.js + html2canvas + jsPDFを必要時のみ動的読込）
+  // 📐 浴室図面 画面表示（bath-diagram.jsを必要時のみ動的読込。PDF化はせずスクショ用にそのまま表示）
   (function(){
-    var btn = document.getElementById('bath-diagram-pdf-btn');
+    var btn = document.getElementById('bath-diagram-show-btn');
     var statusEl = document.getElementById('bath-diagram-status');
     var previewEl = document.getElementById('bath-diagram-preview');
     if (!btn) return;
     btn.addEventListener('click', function(){
       statusEl.textContent = '⏳ 図面を作成中...';
       ensureBathDiagramLibModal(function(){
-        previewEl.innerHTML = '<div id="bath-diagram-render" style="background:#fff;display:inline-block;"></div>';
+        previewEl.innerHTML = '<div id="bath-diagram-render" style="background:#fff;display:inline-block;width:100%;"></div>';
         document.getElementById('bath-diagram-render').innerHTML = buildBathDiagramSVG(siteCheckObj);
-        html2canvas(document.getElementById('bath-diagram-render'), { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas){
-          var imgData = canvas.toDataURL('image/png');
-          var jsPDFCtor = window.jspdf.jsPDF;
-          var pdf = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-          var pageW = pdf.internal.pageSize.getWidth();
-          var pageH = pdf.internal.pageSize.getHeight();
-          var ratio = Math.min(pageW / canvas.width, pageH / canvas.height) * 0.95;
-          var w = canvas.width * ratio, h = canvas.height * ratio;
-          var x = (pageW - w) / 2, y = (pageH - h) / 2;
-          pdf.addImage(imgData, 'PNG', x, y, w, h);
-          var caseLabel = getSafeValModal(cols,4).trim() || key;
-          pdf.save(caseLabel + '_浴室図面.pdf');
-          statusEl.textContent = '✅ 出力完了';
-          setTimeout(function(){ statusEl.textContent = ''; }, 2500);
-        }).catch(function(e){
-          statusEl.textContent = '❌ 失敗：' + e.message;
-        });
+        statusEl.textContent = '✅ 表示しました（スクショしてご利用ください）';
+        setTimeout(function(){ statusEl.textContent = ''; }, 2500);
       });
     });
   })();
@@ -956,23 +941,19 @@ function ensureStorageSDKModal(cb) {
 
 // ============ 📐 浴室図面 遅延読込ローダー（bath-diagram.js） ============
 // ★2026-09-12追加★ buildBathDiagramSVG等の作図関連コードをbath-diagram.jsへ分離し、
-// 「図面PDF作成」ボタンを押した時だけ読み込む(ensureStorageSDKModalと同じ遅延読込パターン)。
-// bath-diagram.js側の関数(buildBathDiagramSVG/ensurePdfLibsModal/numModal/fitBoxModal)は
-// グローバルにぶら下がる想定。読込後にensurePdfLibsModal(html2canvas/jsPDF本体)を続けて呼ぶ。
+// 「図面を表示」ボタンを押した時だけ読み込む(ensureStorageSDKModalと同じ遅延読込パターン)。
+// ★2026-09-13変更★ PDF化は廃止(画面表示のみ)。html2canvas/jsPDFの読込は不要になったため撤去。
 function ensureBathDiagramLibModal(cb) {
-  if (typeof buildBathDiagramSVG === 'function' && typeof ensurePdfLibsModal === 'function') {
-    ensurePdfLibsModal(cb);
-    return;
-  }
+  if (typeof buildBathDiagramSVG === 'function') { cb(); return; }
   var existing = document.querySelector('script[data-bathdiagram]');
   if (existing) {
-    existing.addEventListener('load', function(){ ensurePdfLibsModal(cb); });
+    existing.addEventListener('load', cb);
     return;
   }
   var s = document.createElement('script');
   s.src = 'bath-diagram.js';
   s.setAttribute('data-bathdiagram', '1');
-  s.onload = function(){ ensurePdfLibsModal(cb); };
+  s.onload = cb;
   document.head.appendChild(s);
 }
 
