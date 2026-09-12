@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-006
+// VERSION: 2026-09-13-007
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -49,34 +49,37 @@ function buildBathDiagramSVG(sc) {
   svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">奥行き'+(okuyuki?'：'+okuyuki:'')+'</text>';
 
   // 勝手(ドアの開き)：右勝手/左勝手のどちらか一方だけ描く
-  // ★2026-09-13変更★ 「650mm想定」という仮定値をやめ、現場チェックの実測値「開口寸法(額縁開口)」
-  // (bathKaikou)を間口/奥行きと同じスケール(outerBox.scale)で換算した正真の実寸ベースに変更。
-  // 未入力の場合のみ650mmを暫定値として使う。
+  // ★2026-09-13変更★ 実際の浴室ドアは室内側(内側)に開くとのご指摘のため、
+  // 蝶番(コーナー)を基点にしたシンプルな作図に描き直し、開き方向を必ず室内側(箱の内側)に収める。
+  // ・「開いた状態」の線＝蝶番から室内側の壁沿いへ伸ばす(以前は箱の外側にはみ出していた)
+  // ・弧の中心を蝶番に固定するため、SVGのsweep-flagを幾何計算で導出(右勝手=0／左勝手=1で中心が蝶番に一致)
   var doorPos = sc.bathDoorPosition || '';
   var doorY = oy + oh;
   var kaikou = numModal(sc.bathKaikou);
   var doorWidthMM = kaikou || 650;
-  var doorR = Math.max(15, doorWidthMM * outerBox.scale);
-  var doorRatio = doorR / 48; // 元の描画比率(縦40:横30:8)を維持したまま拡大縮小するための係数
-  // ★2026-09-13変更★ ドアの開閉線・「右勝手/左勝手」ラベルの下側に、
-  // 平面図メモ(石膏ボード・設置方法)の文字がめり込んで重なっていたため、
-  // メモ開始Y座標をドア図形の最下端より確実に下へ逃がす。
+  // 極端な入力での破綻防止のため、部屋の辺の90%を上限にクランプ(見た目の安全策であり、実寸方針は変えない)
+  var doorR = Math.min(Math.max(15, doorWidthMM * outerBox.scale), ow*0.9, oh*0.9);
+  // ★2026-09-13変更★ メモ開始Y座標をドアの大きさに依存させず、常に箱の下+40pxの固定位置にする
+  // (以前はドアが大きいとメモが下象限にめり込んで表示崩れの原因になっていた)。
   var planNoteStartY = oy + oh + 40;
   if (doorPos === '右') {
-    svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' L'+(ox+ow)+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
-    svg += '<path d="M'+(ox+ow)+','+(doorY+30*doorRatio)+' L'+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+(ox+ow)+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 0 '+(ox+ow-40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
-    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">右勝手</text>';
-    planNoteStartY = Math.max(planNoteStartY, doorY + 45*doorRatio + 20);
+    var rHingeX = ox+ow, rHingeY = doorY;
+    var rClosedX = rHingeX, rClosedY = rHingeY - doorR;      // 閉じた状態：右の壁沿いに上へ
+    var rOpenX = rHingeX - doorR, rOpenY = rHingeY;          // 開いた状態：室内側(左)へ
+    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="2"/>';
+    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="1.3"/>';
+    svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">右勝手</text>';
   } else if (doorPos === '左') {
-    svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' L'+ox+','+(doorY+30*doorRatio)+'" stroke="#222" stroke-width="2"/>';
-    svg += '<path d="M'+ox+','+(doorY+30*doorRatio)+' L'+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+ox+','+(doorY-40*doorRatio)+' A'+doorR+','+doorR+' 0 0 1 '+(ox+40*doorRatio)+','+(doorY-8*doorRatio)+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
-    svg += '<text x="'+(ox-70)+'" y="'+(doorY+45*doorRatio)+'" font-size="12" fill="#c0392b">左勝手</text>';
-    planNoteStartY = Math.max(planNoteStartY, doorY + 45*doorRatio + 20);
+    var lHingeX = ox, lHingeY = doorY;
+    var lClosedX = lHingeX, lClosedY = lHingeY - doorR;      // 閉じた状態：左の壁沿いに上へ
+    var lOpenX = lHingeX + doorR, lOpenY = lHingeY;          // 開いた状態：室内側(右)へ
+    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="2"/>';
+    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="1.3"/>';
+    svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<text x="'+(ox-70)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">左勝手</text>';
   } else {
-    svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+45)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
-    planNoteStartY = Math.max(planNoteStartY, doorY + 45 + 20);
+    svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
   }
 
   // 石膏ボード部分：選択された壁面ごとに強調線＋ラベル
@@ -95,9 +98,9 @@ function buildBathDiagramSVG(sc) {
   // ★2026-09-13変更★ 設置方法・枠材の厚みはドア枠(開口)の話なので、メモ欄(左下)ではなく
   // 平面図(左上)の下、ドア図形と重ならない位置(planNoteStartY)にまとめて表示する。
   var planNoteLines = [];
-  if (sekkou.length) planNoteLines.push({ text: '石膏ボード：'+sekkou.join('・'), color: '#8e24aa' });
+  if (sekkou.length) planNoteLines.push({ text: '石膏ボード：'+sekkou.join('・'), color: '#8e24aa', size: 12 });
   if (sc.bathSetchiHouhou) planNoteLines.push({ text: '設置方法：'+sc.bathSetchiHouhou, color: '#555', size: 13 });
-  if (sc.bathWakuzaiAtsumi) planNoteLines.push({ text: '枠材の厚み：'+sc.bathWakuzaiAtsumi, color: '#555' });
+  if (sc.bathWakuzaiAtsumi) planNoteLines.push({ text: '枠材の厚み：'+sc.bathWakuzaiAtsumi, color: '#555', size: 12 });
   var planNoteY = planNoteStartY;
   planNoteLines.forEach(function(item){
     var fsize = item.size || 11;
@@ -118,7 +121,8 @@ function buildBathDiagramSVG(sc) {
 
   var totalMM = tenjou || ((furo||0)+(kankisen||0)+(agari||0)+(clear||0)) || 2400;
   var pxScale = 300 / totalMM;
-  var baseY = 400; // 床(0mm)の位置
+  var baseY = oy + 300; // 床(0mm)の位置。★2026-09-13変更★ 平面図の上端(oy)と縦位置を揃え、
+  // 天井ラインが平面図より低い位置から始まって見える(上端が詰まって見える)問題を解消。
 
   // ★2026-09-13変更★
   // ・右側に余白が空きすぎていたため、断面全体を右へ詰める(rx: 640→680)。左側はドアがある想定の余白として確保。
@@ -143,22 +147,22 @@ function buildBathDiagramSVG(sc) {
   // 床上がり
   if (agari) {
     svg += '<rect x="'+rx+'" y="'+yAgariTop+'" width="'+hBoxW+'" height="'+(baseY-yAgariTop)+'" fill="#e0e0e0" stroke="#888" stroke-width="1"/>';
-    svg += '<text x="'+labelX+'" y="'+(yAgariTop+11)+'" font-size="11" fill="#666">床上がり高さ：'+agari+'</text>';
+    svg += '<text x="'+labelX+'" y="'+(yAgariTop+12)+'" font-size="12" fill="#666">床上がり高さ：'+agari+'</text>';
   }
   // 風呂の高さ(製品)
   if (furo) {
     svg += '<rect x="'+rx+'" y="'+yFuroTop+'" width="'+hBoxW+'" height="'+(yAgariTop-yFuroTop)+'" fill="#dcecec" stroke="#00695c" stroke-width="1.3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yFuroTop+11)+'" font-size="11" fill="#00695c">風呂の高さ：'+furo+'</text>';
+    svg += '<text x="'+labelX+'" y="'+(yFuroTop+12)+'" font-size="12" fill="#00695c">風呂の高さ：'+furo+'</text>';
   }
   // 換気扇の高さ
   if (kankisen) {
     svg += '<rect x="'+rx+'" y="'+yKankisenTop+'" width="'+hBoxW+'" height="'+(yFuroTop-yKankisenTop)+'" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yKankisenTop+11)+'" font-size="11" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
+    svg += '<text x="'+labelX+'" y="'+(yKankisenTop+12)+'" font-size="12" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
   }
   // 天井とのクリア
   if (clear !== null && tenjou) {
     svg += '<rect x="'+rx+'" y="'+yTenjou+'" width="'+hBoxW+'" height="'+(yKankisenTop-yTenjou)+'" fill="#fff" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>';
-    svg += '<text x="'+labelX+'" y="'+(yTenjou+11)+'" font-size="11" fill="#c0392b">天井とのクリア：'+clear+'</text>';
+    svg += '<text x="'+labelX+'" y="'+(yTenjou+12)+'" font-size="12" fill="#c0392b">天井とのクリア：'+clear+'</text>';
   }
   // 天井ライン
   svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+lineEndX+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
@@ -185,9 +189,9 @@ function buildBathDiagramSVG(sc) {
     svg += '<line x1="'+bracketX+'" y1="'+yTenjou+'" x2="'+bracketX+'" y2="'+ySlab+'" stroke="#00695c" stroke-width="1"/>';
     // ★2026-09-13変更★ ブラケットの右に文字を置くとキャンバス右端で見切れることがあったため、
     // ブラケットの左側(text-anchor:end)に寄せる。
-    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="11" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
+    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="12" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
     if (totalJissoku !== null) {
-      svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="11" fill="#c0392b">実測：'+totalJissoku+'</text>';
+      svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="12" fill="#c0392b">実測：'+totalJissoku+'</text>';
     }
   }
 
