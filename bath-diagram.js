@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-007
+// VERSION: 2026-09-13-009
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -39,14 +39,14 @@ function buildBathDiagramSVG(sc) {
   var seiMaguchi = numModal(sc.bathSeihinMaguchi), seiOkuyuki = numModal(sc.bathSeihinOkuyuki);
   var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
   var ox = 60, oy = 40, ow = outerBox.w, oh = outerBox.h;
-  svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-14)+'" text-anchor="middle" font-size="13" fill="#555">間口'+(maguchi?'：'+maguchi:'')+'</text>';
+  svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-14)+'" text-anchor="middle" font-size="13" fill="#555">'+(maguchi||'')+'</text>';
   svg += '<rect x="'+ox+'" y="'+oy+'" width="'+ow+'" height="'+oh+'" fill="none" stroke="#c0392b" stroke-width="2"/>';
   var padX = 12, padY = 12;
   if (seiMaguchi && maguchi) padX = Math.max(4, ow * (maguchi - seiMaguchi) / maguchi / 2);
   if (seiOkuyuki && okuyuki) padY = Math.max(4, oh * (okuyuki - seiOkuyuki) / okuyuki / 2);
   var ix = ox + padX, iy = oy + padY, iw = ow - padX*2, ih = oh - padY*2;
   svg += '<rect x="'+ix+'" y="'+iy+'" width="'+iw+'" height="'+ih+'" fill="#dcecec" stroke="#00695c" stroke-width="1.5"/>';
-  svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">奥行き'+(okuyuki?'：'+okuyuki:'')+'</text>';
+  svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">'+(okuyuki||'')+'</text>';
 
   // 勝手(ドアの開き)：右勝手/左勝手のどちらか一方だけ描く
   // ★2026-09-13変更★ 実際の浴室ドアは室内側(内側)に開くとのご指摘のため、
@@ -113,6 +113,7 @@ function buildBathDiagramSVG(sc) {
   var datsui = numModal(sc.bathDatsuishitsuTakasa);
   var furo = numModal(sc.bathFuroTakasa);
   var kankisen = numModal(sc.bathKankisenTakasa);
+  var duct = numModal(sc.bathDuctTakasa);
   var agari = numModal(sc.bathYukaAgariTakasa, 0);
   var clear = numModal(sc.bathTenjouClear);
   var slab = numModal(sc.bathSlabYukaTakasa);
@@ -158,6 +159,14 @@ function buildBathDiagramSVG(sc) {
   if (kankisen) {
     svg += '<rect x="'+rx+'" y="'+yKankisenTop+'" width="'+hBoxW+'" height="'+(yFuroTop-yKankisenTop)+'" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.3"/>';
     svg += '<text x="'+labelX+'" y="'+(yKankisenTop+12)+'" font-size="12" fill="#ef6c00">換気扇高さ：'+kankisen+'</text>';
+  }
+  // ★2026-09-13追加★ 排気ダクト(φ100)センター高さ：換気扇センターに接続する位置の目印として、
+  // 床からの高さ(pxScale換算)に丸印＋点線を表示。他の区画と重なる可能性があるため、まずは目立つ紫色で。
+  if (duct) {
+    var yDuct = baseY - duct * pxScale;
+    svg += '<line x1="'+(rx-15)+'" y1="'+yDuct+'" x2="'+(rx+hBoxW+15)+'" y2="'+yDuct+'" stroke="#6a1b9a" stroke-width="1" stroke-dasharray="2,2"/>';
+    svg += '<circle cx="'+(rx+hBoxW/2)+'" cy="'+yDuct+'" r="4" fill="#fff" stroke="#6a1b9a" stroke-width="1.5"/>';
+    svg += '<text x="'+labelX+'" y="'+(yDuct+4)+'" font-size="12" fill="#6a1b9a">排気ダクト(φ100)センター：'+duct+'</text>';
   }
   // 天井とのクリア
   if (clear !== null && tenjou) {
@@ -211,24 +220,40 @@ function buildBathDiagramSVG(sc) {
   });
 
   // ---------- 右下：窓位置 ----------
-  // ★2026-09-13変更★ 窓の上下左右の離れ寸法が全て入力されていれば、そこから壁の実寸(幅・高さ)を
-  // 逆算し、間口/奥行き(左上)と同じ考え方(fitBoxModal)で実寸スケール描画にする。
-  // 一部でも未入力の場合は、従来通りの簡易配置(260×260固定枠に対する割合表示)にフォールバックする。
+  // ★2026-09-13変更★ 精度向上のため「窓がある面(正面/右面/左面)」を追加。
+  // 面がわかれば、その面の実際の壁寸法(正面=間口×天井高さ／右面・左面=奥行き×天井高さ)を
+  // そのまま壁のスケールとして使えるので、窓自身の離れ寸法が多少欠けていても実寸に近い表示になる。
+  // 優先順位: ①面選択+室内寸法(最も正確・面積も算出可) → ②離れ4点から逆算(面積は出せない) → ③概算配置
   var madoW = numModal(sc.bathMadoW), madoH = numModal(sc.bathMadoH), madoD = numModal(sc.bathMadoD);
   var madoUe = numModal(sc.bathMadoUe), madoShita = numModal(sc.bathMadoShita), madoHidari = numModal(sc.bathMadoHidari), madoMigi = numModal(sc.bathMadoMigi);
+  var madoMen = sc.bathMadoMen || '';
+  var wallWidthMM = null, wallHeightMM = null, wallAreaM2 = null;
+  if (madoMen === '正面') { wallWidthMM = maguchi || seiMaguchi || null; wallHeightMM = tenjou || null; }
+  else if (madoMen === '右面' || madoMen === '左面') { wallWidthMM = okuyuki || seiOkuyuki || null; wallHeightMM = tenjou || null; }
+  var trueWallMode = !!(wallWidthMM && wallHeightMM);
+  if (trueWallMode) wallAreaM2 = Math.round((wallWidthMM/1000) * (wallHeightMM/1000) * 100) / 100;
+
   var madoScaleReady = madoW!=null && madoH!=null && madoUe!=null && madoShita!=null && madoHidari!=null && madoMigi!=null;
-  var wallWidthMM = madoScaleReady ? (madoHidari+madoW+madoMigi) : null;
-  var wallHeightMM = madoScaleReady ? (madoUe+madoH+madoShita) : null;
-  var winBox = madoScaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 260, 260) : { w: 260, h: 260, scale: null };
+  // trueWallModeでなければ従来通り離れ4点の合計から壁サイズを逆算(面積は不明のため出さない)
+  if (!trueWallMode && madoScaleReady) {
+    wallWidthMM = madoHidari + madoW + madoMigi;
+    wallHeightMM = madoUe + madoH + madoShita;
+  }
+  var scaleReady = trueWallMode || madoScaleReady;
+  var winBox = scaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 260, 260) : { w: 260, h: 260, scale: null };
   var wx = 695, wy = MY+40, wallW = winBox.w, wallH = winBox.h;
-  svg += '<text x="'+(wx+wallW/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="13" fill="#333">窓位置'+(madoScaleReady?'':'（概算配置）')+'</text>';
+  var winTitle = '窓位置';
+  if (trueWallMode) winTitle += '（'+madoMen+'・壁面積約'+wallAreaM2+'㎡）';
+  else if (!scaleReady) winTitle += '（概算配置）';
+  svg += '<text x="'+(wx+wallW/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="13" fill="#333">'+winTitle+'</text>';
   svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
   var mW, mH, mx1, my1;
-  if (madoScaleReady) {
-    mW = madoW * winBox.scale;
-    mH = madoH * winBox.scale;
-    mx1 = wx + madoHidari * winBox.scale;
-    my1 = wy + madoUe * winBox.scale;
+  if (scaleReady) {
+    // trueWallModeで離れ寸法が一部欠けている場合は、わかる軸だけ実寸配置、欠けている軸は中央寄せにする
+    mW = madoW!=null ? madoW * winBox.scale : wallW*0.35;
+    mH = madoH!=null ? madoH * winBox.scale : wallH*0.35;
+    mx1 = madoHidari!=null ? wx + madoHidari*winBox.scale : wx + (wallW-mW)/2;
+    my1 = madoUe!=null ? wy + madoUe*winBox.scale : wy + (wallH-mH)/2;
   } else {
     mW = madoW ? Math.min(wallW*0.6, madoW*0.15) : wallW*0.35;
     mH = madoH ? Math.min(wallH*0.6, madoH*0.15) : wallH*0.35;
