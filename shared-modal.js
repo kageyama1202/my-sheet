@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-002
+// VERSION: 2026-09-13-003
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -332,6 +332,15 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<a id="modal-statusreport-sms" href="#" style="display:none;margin-left:8px;font-size:12px;padding:6px 14px;border-radius:4px;background:#004d40;color:#fff;font-weight:bold;text-decoration:none;">💬 工務担当者へメッセージ</a>';
   html += '</div>';
   html += '<div id="modal-statusreport-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
+  html += '</div>';
+
+  // 📄 報告書から自動入力：タカラSB下見報告書のコピペテキストから、間口/奥行き/天井高さ/設置方法/
+  // 床構成/床合わせ/石膏ボード/吊り金具を自動抽出し、メモには特記事項・伝達事項を追記する。
+  // 実際にフォームへ反映するかはプレビュー確認後、ボタンを押してから(誤読み取り対策)。
+  html += '<div class="modal-section"><h4 style="color:#37474f;margin-bottom:6px;">📄 報告書から自動入力(タカラSB下見報告書)</h4>';
+  html += '<textarea id="report-paste-area" placeholder="下見報告書のテキストをここに貼り付け" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
+  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button></div>';
+  html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
 
   var memoVal = obj.memo || '';
@@ -889,6 +898,73 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   })();
 
+  // 📄 報告書から自動入力（タカラSB下見報告書のコピペテキスト → siteCheck/メモへの反映）
+  // report-parser.jsを必要時のみ動的読込。抽出結果はまずプレビュー表示し、
+  // 「フォームに反映」を押してから実際にsiteCheckObj/メモへ書き込む(誤読み取り対策)。
+  (function(){
+    var pasteArea = document.getElementById('report-paste-area');
+    var parseBtn = document.getElementById('report-parse-btn');
+    var previewEl = document.getElementById('report-parse-preview');
+    if (!parseBtn) return;
+    var reportFieldLabels = {
+      bathMaguchi: '間口', bathOkuyuki: '奥行き', bathTenjouTakasa: '天井高さ',
+      bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
+      bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
+      bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
+    };
+    parseBtn.addEventListener('click', function(){
+      var text = pasteArea.value;
+      if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
+      previewEl.textContent = '⏳ 解析中...';
+      ensureReportParserLibModal(function(){
+        var result = parseSBReportText(text);
+        var keys = Object.keys(result.fields);
+        if (!keys.length && !result.memoLines.length) {
+          previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
+          return;
+        }
+        var html = '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
+        keys.forEach(function(k){
+          html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b></div>';
+        });
+        result.memoLines.forEach(function(m){
+          html += '<div>・メモに追記：'+escHtmlModal(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
+        });
+        html += '</div>';
+        html += '<button type="button" id="report-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
+        previewEl.innerHTML = html;
+
+        document.getElementById('report-apply-btn').addEventListener('click', function(){
+          Object.keys(result.fields).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
+          var updates = { siteCheck: siteCheckObj };
+          if (result.memoLines.length) {
+            var stamp = buildStamp();
+            var memoElNow = document.getElementById('modal-memo');
+            var currentMemo = memoElNow ? memoElNow.value : (obj.memo || '');
+            var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【報告書取込 ' + stamp + '】\n' + result.memoLines.join('\n');
+            if (memoElNow) memoElNow.value = newMemo;
+            updates.memo = newMemo;
+          }
+          // 現場チェックのタブを再描画して反映を可視化(浴室タブに切替えて表示)
+          siteCheckObj.__lastTab = 'bath';
+          if (sitecheckArea) {
+            document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
+              var active = b.getAttribute('data-tab') === 'bath';
+              b.style.background = active ? '#e65100' : '#fff';
+              b.style.color = active ? '#fff' : '#e65100';
+              b.style.fontWeight = active ? 'bold' : 'normal';
+            });
+            sitecheckArea.innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_BATH, siteCheckObj);
+            applyBathYukaAwaseState();
+            computeBathAutoFields();
+          }
+          saveField(updates);
+          previewEl.innerHTML += '<div style="color:#2e7d32;margin-top:4px;">✔ 反映して保存しました</div>';
+        });
+      });
+    });
+  })();
+
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
 
@@ -954,6 +1030,23 @@ function ensureBathDiagramLibModal(cb) {
   var s = document.createElement('script');
   s.src = 'bath-diagram.js';
   s.setAttribute('data-bathdiagram', '1');
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+// ============ 📄 報告書パーサー 遅延読込ローダー（report-parser.js） ============
+// ★2026-09-13追加★ タカラSB下見報告書のコピペテキスト解析コード(parseSBReportText)を
+// report-parser.jsへ分離し、「解析する」ボタンを押した時だけ読み込む。
+function ensureReportParserLibModal(cb) {
+  if (typeof parseSBReportText === 'function') { cb(); return; }
+  var existing = document.querySelector('script[data-reportparser]');
+  if (existing) {
+    existing.addEventListener('load', cb);
+    return;
+  }
+  var s = document.createElement('script');
+  s.src = 'report-parser.js';
+  s.setAttribute('data-reportparser', '1');
   s.onload = cb;
   document.head.appendChild(s);
 }
