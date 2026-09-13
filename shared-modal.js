@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-005
+// VERSION: 2026-09-13-006
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -343,6 +343,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
   html += '<button type="button" id="report-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
   html += '</div>';
+  // ★2026-09-13追加★ PDFのテキスト抽出がうまくいかないケース向けに、スクショ画像を
+  // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
+  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) で報告書のスクショを貼り付け</div>';
+  html += '<div id="report-image-preview" style="margin-top:6px;"></div>';
+  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🖼 画像から解析(AI)</button></div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
 
@@ -1005,6 +1010,60 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
             return;
           }
           renderReportResult(r.data.result, '🤖 AI');
+        }).catch(function(e){
+          previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
+        });
+      });
+    }
+
+    // 🖼 画像から解析（AI・PDFのテキスト抽出がうまくいかない場合の代替。スクショをそのまま読ませる）
+    var imagePasteArea = document.getElementById('report-image-paste');
+    var imagePreview = document.getElementById('report-image-preview');
+    var parseImageBtn = document.getElementById('report-parse-image-btn');
+    var pastedImageBase64 = null;
+    var pastedImageMediaType = null;
+
+    if (imagePasteArea) {
+      imagePasteArea.addEventListener('paste', function(e){
+        var items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            var blob = items[i].getAsFile();
+            var reader = new FileReader();
+            reader.onload = function(ev){
+              var dataUrl = ev.target.result; // "data:image/png;base64,XXXX"
+              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+              if (m) {
+                pastedImageMediaType = m[1];
+                pastedImageBase64 = m[2];
+                imagePreview.innerHTML = '<img src="'+dataUrl+'" style="max-width:100%;max-height:220px;border:1px solid #ccc;border-radius:4px;" />';
+              }
+            };
+            reader.readAsDataURL(blob);
+            e.preventDefault();
+            break;
+          }
+        }
+      });
+    }
+
+    if (parseImageBtn) {
+      parseImageBtn.addEventListener('click', function(){
+        if (!pastedImageBase64) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像を貼り付けてください</span>'; return; }
+        previewEl.textContent = '⏳ AIが画像を解析中...(数秒かかります)';
+        fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: pastedImageBase64, mediaType: pastedImageMediaType })
+        }).then(function(res){
+          return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+        }).then(function(r){
+          if (!r.ok || r.data.status !== 'ok') {
+            previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+escHtmlModal((r.data && r.data.message) || '不明なエラー')+'</span>';
+            return;
+          }
+          renderReportResult(r.data.result, '🖼 画像AI');
         }).catch(function(e){
           previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
         });
