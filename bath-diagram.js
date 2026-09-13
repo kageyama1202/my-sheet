@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-010
+// VERSION: 2026-09-13-011
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -20,6 +20,18 @@ function fitBoxModal(w, d, maxW, maxH) {
   if (!w || !d) return { w: maxW, h: maxH, scale: 1 };
   var scale = Math.min(maxW / w, maxH / d);
   return { w: w * scale, h: d * scale, scale: scale };
+}
+
+// ★2026-09-13追加★ SVGの<text>は自動改行しないため、長い文章(報告書取込の伝達事項など)が
+// 象限をまたいではみ出す不具合が起きていた。文字数ベースで簡易的に折り返す。
+// (日本語は全角前提のざっくり計算。英数字混じりでも大きく崩れない程度の安全マージンを取る)
+function wrapTextModal(text, maxChars) {
+  var str = String(text == null ? '' : text);
+  var lines = [];
+  for (var i = 0; i < str.length; i += maxChars) {
+    lines.push(str.slice(i, i + maxChars));
+  }
+  return lines.length ? lines : [''];
 }
 
 // 現場チェック(浴室)の入力値から、IMG_6909の4象限レイアウトを模したSVGを組み立てる。
@@ -104,8 +116,12 @@ function buildBathDiagramSVG(sc) {
   var planNoteY = planNoteStartY;
   planNoteLines.forEach(function(item){
     var fsize = item.size || 11;
-    svg += '<text x="'+ix+'" y="'+planNoteY+'" font-size="'+fsize+'" fill="'+item.color+'">'+escHtmlModal(item.text)+'</text>';
-    planNoteY += fsize + 7;
+    // ★2026-09-13変更★ 長文(設置方法など)が平面図の枠外にはみ出さないよう、折り返してから描画。
+    wrapTextModal(item.text, 30).forEach(function(line){
+      svg += '<text x="'+ix+'" y="'+planNoteY+'" font-size="'+fsize+'" fill="'+item.color+'">'+escHtmlModal(line)+'</text>';
+      planNoteY += fsize + 6;
+    });
+    planNoteY += 3;
   });
 
   // ---------- 右上：高さ関係（断面） ----------
@@ -169,7 +185,7 @@ function buildBathDiagramSVG(sc) {
     var yDuct = baseY - duct * pxScale;
     svg += '<line x1="'+(rx-15)+'" y1="'+yDuct+'" x2="'+(rx+hBoxW+15)+'" y2="'+yDuct+'" stroke="#6a1b9a" stroke-width="1" stroke-dasharray="2,2"/>';
     svg += '<circle cx="'+(rx+hBoxW/2)+'" cy="'+yDuct+'" r="4" fill="#fff" stroke="#6a1b9a" stroke-width="1.5"/>';
-    labelItems.push({ y: yDuct+4, text: '排気ダクト(φ100)センター：'+duct, color: '#6a1b9a' });
+    labelItems.push({ y: yDuct+4, text: '排気ダクト(φ100)：'+duct, color: '#6a1b9a' });
   }
   // 天井とのクリア
   if (clear !== null && tenjou) {
@@ -221,16 +237,26 @@ function buildBathDiagramSVG(sc) {
   // ---------- 左下：メモ・連絡事項 ----------
   svg += '<text x="30" y="'+(MY+40)+'" font-size="13" fill="#3b6d11">メモ・連絡事項</text>';
   var memo = sc.bathMemoRenraku || '';
-  var memoLines = memo ? String(memo).split('\n') : ['(未入力)'];
-  memoLines.forEach(function(line, i){
-    svg += '<text x="30" y="'+(MY+64+i*16)+'" font-size="12" fill="#333">'+escHtmlModal(line)+'</text>';
+  var memoRawLines = memo ? String(memo).split('\n') : ['(未入力)'];
+  var memoY = MY + 64;
+  // ★2026-09-13変更★ 報告書取込の伝達事項など長文が右の象限へはみ出していたため、
+  // 1行が長い場合は折り返してから描画する(改行そのものは元の\nの位置も尊重する)。
+  memoRawLines.forEach(function(rawLine){
+    wrapTextModal(rawLine, 34).forEach(function(line){
+      svg += '<text x="30" y="'+memoY+'" font-size="12" fill="#333">'+escHtmlModal(line)+'</text>';
+      memoY += 16;
+    });
   });
+  memoY += 8;
   var extraNotes = [];
   if (sc.bathRemoconUmu) extraNotes.push('リモコン開口：'+sc.bathRemoconUmu + (sc.bathRemoconMemo?'（'+sc.bathRemoconMemo+'）':''));
   if (sc.bathHandbarHouhou) extraNotes.push('ハンドバー：'+sc.bathHandbarHouhou);
   if (sc.bathTsuriKanaguKubun || sc.bathTsuriKanaguSize) extraNotes.push('吊り金具：'+(sc.bathTsuriKanaguKubun||'?')+' / '+(sc.bathTsuriKanaguSize||'?')+' / 現地入れ'+(sc.bathTsuriKanaguGenchi||'?'));
-  extraNotes.forEach(function(line, i){
-    svg += '<text x="30" y="'+(MY+64+(memoLines.length+i+1)*16)+'" font-size="11" fill="#666">'+escHtmlModal(line)+'</text>';
+  extraNotes.forEach(function(line){
+    wrapTextModal(line, 36).forEach(function(l){
+      svg += '<text x="30" y="'+memoY+'" font-size="11" fill="#666">'+escHtmlModal(l)+'</text>';
+      memoY += 15;
+    });
   });
 
   // ---------- 右下：窓位置 ----------
