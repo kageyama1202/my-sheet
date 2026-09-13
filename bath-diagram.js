@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-011
+// VERSION: 2026-09-13-012
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -58,6 +58,15 @@ function buildBathDiagramSVG(sc) {
   if (seiOkuyuki && okuyuki) padY = Math.max(4, oh * (okuyuki - seiOkuyuki) / okuyuki / 2);
   var ix = ox + padX, iy = oy + padY, iw = ow - padX*2, ih = oh - padY*2;
   svg += '<rect x="'+ix+'" y="'+iy+'" width="'+iw+'" height="'+ih+'" fill="#dcecec" stroke="#00695c" stroke-width="1.5"/>';
+  // ★2026-09-13追加★ 製品間口・製品奥行きが入力されていれば、内側(製品)の箱にも
+  // 数値だけ(ラベル文字無し)で記入する。間口＝横方向・奥行き＝縦方向という、
+  // 外枠側の間口/奥行き表示と同じ向きの慣習に合わせる。
+  if (seiMaguchi) {
+    svg += '<text x="'+(ix+iw/2)+'" y="'+(iy+16)+'" text-anchor="middle" font-size="11" fill="#00695c">'+seiMaguchi+'</text>';
+  }
+  if (seiOkuyuki) {
+    svg += '<text x="'+(ix+iw-10)+'" y="'+(iy+ih/2)+'" font-size="11" fill="#00695c" transform="rotate(90 '+(ix+iw-10)+' '+(iy+ih/2)+')" text-anchor="middle">'+seiOkuyuki+'</text>';
+  }
   svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">'+(okuyuki||'')+'</text>';
 
   // 勝手(ドアの開き)：右勝手/左勝手のどちらか一方だけ描く
