@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-004
+// VERSION: 2026-09-13-005
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -339,7 +339,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 実際にフォームへ反映するかはプレビュー確認後、ボタンを押してから(誤読み取り対策)。
   html += '<div class="modal-section"><h4 style="color:#37474f;margin-bottom:6px;">📄 報告書から自動入力(タカラSB下見報告書)</h4>';
   html += '<textarea id="report-paste-area" placeholder="下見報告書のテキストをここに貼り付け" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
-  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button></div>';
+  html += '<div style="margin-top:6px;">';
+  html += '<button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
+  html += '<button type="button" id="report-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
+  html += '</div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
 
@@ -899,11 +902,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   })();
 
   // 📄 報告書から自動入力（タカラSB下見報告書のコピペテキスト → siteCheck/メモへの反映）
-  // report-parser.jsを必要時のみ動的読込。抽出結果はまずプレビュー表示し、
-  // 「フォームに反映」を押してから実際にsiteCheckObj/メモへ書き込む(誤読み取り対策)。
+  // report-parser.js（正規表現・無料・一瞬）とparseSBReportAI（Cloud Functions経由のClaude API・
+  // 数秒かかるが文面の崩れに強い）の2通りを用意し、どちらも同じ形の結果
+  // { fields, memoLines, bathMemoAppend } を返すので、プレビュー/反映のロジックは共通化する。
   (function(){
     var pasteArea = document.getElementById('report-paste-area');
     var parseBtn = document.getElementById('report-parse-btn');
+    var parseAiBtn = document.getElementById('report-parse-ai-btn');
     var previewEl = document.getElementById('report-parse-preview');
     if (!parseBtn) return;
     var reportFieldLabels = {
@@ -913,67 +918,98 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
       bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
     };
+    // ★2026-09-13変更★ 正規表現版・AI版どちらの結果でも使う共通プレビュー描画＋反映処理。
+    function renderReportResult(result, sourceLabel) {
+      var keys = Object.keys(result.fields || {});
+      if (!keys.length && !(result.memoLines && result.memoLines.length) && !result.bathMemoAppend) {
+        previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
+        return;
+      }
+      var html = '<div style="font-size:11px;color:#888;margin-bottom:4px;">'+sourceLabel+'の結果</div>';
+      html += '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
+      keys.forEach(function(k){
+        html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b></div>';
+      });
+      (result.memoLines || []).forEach(function(m){
+        html += '<div>・メモに追記：'+escHtmlModal(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
+      });
+      if (result.bathMemoAppend) {
+        html += '<div>・図面メモ(左下)に追記：'+escHtmlModal(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
+      }
+      html += '</div>';
+      html += '<button type="button" id="report-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
+      previewEl.innerHTML = html;
+
+      document.getElementById('report-apply-btn').addEventListener('click', function(){
+        Object.keys(result.fields || {}).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
+        // 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
+        // こちらは職人さんがスクショで見る図面そのものに載るため、現場向けの伝達事項の置き場として適切。
+        if (result.bathMemoAppend) {
+          var stampBath = buildStamp();
+          var currentBathMemo = siteCheckObj.bathMemoRenraku || '';
+          siteCheckObj.bathMemoRenraku = (currentBathMemo ? currentBathMemo + '\n\n' : '') + '【報告書取込 ' + stampBath + '】\n' + result.bathMemoAppend;
+        }
+        var updates = { siteCheck: siteCheckObj };
+        if (result.memoLines && result.memoLines.length) {
+          var stamp = buildStamp();
+          var memoElNow = document.getElementById('modal-memo');
+          var currentMemo = memoElNow ? memoElNow.value : (obj.memo || '');
+          var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【報告書取込 ' + stamp + '】\n' + result.memoLines.join('\n');
+          if (memoElNow) memoElNow.value = newMemo;
+          updates.memo = newMemo;
+        }
+        // 現場チェックのタブを再描画して反映を可視化(浴室タブに切替えて表示)
+        siteCheckObj.__lastTab = 'bath';
+        if (sitecheckArea) {
+          document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
+            var active = b.getAttribute('data-tab') === 'bath';
+            b.style.background = active ? '#e65100' : '#fff';
+            b.style.color = active ? '#fff' : '#e65100';
+            b.style.fontWeight = active ? 'bold' : 'normal';
+          });
+          sitecheckArea.innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_BATH, siteCheckObj);
+          applyBathYukaAwaseState();
+          computeBathAutoFields();
+        }
+        saveField(updates);
+        previewEl.innerHTML += '<div style="color:#2e7d32;margin-top:4px;">✔ 反映して保存しました</div>';
+      });
+    }
+
+    // 🔍 正規表現版（無料・一瞬・オフライン可）
     parseBtn.addEventListener('click', function(){
       var text = pasteArea.value;
       if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
       previewEl.textContent = '⏳ 解析中...';
       ensureReportParserLibModal(function(){
         var result = parseSBReportText(text);
-        var keys = Object.keys(result.fields);
-        if (!keys.length && !result.memoLines.length && !result.bathMemoAppend) {
-          previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
-          return;
-        }
-        var html = '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
-        keys.forEach(function(k){
-          html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b></div>';
-        });
-        result.memoLines.forEach(function(m){
-          html += '<div>・メモに追記：'+escHtmlModal(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
-        });
-        if (result.bathMemoAppend) {
-          html += '<div>・図面メモ(左下)に追記：'+escHtmlModal(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
-        }
-        html += '</div>';
-        html += '<button type="button" id="report-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
-        previewEl.innerHTML = html;
-
-        document.getElementById('report-apply-btn').addEventListener('click', function(){
-          Object.keys(result.fields).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
-          // ★2026-09-13変更★ 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
-          // こちらは職人さんがスクショで見る図面そのものに載るため、現場向けの伝達事項の置き場として適切。
-          if (result.bathMemoAppend) {
-            var stampBath = buildStamp();
-            var currentBathMemo = siteCheckObj.bathMemoRenraku || '';
-            siteCheckObj.bathMemoRenraku = (currentBathMemo ? currentBathMemo + '\n\n' : '') + '【報告書取込 ' + stampBath + '】\n' + result.bathMemoAppend;
-          }
-          var updates = { siteCheck: siteCheckObj };
-          if (result.memoLines.length) {
-            var stamp = buildStamp();
-            var memoElNow = document.getElementById('modal-memo');
-            var currentMemo = memoElNow ? memoElNow.value : (obj.memo || '');
-            var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【報告書取込 ' + stamp + '】\n' + result.memoLines.join('\n');
-            if (memoElNow) memoElNow.value = newMemo;
-            updates.memo = newMemo;
-          }
-          // 現場チェックのタブを再描画して反映を可視化(浴室タブに切替えて表示)
-          siteCheckObj.__lastTab = 'bath';
-          if (sitecheckArea) {
-            document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
-              var active = b.getAttribute('data-tab') === 'bath';
-              b.style.background = active ? '#e65100' : '#fff';
-              b.style.color = active ? '#fff' : '#e65100';
-              b.style.fontWeight = active ? 'bold' : 'normal';
-            });
-            sitecheckArea.innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_BATH, siteCheckObj);
-            applyBathYukaAwaseState();
-            computeBathAutoFields();
-          }
-          saveField(updates);
-          previewEl.innerHTML += '<div style="color:#2e7d32;margin-top:4px;">✔ 反映して保存しました</div>';
-        });
+        renderReportResult(result, '🔍 正規表現');
       });
     });
+
+    // 🤖 AI版（Cloud Functions経由でClaude APIを呼ぶ。数秒かかるが文面の崩れに強い）
+    if (parseAiBtn) {
+      parseAiBtn.addEventListener('click', function(){
+        var text = pasteArea.value;
+        if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
+        previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
+        fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        }).then(function(res){
+          return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+        }).then(function(r){
+          if (!r.ok || r.data.status !== 'ok') {
+            previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+escHtmlModal((r.data && r.data.message) || '不明なエラー')+'</span>';
+            return;
+          }
+          renderReportResult(r.data.result, '🤖 AI');
+        }).catch(function(e){
+          previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
+        });
+      });
+    }
   })();
 
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
