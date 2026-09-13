@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-006
+// VERSION: 2026-09-13-007
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -345,9 +345,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '</div>';
   // ★2026-09-13追加★ PDFのテキスト抽出がうまくいかないケース向けに、スクショ画像を
   // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
-  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) で報告書のスクショを貼り付け</div>';
-  html += '<div id="report-image-preview" style="margin-top:6px;"></div>';
-  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🖼 画像から解析(AI)</button></div>';
+  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) で報告書のスクショを貼り付け(複数ページある場合は1枚ずつ続けて貼り付けできます)</div>';
+  html += '<div id="report-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
+  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🖼 画像から解析(AI)</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 画像をクリア</button></div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
 
@@ -1017,45 +1017,77 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     }
 
     // 🖼 画像から解析（AI・PDFのテキスト抽出がうまくいかない場合の代替。スクショをそのまま読ませる）
+    // ★2026-09-13変更★ 報告書が複数ページにまたがる場合に対応するため、1枚固定ではなく
+    // 配列で複数枚を保持できるようにする。貼り付けるたびに追加され、サムネイル一覧に個別の削除ボタンを出す。
     var imagePasteArea = document.getElementById('report-image-paste');
     var imagePreview = document.getElementById('report-image-preview');
     var parseImageBtn = document.getElementById('report-parse-image-btn');
-    var pastedImageBase64 = null;
-    var pastedImageMediaType = null;
+    var imageClearBtn = document.getElementById('report-image-clear-btn');
+    var pastedImages = []; // [{ mediaType, base64, dataUrl }]
+
+    function renderImageThumbs() {
+      if (!imagePreview) return;
+      imagePreview.innerHTML = '';
+      pastedImages.forEach(function(img, idx){
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;display:inline-block;';
+        var thumb = document.createElement('img');
+        thumb.src = img.dataUrl;
+        thumb.style.cssText = 'max-width:140px;max-height:140px;border:1px solid #ccc;border-radius:4px;display:block;';
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.textContent = '×';
+        delBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;width:20px;height:20px;line-height:18px;text-align:center;padding:0;font-size:13px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:50%;cursor:pointer;';
+        delBtn.addEventListener('click', function(){
+          pastedImages.splice(idx, 1);
+          renderImageThumbs();
+        });
+        wrap.appendChild(thumb);
+        wrap.appendChild(delBtn);
+        imagePreview.appendChild(wrap);
+      });
+    }
 
     if (imagePasteArea) {
       imagePasteArea.addEventListener('paste', function(e){
         var items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
         if (!items) return;
+        var foundImage = false;
         for (var i = 0; i < items.length; i++) {
           if (items[i].type.indexOf('image') !== -1) {
+            foundImage = true;
             var blob = items[i].getAsFile();
             var reader = new FileReader();
             reader.onload = function(ev){
               var dataUrl = ev.target.result; // "data:image/png;base64,XXXX"
               var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
               if (m) {
-                pastedImageMediaType = m[1];
-                pastedImageBase64 = m[2];
-                imagePreview.innerHTML = '<img src="'+dataUrl+'" style="max-width:100%;max-height:220px;border:1px solid #ccc;border-radius:4px;" />';
+                pastedImages.push({ mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+                renderImageThumbs();
               }
             };
             reader.readAsDataURL(blob);
-            e.preventDefault();
-            break;
           }
         }
+        if (foundImage) e.preventDefault();
+      });
+    }
+
+    if (imageClearBtn) {
+      imageClearBtn.addEventListener('click', function(){
+        pastedImages = [];
+        renderImageThumbs();
       });
     }
 
     if (parseImageBtn) {
       parseImageBtn.addEventListener('click', function(){
-        if (!pastedImageBase64) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像を貼り付けてください</span>'; return; }
+        if (!pastedImages.length) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像を貼り付けてください</span>'; return; }
         previewEl.textContent = '⏳ AIが画像を解析中...(数秒かかります)';
         fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: pastedImageBase64, mediaType: pastedImageMediaType })
+          body: JSON.stringify({ images: pastedImages.map(function(img){ return { data: img.base64, mediaType: img.mediaType }; }) })
         }).then(function(res){
           return res.json().then(function(data){ return { ok: res.ok, data: data }; });
         }).then(function(r){
