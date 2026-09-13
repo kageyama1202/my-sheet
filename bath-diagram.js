@@ -80,7 +80,7 @@ function buildBathDiagramSVG(sc) {
     var rOpenX = rHingeX - doorR, rOpenY = rHingeY;          // 開いた状態：室内側(左)へ
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="2"/>';
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="0.8"/>';
     svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">右勝手</text>';
   } else if (doorPos === '左') {
     var lHingeX = ox, lHingeY = doorY;
@@ -88,19 +88,22 @@ function buildBathDiagramSVG(sc) {
     var lOpenX = lHingeX + doorR, lOpenY = lHingeY;          // 開いた状態：室内側(右)へ
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="2"/>';
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="0.8" stroke-dasharray="3,3"/>';
+    svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="0.8"/>';
     svg += '<text x="'+(ox-70)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">左勝手</text>';
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
   }
 
   // 石膏ボード部分：選択された壁面ごとに強調線＋ラベル
+  // ★2026-09-13変更★ 石膏ボードは製品(浴槽等)の内側ではなく、間口/奥行きの
+  // 実寸(外枠=部屋の壁そのもの)の端に貼られるものなので、内側の箱(ix/iy/iw/ih)ではなく
+  // 外枠(ox/oy/ow/oh)を基準に描画する。
   var sekkou = sc.bathSekkouBoard ? String(sc.bathSekkouBoard).split(',') : [];
   var sekkouWalls = {
-    '右': { x1: ix+iw, y1: iy, x2: ix+iw, y2: iy+ih },
-    '左': { x1: ix, y1: iy, x2: ix, y2: iy+ih },
-    '正面': { x1: ix, y1: iy, x2: ix+iw, y2: iy },
-    'ドア横': { x1: ix, y1: iy+ih, x2: ix+iw, y2: iy+ih }
+    '右': { x1: ox+ow, y1: oy, x2: ox+ow, y2: oy+oh },
+    '左': { x1: ox, y1: oy, x2: ox, y2: oy+oh },
+    '正面': { x1: ox, y1: oy, x2: ox+ow, y2: oy },
+    'ドア横': { x1: ox, y1: oy+oh, x2: ox+ow, y2: oy+oh }
   };
   sekkou.forEach(function(w){
     var seg = sekkouWalls[w];
