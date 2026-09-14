@@ -7,7 +7,7 @@
    あくまで「候補」を返すだけで、実際にフォームへ反映・保存するかはshared-modal.js側の
    確認ボタンを押してから。誤読み取りでいきなり上書きしないための安全策。
 */
-// VERSION: 2026-09-13-002
+// VERSION: 2026-09-13-003
 
 function parseSBReportText(text) {
   if (!text) return { fields: {}, memoLines: [] };
@@ -49,7 +49,9 @@ function parseSBReportText(text) {
   // 浴室内ボード貼り：「4面」なら右/左/正面/ドア横を全選択、個別記載(例：右・正面)ならその面だけ
   var sekkouRaw = grab(/浴室内ボード貼り\s*(.+?)(?=高さ寸法|$)/);
   if (sekkouRaw) {
-    var wallOpts = ['右', '左', '正面', 'ドア横'];
+    // ★2026-09-13変更★ 石膏ボードの面名を、部屋基準(右/左/正面/ドア横)から浴槽自体を基準にした
+    // 業界標準の呼び方(カウンター面/カウンター対面/浴槽側面/洗場側面)に統一。
+    var wallOpts = ['カウンター面', 'カウンター対面', '浴槽側面', '洗場側面'];
     var picked = [];
     if (/4\s*面/.test(sekkouRaw)) {
       picked = wallOpts.slice();
