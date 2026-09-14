@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-14-001
+// VERSION: 2026-09-14-002
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -234,6 +234,30 @@ function buildBathDiagramSVG(sc) {
   }
   // 床構成(区画ではないが、床上がりラベルと近接しやすいので同じ衝突回避の対象に含める)
   labelItems.push({ y: baseY+16, text: '床構成'+(sc.bathYukaKousei?'：'+escHtmlModal(sc.bathYukaKousei):''), color: '#555' });
+
+  // ★2026-09-14追加★ 梁(コンクリート梁・基礎)：断面図に直接重ねて表示する。
+  // 浴槽側面・カウンター面の2面×上/下。高さ(H)は天井高さ基準の縮尺で実寸描画(半透明で
+  // 既存の帯の上に重ねる)、奥行き(D=壁からの突出量)はテキストで添える(断面図では
+  // 奥行き方向を正確に描き分けられないため)。ラベルは既存の衝突回避リストに合流させる。
+  var hariPanels = [
+    { key: '浴槽側面', ueT: numModal(sc.bathHariYokusoUeTakasa), ueD: numModal(sc.bathHariYokusoUeOkuyuki), shimoT: numModal(sc.bathHariYokusoShimoTakasa), shimoD: numModal(sc.bathHariYokusoShimoOkuyuki) },
+    { key: 'カウンター面', ueT: numModal(sc.bathHariCounterUeTakasa), ueD: numModal(sc.bathHariCounterUeOkuyuki), shimoT: numModal(sc.bathHariCounterShimoTakasa), shimoD: numModal(sc.bathHariCounterShimoOkuyuki) }
+  ];
+  var hariSubW = hBoxW / 2;
+  hariPanels.forEach(function(panel, pIdx){
+    var px = rx + pIdx*hariSubW;
+    if (panel.ueT) {
+      var ueH = Math.min(baseY-yTenjou, panel.ueT * pxScale);
+      svg += '<rect x="'+px+'" y="'+yTenjou+'" width="'+hariSubW+'" height="'+ueH+'" fill="#8d6e63" opacity="0.6" stroke="#5d4037" stroke-width="1.3"/>';
+      labelItems.push({ y: yTenjou+12, text: panel.key+'-上 H'+panel.ueT+(panel.ueD?'/D'+panel.ueD:''), color: '#5d4037' });
+    }
+    if (panel.shimoT) {
+      var shimoH = Math.min(300, panel.shimoT * pxScale);
+      var shimoYTop = baseY - shimoH;
+      svg += '<rect x="'+px+'" y="'+shimoYTop+'" width="'+hariSubW+'" height="'+shimoH+'" fill="#8d6e63" opacity="0.6" stroke="#5d4037" stroke-width="1.3"/>';
+      labelItems.push({ y: shimoYTop+12, text: panel.key+'-下 H'+panel.shimoT+(panel.shimoD?'/D'+panel.shimoD:''), color: '#5d4037' });
+    }
+  });
 
   // Y座標順に並べ替えて、隣り合うラベルの間隔が最低15pxになるよう下方向にずらす
   labelItems.sort(function(a, b){ return a.y - b.y; });
