@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-14-002
+// VERSION: 2026-09-14-003
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -249,7 +249,10 @@ function buildBathDiagramSVG(sc) {
     if (panel.ueT) {
       var ueH = Math.min(baseY-yTenjou, panel.ueT * pxScale);
       svg += '<rect x="'+px+'" y="'+yTenjou+'" width="'+hariSubW+'" height="'+ueH+'" fill="#8d6e63" opacity="0.6" stroke="#5d4037" stroke-width="1.3"/>';
-      labelItems.push({ y: yTenjou+12, text: panel.key+'-上 H'+panel.ueT+(panel.ueD?'/D'+panel.ueD:''), color: '#5d4037' });
+      // ★2026-09-14追加★ 天井とのクリア(538など)は梁を考慮しない単純計算のままなので、
+      // 梁がある場所での「実際に残るクリア」を(クリア－梁の高さ)で別途計算して添える。
+      var clearAfterHari = (clear !== null) ? (clear - panel.ueT) : null;
+      labelItems.push({ y: yTenjou+12, text: panel.key+'-上 H'+panel.ueT+(panel.ueD?'/D'+panel.ueD:'')+(clearAfterHari!==null?'（クリア残'+clearAfterHari+'）':''), color: '#5d4037' });
     }
     if (panel.shimoT) {
       var shimoH = Math.min(300, panel.shimoT * pxScale);
