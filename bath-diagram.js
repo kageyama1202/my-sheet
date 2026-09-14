@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-013
+// VERSION: 2026-09-13-014
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -57,6 +57,12 @@ function buildBathDiagramSVG(sc) {
   var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
   var ox = 60, oy = 40, ow = outerBox.w, oh = outerBox.h;
   svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-14)+'" text-anchor="middle" font-size="13" fill="#555">'+(maguchi||'')+'</text>';
+  // ★2026-09-13追加★ 引き戸の場合、脱衣室側は間口+引き戸の厚み分の寸法が必要になるため、
+  // 間口の数値の下に「+引き戸厚み＝合計」を小さく併記する。
+  var hikidoAtsumi = numModal(sc.bathHikidoAtsumi);
+  if (sc.bathDoorType === '引き戸' && hikidoAtsumi && maguchi) {
+    svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-1)+'" text-anchor="middle" font-size="10" fill="#607d8b">(+引き戸'+hikidoAtsumi+'＝'+(maguchi+hikidoAtsumi)+')</text>';
+  }
   svg += '<rect x="'+ox+'" y="'+oy+'" width="'+ow+'" height="'+oh+'" fill="none" stroke="#c0392b" stroke-width="2"/>';
   var padX = 12, padY = 12;
   if (seiMaguchi && maguchi) padX = Math.max(4, ow * (maguchi - seiMaguchi) / maguchi / 2);
@@ -79,7 +85,13 @@ function buildBathDiagramSVG(sc) {
   // 蝶番(コーナー)を基点にしたシンプルな作図に描き直し、開き方向を必ず室内側(箱の内側)に収める。
   // ・「開いた状態」の線＝蝶番から室内側の壁沿いへ伸ばす(以前は箱の外側にはみ出していた)
   // ・弧の中心を蝶番に固定するため、SVGのsweep-flagを幾何計算で導出(右勝手=0／左勝手=1で中心が蝶番に一致)
+  // ★2026-09-13追加★ ドアタイプ(開き戸/引き戸)、浴槽の向き(A/B)に対応。
+  // 引き戸の場合は蝶番+弧ではなく、壁沿いのパネル+スライド方向の矢印で表示する。
   var doorPos = sc.bathDoorPosition || '';
+  var doorType = sc.bathDoorType || '開き戸';
+  var abCode = sc.bathKatteAB || '';
+  var lrCode = doorPos === '右' ? 'R' : (doorPos === '左' ? 'L' : '');
+  var abrCode = (abCode && lrCode) ? ('　'+abCode+lrCode) : '';
   var doorY = oy + oh;
   var kaikou = numModal(sc.bathKaikou);
   var doorWidthMM = kaikou || 650;
@@ -88,14 +100,28 @@ function buildBathDiagramSVG(sc) {
   // ★2026-09-13変更★ メモ開始Y座標をドアの大きさに依存させず、常に箱の下+40pxの固定位置にする
   // (以前はドアが大きいとメモが下象限にめり込んで表示崩れの原因になっていた)。
   var planNoteStartY = oy + oh + 40;
-  if (doorPos === '右') {
+  if (doorType === '引き戸') {
+    if (doorPos === '右') {
+      var sPx1 = ox+ow-doorR, sPx2 = ox+ow;
+      svg += '<rect x="'+sPx1+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
+      svg += '<text x="'+(sPx1+doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">→</text>';
+      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手(引き戸)'+abrCode+'</text>';
+    } else if (doorPos === '左') {
+      var sLx1 = ox, sLx2 = ox+doorR;
+      svg += '<rect x="'+sLx1+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
+      svg += '<text x="'+(sLx1+doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">←</text>';
+      svg += '<text x="'+(ox-70)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手(引き戸)'+abrCode+'</text>';
+    } else {
+      svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
+    }
+  } else if (doorPos === '右') {
     var rHingeX = ox+ow, rHingeY = doorY;
     var rClosedX = rHingeX, rClosedY = rHingeY - doorR;      // 閉じた状態：右の壁沿いに上へ
     var rOpenX = rHingeX - doorR, rOpenY = rHingeY;          // 開いた状態：室内側(左)へ
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="3"/>';
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手</text>';
+    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手'+abrCode+'</text>';
   } else if (doorPos === '左') {
     var lHingeX = ox, lHingeY = doorY;
     var lClosedX = lHingeX, lClosedY = lHingeY - doorR;      // 閉じた状態：左の壁沿いに上へ
@@ -103,27 +129,17 @@ function buildBathDiagramSVG(sc) {
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="3"/>';
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-    svg += '<text x="'+(ox-70)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手</text>';
+    svg += '<text x="'+(ox-70)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手'+abrCode+'</text>';
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
 
-  // 石膏ボード部分：選択された壁面ごとに強調線＋ラベル
-  // ★2026-09-13変更★ 石膏ボードは製品(浴槽等)の内側ではなく、間口/奥行きの
-  // 実寸(外枠=部屋の壁そのもの)の端に貼られるものなので、内側の箱(ix/iy/iw/ih)ではなく
-  // 外枠(ox/oy/ow/oh)を基準に描画する。
+  // 石膏ボード部分：選択された面(浴槽側面/カウンター面/カウンター対面/洗場側面)をテキストで表示。
+  // ★2026-09-13変更★ この呼び名は浴槽自体を基準にした業界標準の呼び方で、部屋の向き・勝手・
+  // A/Bが変わっても呼び名自体は変わらない。逆に「どの物理的な壁(左/右/正面)に対応するか」は
+  // A/B×勝手の組み合わせルールがまだ確定してないため、平面図上でのハイライト線描画は保留し、
+  // テキスト表示のみにする(誤ったハイライトを描いて現場を混乱させるより安全)。
   var sekkou = sc.bathSekkouBoard ? String(sc.bathSekkouBoard).split(',') : [];
-  var sekkouWalls = {
-    '右': { x1: ox+ow, y1: oy, x2: ox+ow, y2: oy+oh },
-    '左': { x1: ox, y1: oy, x2: ox, y2: oy+oh },
-    '正面': { x1: ox, y1: oy, x2: ox+ow, y2: oy },
-    'ドア横': { x1: ox, y1: oy+oh, x2: ox+ow, y2: oy+oh }
-  };
-  sekkou.forEach(function(w){
-    var seg = sekkouWalls[w];
-    if (!seg) return;
-    svg += '<line x1="'+seg.x1+'" y1="'+seg.y1+'" x2="'+seg.x2+'" y2="'+seg.y2+'" stroke="#8e24aa" stroke-width="6" stroke-linecap="round" opacity="0.85"/>';
-  });
   // ★2026-09-13変更★ 設置方法・枠材の厚みはドア枠(開口)の話なので、メモ欄(左下)ではなく
   // 平面図(左上)の下、ドア図形と重ならない位置(planNoteStartY)にまとめて表示する。
   var planNoteLines = [];
@@ -338,42 +354,42 @@ function buildBathDiagramSVG(sc) {
   }
 
   // ---------- 右下・列3：梁(コンクリート梁・基礎)(col3X〜W) ----------
-  // ★2026-09-13追加★ 浴室設置部分の壁(左壁/正面/右壁)ごとに、天井側から垂れる梁(上)や
-  // 床側から出っ張る基礎(下)がある場合を表示する。高さは天井高さ(tenjou)を基準にした
-  // 縮尺で縦方向に実寸描画し、奥行きは数値ラベルとして添える(1つの2D図では奥行き方向を
-  // 正確に描き分けられないため)。
+  // ★2026-09-13変更★ 梁は浴槽側面・カウンター面の2面のみ(カウンター対面・洗場側面はドアが来るため
+  // 梁が入らない、とのご説明のため)。呼び名も部屋基準の左壁/正面/右壁ではなく、浴槽自体を基準に
+  // した業界標準の呼び方(浴槽側面／カウンター面)に統一。高さは天井高さ(tenjou)基準の縮尺で
+  // 縦方向に実寸描画し、奥行きは数値ラベルとして添える(1つの2D図では奥行き方向を正確に描き分け
+  // られないため)。
   var col3W = W - col3X;
-  var hariWalls = [
-    { key: '左壁', ueT: numModal(sc.bathHariHidariUeTakasa), ueD: numModal(sc.bathHariHidariUeOkuyuki), shimoT: numModal(sc.bathHariHidariShimoTakasa), shimoD: numModal(sc.bathHariHidariShimoOkuyuki) },
-    { key: '正面', ueT: numModal(sc.bathHariShoumenUeTakasa), ueD: numModal(sc.bathHariShoumenUeOkuyuki), shimoT: numModal(sc.bathHariShoumenShimoTakasa), shimoD: numModal(sc.bathHariShoumenShimoOkuyuki) },
-    { key: '右壁', ueT: numModal(sc.bathHariMigiUeTakasa), ueD: numModal(sc.bathHariMigiUeOkuyuki), shimoT: numModal(sc.bathHariMigiShimoTakasa), shimoD: numModal(sc.bathHariMigiShimoOkuyuki) }
+  var hariPanels = [
+    { key: '浴槽側面', ueT: numModal(sc.bathHariYokusoUeTakasa), ueD: numModal(sc.bathHariYokusoUeOkuyuki), shimoT: numModal(sc.bathHariYokusoShimoTakasa), shimoD: numModal(sc.bathHariYokusoShimoOkuyuki) },
+    { key: 'カウンター面', ueT: numModal(sc.bathHariCounterUeTakasa), ueD: numModal(sc.bathHariCounterUeOkuyuki), shimoT: numModal(sc.bathHariCounterShimoTakasa), shimoD: numModal(sc.bathHariCounterShimoOkuyuki) }
   ];
-  var anyHari = hariWalls.some(function(w){ return w.ueT || w.shimoT; });
+  var anyHari = hariPanels.some(function(w){ return w.ueT || w.shimoT; });
   if (!anyHari) {
     svg += '<text x="'+(col3X+col3W/2)+'" y="'+(MY+90)+'" text-anchor="middle" font-size="22" font-weight="bold" fill="#999">梁の指定なし</text>';
   } else {
     svg += '<text x="'+(col3X+col3W/2)+'" y="'+(MY+26)+'" text-anchor="middle" font-size="12" fill="#333">梁(コンクリート)</text>';
-    var hariColW = col3W / 3;
+    var hariColW = col3W / 2;
     var hariAreaTop = MY + 55, hariAreaBottom = H - 40;
     var hariPanelH = hariAreaBottom - hariAreaTop;
     var hariPxScale = hariPanelH / (tenjou || 2400);
-    var barW = 20;
-    hariWalls.forEach(function(wall, idx){
+    var barW = 26;
+    hariPanels.forEach(function(panel, idx){
       var panelCenterX = col3X + idx*hariColW + hariColW/2;
       svg += '<line x1="'+panelCenterX+'" y1="'+hariAreaTop+'" x2="'+panelCenterX+'" y2="'+hariAreaBottom+'" stroke="#ccc" stroke-width="1" stroke-dasharray="2,2"/>';
-      svg += '<line x1="'+(panelCenterX-14)+'" y1="'+hariAreaTop+'" x2="'+(panelCenterX+14)+'" y2="'+hariAreaTop+'" stroke="#333" stroke-width="1"/>';
-      svg += '<line x1="'+(panelCenterX-14)+'" y1="'+hariAreaBottom+'" x2="'+(panelCenterX+14)+'" y2="'+hariAreaBottom+'" stroke="#333" stroke-width="1"/>';
-      if (wall.ueT) {
-        var ueH = Math.min(hariPanelH, wall.ueT * hariPxScale);
+      svg += '<line x1="'+(panelCenterX-16)+'" y1="'+hariAreaTop+'" x2="'+(panelCenterX+16)+'" y2="'+hariAreaTop+'" stroke="#333" stroke-width="1"/>';
+      svg += '<line x1="'+(panelCenterX-16)+'" y1="'+hariAreaBottom+'" x2="'+(panelCenterX+16)+'" y2="'+hariAreaBottom+'" stroke="#333" stroke-width="1"/>';
+      if (panel.ueT) {
+        var ueH = Math.min(hariPanelH, panel.ueT * hariPxScale);
         svg += '<rect x="'+(panelCenterX-barW/2)+'" y="'+hariAreaTop+'" width="'+barW+'" height="'+ueH+'" fill="#8d6e63" stroke="#5d4037" stroke-width="1"/>';
-        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaTop+ueH+13)+'" text-anchor="middle" font-size="9" fill="#5d4037">上H'+wall.ueT+(wall.ueD?'/D'+wall.ueD:'')+'</text>';
+        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaTop+ueH+13)+'" text-anchor="middle" font-size="10" fill="#5d4037">上H'+panel.ueT+(panel.ueD?'/D'+panel.ueD:'')+'</text>';
       }
-      if (wall.shimoT) {
-        var shimoH = Math.min(hariPanelH, wall.shimoT * hariPxScale);
+      if (panel.shimoT) {
+        var shimoH = Math.min(hariPanelH, panel.shimoT * hariPxScale);
         svg += '<rect x="'+(panelCenterX-barW/2)+'" y="'+(hariAreaBottom-shimoH)+'" width="'+barW+'" height="'+shimoH+'" fill="#8d6e63" stroke="#5d4037" stroke-width="1"/>';
-        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom-shimoH-6)+'" text-anchor="middle" font-size="9" fill="#5d4037">下H'+wall.shimoT+(wall.shimoD?'/D'+wall.shimoD:'')+'</text>';
+        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom-shimoH-6)+'" text-anchor="middle" font-size="10" fill="#5d4037">下H'+panel.shimoT+(panel.shimoD?'/D'+panel.shimoD:'')+'</text>';
       }
-      svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom+16)+'" text-anchor="middle" font-size="10" fill="#333">'+wall.key+'</text>';
+      svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom+16)+'" text-anchor="middle" font-size="11" fill="#333">'+panel.key+'</text>';
     });
   }
 
