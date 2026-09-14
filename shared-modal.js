@@ -1,5 +1,5 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-012
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
+// VERSION: 2026-09-14-013
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -29,6 +29,9 @@ var SITECHECK_GROUPS_KITCHEN = [
 ];
 
 // ★2026-09-12追加★ 現場チェックの浴室用グループ。
+// ★2026-09-14追加★ 「吊元・配管」グループを追加。左右クリア(bath-diagram.jsの自動計算)に
+// 必要な入力項目：吊元側の下地厚み・枠厚み・追加パネル厚み、配管方式(上配管/下配管)、
+// 上配管時の追加スペース、水栓のある側(吊元側/戸先側/なし)。
 var SITECHECK_GROUPS_BATH = [
   { title: '間口・開口', items: [
     { label:'ドア位置(勝手)', field:'bathDoorPosition', type:'select', options:['右','左'] },
@@ -43,6 +46,14 @@ var SITECHECK_GROUPS_BATH = [
     { label:'リモコン開口 有無', field:'bathRemoconUmu', type:'select', options:['有','無'] },
     { label:'リモコン開口 メモ', field:'bathRemoconMemo' },
     { label:'ハンドバー設置方法', field:'bathHandbarHouhou', type:'select', options:['図面通り','要確認'] }
+  ]},
+  { title: '吊元・配管', items: [
+    { label:'吊元側下地厚み', field:'bathTsurimotoShitaji', type:'number' },
+    { label:'吊元側枠厚み', field:'bathTsurimotoWaku', type:'number' },
+    { label:'吊元側追加パネル厚み', field:'bathTsurimotoPanel', type:'number' },
+    { label:'配管方式', field:'bathHaikanHoushiki', type:'select', options:['下配管','上配管'] },
+    { label:'上配管時 追加スペース', field:'bathJouhaikanSupace', type:'number' },
+    { label:'水栓のある側', field:'bathMizumotoGawa', type:'select', options:['吊元側','戸先側','なし'] }
   ]},
   { title: '石膏ボード', items: [
     { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['カウンター面','カウンター対面','浴槽側面','洗場側面'] }
