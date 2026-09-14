@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-007
+// VERSION: 2026-09-13-008
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -345,9 +345,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '</div>';
   // ★2026-09-13追加★ PDFのテキスト抽出がうまくいかないケース向けに、スクショ画像を
   // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
-  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) で報告書のスクショを貼り付け(複数ページある場合は1枚ずつ続けて貼り付けできます)</div>';
+  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)</div>';
   html += '<div id="report-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
-  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🖼 画像から解析(AI)</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 画像をクリア</button></div>';
+  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
 
@@ -1016,33 +1016,42 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       });
     }
 
-    // 🖼 画像から解析（AI・PDFのテキスト抽出がうまくいかない場合の代替。スクショをそのまま読ませる）
+    // 📎 画像/PDFから解析（AI・PDFのテキスト抽出がうまくいかない場合の代替。そのまま読ませる）
     // ★2026-09-13変更★ 報告書が複数ページにまたがる場合に対応するため、1枚固定ではなく
-    // 配列で複数枚を保持できるようにする。貼り付けるたびに追加され、サムネイル一覧に個別の削除ボタンを出す。
+    // 配列で複数枚(画像・PDF混在可)を保持できるようにする。貼り付けるたびに追加され、
+    // サムネイル一覧に個別の削除ボタンを出す。PDFはFinderでファイルをコピーしてから
+    // ここに⌘Vすると、クリップボードのfiles経由で取得できる。
     var imagePasteArea = document.getElementById('report-image-paste');
     var imagePreview = document.getElementById('report-image-preview');
     var parseImageBtn = document.getElementById('report-parse-image-btn');
     var imageClearBtn = document.getElementById('report-image-clear-btn');
-    var pastedImages = []; // [{ mediaType, base64, dataUrl }]
+    var pastedAttachments = []; // [{kind:'image', mediaType, base64, dataUrl} | {kind:'pdf', base64, filename}]
 
     function renderImageThumbs() {
       if (!imagePreview) return;
       imagePreview.innerHTML = '';
-      pastedImages.forEach(function(img, idx){
+      pastedAttachments.forEach(function(att, idx){
         var wrap = document.createElement('div');
         wrap.style.cssText = 'position:relative;display:inline-block;';
-        var thumb = document.createElement('img');
-        thumb.src = img.dataUrl;
-        thumb.style.cssText = 'max-width:140px;max-height:140px;border:1px solid #ccc;border-radius:4px;display:block;';
+        if (att.kind === 'pdf') {
+          var box = document.createElement('div');
+          box.style.cssText = 'width:120px;height:80px;border:1px solid #ccc;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;color:#555;background:#fafafa;padding:4px;text-align:center;word-break:break-all;';
+          box.innerHTML = '📄<br>'+escHtmlModal(att.filename || 'PDF');
+          wrap.appendChild(box);
+        } else {
+          var thumb = document.createElement('img');
+          thumb.src = att.dataUrl;
+          thumb.style.cssText = 'max-width:140px;max-height:140px;border:1px solid #ccc;border-radius:4px;display:block;';
+          wrap.appendChild(thumb);
+        }
         var delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.textContent = '×';
         delBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;width:20px;height:20px;line-height:18px;text-align:center;padding:0;font-size:13px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:50%;cursor:pointer;';
         delBtn.addEventListener('click', function(){
-          pastedImages.splice(idx, 1);
+          pastedAttachments.splice(idx, 1);
           renderImageThumbs();
         });
-        wrap.appendChild(thumb);
         wrap.appendChild(delBtn);
         imagePreview.appendChild(wrap);
       });
@@ -1050,44 +1059,70 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
     if (imagePasteArea) {
       imagePasteArea.addEventListener('paste', function(e){
-        var items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
-        if (!items) return;
-        var foundImage = false;
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf('image') !== -1) {
-            foundImage = true;
-            var blob = items[i].getAsFile();
-            var reader = new FileReader();
-            reader.onload = function(ev){
-              var dataUrl = ev.target.result; // "data:image/png;base64,XXXX"
-              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
-              if (m) {
-                pastedImages.push({ mediaType: m[1], base64: m[2], dataUrl: dataUrl });
-                renderImageThumbs();
-              }
-            };
-            reader.readAsDataURL(blob);
+        var cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+        var handled = false;
+        // 画像(スクショ等)：items経由
+        var items = cd.items;
+        if (items) {
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+              handled = true;
+              var blob = items[i].getAsFile();
+              var reader = new FileReader();
+              reader.onload = function(ev){
+                var dataUrl = ev.target.result;
+                var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+                if (m) {
+                  pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+                  renderImageThumbs();
+                }
+              };
+              reader.readAsDataURL(blob);
+            }
           }
         }
-        if (foundImage) e.preventDefault();
+        // PDFファイル：Finderでファイルをコピーして貼った場合はfiles経由で来る
+        var files = cd.files;
+        if (files) {
+          for (var j = 0; j < files.length; j++) {
+            if (files[j].type === 'application/pdf') {
+              handled = true;
+              var f = files[j];
+              var reader2 = new FileReader();
+              reader2.onload = function(ev){
+                var dataUrl2 = ev.target.result;
+                var m2 = dataUrl2.match(/^data:application\/pdf;base64,(.+)$/);
+                if (m2) {
+                  pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
+                  renderImageThumbs();
+                }
+              };
+              reader2.readAsDataURL(f);
+            }
+          }
+        }
+        if (handled) e.preventDefault();
       });
     }
 
     if (imageClearBtn) {
       imageClearBtn.addEventListener('click', function(){
-        pastedImages = [];
+        pastedAttachments = [];
         renderImageThumbs();
       });
     }
 
     if (parseImageBtn) {
       parseImageBtn.addEventListener('click', function(){
-        if (!pastedImages.length) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像を貼り付けてください</span>'; return; }
-        previewEl.textContent = '⏳ AIが画像を解析中...(数秒かかります)';
+        if (!pastedAttachments.length) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像またはPDFを貼り付けてください</span>'; return; }
+        previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
+        var images = pastedAttachments.filter(function(a){ return a.kind === 'image'; }).map(function(a){ return { data: a.base64, mediaType: a.mediaType }; });
+        var pdfs = pastedAttachments.filter(function(a){ return a.kind === 'pdf'; }).map(function(a){ return { data: a.base64 }; });
         fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images: pastedImages.map(function(img){ return { data: img.base64, mediaType: img.mediaType }; }) })
+          body: JSON.stringify({ images: images, pdfs: pdfs })
         }).then(function(res){
           return res.json().then(function(data){ return { ok: res.ok, data: data }; });
         }).then(function(r){
@@ -1095,7 +1130,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
             previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+escHtmlModal((r.data && r.data.message) || '不明なエラー')+'</span>';
             return;
           }
-          renderReportResult(r.data.result, '🖼 画像AI');
+          renderReportResult(r.data.result, '📎 添付AI');
         }).catch(function(e){
           previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
         });
