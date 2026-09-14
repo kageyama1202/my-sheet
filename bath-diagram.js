@@ -17,8 +17,8 @@
      bathJouhaikanSupace(上配管時追加スペースmm、現場入力目安30〜40) /
      bathMizumotoGawa('吊元側'/'戸先側'/'なし')
 */
-// VERSION: 2026-09-14-006
-// CREATED: 2026-09-14 23:50
+// VERSION: 2026-09-15-007
+// CREATED: 2026-09-15 01:15
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -193,32 +193,35 @@ function buildBathDiagramSVG(sc) {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
 
-  // ★2026-09-14追加★ 間口方向(左右)の実クリア計算。
-  // 【吊元側】柱(または壁)にPB→下地→枠が組まれ、その枠の位置が蝶番(吊元)の起点になる。
+  // ★2026-09-15確定★ 間口方向(左右)の実クリア計算。
+  // 【勝手(L/R)と水栓の位置の確定ルール】
+  //   ・扉は常に下辺(手前の壁)。L/Rは扉が下辺の右寄り(R)か左寄り(L)か。
+  //   ・A勝手：浴槽は縦長。水栓・カウンターは扉の【正面の壁】にある
+  //            → 配管突出は【奥行き方向】に効く(間口方向の左右クリアには加算しない)。
+  //   ・B勝手：浴槽は横長。水栓・カウンターは【扉と左右反対側の側面壁】にある
+  //            (ドアの開閉スペース確保のため必ず扉と反対側)。配管は水栓の壁の裏を通るので、
+  //            配管突出は【間口方向】のうち“扉と反対側の壁”だけに加算される(非対称)。
+  // 【吊元側クリア】柱(または壁)にPB→下地→枠が組まれ、その枠の位置が蝶番(吊元)の起点になる。
   //   吊元側クリア = 下地厚み(bathTsurimotoShitaji) + 枠厚み(bathTsurimotoWaku)
   //                  − (標準出寸34mm + 追加パネル厚み(bathTsurimotoPanel、既定0))
-  //   ※「34mm」は浴槽(SB外寸)の角から吊元(蝶番)の取付起点までの標準的な出寸。
-  //     吊元側にパネルが追加される現場ではその分34mmに加算される(100・300など)。
-  // 【反対側(戸先側)】建物実測(間口＝bathMaguchi、PB内寸に相当) − 吊元側クリア − 製品幅
-  //   から自動的に求まる。製品幅は、戸先側の壁が水栓側(bathMizumotoGawa==='戸先側')であれば
-  //   配管突出分を加算する：下配管なら+18mm、上配管なら現場入力の追加スペース(既定は目安35mm)。
-  //   吊元側が水栓側の場合は逆に吊元側の製品幅に同様の加算をする(下の effProductMaguchi で対応)。
-  // 建物実測(bathMaguchi)と製品外寸(bathSeihinMaguchi)が両方入力されていて、かつ勝手が
-  // 選択されている場合のみ計算・表示する(情報不足の場合は何も描かない＝誤った数値を出さない)。
+  //   ※吊元側は扉のある側なので、B勝手でも配管は来ない(水栓は反対側のため)。
+  // 【反対側(戸先側)クリア】建物実測(間口=bathMaguchi) − 吊元側クリア − 製品幅
+  //   製品幅は、B勝手のときだけ反対側=水栓側なので配管突出を加算する
+  //   (下配管+18mm／上配管は現場入力の追加スペース、既定は目安35mm)。
+  //   A勝手では間口方向に配管加算はしない(奥行き方向の話になるため、ここでは扱わない)。
   var tsurimotoShitaji = numModal(sc.bathTsurimotoShitaji);
   var tsurimotoWaku = numModal(sc.bathTsurimotoWaku);
   var tsurimotoPanel = numModal(sc.bathTsurimotoPanel, 0);
   var haikanHoushiki = sc.bathHaikanHoushiki || '下配管';
   var jouhaikanSupace = numModal(sc.bathJouhaikanSupace, 35); // 上配管時、現場入力が無い場合の目安(30〜40の中間)
-  var mizumotoGawa = sc.bathMizumotoGawa || ''; // '吊元側' / '戸先側' / 'なし'
   var TSURIMOTO_STD_OFFSET = 34; // 標準出寸(パネル無しの場合)
 
   if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchi && seiMaguchi && (doorPos === '右' || doorPos === '左')) {
     var tsurimotoClear = tsurimotoShitaji + tsurimotoWaku - (TSURIMOTO_STD_OFFSET + tsurimotoPanel);
     var plumbingAdd = (haikanHoushiki === '上配管') ? jouhaikanSupace : 18;
-    var effProductMaguchi = seiMaguchi + (mizumotoGawa === '戸先側' || mizumotoGawa === '吊元側' ? plumbingAdd : 0);
-    // 水栓側の加算はどちらの壁で製品幅が実質広がるかだけの違いなので、合計計算上は
-    // 常に effProductMaguchi(製品幅+配管分)を使えばよい(吊元クリア自体は配管の影響を受けない)。
+    // B勝手のときだけ、扉と反対側(=水栓のある側面壁)に配管突出を加算する。A勝手は間口方向には加算しない。
+    var addToOpposite = (katteAB === 'B') ? plumbingAdd : 0;
+    var effProductMaguchi = seiMaguchi + addToOpposite;
     var oppositeClear = maguchi - tsurimotoClear - effProductMaguchi;
     var MIN_CLEAR = 15; // 標準最小クリアの目安
     var tsurimotoNG = tsurimotoClear < 0;
@@ -226,7 +229,8 @@ function buildBathDiagramSVG(sc) {
     var tsurimotoColor = tsurimotoNG ? '#c0392b' : '#00695c';
     var oppositeColor = oppositeNG ? '#c0392b' : '#00695c';
     var tsurimotoLabel = '吊元側クリア：'+Math.round(tsurimotoClear)+'mm'+(tsurimotoNG?'（不足）':'');
-    var oppositeLabel = '戸先側クリア：'+Math.round(oppositeClear)+'mm'+(oppositeNG?'（要確認）':'');
+    var oppositeExtra = (katteAB === 'B') ? '（水栓側・配管込）' : '';
+    var oppositeLabel = '戸先側クリア：'+Math.round(oppositeClear)+'mm'+oppositeExtra+(oppositeNG?'（要確認）':'');
     if (doorPos === '右') {
       // 吊元＝右側、戸先(反対側)＝左側
       svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+36)+'" font-size="12" fill="'+tsurimotoColor+'">'+tsurimotoLabel+'</text>';
@@ -235,6 +239,10 @@ function buildBathDiagramSVG(sc) {
       // 吊元＝左側、戸先(反対側)＝右側
       svg += '<text x="5" y="'+(doorY+36)+'" font-size="12" fill="'+tsurimotoColor+'">'+tsurimotoLabel+'</text>';
       svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="12" fill="'+oppositeColor+'">'+oppositeLabel+'</text>';
+    }
+    // A勝手のときは、水栓は正面壁 → 奥行き方向(正面壁とのクリア)に配管突出が効く旨を注記だけ添える。
+    if (katteAB === 'A') {
+      svg += '<text x="5" y="'+(doorY+54)+'" font-size="11" fill="#6a1b9a">※A勝手：水栓は正面壁（配管は奥行き方向 +'+plumbingAdd+'mm）</text>';
     }
   }
 
