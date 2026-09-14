@@ -7,7 +7,7 @@
    ★2026-09-13変更★ PDF化は廃止(画面表示してスクショで運用するため)。
    html2canvas/jsPDF読込用だったensurePdfLibsModal()は不要になったため削除。
 */
-// VERSION: 2026-09-13-012
+// VERSION: 2026-09-13-013
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -39,12 +39,17 @@ function wrapTextModal(text, maxChars) {
 function buildBathDiagramSVG(sc) {
   sc = sc || {};
   var W = 1150, H = 900, MX = 500, MY = 450;
+  // ★2026-09-13変更★ 下段を2分割(メモ|窓位置)から3分割(メモ|窓|梁)に変更。
+  // 窓表示を右下の約1/3、コンクリート梁・基礎の表示を残りの1/3に割り当てる。
+  var col2X = Math.round(W/3), col3X = Math.round(W*2/3);
   // ★2026-09-13変更★ width/heightは指定せず100%+preserveAspectRatioにして、
   // モーダルのプレビュー幅に自動で収まるようにする(スクショで全面を撮れるようにするため)。
   var svg = '<svg width="100%" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" font-family="\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif" style="display:block;">';
   svg += '<rect width="'+W+'" height="'+H+'" fill="#fdfaf3"/>';
-  svg += '<line x1="'+MX+'" y1="0" x2="'+MX+'" y2="'+H+'" stroke="#c0392b" stroke-width="2"/>';
+  svg += '<line x1="'+MX+'" y1="0" x2="'+MX+'" y2="'+MY+'" stroke="#c0392b" stroke-width="2"/>';
   svg += '<line x1="0" y1="'+MY+'" x2="'+W+'" y2="'+MY+'" stroke="#c0392b" stroke-width="2"/>';
+  svg += '<line x1="'+col2X+'" y1="'+MY+'" x2="'+col2X+'" y2="'+H+'" stroke="#c0392b" stroke-width="2"/>';
+  svg += '<line x1="'+col3X+'" y1="'+MY+'" x2="'+col3X+'" y2="'+H+'" stroke="#c0392b" stroke-width="2"/>';
 
   // ---------- 左上：平面図（間口・奥行き／勝手／石膏ボード） ----------
   var maguchi = numModal(sc.bathMaguchi), okuyuki = numModal(sc.bathOkuyuki);
@@ -87,20 +92,20 @@ function buildBathDiagramSVG(sc) {
     var rHingeX = ox+ow, rHingeY = doorY;
     var rClosedX = rHingeX, rClosedY = rHingeY - doorR;      // 閉じた状態：右の壁沿いに上へ
     var rOpenX = rHingeX - doorR, rOpenY = rHingeY;          // 開いた状態：室内側(左)へ
-    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="2"/>';
-    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="0.8"/>';
-    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">右勝手</text>';
+    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="3"/>';
+    svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="2"/>';
+    svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
+    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手</text>';
   } else if (doorPos === '左') {
     var lHingeX = ox, lHingeY = doorY;
     var lClosedX = lHingeX, lClosedY = lHingeY - doorR;      // 閉じた状態：左の壁沿いに上へ
     var lOpenX = lHingeX + doorR, lOpenY = lHingeY;          // 開いた状態：室内側(右)へ
-    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="2"/>';
-    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="1.3"/>';
-    svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="0.8"/>';
-    svg += '<text x="'+(ox-70)+'" y="'+(doorY+16)+'" font-size="12" fill="#c0392b">左勝手</text>';
+    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="3"/>';
+    svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="2"/>';
+    svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
+    svg += '<text x="'+(ox-70)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手</text>';
   } else {
-    svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="11" fill="#aaa">(勝手未選択)</text>';
+    svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
 
   // 石膏ボード部分：選択された壁面ごとに強調線＋ラベル
@@ -246,15 +251,14 @@ function buildBathDiagramSVG(sc) {
     }
   }
 
-  // ---------- 左下：メモ・連絡事項 ----------
+  // ---------- 左下：メモ・連絡事項(下段1列目:0〜col2X) ----------
   svg += '<text x="30" y="'+(MY+40)+'" font-size="13" fill="#3b6d11">メモ・連絡事項</text>';
   var memo = sc.bathMemoRenraku || '';
   var memoRawLines = memo ? String(memo).split('\n') : ['(未入力)'];
   var memoY = MY + 64;
-  // ★2026-09-13変更★ 報告書取込の伝達事項など長文が右の象限へはみ出していたため、
-  // 1行が長い場合は折り返してから描画する(改行そのものは元の\nの位置も尊重する)。
+  // ★2026-09-13変更★ 下段が3列になり幅が狭くなったため、折り返し文字数も縮小(34→26)。
   memoRawLines.forEach(function(rawLine){
-    wrapTextModal(rawLine, 34).forEach(function(line){
+    wrapTextModal(rawLine, 26).forEach(function(line){
       svg += '<text x="30" y="'+memoY+'" font-size="12" fill="#333">'+escHtmlModal(line)+'</text>';
       memoY += 16;
     });
@@ -265,65 +269,113 @@ function buildBathDiagramSVG(sc) {
   if (sc.bathHandbarHouhou) extraNotes.push('ハンドバー：'+sc.bathHandbarHouhou);
   if (sc.bathTsuriKanaguKubun || sc.bathTsuriKanaguSize) extraNotes.push('吊り金具：'+(sc.bathTsuriKanaguKubun||'?')+' / '+(sc.bathTsuriKanaguSize||'?')+' / 現地入れ'+(sc.bathTsuriKanaguGenchi||'?'));
   extraNotes.forEach(function(line){
-    wrapTextModal(line, 36).forEach(function(l){
+    wrapTextModal(line, 27).forEach(function(l){
       svg += '<text x="30" y="'+memoY+'" font-size="11" fill="#666">'+escHtmlModal(l)+'</text>';
       memoY += 15;
     });
   });
 
-  // ---------- 右下：窓位置 ----------
-  // ★2026-09-13変更★ 精度向上のため「窓がある面(正面/右面/左面)」を追加。
-  // 面がわかれば、その面の実際の壁寸法(正面=間口×天井高さ／右面・左面=奥行き×天井高さ)を
-  // そのまま壁のスケールとして使えるので、窓自身の離れ寸法が多少欠けていても実寸に近い表示になる。
-  // 優先順位: ①面選択+室内寸法(最も正確・面積も算出可) → ②離れ4点から逆算(面積は出せない) → ③概算配置
-  var madoW = numModal(sc.bathMadoW), madoH = numModal(sc.bathMadoH), madoD = numModal(sc.bathMadoD);
-  var madoUe = numModal(sc.bathMadoUe), madoShita = numModal(sc.bathMadoShita), madoHidari = numModal(sc.bathMadoHidari), madoMigi = numModal(sc.bathMadoMigi);
-  var madoMen = sc.bathMadoMen || '';
-  var wallWidthMM = null, wallHeightMM = null, wallAreaM2 = null;
-  if (madoMen === '正面') { wallWidthMM = maguchi || seiMaguchi || null; wallHeightMM = tenjou || null; }
-  else if (madoMen === '右面' || madoMen === '左面') { wallWidthMM = okuyuki || seiOkuyuki || null; wallHeightMM = tenjou || null; }
-  var trueWallMode = !!(wallWidthMM && wallHeightMM);
-  if (trueWallMode) wallAreaM2 = Math.round((wallWidthMM/1000) * (wallHeightMM/1000) * 100) / 100;
-
-  var madoScaleReady = madoW!=null && madoH!=null && madoUe!=null && madoShita!=null && madoHidari!=null && madoMigi!=null;
-  // trueWallModeでなければ従来通り離れ4点の合計から壁サイズを逆算(面積は不明のため出さない)
-  if (!trueWallMode && madoScaleReady) {
-    wallWidthMM = madoHidari + madoW + madoMigi;
-    wallHeightMM = madoUe + madoH + madoShita;
-  }
-  var scaleReady = trueWallMode || madoScaleReady;
-  var winBox = scaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 260, 260) : { w: 260, h: 260, scale: null };
-  var wx = 695, wy = MY+40, wallW = winBox.w, wallH = winBox.h;
-  var winTitle = '窓位置';
-  if (trueWallMode) winTitle += '（'+madoMen+'・壁面積約'+wallAreaM2+'㎡）';
-  else if (!scaleReady) winTitle += '（概算配置）';
-  svg += '<text x="'+(wx+wallW/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="13" fill="#333">'+winTitle+'</text>';
-  svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
-  var mW, mH, mx1, my1;
-  if (scaleReady) {
-    // trueWallModeで離れ寸法が一部欠けている場合は、わかる軸だけ実寸配置、欠けている軸は中央寄せにする
-    mW = madoW!=null ? madoW * winBox.scale : wallW*0.35;
-    mH = madoH!=null ? madoH * winBox.scale : wallH*0.35;
-    mx1 = madoHidari!=null ? wx + madoHidari*winBox.scale : wx + (wallW-mW)/2;
-    my1 = madoUe!=null ? wy + madoUe*winBox.scale : wy + (wallH-mH)/2;
+  // ---------- 右下・列2：窓位置(col2X〜col3X、下段の中央列) ----------
+  // ★2026-09-13変更★ 下段を3列化したことで窓の表示スペースが約1/3に縮小。
+  // 「窓の有無」を明示的にチェックできるようにし、無しの場合は図の代わりに
+  // 「窓なし」を大きく表示する(空白のまま図が壊れて見えるのを防ぐ)。
+  var col2W = col3X - col2X;
+  var madoAri = sc.bathMadoAri || '';
+  if (madoAri === '無') {
+    svg += '<text x="'+(col2X+col2W/2)+'" y="'+(MY+90)+'" text-anchor="middle" font-size="24" font-weight="bold" fill="#999">窓なし</text>';
   } else {
-    mW = madoW ? Math.min(wallW*0.6, madoW*0.15) : wallW*0.35;
-    mH = madoH ? Math.min(wallH*0.6, madoH*0.15) : wallH*0.35;
-    mx1 = wx + (madoHidari!=null && madoMigi!=null ? (madoHidari/(madoHidari+madoMigi))*(wallW-mW) : (wallW-mW)/2);
-    my1 = wy + (madoUe!=null && madoShita!=null ? (madoUe/(madoUe+madoShita))*(wallH-mH) : (wallH-mH)/2);
+    // 精度向上のため「窓がある面(正面/右面/左面)」を追加。
+    // 面がわかれば、その面の実際の壁寸法(正面=間口×天井高さ／右面・左面=奥行き×天井高さ)を
+    // そのまま壁のスケールとして使えるので、窓自身の離れ寸法が多少欠けていても実寸に近い表示になる。
+    // 優先順位: ①面選択+室内寸法(最も正確・面積も算出可) → ②離れ4点から逆算(面積は出せない) → ③概算配置
+    var madoW = numModal(sc.bathMadoW), madoH = numModal(sc.bathMadoH), madoD = numModal(sc.bathMadoD);
+    var madoUe = numModal(sc.bathMadoUe), madoShita = numModal(sc.bathMadoShita), madoHidari = numModal(sc.bathMadoHidari), madoMigi = numModal(sc.bathMadoMigi);
+    var madoMen = sc.bathMadoMen || '';
+    var wallWidthMM = null, wallHeightMM = null, wallAreaM2 = null;
+    if (madoMen === '正面') { wallWidthMM = maguchi || seiMaguchi || null; wallHeightMM = tenjou || null; }
+    else if (madoMen === '右面' || madoMen === '左面') { wallWidthMM = okuyuki || seiOkuyuki || null; wallHeightMM = tenjou || null; }
+    var trueWallMode = !!(wallWidthMM && wallHeightMM);
+    if (trueWallMode) wallAreaM2 = Math.round((wallWidthMM/1000) * (wallHeightMM/1000) * 100) / 100;
+
+    var madoScaleReady = madoW!=null && madoH!=null && madoUe!=null && madoShita!=null && madoHidari!=null && madoMigi!=null;
+    if (!trueWallMode && madoScaleReady) {
+      wallWidthMM = madoHidari + madoW + madoMigi;
+      wallHeightMM = madoUe + madoH + madoShita;
+    }
+    var scaleReady = trueWallMode || madoScaleReady;
+    // ★2026-09-13変更★ 列幅が約1/3(384px)に縮小したため、最大枠を260→180に縮小。
+    var winBox = scaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 180, 180) : { w: 180, h: 180, scale: null };
+    var wallW = winBox.w, wallH = winBox.h;
+    var wx = col2X + (col2W - wallW)/2, wy = MY + 55;
+    var winTitle = '窓位置';
+    if (trueWallMode) winTitle += '（'+madoMen+'・約'+wallAreaM2+'㎡）';
+    else if (!scaleReady) winTitle += '（概算配置）';
+    svg += '<text x="'+(col2X+col2W/2)+'" y="'+(wy-14)+'" text-anchor="middle" font-size="12" fill="#333">'+winTitle+'</text>';
+    svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
+    var mW, mH, mx1, my1;
+    if (scaleReady) {
+      mW = madoW!=null ? madoW * winBox.scale : wallW*0.35;
+      mH = madoH!=null ? madoH * winBox.scale : wallH*0.35;
+      mx1 = madoHidari!=null ? wx + madoHidari*winBox.scale : wx + (wallW-mW)/2;
+      my1 = madoUe!=null ? wy + madoUe*winBox.scale : wy + (wallH-mH)/2;
+    } else {
+      mW = madoW ? Math.min(wallW*0.6, madoW*0.15) : wallW*0.35;
+      mH = madoH ? Math.min(wallH*0.6, madoH*0.15) : wallH*0.35;
+      mx1 = wx + (madoHidari!=null && madoMigi!=null ? (madoHidari/(madoHidari+madoMigi))*(wallW-mW) : (wallW-mW)/2);
+      my1 = wy + (madoUe!=null && madoShita!=null ? (madoUe/(madoUe+madoShita))*(wallH-mH) : (wallH-mH)/2);
+    }
+    svg += '<rect x="'+mx1+'" y="'+my1+'" width="'+mW+'" height="'+mH+'" fill="#dcecec" stroke="#004d40" stroke-width="1.5"/>';
+    svg += '<line x1="'+wx+'" y1="'+(my1+mH/2)+'" x2="'+mx1+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
+    svg += '<line x1="'+(mx1+mW)+'" y1="'+(my1+mH/2)+'" x2="'+(wx+wallW)+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
+    svg += '<line x1="'+(mx1+mW/2)+'" y1="'+wy+'" x2="'+(mx1+mW/2)+'" y2="'+my1+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
+    svg += '<line x1="'+(mx1+mW/2)+'" y1="'+(my1+mH)+'" x2="'+(mx1+mW/2)+'" y2="'+(wy+wallH)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
+    svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy-2)+'" text-anchor="middle" font-size="9" fill="#004d40">'+(madoUe!=null?madoUe:'')+'</text>';
+    svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy+wallH+13)+'" text-anchor="middle" font-size="9" fill="#004d40">'+(madoShita!=null?madoShita:'')+'</text>';
+    svg += '<text x="'+(wx-5)+'" y="'+(my1+mH/2+4)+'" text-anchor="end" font-size="9" fill="#004d40">'+(madoHidari!=null?madoHidari:'')+'</text>';
+    svg += '<text x="'+(wx+wallW+5)+'" y="'+(my1+mH/2+4)+'" font-size="9" fill="#004d40">'+(madoMigi!=null?madoMigi:'')+'</text>';
+    svg += '<text x="'+(mx1+mW/2)+'" y="'+(my1+mH/2+3)+'" text-anchor="middle" font-size="9" fill="#004d40">'+(madoW||'?')+'×'+(madoH||'?')+'</text>';
+    svg += '<text x="'+(mx1+mW/2)+'" y="'+(my1+mH/2+15)+'" text-anchor="middle" font-size="9" fill="#004d40">奥行D：'+(madoD!=null?madoD:'?')+'</text>';
   }
-  svg += '<rect x="'+mx1+'" y="'+my1+'" width="'+mW+'" height="'+mH+'" fill="#dcecec" stroke="#004d40" stroke-width="1.5"/>';
-  svg += '<line x1="'+wx+'" y1="'+(my1+mH/2)+'" x2="'+mx1+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW)+'" y1="'+(my1+mH/2)+'" x2="'+(wx+wallW)+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW/2)+'" y1="'+wy+'" x2="'+(mx1+mW/2)+'" y2="'+my1+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW/2)+'" y1="'+(my1+mH)+'" x2="'+(mx1+mW/2)+'" y2="'+(wy+wallH)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy-2)+'" text-anchor="middle" font-size="10" fill="#004d40">'+(madoUe!=null?madoUe:'')+'</text>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy+wallH+14)+'" text-anchor="middle" font-size="10" fill="#004d40">'+(madoShita!=null?madoShita:'')+'</text>';
-  svg += '<text x="'+(wx-6)+'" y="'+(my1+mH/2+4)+'" text-anchor="end" font-size="10" fill="#004d40">'+(madoHidari!=null?madoHidari:'')+'</text>';
-  svg += '<text x="'+(wx+wallW+6)+'" y="'+(my1+mH/2+4)+'" font-size="10" fill="#004d40">'+(madoMigi!=null?madoMigi:'')+'</text>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(my1+mH/2+4)+'" text-anchor="middle" font-size="10" fill="#004d40">'+(madoW||'?')+'×'+(madoH||'?')+'</text>';
-  // ★2026-09-13変更★ 奥行き(D)寸法も記載してほしいとの要望のため、W×Hの下にD寸法を追記。
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(my1+mH/2+18)+'" text-anchor="middle" font-size="10" fill="#004d40">奥行D：'+(madoD!=null?madoD:'?')+'</text>';
+
+  // ---------- 右下・列3：梁(コンクリート梁・基礎)(col3X〜W) ----------
+  // ★2026-09-13追加★ 浴室設置部分の壁(左壁/正面/右壁)ごとに、天井側から垂れる梁(上)や
+  // 床側から出っ張る基礎(下)がある場合を表示する。高さは天井高さ(tenjou)を基準にした
+  // 縮尺で縦方向に実寸描画し、奥行きは数値ラベルとして添える(1つの2D図では奥行き方向を
+  // 正確に描き分けられないため)。
+  var col3W = W - col3X;
+  var hariWalls = [
+    { key: '左壁', ueT: numModal(sc.bathHariHidariUeTakasa), ueD: numModal(sc.bathHariHidariUeOkuyuki), shimoT: numModal(sc.bathHariHidariShimoTakasa), shimoD: numModal(sc.bathHariHidariShimoOkuyuki) },
+    { key: '正面', ueT: numModal(sc.bathHariShoumenUeTakasa), ueD: numModal(sc.bathHariShoumenUeOkuyuki), shimoT: numModal(sc.bathHariShoumenShimoTakasa), shimoD: numModal(sc.bathHariShoumenShimoOkuyuki) },
+    { key: '右壁', ueT: numModal(sc.bathHariMigiUeTakasa), ueD: numModal(sc.bathHariMigiUeOkuyuki), shimoT: numModal(sc.bathHariMigiShimoTakasa), shimoD: numModal(sc.bathHariMigiShimoOkuyuki) }
+  ];
+  var anyHari = hariWalls.some(function(w){ return w.ueT || w.shimoT; });
+  if (!anyHari) {
+    svg += '<text x="'+(col3X+col3W/2)+'" y="'+(MY+90)+'" text-anchor="middle" font-size="22" font-weight="bold" fill="#999">梁の指定なし</text>';
+  } else {
+    svg += '<text x="'+(col3X+col3W/2)+'" y="'+(MY+26)+'" text-anchor="middle" font-size="12" fill="#333">梁(コンクリート)</text>';
+    var hariColW = col3W / 3;
+    var hariAreaTop = MY + 55, hariAreaBottom = H - 40;
+    var hariPanelH = hariAreaBottom - hariAreaTop;
+    var hariPxScale = hariPanelH / (tenjou || 2400);
+    var barW = 20;
+    hariWalls.forEach(function(wall, idx){
+      var panelCenterX = col3X + idx*hariColW + hariColW/2;
+      svg += '<line x1="'+panelCenterX+'" y1="'+hariAreaTop+'" x2="'+panelCenterX+'" y2="'+hariAreaBottom+'" stroke="#ccc" stroke-width="1" stroke-dasharray="2,2"/>';
+      svg += '<line x1="'+(panelCenterX-14)+'" y1="'+hariAreaTop+'" x2="'+(panelCenterX+14)+'" y2="'+hariAreaTop+'" stroke="#333" stroke-width="1"/>';
+      svg += '<line x1="'+(panelCenterX-14)+'" y1="'+hariAreaBottom+'" x2="'+(panelCenterX+14)+'" y2="'+hariAreaBottom+'" stroke="#333" stroke-width="1"/>';
+      if (wall.ueT) {
+        var ueH = Math.min(hariPanelH, wall.ueT * hariPxScale);
+        svg += '<rect x="'+(panelCenterX-barW/2)+'" y="'+hariAreaTop+'" width="'+barW+'" height="'+ueH+'" fill="#8d6e63" stroke="#5d4037" stroke-width="1"/>';
+        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaTop+ueH+13)+'" text-anchor="middle" font-size="9" fill="#5d4037">上H'+wall.ueT+(wall.ueD?'/D'+wall.ueD:'')+'</text>';
+      }
+      if (wall.shimoT) {
+        var shimoH = Math.min(hariPanelH, wall.shimoT * hariPxScale);
+        svg += '<rect x="'+(panelCenterX-barW/2)+'" y="'+(hariAreaBottom-shimoH)+'" width="'+barW+'" height="'+shimoH+'" fill="#8d6e63" stroke="#5d4037" stroke-width="1"/>';
+        svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom-shimoH-6)+'" text-anchor="middle" font-size="9" fill="#5d4037">下H'+wall.shimoT+(wall.shimoD?'/D'+wall.shimoD:'')+'</text>';
+      }
+      svg += '<text x="'+panelCenterX+'" y="'+(hariAreaBottom+16)+'" text-anchor="middle" font-size="10" fill="#333">'+wall.key+'</text>';
+    });
+  }
 
   svg += '</svg>';
   return svg;
