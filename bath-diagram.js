@@ -18,6 +18,7 @@
      bathMizumotoGawa('吊元側'/'戸先側'/'なし')
 */
 // VERSION: 2026-09-14-006
+// CREATED: 2026-09-14 23:50
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
