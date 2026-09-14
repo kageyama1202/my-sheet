@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-008
+// VERSION: 2026-09-13-009
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -338,14 +338,14 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 床構成/床合わせ/石膏ボード/吊り金具を自動抽出し、メモには特記事項・伝達事項を追記する。
   // 実際にフォームへ反映するかはプレビュー確認後、ボタンを押してから(誤読み取り対策)。
   html += '<div class="modal-section"><h4 style="color:#37474f;margin-bottom:6px;">📄 報告書から自動入力(タカラSB下見報告書)</h4>';
-  html += '<textarea id="report-paste-area" placeholder="下見報告書のテキストをここに貼り付け" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
+  html += '<textarea id="report-paste-area" placeholder="下見報告書のテキストをここに貼り付け(iPadで画像/PDFを貼る場合もここに長押し→貼り付けでOK)" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
   html += '<div style="margin-top:6px;">';
   html += '<button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
   html += '<button type="button" id="report-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
   html += '</div>';
   // ★2026-09-13追加★ PDFのテキスト抽出がうまくいかないケース向けに、スクショ画像を
   // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
-  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)</div>';
+  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
   html += '<div id="report-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
   html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
@@ -1057,54 +1057,59 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       });
     }
 
-    if (imagePasteArea) {
-      imagePasteArea.addEventListener('paste', function(e){
-        var cd = e.clipboardData || window.clipboardData;
-        if (!cd) return;
-        var handled = false;
-        // 画像(スクショ等)：items経由
-        var items = cd.items;
-        if (items) {
-          for (var i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-              handled = true;
-              var blob = items[i].getAsFile();
-              var reader = new FileReader();
-              reader.onload = function(ev){
-                var dataUrl = ev.target.result;
-                var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
-                if (m) {
-                  pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
-                  renderImageThumbs();
-                }
-              };
-              reader.readAsDataURL(blob);
-            }
+    // ★2026-09-13変更★ iPad(iOS Safari)は通常の<div>に「貼り付け」操作(長押しメニュー)自体が
+    // 出せないため、divのpasteイベントが発火しない。本物の入力欄であるテキストエリア側にも
+    // 同じ検知処理を仕込み、iPadでもテキストエリアを長押し→貼り付けで画像/PDFを拾えるようにする。
+    function handlePasteForAttachments(e) {
+      var cd = e.clipboardData || window.clipboardData;
+      if (!cd) return;
+      var handled = false;
+      // 画像(スクショ等)：items経由
+      var items = cd.items;
+      if (items) {
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            handled = true;
+            var blob = items[i].getAsFile();
+            var reader = new FileReader();
+            reader.onload = function(ev){
+              var dataUrl = ev.target.result;
+              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+              if (m) {
+                pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+                renderImageThumbs();
+              }
+            };
+            reader.readAsDataURL(blob);
           }
         }
-        // PDFファイル：Finderでファイルをコピーして貼った場合はfiles経由で来る
-        var files = cd.files;
-        if (files) {
-          for (var j = 0; j < files.length; j++) {
-            if (files[j].type === 'application/pdf') {
-              handled = true;
-              var f = files[j];
-              var reader2 = new FileReader();
-              reader2.onload = function(ev){
-                var dataUrl2 = ev.target.result;
-                var m2 = dataUrl2.match(/^data:application\/pdf;base64,(.+)$/);
-                if (m2) {
-                  pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
-                  renderImageThumbs();
-                }
-              };
-              reader2.readAsDataURL(f);
-            }
+      }
+      // PDFファイル：Finderでファイルをコピーして貼った場合はfiles経由で来る(PC限定。iOSは非対応が多い)
+      var files = cd.files;
+      if (files) {
+        for (var j = 0; j < files.length; j++) {
+          if (files[j].type === 'application/pdf') {
+            handled = true;
+            var f = files[j];
+            var reader2 = new FileReader();
+            reader2.onload = function(ev){
+              var dataUrl2 = ev.target.result;
+              var m2 = dataUrl2.match(/^data:application\/pdf;base64,(.+)$/);
+              if (m2) {
+                pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
+                renderImageThumbs();
+              }
+            };
+            reader2.readAsDataURL(f);
           }
         }
-        if (handled) e.preventDefault();
-      });
+      }
+      if (handled) e.preventDefault();
     }
+    if (imagePasteArea) imagePasteArea.addEventListener('paste', handlePasteForAttachments);
+    // テキストエリア側は、画像/PDFの時だけこちらで処理してpreventDefaultする。
+    // 通常の文字の貼り付け(handled===falseのケース)は素通りするので、テキスト貼り付けの動作は変わらない。
+    if (pasteArea) pasteArea.addEventListener('paste', handlePasteForAttachments);
 
     if (imageClearBtn) {
       imageClearBtn.addEventListener('click', function(){
