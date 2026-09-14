@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-015
-// CREATED: 2026-09-15 01:35
+// VERSION: 2026-09-15-016
+// CREATED: 2026-09-15 01:55
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -234,6 +234,16 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
   var siteCheckObj = obj.siteCheck || {};
+  // ★2026-09-15追加★ 浴室：ドアタイプは既定「開き戸」、扉の厚みは開き戸の標準30を初期表示する。
+  // (どちらも未設定のときだけ既定を入れる。人間が後から変更するのは自由＝上書きしない。)
+  // 扉厚みは開き戸=30が標準だが、特殊ケースのため手動変更も可能にしておく(disableしない)。
+  if (siteCheckObj.bathDoorType == null || siteCheckObj.bathDoorType === '') {
+    siteCheckObj.bathDoorType = '開き戸';
+  }
+  if ((siteCheckObj.bathHikidoAtsumi == null || siteCheckObj.bathHikidoAtsumi === '')
+      && siteCheckObj.bathDoorType === '開き戸') {
+    siteCheckObj.bathHikidoAtsumi = '30';
+  }
   var scheduleType = obj.scheduleType || '';
   var isVisited = obj.shitamiVisited || false;
 
@@ -724,6 +734,18 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         var fkey = t.getAttribute('data-field');
         siteCheckObj[fkey] = t.value;
         if (fkey === 'bathYukaAwase') applyBathYukaAwaseState();
+        // ★2026-09-15追加★ ドアタイプ切替時：開き戸なら扉厚みを30に自動セット(空または前回引き戸値のとき)、
+        // 引き戸なら手入力してもらうため、30のままだった場合はクリアして入力を促す。
+        if (fkey === 'bathDoorType') {
+          var atsumiInput = sitecheckArea.querySelector('[data-field="bathHikidoAtsumi"]');
+          if (t.value === '開き戸') {
+            if (atsumiInput && (atsumiInput.value === '' )) { atsumiInput.value = '30'; }
+            if (atsumiInput) siteCheckObj.bathHikidoAtsumi = atsumiInput.value || '30';
+            if (atsumiInput && atsumiInput.value === '') { atsumiInput.value = '30'; siteCheckObj.bathHikidoAtsumi = '30'; }
+          } else if (t.value === '引き戸') {
+            if (atsumiInput && atsumiInput.value === '30') { atsumiInput.value = ''; siteCheckObj.bathHikidoAtsumi = ''; }
+          }
+        }
         saveField({siteCheck: siteCheckObj});
       } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
         var group = t.closest('.sitecheck-multi');
