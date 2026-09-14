@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-010
+// VERSION: 2026-09-13-011
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -61,6 +61,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'上下総寸法(実測値・解体後計測)', field:'bathJougeSousunpouJissoku', type:'number' }
   ]},
   { title: '窓', items: [
+    { label:'窓の有無', field:'bathMadoAri', type:'select', options:['有','無'] },
     { label:'窓がある面', field:'bathMadoMen', type:'select', options:['正面','右面','左面'] },
     { label:'窓幅(W)', field:'bathMadoW', type:'number' },
     { label:'窓高さ(H)', field:'bathMadoH', type:'number' },
@@ -69,6 +70,20 @@ var SITECHECK_GROUPS_BATH = [
     { label:'位置:下', field:'bathMadoShita', type:'number' },
     { label:'位置:左', field:'bathMadoHidari', type:'number' },
     { label:'位置:右', field:'bathMadoMigi', type:'number' }
+  ]},
+  { title: '梁(コンクリート梁・基礎)', items: [
+    { label:'左壁-上 高さ', field:'bathHariHidariUeTakasa', type:'number' },
+    { label:'左壁-上 奥行き', field:'bathHariHidariUeOkuyuki', type:'number' },
+    { label:'左壁-下 高さ', field:'bathHariHidariShimoTakasa', type:'number' },
+    { label:'左壁-下 奥行き', field:'bathHariHidariShimoOkuyuki', type:'number' },
+    { label:'正面-上 高さ', field:'bathHariShoumenUeTakasa', type:'number' },
+    { label:'正面-上 奥行き', field:'bathHariShoumenUeOkuyuki', type:'number' },
+    { label:'正面-下 高さ', field:'bathHariShoumenShimoTakasa', type:'number' },
+    { label:'正面-下 奥行き', field:'bathHariShoumenShimoOkuyuki', type:'number' },
+    { label:'右壁-上 高さ', field:'bathHariMigiUeTakasa', type:'number' },
+    { label:'右壁-上 奥行き', field:'bathHariMigiUeOkuyuki', type:'number' },
+    { label:'右壁-下 高さ', field:'bathHariMigiShimoTakasa', type:'number' },
+    { label:'右壁-下 奥行き', field:'bathHariMigiShimoOkuyuki', type:'number' }
   ]},
   { title: '吊り金具', items: [
     { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
