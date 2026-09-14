@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-014
-// CREATED: 2026-09-15 01:15
+// VERSION: 2026-09-15-015
+// CREATED: 2026-09-15 01:35
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -40,11 +40,11 @@ var SITECHECK_GROUPS_BATH = [
     { label:'ドア位置(勝手)', field:'bathDoorPosition', type:'select', options:['右','左'] },
     { label:'浴槽の向き(A/B)', field:'bathKatteAB', type:'select', options:['A','B'] },
     { label:'ドアタイプ', field:'bathDoorType', type:'select', options:['開き戸','引き戸'] },
-    { label:'引き戸の厚み', field:'bathHikidoAtsumi', type:'number' },
-    { label:'間口', field:'bathMaguchi', type:'number' },
-    { label:'奥行き(浴槽側)', field:'bathOkuyuki', type:'number' },
-    { label:'製品間口', field:'bathSeihinMaguchi', type:'number' },
-    { label:'製品奥行き', field:'bathSeihinOkuyuki', type:'number' },
+    { label:'扉の厚み(引き戸時のみ入力)', field:'bathHikidoAtsumi', type:'number' },
+    { label:'建物間口(扉のある壁の幅)', field:'bathMaguchi', type:'number' },
+    { label:'建物奥行き(扉と垂直方向)', field:'bathOkuyuki', type:'number' },
+    { label:'製品間口(浴槽基準)', field:'bathSeihinMaguchi', type:'number' },
+    { label:'製品奥行き(浴槽基準)', field:'bathSeihinOkuyuki', type:'number' },
     { label:'開口寸法(額縁開口)', field:'bathKaikou', type:'number' },
     { label:'リモコン開口 有無', field:'bathRemoconUmu', type:'select', options:['有','無'] },
     { label:'リモコン開口 メモ', field:'bathRemoconMemo' },
