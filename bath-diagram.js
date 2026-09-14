@@ -17,8 +17,8 @@
      bathJouhaikanSupace(上配管時追加スペースmm、現場入力目安30〜40) /
      bathMizumotoGawa('吊元側'/'戸先側'/'なし')
 */
-// VERSION: 2026-09-15-007
-// CREATED: 2026-09-15 01:15
+// VERSION: 2026-09-15-008
+// CREATED: 2026-09-15 01:35
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -193,7 +193,7 @@ function buildBathDiagramSVG(sc) {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
 
-  // ★2026-09-15確定★ 間口方向(左右)の実クリア計算。
+  // ★2026-09-15確定★ 間口方向(左右)＋奥行き方向(前後)の実クリア計算。
   // 【勝手(L/R)と水栓の位置の確定ルール】
   //   ・扉は常に下辺(手前の壁)。L/Rは扉が下辺の右寄り(R)か左寄り(L)か。
   //   ・A勝手：浴槽は縦長。水栓・カウンターは扉の【正面の壁】にある
@@ -201,56 +201,66 @@ function buildBathDiagramSVG(sc) {
   //   ・B勝手：浴槽は横長。水栓・カウンターは【扉と左右反対側の側面壁】にある
   //            (ドアの開閉スペース確保のため必ず扉と反対側)。配管は水栓の壁の裏を通るので、
   //            配管突出は【間口方向】のうち“扉と反対側の壁”だけに加算される(非対称)。
+  // 【建物寸法は入口(扉)基準・固定】建物間口(bathMaguchi)=扉のある壁の幅、
+  //   建物奥行き(bathOkuyuki)=扉と垂直方向。勝手による入れ替えはしない(swapMOは製品寸法側のみ)。
+  //   ※図面表示上は swap 後の maguchi/okuyuki を使うが、建物実測値としての意味は入口基準で固定。
   // 【吊元側クリア】柱(または壁)にPB→下地→枠が組まれ、その枠の位置が蝶番(吊元)の起点になる。
-  //   吊元側クリア = 下地厚み(bathTsurimotoShitaji) + 枠厚み(bathTsurimotoWaku)
-  //                  − (標準出寸34mm + 追加パネル厚み(bathTsurimotoPanel、既定0))
+  //   吊元側クリア = 下地厚み + 枠厚み − (標準出寸34mm + 追加パネル厚み)
   //   ※吊元側は扉のある側なので、B勝手でも配管は来ない(水栓は反対側のため)。
-  // 【反対側(戸先側)クリア】建物実測(間口=bathMaguchi) − 吊元側クリア − 製品幅
-  //   製品幅は、B勝手のときだけ反対側=水栓側なので配管突出を加算する
-  //   (下配管+18mm／上配管は現場入力の追加スペース、既定は目安35mm)。
-  //   A勝手では間口方向に配管加算はしない(奥行き方向の話になるため、ここでは扱わない)。
+  // 【戸先側クリア】建物間口 − 吊元側クリア − 製品幅。B勝手のときだけ製品幅に配管突出を加算。
+  // 【奥行き方向(前後)必要寸法】扉の厚み + キープクリーンフロア余裕5mm + 製品奥行き
+  //   ＋ 正面壁クリア(A勝手のときだけ配管突出を加算／B勝手は側面壁側なので加算しない)。
+  //   扉の厚み＝開き戸は30mm固定、引き戸は入力値(bathHikidoAtsumi、75/100など)。
   var tsurimotoShitaji = numModal(sc.bathTsurimotoShitaji);
   var tsurimotoWaku = numModal(sc.bathTsurimotoWaku);
   var tsurimotoPanel = numModal(sc.bathTsurimotoPanel, 0);
   var haikanHoushiki = sc.bathHaikanHoushiki || '下配管';
   var jouhaikanSupace = numModal(sc.bathJouhaikanSupace, 35); // 上配管時、現場入力が無い場合の目安(30〜40の中間)
   var TSURIMOTO_STD_OFFSET = 34; // 標準出寸(パネル無しの場合)
+  var plumbingAdd = (haikanHoushiki === '上配管') ? jouhaikanSupace : 18;
+  // 扉の厚み：開き戸は30固定、引き戸は入力値(未入力なら75を仮の既定に)。
+  var doorThickness = (doorType === '引き戸') ? numModal(sc.bathHikidoAtsumi, 75) : 30;
+  var KKF_MARGIN = 5; // キープクリーンフロア余裕
 
+  // 左下に、勝手ラベルの下から順に積み上げる(文字被り防止)。勝手ラベルは上でdoorY+18に描画済み。
+  var leftY = doorY + 38;
+  function pushLeftLine(text, color, size) {
+    var fs = size || 12;
+    wrapTextModal(text, 30).forEach(function(line){
+      svg += '<text x="5" y="'+leftY+'" font-size="'+fs+'" fill="'+color+'">'+escHtmlModal(line)+'</text>';
+      leftY += fs + 5;
+    });
+  }
+
+  // --- 間口方向(左右)クリア ---
   if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchi && seiMaguchi && (doorPos === '右' || doorPos === '左')) {
     var tsurimotoClear = tsurimotoShitaji + tsurimotoWaku - (TSURIMOTO_STD_OFFSET + tsurimotoPanel);
-    var plumbingAdd = (haikanHoushiki === '上配管') ? jouhaikanSupace : 18;
-    // B勝手のときだけ、扉と反対側(=水栓のある側面壁)に配管突出を加算する。A勝手は間口方向には加算しない。
     var addToOpposite = (katteAB === 'B') ? plumbingAdd : 0;
     var effProductMaguchi = seiMaguchi + addToOpposite;
     var oppositeClear = maguchi - tsurimotoClear - effProductMaguchi;
-    var MIN_CLEAR = 15; // 標準最小クリアの目安
+    var MIN_CLEAR = 15;
     var tsurimotoNG = tsurimotoClear < 0;
     var oppositeNG = oppositeClear < MIN_CLEAR;
-    var tsurimotoColor = tsurimotoNG ? '#c0392b' : '#00695c';
-    var oppositeColor = oppositeNG ? '#c0392b' : '#00695c';
-    var tsurimotoLabel = '吊元側クリア：'+Math.round(tsurimotoClear)+'mm'+(tsurimotoNG?'（不足）':'');
     var oppositeExtra = (katteAB === 'B') ? '（水栓側・配管込）' : '';
-    var oppositeLabel = '戸先側クリア：'+Math.round(oppositeClear)+'mm'+oppositeExtra+(oppositeNG?'（要確認）':'');
-    if (doorPos === '右') {
-      // 吊元＝右側、戸先(反対側)＝左側
-      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+36)+'" font-size="12" fill="'+tsurimotoColor+'">'+tsurimotoLabel+'</text>';
-      svg += '<text x="5" y="'+(doorY+18)+'" font-size="12" fill="'+oppositeColor+'">'+oppositeLabel+'</text>';
-    } else {
-      // 吊元＝左側、戸先(反対側)＝右側
-      svg += '<text x="5" y="'+(doorY+36)+'" font-size="12" fill="'+tsurimotoColor+'">'+tsurimotoLabel+'</text>';
-      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="12" fill="'+oppositeColor+'">'+oppositeLabel+'</text>';
-    }
-    // A勝手のときは、水栓は正面壁 → 奥行き方向(正面壁とのクリア)に配管突出が効く旨を注記だけ添える。
-    if (katteAB === 'A') {
-      svg += '<text x="5" y="'+(doorY+54)+'" font-size="11" fill="#6a1b9a">※A勝手：水栓は正面壁（配管は奥行き方向 +'+plumbingAdd+'mm）</text>';
-    }
+    pushLeftLine('【間口方向】', '#37474f', 12);
+    pushLeftLine('　吊元側クリア：'+Math.round(tsurimotoClear)+'mm'+(tsurimotoNG?'（不足）':''), tsurimotoNG ? '#c0392b' : '#00695c', 12);
+    pushLeftLine('　戸先側クリア：'+Math.round(oppositeClear)+'mm'+oppositeExtra+(oppositeNG?'（要確認）':''), oppositeNG ? '#c0392b' : '#00695c', 12);
   }
 
-  // 石膏ボード部分：選択された面(浴槽側面/カウンター面/カウンター対面/洗場側面)をテキストで表示。
-  // ★2026-09-13変更★ この呼び名は浴槽自体を基準にした業界標準の呼び方で、部屋の向き・勝手・
-  // A/Bが変わっても呼び名自体は変わらない。逆に「どの物理的な壁(左/右/正面)に対応するか」は
-  // A/B×勝手の組み合わせルールがまだ確定してないため、平面図上でのハイライト線描画は保留し、
-  // テキスト表示のみにする(誤ったハイライトを描いて現場を混乱させるより安全)。
+  // --- 奥行き方向(前後)必要寸法 ---
+  if (seiOkuyuki && okuyuki) {
+    // 扉側加算(扉厚み＋KKF余裕) ＋ 製品奥行き ＋ A勝手なら配管
+    var frontPlumbing = (katteAB === 'A') ? plumbingAdd : 0;
+    var okuNeed = doorThickness + KKF_MARGIN + seiOkuyuki + frontPlumbing;
+    var okuClear = okuyuki - okuNeed; // 建物奥行きに対する余り
+    var okuNG = okuClear < 0;
+    pushLeftLine('【奥行き方向】', '#37474f', 12);
+    pushLeftLine('　扉厚'+doorThickness+'＋余裕'+KKF_MARGIN+'＋製品'+seiOkuyuki+(frontPlumbing?'＋配管'+frontPlumbing:'')+'＝'+okuNeed, '#555', 11);
+    pushLeftLine('　建物奥行き'+okuyuki+' − 必要'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuNG?'（不足）':''), okuNG ? '#c0392b' : '#00695c', 12);
+  }
+
+  // 石膏ボード・設置方法などの注記は、上のクリア表示の続き(leftY)から積む(文字被り防止)。
+  var planNoteStartY2 = Math.max(planNoteStartY, leftY + 4);
   var sekkou = sc.bathSekkouBoard ? String(sc.bathSekkouBoard).split(',') : [];
   // ★2026-09-13変更★ 設置方法・枠材の厚みはドア枠(開口)の話なので、メモ欄(左下)ではなく
   // 平面図(左上)の下、ドア図形と重ならない位置(planNoteStartY)にまとめて表示する。
@@ -258,7 +268,7 @@ function buildBathDiagramSVG(sc) {
   if (sekkou.length) planNoteLines.push({ text: '石膏ボード：'+sekkou.join('・'), color: '#8e24aa', size: 12 });
   if (sc.bathSetchiHouhou) planNoteLines.push({ text: '設置方法：'+sc.bathSetchiHouhou, color: '#555', size: 13 });
   if (sc.bathWakuzaiAtsumi) planNoteLines.push({ text: '枠材の厚み：'+sc.bathWakuzaiAtsumi, color: '#555', size: 12 });
-  var planNoteY = planNoteStartY;
+  var planNoteY = planNoteStartY2;
   planNoteLines.forEach(function(item){
     var fsize = item.size || 11;
     // ★2026-09-13変更★ 長文(設置方法など)が平面図の枠外にはみ出さないよう、折り返してから描画。
