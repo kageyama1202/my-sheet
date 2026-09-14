@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-011
+// VERSION: 2026-09-13-012
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -31,7 +31,10 @@ var SITECHECK_GROUPS_KITCHEN = [
 // ★2026-09-12追加★ 現場チェックの浴室用グループ。
 var SITECHECK_GROUPS_BATH = [
   { title: '間口・開口', items: [
-    { label:'ドア位置', field:'bathDoorPosition', type:'select', options:['右','左'] },
+    { label:'ドア位置(勝手)', field:'bathDoorPosition', type:'select', options:['右','左'] },
+    { label:'浴槽の向き(A/B)', field:'bathKatteAB', type:'select', options:['A','B'] },
+    { label:'ドアタイプ', field:'bathDoorType', type:'select', options:['開き戸','引き戸'] },
+    { label:'引き戸の厚み', field:'bathHikidoAtsumi', type:'number' },
     { label:'間口', field:'bathMaguchi', type:'number' },
     { label:'奥行き(浴槽側)', field:'bathOkuyuki', type:'number' },
     { label:'製品間口', field:'bathSeihinMaguchi', type:'number' },
@@ -42,7 +45,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'ハンドバー設置方法', field:'bathHandbarHouhou', type:'select', options:['図面通り','要確認'] }
   ]},
   { title: '石膏ボード', items: [
-    { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['右','左','正面','ドア横'] }
+    { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['カウンター面','カウンター対面','浴槽側面','洗場側面'] }
   ]},
   { title: '高さ・床構成', items: [
     { label:'天井高さ(現場の天井)', field:'bathTenjouTakasa', type:'number' },
@@ -72,18 +75,14 @@ var SITECHECK_GROUPS_BATH = [
     { label:'位置:右', field:'bathMadoMigi', type:'number' }
   ]},
   { title: '梁(コンクリート梁・基礎)', items: [
-    { label:'左壁-上 高さ', field:'bathHariHidariUeTakasa', type:'number' },
-    { label:'左壁-上 奥行き', field:'bathHariHidariUeOkuyuki', type:'number' },
-    { label:'左壁-下 高さ', field:'bathHariHidariShimoTakasa', type:'number' },
-    { label:'左壁-下 奥行き', field:'bathHariHidariShimoOkuyuki', type:'number' },
-    { label:'正面-上 高さ', field:'bathHariShoumenUeTakasa', type:'number' },
-    { label:'正面-上 奥行き', field:'bathHariShoumenUeOkuyuki', type:'number' },
-    { label:'正面-下 高さ', field:'bathHariShoumenShimoTakasa', type:'number' },
-    { label:'正面-下 奥行き', field:'bathHariShoumenShimoOkuyuki', type:'number' },
-    { label:'右壁-上 高さ', field:'bathHariMigiUeTakasa', type:'number' },
-    { label:'右壁-上 奥行き', field:'bathHariMigiUeOkuyuki', type:'number' },
-    { label:'右壁-下 高さ', field:'bathHariMigiShimoTakasa', type:'number' },
-    { label:'右壁-下 奥行き', field:'bathHariMigiShimoOkuyuki', type:'number' }
+    { label:'浴槽側面-上 高さ', field:'bathHariYokusoUeTakasa', type:'number' },
+    { label:'浴槽側面-上 奥行き', field:'bathHariYokusoUeOkuyuki', type:'number' },
+    { label:'浴槽側面-下 高さ', field:'bathHariYokusoShimoTakasa', type:'number' },
+    { label:'浴槽側面-下 奥行き', field:'bathHariYokusoShimoOkuyuki', type:'number' },
+    { label:'カウンター面-上 高さ', field:'bathHariCounterUeTakasa', type:'number' },
+    { label:'カウンター面-上 奥行き', field:'bathHariCounterUeOkuyuki', type:'number' },
+    { label:'カウンター面-下 高さ', field:'bathHariCounterShimoTakasa', type:'number' },
+    { label:'カウンター面-下 奥行き', field:'bathHariCounterShimoOkuyuki', type:'number' }
   ]},
   { title: '吊り金具', items: [
     { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
