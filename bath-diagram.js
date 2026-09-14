@@ -17,8 +17,8 @@
      bathJouhaikanSupace(上配管時追加スペースmm、現場入力目安30〜40) /
      bathMizumotoGawa('吊元側'/'戸先側'/'なし')
 */
-// VERSION: 2026-09-15-008
-// CREATED: 2026-09-15 01:35
+// VERSION: 2026-09-15-009
+// CREATED: 2026-09-15 01:55
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -164,12 +164,12 @@ function buildBathDiagramSVG(sc) {
       var sPx1 = ox+ow-doorR, sPx2 = ox+ow;
       svg += '<rect x="'+sPx1+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
       svg += '<text x="'+(sPx1+doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">→</text>';
-      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手(引き戸)'+abrCode+'</text>';
+      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">右勝手(引き戸)'+abrCode+'</text>';
     } else if (doorPos === '左') {
       var sLx1 = ox, sLx2 = ox+doorR;
       svg += '<rect x="'+sLx1+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
       svg += '<text x="'+(sLx1+doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">←</text>';
-      svg += '<text x="5" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手(引き戸)'+abrCode+'</text>';
+      svg += '<text x="5" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">左勝手(引き戸)'+abrCode+'</text>';
     } else {
       svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
     }
@@ -180,7 +180,7 @@ function buildBathDiagramSVG(sc) {
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rClosedX+'" y2="'+rClosedY+'" stroke="#222" stroke-width="3"/>';
     svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rOpenX+'" y2="'+rOpenY+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+rClosedX+','+rClosedY+' A'+doorR+','+doorR+' 0 0 0 '+rOpenX+','+rOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">右勝手'+abrCode+'</text>';
+    svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">右勝手'+abrCode+'</text>';
   } else if (doorPos === '左') {
     var lHingeX = ox, lHingeY = doorY;
     var lClosedX = lHingeX, lClosedY = lHingeY - doorR;      // 閉じた状態：左の壁沿いに上へ
@@ -188,7 +188,7 @@ function buildBathDiagramSVG(sc) {
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lClosedX+'" y2="'+lClosedY+'" stroke="#222" stroke-width="3"/>';
     svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lOpenX+'" y2="'+lOpenY+'" stroke="#222" stroke-width="2"/>';
     svg += '<path d="M'+lClosedX+','+lClosedY+' A'+doorR+','+doorR+' 0 0 1 '+lOpenX+','+lOpenY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-    svg += '<text x="5" y="'+(doorY+18)+'" font-size="14" fill="#c0392b">左勝手'+abrCode+'</text>';
+    svg += '<text x="5" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">左勝手'+abrCode+'</text>';
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
@@ -218,17 +218,19 @@ function buildBathDiagramSVG(sc) {
   var jouhaikanSupace = numModal(sc.bathJouhaikanSupace, 35); // 上配管時、現場入力が無い場合の目安(30〜40の中間)
   var TSURIMOTO_STD_OFFSET = 34; // 標準出寸(パネル無しの場合)
   var plumbingAdd = (haikanHoushiki === '上配管') ? jouhaikanSupace : 18;
-  // 扉の厚み：開き戸は30固定、引き戸は入力値(未入力なら75を仮の既定に)。
-  var doorThickness = (doorType === '引き戸') ? numModal(sc.bathHikidoAtsumi, 75) : 30;
+  // 扉の厚み：入力欄の値を優先。空のときだけ既定(開き戸30／引き戸75)。開き戸でも欄に値があればそれを使う。
+  var doorThicknessRaw = numModal(sc.bathHikidoAtsumi);
+  var doorThickness = (doorThicknessRaw != null) ? doorThicknessRaw : (doorType === '引き戸' ? 75 : 30);
   var KKF_MARGIN = 5; // キープクリーンフロア余裕
 
   // 左下に、勝手ラベルの下から順に積み上げる(文字被り防止)。勝手ラベルは上でdoorY+18に描画済み。
-  var leftY = doorY + 38;
+  // ★2026-09-15変更★ 左下象限は情報量が多いので、フォントを小さめ(11px基準)・行間も詰めて省スペース化。
+  var leftY = doorY + 34;
   function pushLeftLine(text, color, size) {
-    var fs = size || 12;
-    wrapTextModal(text, 30).forEach(function(line){
+    var fs = size || 11;
+    wrapTextModal(text, 32).forEach(function(line){
       svg += '<text x="5" y="'+leftY+'" font-size="'+fs+'" fill="'+color+'">'+escHtmlModal(line)+'</text>';
-      leftY += fs + 5;
+      leftY += fs + 3;
     });
   }
 
@@ -242,9 +244,9 @@ function buildBathDiagramSVG(sc) {
     var tsurimotoNG = tsurimotoClear < 0;
     var oppositeNG = oppositeClear < MIN_CLEAR;
     var oppositeExtra = (katteAB === 'B') ? '（水栓側・配管込）' : '';
-    pushLeftLine('【間口方向】', '#37474f', 12);
-    pushLeftLine('　吊元側クリア：'+Math.round(tsurimotoClear)+'mm'+(tsurimotoNG?'（不足）':''), tsurimotoNG ? '#c0392b' : '#00695c', 12);
-    pushLeftLine('　戸先側クリア：'+Math.round(oppositeClear)+'mm'+oppositeExtra+(oppositeNG?'（要確認）':''), oppositeNG ? '#c0392b' : '#00695c', 12);
+    pushLeftLine('【間口方向】', '#37474f', 11);
+    pushLeftLine('　吊元側クリア：'+Math.round(tsurimotoClear)+'mm'+(tsurimotoNG?'（不足）':''), tsurimotoNG ? '#c0392b' : '#00695c', 11);
+    pushLeftLine('　戸先側クリア：'+Math.round(oppositeClear)+'mm'+oppositeExtra+(oppositeNG?'（要確認）':''), oppositeNG ? '#c0392b' : '#00695c', 11);
   }
 
   // --- 奥行き方向(前後)必要寸法 ---
@@ -254,9 +256,9 @@ function buildBathDiagramSVG(sc) {
     var okuNeed = doorThickness + KKF_MARGIN + seiOkuyuki + frontPlumbing;
     var okuClear = okuyuki - okuNeed; // 建物奥行きに対する余り
     var okuNG = okuClear < 0;
-    pushLeftLine('【奥行き方向】', '#37474f', 12);
-    pushLeftLine('　扉厚'+doorThickness+'＋余裕'+KKF_MARGIN+'＋製品'+seiOkuyuki+(frontPlumbing?'＋配管'+frontPlumbing:'')+'＝'+okuNeed, '#555', 11);
-    pushLeftLine('　建物奥行き'+okuyuki+' − 必要'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuNG?'（不足）':''), okuNG ? '#c0392b' : '#00695c', 12);
+    pushLeftLine('【奥行き方向】', '#37474f', 11);
+    pushLeftLine('　扉厚'+doorThickness+'＋余裕'+KKF_MARGIN+'＋製品'+seiOkuyuki+(frontPlumbing?'＋配管'+frontPlumbing:'')+'＝'+okuNeed, '#555', 10);
+    pushLeftLine('　建物奥行き'+okuyuki+' − 必要'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuNG?'（不足）':''), okuNG ? '#c0392b' : '#00695c', 11);
   }
 
   // 石膏ボード・設置方法などの注記は、上のクリア表示の続き(leftY)から積む(文字被り防止)。
