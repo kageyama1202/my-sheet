@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)】*/
-// VERSION: 2026-09-13-009
+// VERSION: 2026-09-13-010
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -347,6 +347,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
   html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
   html += '<div id="report-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
+  html += '<div style="margin-top:6px;"><label for="report-file-input" style="display:inline-block;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#fff;color:#4a148c;font-weight:bold;cursor:pointer;">📁 ファイルを選択</label><input type="file" id="report-file-input" accept="image/*,application/pdf" multiple style="display:none;" /></div>';
   html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
   html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
   html += '</div>';
@@ -1110,6 +1111,31 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     // テキストエリア側は、画像/PDFの時だけこちらで処理してpreventDefaultする。
     // 通常の文字の貼り付け(handled===falseのケース)は素通りするので、テキスト貼り付けの動作は変わらない。
     if (pasteArea) pasteArea.addEventListener('paste', handlePasteForAttachments);
+
+    // 📁 ファイル選択（貼り付けが使えない/不安な場合の確実な代替。iPadのFilesアプリからも選べる）
+    var fileInput = document.getElementById('report-file-input');
+    if (fileInput) {
+      fileInput.addEventListener('change', function(){
+        var files = fileInput.files;
+        if (!files || !files.length) return;
+        Array.prototype.forEach.call(files, function(f){
+          var reader = new FileReader();
+          reader.onload = function(ev){
+            var dataUrl = ev.target.result;
+            if (f.type === 'application/pdf') {
+              var m2 = dataUrl.match(/^data:application\/pdf;base64,(.+)$/);
+              if (m2) pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
+            } else if (f.type.indexOf('image') !== -1) {
+              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+              if (m) pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+            }
+            renderImageThumbs();
+          };
+          reader.readAsDataURL(f);
+        });
+        fileInput.value = ''; // 同じファイルを続けて選べるようにリセット
+      });
+    }
 
     if (imageClearBtn) {
       imageClearBtn.addEventListener('click', function(){
