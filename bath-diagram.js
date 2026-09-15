@@ -17,8 +17,8 @@
      bathJouhaikanSupace(上配管時追加スペースmm、現場入力目安30〜40) /
      bathMizumotoGawa('吊元側'/'戸先側'/'なし')
 */
-// VERSION: 2026-09-15-009
-// CREATED: 2026-09-15 01:55
+// VERSION: 2026-09-15-010
+// CREATED: 2026-09-15 21:20
 
 // ============ 📐 浴室図面（4象限レイアウトのSVG生成） ============
 function numModal(v, def) {
@@ -87,6 +87,17 @@ function buildBathDiagramSVG(sc) {
   var seiOkuyuki = swapMO ? seiMaguchiRaw : seiOkuyukiRaw;
   var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
   var ox = 60, oy = 40, ow = outerBox.w, oh = outerBox.h;
+  // ★2026-09-15追加★ 施工図画像(bathSekouZuImage: data URL)があれば、左上象限は自前の平面図では
+  // なく施工図画像そのものを背景に使う(報告書の補完として、施工図＋現場数値を1枚にするため)。
+  // 施工図がある場合は自前の平面図(外枠・浴槽・ドア・寸法)は描かず、左下の平面クリア表示だけ残す。
+  var sekouZu = sc.bathSekouZuImage || '';
+  var hasSekouZu = typeof sekouZu === 'string' && sekouZu.indexOf('data:image') === 0;
+  if (hasSekouZu) {
+    // 左上象限(0〜MX, 0〜MY)に収まるよう、余白を取って施工図画像を配置。アスペクト比は画像側に任せる。
+    var szX = 20, szY = 20, szW = MX - 40, szH = MY - 70;
+    svg += '<image x="'+szX+'" y="'+szY+'" width="'+szW+'" height="'+szH+'" href="'+sekouZu+'" preserveAspectRatio="xMidYMid meet"/>';
+    svg += '<text x="'+szX+'" y="'+(szY+szH+16)+'" font-size="12" fill="#00695c">↑施工図(現場数値は下に記載)</text>';
+  } else {
   svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-14)+'" text-anchor="middle" font-size="13" fill="#555">'+(maguchi||'')+'</text>';
   // ★2026-09-13追加★ 引き戸の場合、脱衣室側は間口+引き戸の厚み分の寸法が必要になるため、
   // 間口の数値の下に「+引き戸厚み＝合計」を小さく併記する。
@@ -192,8 +203,25 @@ function buildBathDiagramSVG(sc) {
   } else {
     svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
   }
+  } // ★2026-09-15追加★ 施工図画像がある場合(hasSekouZu)の else ブロックここまで。
+    // 施工図があるときは上記の自前平面図(外枠・浴槽・ドア)を描かず、施工図画像＋下の平面クリアで運用する。
 
-  // ★2026-09-15確定★ 間口方向(左右)＋奥行き方向(前後)の実クリア計算。
+  // ★2026-09-15追加★ 施工図画像モードでは、後続の処理(石膏ボード注記・窓図の壁寸法参照など)が
+  // 参照する内側箱の変数(ix/iy/iw/ih/padX/padY)が未代入になるため、安全な既定値を入れておく。
+  // (var宣言自体は上のelseブロック内にあり関数スコープに巻き上げられるので、ここでは代入のみ。)
+  if (hasSekouZu) {
+    ix = ox; iy = oy; iw = ow; ih = oh; padX = 12; padY = 12;
+    // 施工図モードでも、平面クリア計算やドア位置判定に使う変数を埋めておく。
+    doorPos = sc.bathDoorPosition || '';
+    doorType = sc.bathDoorType || '開き戸';
+    doorY = oy + oh;
+    planNoteStartY = oy + oh + 40;
+    // 施工図モードでは勝手ラベルを施工図の下に出す(自前ドア図を描かないので、勝手を文字で明示)。
+    var abCode2 = sc.bathKatteAB || '', lrCode2 = doorPos === '右' ? 'R' : (doorPos === '左' ? 'L' : '');
+    if (abCode2 && lrCode2) {
+      svg += '<text x="20" y="'+(MY-24)+'" font-size="13" fill="#c0392b">勝手：'+abCode2+lrCode2+'</text>';
+    }
+  }
   // 【勝手(L/R)と水栓の位置の確定ルール】
   //   ・扉は常に下辺(手前の壁)。L/Rは扉が下辺の右寄り(R)か左寄り(L)か。
   //   ・A勝手：浴槽は縦長。水栓・カウンターは扉の【正面の壁】にある
