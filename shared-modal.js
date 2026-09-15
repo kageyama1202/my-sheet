@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-016
-// CREATED: 2026-09-15 01:55
+// VERSION: 2026-09-15-017
+// CREATED: 2026-09-15 02:20
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -969,7 +969,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var reportFieldLabels = {
       bathMaguchi: '間口', bathOkuyuki: '奥行き', bathTenjouTakasa: '天井高さ',
       bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
-      bathWakuzaiAtsumi: '枠材の厚み',
+      bathWakuzaiAtsumi: '枠材の厚み', bathTsurimotoWaku: '吊元側枠厚み',
       bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
       bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
     };
