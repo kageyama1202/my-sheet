@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-019
-// CREATED: 2026-09-15 21:05
+// VERSION: 2026-09-15-020
+// CREATED: 2026-09-15 21:20
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -1036,6 +1036,15 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         if (/^(AR|AL|BR|BL)$/.test(katteVal)) {
           siteCheckObj.bathKatteAB = katteVal.charAt(0);
           siteCheckObj.bathDoorPosition = (katteVal.charAt(1) === 'R') ? '右' : '左';
+        }
+        // ★2026-09-15追加★ 施工図(drawing)のときは、貼られた画像を bathSekouZuImage として保存し、
+        // 4分割図の左上を施工図画像に差し替えられるようにする(報告書の補完＝施工図＋現場数値の1枚)。
+        // pastedAttachmentsの先頭の画像を使う(PDFは背景にできないので画像のみ対象)。
+        if (pfx === 'drawing') {
+          var firstImg = (pastedAttachments || []).filter(function(a){ return a.kind === 'image'; })[0];
+          if (firstImg && firstImg.dataUrl) {
+            siteCheckObj.bathSekouZuImage = firstImg.dataUrl;
+          }
         }
         // 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
         // こちらは職人さんがスクショで見る図面そのものに載るため、現場向けの伝達事項の置き場として適切。
