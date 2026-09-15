@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-022
-// CREATED: 2026-09-15 21:50
+// VERSION: 2026-09-15-023
+// CREATED: 2026-09-15 22:05
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -74,6 +74,8 @@ var SITECHECK_GROUPS_BATH = [
     { label:'床合わせ', field:'bathYukaAwase', type:'select', options:['○','✕'] },
     { label:'床上がり高さ(床合わせ✕の場合)', field:'bathYukaAgariTakasa', type:'number' },
     { label:'天井とのクリア(自動計算)', field:'bathTenjouClear', type:'computed' },
+    { label:'クリアA:風呂天井〜現場天井(自動)', field:'bathClearA', type:'computed' },
+    { label:'クリアB:換気扇頭〜現場天井(自動)', field:'bathClearB', type:'computed' },
     { label:'上下総寸法(自動計算)', field:'bathJougeSousunpou', type:'computed' },
     { label:'上下総寸法(実測値・解体後計測)', field:'bathJougeSousunpouJissoku', type:'number' }
   ]},
@@ -706,6 +708,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     siteCheckObj.bathJougeSousunpou = totalVal;
     if (clearEl) clearEl.textContent = clearVal;
     if (totalEl) totalEl.textContent = totalVal;
+    // ★2026-09-15追加★ 施工者が知りたい2種類のクリアを自動計算。
+    // クリアA＝現場天井高さ − 風呂の高さ(製品)。お風呂の天井を載せたときの現場天井までの余裕。
+    // クリアB＝現場天井高さ − (風呂の高さ + 換気扇高さ)。一番高い点(換気扇の頭)と現場天井の余裕。
+    var clearAEl = sitecheckArea.querySelector('[data-field="bathClearA"]');
+    var clearBEl = sitecheckArea.querySelector('[data-field="bathClearB"]');
+    var clearAVal = (!isNaN(tenjou) && !isNaN(furo)) ? String(tenjou - furo) : '';
+    var clearBVal = (!isNaN(tenjou) && !isNaN(furo) && !isNaN(kankisen)) ? String(tenjou - (furo + kankisen)) : '';
+    siteCheckObj.bathClearA = clearAVal;
+    siteCheckObj.bathClearB = clearBVal;
+    if (clearAEl) clearAEl.textContent = clearAVal;
+    if (clearBEl) clearBEl.textContent = clearBVal;
   }
   // ★2026-09-12追加★ 床合わせが○の時は「床上がり高さ」を無効化(該当なしのため)
   function applyBathYukaAwaseState() {
@@ -994,7 +1007,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
       bathWakuzaiAtsumi: '枠材の厚み', bathTsurimotoWaku: '吊元側枠厚み',
       bathSeihinMaguchi: '製品間口(浴槽基準)', bathSeihinOkuyuki: '製品奥行き(浴槽基準)',
-      bathKaikou: '額縁開口寸法',
+      bathKaikou: '額縁開口寸法', bathFuroTakasa: '風呂の高さ(製品)',
       bathKankisenTakasa: '換気扇高さ', bathDuctTakasa: 'ダクト高さ', bathKutsuzuriTakasa: '沓摺り高さ',
       bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
       bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
