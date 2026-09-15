@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-021
-// CREATED: 2026-09-15 21:30
+// VERSION: 2026-09-15-022
+// CREATED: 2026-09-15 21:50
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -66,6 +66,7 @@ var SITECHECK_GROUPS_BATH = [
     { label:'風呂の高さ(製品)', field:'bathFuroTakasa', type:'number' },
     { label:'換気扇の高さ', field:'bathKankisenTakasa', type:'number' },
     { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
+    { label:'沓摺り高さ(毎回要確認)', field:'bathKutsuzuriTakasa', type:'number' },
     { label:'枠材の厚み', field:'bathWakuzaiAtsumi', type:'number' },
     { label:'設置方法', field:'bathSetchiHouhou' },
     { label:'床構成', field:'bathYukaKousei' },
@@ -994,6 +995,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       bathWakuzaiAtsumi: '枠材の厚み', bathTsurimotoWaku: '吊元側枠厚み',
       bathSeihinMaguchi: '製品間口(浴槽基準)', bathSeihinOkuyuki: '製品奥行き(浴槽基準)',
       bathKaikou: '額縁開口寸法',
+      bathKankisenTakasa: '換気扇高さ', bathDuctTakasa: 'ダクト高さ', bathKutsuzuriTakasa: '沓摺り高さ',
       bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
       bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
     };
@@ -1008,7 +1010,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       var html = '<div style="font-size:11px;color:#888;margin-bottom:4px;">'+sourceLabel+'の結果</div>';
       html += '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
       keys.forEach(function(k){
-        html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b></div>';
+        // ★2026-09-15追加★ 沓摺り高さは現場ごとに毎回異なるため、読み取れても⚠️で確認を促す。
+        var warn = (k === 'bathKutsuzuriTakasa') ? ' <span style="color:#c9721f;font-size:11px;">⚠️毎回要確認</span>' : '';
+        html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b>'+warn+'</div>';
       });
       // ★2026-09-15追加★ 施工図から推定した勝手(AR/AL/BR/BL)は、図面の回転などで読み違えやすいため、
       // プルダウンで選び直せる状態＋⚠️確認を促す表示にする(反映前にその場で直せる)。
