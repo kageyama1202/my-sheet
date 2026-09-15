@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-018
-// CREATED: 2026-09-15 20:35
+// VERSION: 2026-09-15-019
+// CREATED: 2026-09-15 21:05
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -371,23 +371,38 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div id="modal-statusreport-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
   html += '</div>';
 
-  // 📄 報告書から自動入力：タカラSB下見報告書のコピペテキストから、間口/奥行き/天井高さ/設置方法/
-  // 床構成/床合わせ/石膏ボード/吊り金具を自動抽出し、メモには特記事項・伝達事項を追記する。
+  // 📄 報告書から自動入力／📐 施工図から自動入力：
+  // タカラSB下見報告書・施工図(製品図面)のテキスト or 画像/PDFをAIに渡し、現場チェック欄へ反映する。
+  // ★2026-09-15変更★ 報告書と施工図で抽出する情報が別物(報告書=建物実測、施工図=製品寸法+勝手)なので、
+  // 貼り付け欄を2つに分ける。AIには docType(report/drawing)で区別を伝え、取り違えを防ぐ。
   // 実際にフォームへ反映するかはプレビュー確認後、ボタンを押してから(誤読み取り対策)。
-  html += '<div class="modal-section"><h4 style="color:#37474f;margin-bottom:6px;">📄 報告書から自動入力(タカラSB下見報告書)</h4>';
-  html += '<textarea id="report-paste-area" placeholder="下見報告書のテキストをここに貼り付け(iPadで画像/PDFを貼る場合もここに長押し→貼り付けでOK)" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
-  html += '<div style="margin-top:6px;">';
-  html += '<button type="button" id="report-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
-  html += '<button type="button" id="report-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
-  html += '</div>';
-  // ★2026-09-13追加★ PDFのテキスト抽出がうまくいかないケース向けに、スクショ画像を
-  // そのままAIに読み取らせる方式を追加。クリップボードから直接貼り付けられる(⌘V)。
-  html += '<div id="report-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
-  html += '<div id="report-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
-  html += '<div style="margin-top:6px;"><label for="report-file-input" style="display:inline-block;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#fff;color:#4a148c;font-weight:bold;cursor:pointer;">📁 ファイルを選択</label><input type="file" id="report-file-input" accept="image/*,application/pdf" multiple style="display:none;" /></div>';
-  html += '<div style="margin-top:6px;"><button type="button" id="report-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="report-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
-  html += '<div id="report-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
-  html += '</div>';
+  // buildDocInputSection: プレフィックス(pfx)ごとに同じ構造の入力欄一式を生成する共通関数。
+  function buildDocInputSection(pfx, headColor, title, placeholder, showRegex) {
+    var h = '<div class="modal-section"><h4 style="color:'+headColor+';margin-bottom:6px;">'+title+'</h4>';
+    h += '<textarea id="'+pfx+'-paste-area" placeholder="'+placeholder+'" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
+    h += '<div style="margin-top:6px;">';
+    if (showRegex) {
+      h += '<button type="button" id="'+pfx+'-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
+      h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
+    } else {
+      h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIでテキスト解析</button>';
+    }
+    h += '</div>';
+    h += '<div id="'+pfx+'-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
+    h += '<div id="'+pfx+'-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
+    h += '<div style="margin-top:6px;"><label for="'+pfx+'-file-input" style="display:inline-block;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#fff;color:#4a148c;font-weight:bold;cursor:pointer;">📁 ファイルを選択</label><input type="file" id="'+pfx+'-file-input" accept="image/*,application/pdf" multiple style="display:none;" /></div>';
+    h += '<div style="margin-top:6px;"><button type="button" id="'+pfx+'-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="'+pfx+'-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
+    h += '<div id="'+pfx+'-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
+    h += '</div>';
+    return h;
+  }
+  // 報告書セクション（正規表現版ボタンあり）
+  html += buildDocInputSection('report', '#37474f', '📄 報告書から自動入力(タカラSB下見報告書)',
+    '下見報告書のテキストをここに貼り付け(iPadで画像/PDFを貼る場合もここに長押し→貼り付けでOK)', true);
+  // 施工図セクション（製品図面。正規表現版は無く、AI解析のみ）
+  html += buildDocInputSection('drawing', '#00695c', '📐 施工図から自動入力(製品図面)',
+    '施工図(製品図面)のテキストをここに貼り付け／下の欄に画像・PDFを貼り付けでもOK', false);
+
 
   var memoVal = obj.memo || '';
   var memoIsLong = memoVal.length > 300;
@@ -960,12 +975,16 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // report-parser.js（正規表現・無料・一瞬）とparseSBReportAI（Cloud Functions経由のClaude API・
   // 数秒かかるが文面の崩れに強い）の2通りを用意し、どちらも同じ形の結果
   // { fields, memoLines, bathMemoAppend } を返すので、プレビュー/反映のロジックは共通化する。
-  (function(){
-    var pasteArea = document.getElementById('report-paste-area');
-    var parseBtn = document.getElementById('report-parse-btn');
-    var parseAiBtn = document.getElementById('report-parse-ai-btn');
-    var previewEl = document.getElementById('report-parse-preview');
-    if (!parseBtn) return;
+  // ★2026-09-15変更★ 報告書・施工図の2セクションで同じ処理を使うため、プレフィックス(pfx)と
+  // docType を引数に取る関数に一般化。pfx='report'は報告書(正規表現版ボタンあり・docType省略)、
+  // pfx='drawing'は施工図(AIのみ・docType='drawing')。renderReportResult内の勝手プルダウンや
+  // フィールド反映ロジックは両方で共通に使える。
+  function setupDocAutoInput(pfx, docType) {
+    var pasteArea = document.getElementById(pfx+'-paste-area');
+    var parseBtn = document.getElementById(pfx+'-parse-btn'); // 施工図には無い(nullでOK)
+    var parseAiBtn = document.getElementById(pfx+'-parse-ai-btn');
+    var previewEl = document.getElementById(pfx+'-parse-preview');
+    if (!pasteArea) return;
     var reportFieldLabels = {
       bathMaguchi: '建物間口', bathOkuyuki: '建物奥行き', bathTenjouTakasa: '天井高さ',
       bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
@@ -995,7 +1014,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
           return '<option value="'+o+'"'+(o===result.katte?' selected':'')+'>'+o+'</option>';
         }).join('');
         html += '<div style="margin-top:4px;padding-top:4px;border-top:1px dashed #ccc;">'
-          + '・勝手：<select id="report-katte-select" style="font-size:12px;padding:2px 6px;border:1px solid #c9721f;border-radius:3px;">'+kOpts+'</select>'
+          + '・勝手：<select id="'+pfx+'-katte-select" style="font-size:12px;padding:2px 6px;border:1px solid #c9721f;border-radius:3px;">'+kOpts+'</select>'
           + ' <span style="color:#c9721f;font-size:11px;">⚠️施工図からの推定・図面と照らして確認してください</span></div>';
       }
       (result.memoLines || []).forEach(function(m){
@@ -1005,14 +1024,14 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         html += '<div>・図面メモ(左下)に追記：'+escHtmlModal(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
       }
       html += '</div>';
-      html += '<button type="button" id="report-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
+      html += '<button type="button" id="'+pfx+'-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
       previewEl.innerHTML = html;
 
-      document.getElementById('report-apply-btn').addEventListener('click', function(){
+      document.getElementById(pfx+'-apply-btn').addEventListener('click', function(){
         Object.keys(result.fields || {}).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
         // ★2026-09-15追加★ 勝手(AR/AL/BR/BL)を、内部の2フィールドに分解して保存。
         // 1文字目=向き(A/B)→bathKatteAB、2文字目=扉位置(R/L)→bathDoorPosition(右/左)。
-        var katteSel = document.getElementById('report-katte-select');
+        var katteSel = document.getElementById(pfx+'-katte-select');
         var katteVal = katteSel ? katteSel.value : (hasKatte ? result.katte : '');
         if (/^(AR|AL|BR|BL)$/.test(katteVal)) {
           siteCheckObj.bathKatteAB = katteVal.charAt(0);
@@ -1053,7 +1072,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     }
 
     // 🔍 正規表現版（無料・一瞬・オフライン可）
-    parseBtn.addEventListener('click', function(){
+    if (parseBtn) parseBtn.addEventListener('click', function(){
       var text = pasteArea.value;
       if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
       previewEl.textContent = '⏳ 解析中...';
@@ -1072,7 +1091,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text })
+          body: JSON.stringify({ text: text, docType: docType })
         }).then(function(res){
           return res.json().then(function(data){ return { ok: res.ok, data: data }; });
         }).then(function(r){
@@ -1092,10 +1111,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     // 配列で複数枚(画像・PDF混在可)を保持できるようにする。貼り付けるたびに追加され、
     // サムネイル一覧に個別の削除ボタンを出す。PDFはFinderでファイルをコピーしてから
     // ここに⌘Vすると、クリップボードのfiles経由で取得できる。
-    var imagePasteArea = document.getElementById('report-image-paste');
-    var imagePreview = document.getElementById('report-image-preview');
-    var parseImageBtn = document.getElementById('report-parse-image-btn');
-    var imageClearBtn = document.getElementById('report-image-clear-btn');
+    var imagePasteArea = document.getElementById(pfx+'-image-paste');
+    var imagePreview = document.getElementById(pfx+'-image-preview');
+    var parseImageBtn = document.getElementById(pfx+'-parse-image-btn');
+    var imageClearBtn = document.getElementById(pfx+'-image-clear-btn');
     var pastedAttachments = []; // [{kind:'image', mediaType, base64, dataUrl} | {kind:'pdf', base64, filename}]
 
     function renderImageThumbs() {
@@ -1183,7 +1202,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     if (pasteArea) pasteArea.addEventListener('paste', handlePasteForAttachments);
 
     // 📁 ファイル選択（貼り付けが使えない/不安な場合の確実な代替。iPadのFilesアプリからも選べる）
-    var fileInput = document.getElementById('report-file-input');
+    var fileInput = document.getElementById(pfx+'-file-input');
     if (fileInput) {
       fileInput.addEventListener('change', function(){
         var files = fileInput.files;
@@ -1223,7 +1242,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images: images, pdfs: pdfs })
+          body: JSON.stringify({ images: images, pdfs: pdfs, docType: docType })
         }).then(function(res){
           return res.json().then(function(data){ return { ok: res.ok, data: data }; });
         }).then(function(r){
@@ -1237,7 +1256,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         });
       });
     }
-  })();
+  }
+  setupDocAutoInput('report');
+  setupDocAutoInput('drawing', 'drawing');
+
 
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
