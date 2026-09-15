@@ -1,6 +1,6 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-020
-// CREATED: 2026-09-15 21:20
+// VERSION: 2026-09-15-021
+// CREATED: 2026-09-15 21:30
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -234,6 +234,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
   var siteCheckObj = obj.siteCheck || {};
+  // ★2026-09-15追加★ 施工図画像はモーダルを開いている間だけ保持(保存はしない)。別案件を開いた時に
+  // 前の施工図が残らないよう、モーダルを開くたびにクリアする。
+  window.__bathSekouZuImage = null;
   // ★2026-09-15追加★ 浴室：ドアタイプは既定「開き戸」、扉の厚みは開き戸の標準30を初期表示する。
   // (どちらも未設定のときだけ既定を入れる。人間が後から変更するのは自由＝上書きしない。)
   // 扉厚みは開き戸=30が標準だが、特殊ケースのため手動変更も可能にしておく(disableしない)。
@@ -1037,13 +1040,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
           siteCheckObj.bathKatteAB = katteVal.charAt(0);
           siteCheckObj.bathDoorPosition = (katteVal.charAt(1) === 'R') ? '右' : '左';
         }
-        // ★2026-09-15追加★ 施工図(drawing)のときは、貼られた画像を bathSekouZuImage として保存し、
-        // 4分割図の左上を施工図画像に差し替えられるようにする(報告書の補完＝施工図＋現場数値の1枚)。
-        // pastedAttachmentsの先頭の画像を使う(PDFは背景にできないので画像のみ対象)。
+        // ★2026-09-15変更★ 施工図(drawing)の画像は、Firebaseに保存すると文字数上限エラーになるため
+        // 保存しない(スクショ運用のため保存不要)。代わりにモーダルを開いている間だけ保持する
+        // ウィンドウ変数 window.__bathSekouZuImage に入れ、「図面を表示」時にその場で左上へ重ねる。
         if (pfx === 'drawing') {
           var firstImg = (pastedAttachments || []).filter(function(a){ return a.kind === 'image'; })[0];
           if (firstImg && firstImg.dataUrl) {
-            siteCheckObj.bathSekouZuImage = firstImg.dataUrl;
+            window.__bathSekouZuImage = firstImg.dataUrl;
           }
         }
         // 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
@@ -1283,7 +1286,16 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       statusEl.textContent = '⏳ 図面を作成中...';
       ensureBathDiagramLibModal(function(){
         previewEl.innerHTML = '<div id="bath-diagram-render" style="background:#fff;display:inline-block;width:100%;"></div>';
-        document.getElementById('bath-diagram-render').innerHTML = buildBathDiagramSVG(siteCheckObj);
+        // ★2026-09-15変更★ 施工図画像はFirebaseに保存しない(上限エラー回避)。描画のときだけ、
+        // モーダル保持中のwindow.__bathSekouZuImageを一時コピーに乗せて左上を施工図に差し替える。
+        // siteCheckObj本体には入れない(保存対象にしないため)。
+        var drawObj = siteCheckObj;
+        if (window.__bathSekouZuImage) {
+          drawObj = {};
+          for (var k in siteCheckObj) { if (siteCheckObj.hasOwnProperty(k)) drawObj[k] = siteCheckObj[k]; }
+          drawObj.bathSekouZuImage = window.__bathSekouZuImage;
+        }
+        document.getElementById('bath-diagram-render').innerHTML = buildBathDiagramSVG(drawObj);
         statusEl.textContent = '✅ 表示しました（スクショしてご利用ください）';
         setTimeout(function(){ statusEl.textContent = ''; }, 2500);
       });
