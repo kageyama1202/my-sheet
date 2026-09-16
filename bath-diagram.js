@@ -7,8 +7,8 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-16-102
-// CREATED: 2026-09-17 00:05
+// VERSION: 2026-09-16-103
+// CREATED: 2026-09-17 00:20
 
 function numModal(v, def) {
   var n = parseFloat(v);
@@ -38,7 +38,7 @@ function openSheetSVG(sheetW, sheetH, title) {
     + 'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
     + 'font-family="\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif" style="display:block;background:#fff;border:1px solid #ccc;">';
   s += '<rect width="'+sheetW+'" height="'+sheetH+'" fill="#fdfaf3"/>';
-  if (title) s += '<text x="16" y="26" font-size="15" font-weight="bold" fill="#00695c">'+title+'</text>';
+  if (title) s += '<text x="18" y="34" font-size="22" font-weight="bold" fill="#00695c">'+title+'</text>';
   return s;
 }
 
@@ -58,7 +58,7 @@ function buildBathDiagramSVG(sc) {
 // 【1枚目】平面図（施工図画像 or 自前平面図）＋クリア・勝手・メモ
 // ============================================================
 function buildPlanSheet(sc) {
-  var W = 900, H = 640;
+  var W = 940, H = 720;
   var svg = openSheetSVG(W, H, '① 平面図');
 
   // --- 入力値の取り出し ---
@@ -88,7 +88,7 @@ function buildPlanSheet(sc) {
   if (hasSekouZu) {
     // 施工図画像モード：施工図を大きく表示
     svg += '<image x="'+drawX+'" y="'+drawY+'" width="'+drawMaxW+'" height="'+drawMaxH+'" xlink:href="'+sekouZu+'" href="'+sekouZu+'" preserveAspectRatio="xMidYMid meet"/>';
-    svg += '<text x="'+drawX+'" y="'+(drawY+drawMaxH+18)+'" font-size="12" fill="#00695c">↑施工図（現場数値は右に記載）</text>';
+    svg += '<text x="'+drawX+'" y="'+(drawY+drawMaxH+18)+'" font-size="15" fill="#00695c">↑施工図（現場数値は右に記載）</text>';
   } else {
     // 自前平面図モード
     var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
@@ -155,12 +155,13 @@ function buildPlanSheet(sc) {
   }
 
   // --- 右側：注記(クリア計算・勝手・石膏ボード・設置方法・メモ) ---
-  var noteX = 450, noteY = 56;
+  var noteX = 440, noteY = 62;
   function pushNote(text, color, size) {
-    var fs = size || 12;
-    wrapTextModal(text, 34).forEach(function(line){
+    // ★2026-09-16変更★ 全体的に文字を大きく(指定サイズ+4)。スクショで報告書に貼っても読みやすく。
+    var fs = (size || 12) + 4;
+    wrapTextModal(text, 26).forEach(function(line){
       svg += '<text x="'+noteX+'" y="'+noteY+'" font-size="'+fs+'" fill="'+color+'">'+escHtmlModal(line)+'</text>';
-      noteY += fs + 5;
+      noteY += fs + 6;
     });
   }
 
@@ -215,13 +216,13 @@ function buildPlanSheet(sc) {
   var memo = sc.bathMemoRenraku || '';
   if (memo) {
     var memoY = 500;
-    svg += '<text x="40" y="'+memoY+'" font-size="12" fill="#3b6d11">メモ・伝達事項</text>';
+    svg += '<text x="40" y="'+memoY+'" font-size="15" fill="#3b6d11">メモ・伝達事項</text>';
     memoY += 20;
     String(memo).split('\n').forEach(function(raw){
-      wrapTextModal(raw, 60).forEach(function(line){
+      wrapTextModal(raw, 46).forEach(function(line){
         if (memoY < H - 10) {
-          svg += '<text x="40" y="'+memoY+'" font-size="11" fill="#333">'+escHtmlModal(line)+'</text>';
-          memoY += 15;
+          svg += '<text x="40" y="'+memoY+'" font-size="14" fill="#333">'+escHtmlModal(line)+'</text>';
+          memoY += 18;
         }
       });
     });
@@ -235,7 +236,7 @@ function buildPlanSheet(sc) {
 // 【2枚目】高さ断面 ＋ クリアA/B・沓摺り・上下総寸法・梁
 // ============================================================
 function buildHeightSheet(sc) {
-  var W = 900, H = 640;
+  var W = 940, H = 700;
   var svg = openSheetSVG(W, H, '② 高さ断面');
 
   var maguchi = numModal(sc.bathMaguchi) || numModal(sc.bathSeihinMaguchi);
@@ -314,49 +315,49 @@ function buildHeightSheet(sc) {
   // ラベル衝突回避(最低16px間隔)
   labelItems.sort(function(a, b){ return a.y - b.y; });
   var cur = -Infinity;
-  labelItems.forEach(function(item){ item.drawY = Math.max(item.y, cur + 16); cur = item.drawY; });
+  labelItems.forEach(function(item){ item.drawY = Math.max(item.y, cur + 20); cur = item.drawY; });
   labelItems.forEach(function(item){
-    svg += '<text x="'+labelX+'" y="'+item.drawY+'" font-size="12" fill="'+item.color+'">'+item.text+'</text>';
+    svg += '<text x="'+labelX+'" y="'+item.drawY+'" font-size="15" fill="'+item.color+'">'+item.text+'</text>';
   });
 
   // 天井・床ライン
   svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+(labelX-4)+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
-  svg += '<text x="'+(rx-26)+'" y="'+(yTenjou-6)+'" text-anchor="end" font-size="12" fill="#555">現場天井'+(tenjou?'：'+tenjou:'')+'</text>';
+  svg += '<text x="'+(rx-26)+'" y="'+(yTenjou-6)+'" text-anchor="end" font-size="15" fill="#555">現場天井'+(tenjou?'：'+tenjou:'')+'</text>';
   svg += '<line x1="'+(rx-20)+'" y1="'+baseY+'" x2="'+(labelX-4)+'" y2="'+baseY+'" stroke="#333" stroke-width="1"/>';
 
   // 脱衣室高さ
   if (datsui) {
     var yD = baseY - datsui * pxScale;
     svg += '<line x1="'+(rx-70)+'" y1="'+baseY+'" x2="'+(rx-70)+'" y2="'+yD+'" stroke="#5c6bc0" stroke-width="1"/>';
-    svg += '<text x="'+(rx-76)+'" y="'+((baseY+yD)/2)+'" text-anchor="end" font-size="11" fill="#5c6bc0">脱衣室：'+datsui+'</text>';
+    svg += '<text x="'+(rx-76)+'" y="'+((baseY+yD)/2)+'" text-anchor="end" font-size="14" fill="#5c6bc0">脱衣室：'+datsui+'</text>';
   }
   // スラブ・上下総寸法
   if (slab) {
     var ySlab = baseY + slab * pxScale;
     svg += '<line x1="'+(rx-20)+'" y1="'+ySlab+'" x2="'+(labelX-4)+'" y2="'+ySlab+'" stroke="#333" stroke-width="1"/>';
-    svg += '<text x="'+(rx-26)+'" y="'+(ySlab+13)+'" text-anchor="end" font-size="12" fill="#555">スラブ：'+slab+'</text>';
+    svg += '<text x="'+(rx-26)+'" y="'+(ySlab+13)+'" text-anchor="end" font-size="15" fill="#555">スラブ：'+slab+'</text>';
     var bracketX = labelX + 250;
     svg += '<line x1="'+bracketX+'" y1="'+yTenjou+'" x2="'+bracketX+'" y2="'+ySlab+'" stroke="#00695c" stroke-width="1"/>';
-    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="12" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
-    if (totalJissoku !== null) svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="12" fill="#c0392b">実測：'+totalJissoku+'</text>';
+    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="15" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
+    if (totalJissoku !== null) svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="15" fill="#c0392b">実測：'+totalJissoku+'</text>';
   }
 
   // --- 右下：施工者向けクリアA/B・沓摺り(枠で囲って強調) ---
-  var boxX = 560, boxY = 430, boxW = 320, boxH = 180;
+  var boxX = 540, boxY = 400, boxW = 340, boxH = 220;
   svg += '<rect x="'+boxX+'" y="'+boxY+'" width="'+boxW+'" height="'+boxH+'" fill="#f1f8f5" stroke="#00695c" stroke-width="1.2" rx="6"/>';
   var ly = boxY + 24;
-  svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="13" font-weight="bold" fill="#00695c">施工クリア(お風呂天井を載せる余裕)</text>'; ly += 26;
+  svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="17" font-weight="bold" fill="#00695c">施工クリア(お風呂天井を載せる余裕)</text>'; ly += 32;
   // クリアA = 現場天井 − 風呂の高さ
   var clearA = (tenjou != null && furo != null) ? (tenjou - furo) : null;
   var clearB = (tenjou != null && furo != null && kankisen != null) ? (tenjou - (furo + kankisen)) : null;
   if (clearA !== null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="12" fill="'+(clearA<0?'#c0392b':'#333')+'">A 風呂天井〜現場天井：'+clearA+'mm'+(clearA<0?'（不足）':'')+'</text>'; ly += 22;
-  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="12" fill="#aaa">A：現場天井・風呂高さ未入力</text>'; ly += 22; }
+    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="'+(clearA<0?'#c0392b':'#333')+'">A 風呂天井〜現場天井：'+clearA+'mm'+(clearA<0?'（不足）':'')+'</text>'; ly += 28;
+  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#aaa">A：現場天井・風呂高さ未入力</text>'; ly += 28; }
   if (clearB !== null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="12" fill="'+(clearB<0?'#c0392b':'#333')+'">B 換気扇頭〜現場天井：'+clearB+'mm'+(clearB<0?'（不足）':'')+'</text>'; ly += 22;
-  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="12" fill="#aaa">B：換気扇高さ未入力</text>'; ly += 22; }
+    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="'+(clearB<0?'#c0392b':'#333')+'">B 換気扇頭〜現場天井：'+clearB+'mm'+(clearB<0?'（不足）':'')+'</text>'; ly += 28;
+  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#aaa">B：換気扇高さ未入力</text>'; ly += 28; }
   if (kutsu != null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="12" fill="#c9721f">沓摺り高さ：'+kutsu+'mm ⚠毎回要確認</text>'; ly += 22;
+    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#c9721f">沓摺り高さ：'+kutsu+'mm ⚠毎回要確認</text>'; ly += 28;
   }
 
   svg += '</svg>';
@@ -367,7 +368,7 @@ function buildHeightSheet(sc) {
 // 【3枚目】窓
 // ============================================================
 function buildWindowSheet(sc) {
-  var W = 900, H = 460;
+  var W = 940, H = 500;
   var svg = openSheetSVG(W, H, '③ 窓');
 
   var maguchi = numModal(sc.bathMaguchi) || numModal(sc.bathSeihinMaguchi);
@@ -401,7 +402,7 @@ function buildWindowSheet(sc) {
   var winTitle = '窓のある壁';
   if (trueWallMode) winTitle += '（'+madoMen+'・約'+wallAreaM2+'㎡）';
   else if (!scaleReady) winTitle += '（概算配置）';
-  svg += '<text x="'+wx+'" y="'+(wy-14)+'" font-size="13" fill="#333">'+winTitle+'</text>';
+  svg += '<text x="'+wx+'" y="'+(wy-14)+'" font-size="16" fill="#333">'+winTitle+'</text>';
   svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
 
   var mW, mH, mx1, my1;
@@ -427,7 +428,7 @@ function buildWindowSheet(sc) {
 
   // 右側に窓の数値一覧
   var tx = 480, ty = 90;
-  function winLine(t){ svg += '<text x="'+tx+'" y="'+ty+'" font-size="13" fill="#333">'+escHtmlModal(t)+'</text>'; ty += 24; }
+  function winLine(t){ svg += '<text x="'+tx+'" y="'+ty+'" font-size="17" fill="#333">'+escHtmlModal(t)+'</text>'; ty += 30; }
   winLine('窓のある面：'+(madoMen||'未選択'));
   winLine('窓サイズ：W'+(madoW||'?')+' × H'+(madoH||'?'));
   winLine('窓奥行 D：'+(madoD!=null?madoD:'?'));
