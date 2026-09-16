@@ -7,8 +7,8 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-15-100
-// CREATED: 2026-09-15 22:40
+// VERSION: 2026-09-16-102
+// CREATED: 2026-09-17 00:05
 
 function numModal(v, def) {
   var n = parseFloat(v);
@@ -168,6 +168,10 @@ function buildPlanSheet(sc) {
   if (abrCode) pushNote('勝手：'+abrCode, '#c0392b', 14);
 
   // 間口方向クリア計算
+  // ★2026-09-16変更★ クリア計算は勝手(A/B)による縦横入れ替え(swapMO)の影響を受けず、
+  //   常に「建物間口の生値・製品間口の生値」を使う。図の見た目(浴槽の縦横)はA/Bで変えるが、
+  //   数式は実際の間口方向の寸法(生値)で計算する。以前はswap後のmaguchi/seiMaguchiを使っていて、
+  //   B勝手時に製品奥行き(1668)が間口計算に混入し戸先クリアが誤って小さく(−7mm等)出ていた。
   var tsurimotoShitaji = numModal(sc.bathTsurimotoShitaji);
   var tsurimotoWaku = numModal(sc.bathTsurimotoWaku);
   var tsurimotoPanel = numModal(sc.bathTsurimotoPanel, 0);
@@ -175,10 +179,11 @@ function buildPlanSheet(sc) {
   var jouhaikanSupace = numModal(sc.bathJouhaikanSupace, 35);
   var plumbingAdd = (haikanHoushiki === '上配管') ? jouhaikanSupace : 18;
   var TSURIMOTO_STD_OFFSET = 34;
-  if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchi && seiMaguchi && (doorPos === '右' || doorPos === '左')) {
+  if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchiRaw && seiMaguchiRaw && (doorPos === '右' || doorPos === '左')) {
     var tsurimotoClear = tsurimotoShitaji + tsurimotoWaku - (TSURIMOTO_STD_OFFSET + tsurimotoPanel);
+    // B勝手＝水栓は側面壁(間口方向)なので、戸先側に配管突出を加算。A勝手＝水栓は正面壁なので間口には加算しない。
     var addToOpposite = (katteAB === 'B') ? plumbingAdd : 0;
-    var oppositeClear = maguchi - tsurimotoClear - (seiMaguchi + addToOpposite);
+    var oppositeClear = maguchiRaw - tsurimotoClear - (seiMaguchiRaw + addToOpposite);
     var oppNG = oppositeClear < 15, tsuNG = tsurimotoClear < 0;
     var oppExtra = (katteAB === 'B') ? '（水栓側・配管込）' : '';
     noteY += 4;
@@ -186,17 +191,17 @@ function buildPlanSheet(sc) {
     pushNote('　吊元側：'+Math.round(tsurimotoClear)+'mm'+(tsuNG?'（不足）':''), tsuNG?'#c0392b':'#00695c', 12);
     pushNote('　戸先側：'+Math.round(oppositeClear)+'mm'+oppExtra+(oppNG?'（要確認）':''), oppNG?'#c0392b':'#00695c', 12);
   }
-  // 奥行き方向クリア計算
-  if (seiOkuyuki && okuyuki) {
-    var doorThicknessRaw = numModal(sc.bathHikidoAtsumi);
-    var doorThickness = (doorThicknessRaw != null) ? doorThicknessRaw : (doorType === '引き戸' ? 75 : 30);
+  // 奥行き方向クリア計算(生値ベース)。
+  // ★2026-09-16変更★ 扉は必ず間口方向の壁(手前)にあるため、扉厚(+余裕)は奥行き方向には効かない。
+  //   奥行き方向は「製品奥行き ＋ 正面壁クリア(A勝手のとき配管)」で見る。扉厚は間口方向側で見込む。
+  if (seiOkuyukiRaw && okuyukiRaw) {
     var frontPlumbing = (katteAB === 'A') ? plumbingAdd : 0;
-    var okuNeed = doorThickness + 5 + seiOkuyuki + frontPlumbing;
-    var okuClear = okuyuki - okuNeed;
+    var okuNeed = seiOkuyukiRaw + frontPlumbing;
+    var okuClear = okuyukiRaw - okuNeed;
     noteY += 4;
     pushNote('【奥行き方向クリア】', '#37474f', 12);
-    pushNote('　扉厚'+doorThickness+'＋余裕5＋製品'+seiOkuyuki+(frontPlumbing?'＋配管'+frontPlumbing:'')+'＝'+okuNeed, '#555', 11);
-    pushNote('　建物奥行'+okuyuki+' − 必要'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
+    pushNote('　製品'+seiOkuyukiRaw+(frontPlumbing?'＋配管'+frontPlumbing:'')+'＝'+okuNeed, '#555', 11);
+    pushNote('　建物奥行'+okuyukiRaw+' − 必要'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
   }
 
   // 石膏ボード・設置方法・枠材
