@@ -7,8 +7,8 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-17-105
-// CREATED: 2026-09-17 09:30
+// VERSION: 2026-09-17-107
+// CREATED: 2026-09-17 22:55
 
 function numModal(v, def) {
   var n = parseFloat(v);
@@ -93,8 +93,9 @@ function buildPlanSheet(sc) {
     // 自前平面図モード
     var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
     var ox = drawX + 30, oy = drawY + 20, ow = outerBox.w, oh = outerBox.h;
-    // 間口ラベル(上)
-    svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-8)+'" text-anchor="middle" font-size="13" fill="#555">'+(maguchi||'')+'</text>';
+    // 間口ラベル(上)★図は扉を下に固定して描くため、A/Bで各辺に来る方向が変わる。
+    //   swap後の maguchi(この辺=間口方向の値)を表示する。値自体は報告書のまま(swapは並べ替えるだけ)。
+    svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-8)+'" text-anchor="middle" font-size="14" fill="#555">'+(maguchi||'')+'</text>';
     var hikidoAtsumi = numModal(sc.bathHikidoAtsumi);
     if (doorType === '引き戸' && hikidoAtsumi && maguchiRaw) {
       svg += '<text x="'+(ox+ow/2)+'" y="'+(oy+5)+'" text-anchor="middle" font-size="10" fill="#607d8b">(+引戸'+hikidoAtsumi+'＝'+(maguchiRaw+hikidoAtsumi)+')</text>';
@@ -107,10 +108,11 @@ function buildPlanSheet(sc) {
     if (seiOkuyuki && okuyuki) padY = Math.max(4, oh * (okuyuki - seiOkuyuki) / okuyuki / 2);
     var ix = ox + padX, iy = oy + padY, iw = ow - padX*2, ih = oh - padY*2;
     svg += '<rect x="'+ix+'" y="'+iy+'" width="'+iw+'" height="'+ih+'" fill="#dcecec" stroke="#00695c" stroke-width="1.5"/>';
-    if (seiMaguchi) svg += '<text x="'+(ix+iw/2)+'" y="'+(iy+16)+'" text-anchor="middle" font-size="11" fill="#00695c">'+seiMaguchi+'</text>';
-    if (seiOkuyuki) svg += '<text x="'+(ix+iw-10)+'" y="'+(iy+ih/2)+'" font-size="11" fill="#00695c" transform="rotate(90 '+(ix+iw-10)+' '+(iy+ih/2)+')" text-anchor="middle">'+seiOkuyuki+'</text>';
-    // 奥行きラベル(右)
-    svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="12" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">'+(okuyuki||'')+'</text>';
+    // 内枠(製品)の数字も各辺の方向に合わせて(swap後)
+    if (seiMaguchi) svg += '<text x="'+(ix+iw/2)+'" y="'+(iy+16)+'" text-anchor="middle" font-size="12" fill="#00695c">'+seiMaguchi+'</text>';
+    if (seiOkuyuki) svg += '<text x="'+(ix+iw-10)+'" y="'+(iy+ih/2)+'" font-size="12" fill="#00695c" transform="rotate(90 '+(ix+iw-10)+' '+(iy+ih/2)+')" text-anchor="middle">'+seiOkuyuki+'</text>';
+    // 奥行きラベル(右)★swap後の okuyuki(この辺=奥行き方向の値)
+    svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="14" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">'+(okuyuki||'')+'</text>';
 
     // 浴槽(A=縦長/B=横長、扉と反対側に配置)
     var tubW, tubH, tubX, tubY;
@@ -155,11 +157,12 @@ function buildPlanSheet(sc) {
   }
 
   // --- 右側：注記(クリア計算・勝手・石膏ボード・設置方法・メモ) ---
-  var noteX = 440, noteY = 62;
+  var noteX = 430, noteY = 62;
   function pushNote(text, color, size) {
     // ★2026-09-16変更★ 全体的に文字を大きく(指定サイズ+4)。スクショで報告書に貼っても読みやすく。
+    // ★2026-09-17変更★ 折り返しを24文字に(大きい文字でも右端で見切れないように)。
     var fs = (size || 12) + 4;
-    wrapTextModal(text, 26).forEach(function(line){
+    wrapTextModal(text, 24).forEach(function(line){
       svg += '<text x="'+noteX+'" y="'+noteY+'" font-size="'+fs+'" fill="'+color+'">'+escHtmlModal(line)+'</text>';
       noteY += fs + 6;
     });
@@ -192,7 +195,7 @@ function buildPlanSheet(sc) {
     var okuClear = okuyuki - okuNeed;
     noteY += 4;
     pushNote('【奥行き方向クリア】', '#37474f', 12);
-    pushNote('　建物奥行'+okuyuki+' − 製品'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
+    pushNote('　建物'+okuyuki+'−製品'+okuNeed+'＝'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
   }
 
   // 石膏ボード・設置方法・枠材
