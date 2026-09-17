@@ -7,8 +7,8 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-17-107
-// CREATED: 2026-09-17 22:55
+// VERSION: 2026-09-17-108
+// CREATED: 2026-09-17 23:10
 
 function numModal(v, def) {
   var n = parseFloat(v);
@@ -281,7 +281,9 @@ function buildHeightSheet(sc) {
     svg += '<rect x="'+rx+'" y="'+yTenjou+'" width="'+hBoxW+'" height="'+(yKankisenTop-yTenjou)+'" fill="#fff" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>';
     labelItems.push({ y: yTenjou+12, text: '天井とのクリア：'+clear, color: '#c0392b' });
   }
-  labelItems.push({ y: baseY+16, text: '床構成'+(sc.bathYukaKousei?'：'+escHtmlModal(sc.bathYukaKousei):''), color: '#555' });
+  // ★2026-09-17変更★ 床構成は横に長いテキストなので、右のラベル列(labelX)に入れると
+  //   施工クリアboxと重なって隠れる。断面図の床ラインの下に、折り返して独立表示する。
+  // (labelItemsには入れない)
 
   // 梁
   var hariPanels = [
@@ -317,6 +319,19 @@ function buildHeightSheet(sc) {
   svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+(labelX-4)+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
   svg += '<text x="'+(rx-26)+'" y="'+(yTenjou-6)+'" text-anchor="end" font-size="15" fill="#555">現場天井'+(tenjou?'：'+tenjou:'')+'</text>';
   svg += '<line x1="'+(rx-20)+'" y1="'+baseY+'" x2="'+(labelX-4)+'" y2="'+baseY+'" stroke="#333" stroke-width="1"/>';
+
+  // ★2026-09-17追加★ 床構成を床ラインの下に折り返して独立表示(施工クリアboxと重ならない左側 x=rx-20〜)。
+  if (sc.bathYukaKousei) {
+    var ykX = rx - 20, ykY = baseY + 26;
+    svg += '<text x="'+ykX+'" y="'+ykY+'" font-size="15" fill="#555">床構成</text>';
+    ykY += 22;
+    wrapTextModal(String(sc.bathYukaKousei), 22).forEach(function(line){
+      svg += '<text x="'+ykX+'" y="'+ykY+'" font-size="15" fill="#333">'+escHtmlModal(line)+'</text>';
+      ykY += 22;
+    });
+  } else {
+    svg += '<text x="'+(rx-20)+'" y="'+(baseY+26)+'" font-size="15" fill="#999">床構成：(未入力)</text>';
+  }
 
   // 脱衣室高さ
   if (datsui) {
