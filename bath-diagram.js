@@ -7,8 +7,8 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-17-104
-// CREATED: 2026-09-17 00:45
+// VERSION: 2026-09-17-105
+// CREATED: 2026-09-17 09:30
 
 function numModal(v, def) {
   var n = parseFloat(v);
@@ -169,30 +169,30 @@ function buildPlanSheet(sc) {
   if (abrCode) pushNote('勝手：'+abrCode, '#c0392b', 14);
 
   // 間口方向クリア計算
-  // ★2026-09-16変更★ クリア計算は勝手(A/B)による縦横入れ替え(swapMO)の影響を受けず、
-  //   常に「建物間口の生値・製品間口の生値」を使う。
-  // ★2026-09-17変更★ 配管突出18mmは製品寸法(施工図の1668など)に既に含まれているため、
-  //   コードで別途+18しない(二重加算だった)。施工図から読み取った製品寸法をそのまま使う。
+  // ★2026-09-17変更★ 報告書・施工図から入る間口/奥行きは「お風呂屋さん基準(浴槽基準)」に変換済みの値。
+  //   一般的な建物の間口/奥行きではないので、勝手(A/B)で建物の物理方向へ割り当て直す(swapMO)必要がある。
+  //   よってクリア計算も生値(Raw)ではなく、swap後の maguchi/okuyuki/seiMaguchi/seiOkuyuki を使う。
+  // ★2026-09-17変更★ 配管突出18mmは製品寸法に既に含まれているため、コードで別途+18しない。
   var tsurimotoShitaji = numModal(sc.bathTsurimotoShitaji);
   var tsurimotoWaku = numModal(sc.bathTsurimotoWaku);
   var tsurimotoPanel = numModal(sc.bathTsurimotoPanel, 0);
   var TSURIMOTO_STD_OFFSET = 34;
-  if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchiRaw && seiMaguchiRaw && (doorPos === '右' || doorPos === '左')) {
+  if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchi && seiMaguchi && (doorPos === '右' || doorPos === '左')) {
     var tsurimotoClear = tsurimotoShitaji + tsurimotoWaku - (TSURIMOTO_STD_OFFSET + tsurimotoPanel);
-    var oppositeClear = maguchiRaw - tsurimotoClear - seiMaguchiRaw;
+    var oppositeClear = maguchi - tsurimotoClear - seiMaguchi;
     var oppNG = oppositeClear < 15, tsuNG = tsurimotoClear < 0;
     noteY += 4;
     pushNote('【間口方向クリア】', '#37474f', 12);
     pushNote('　吊元側：'+Math.round(tsurimotoClear)+'mm'+(tsuNG?'（不足）':''), tsuNG?'#c0392b':'#00695c', 12);
     pushNote('　戸先側：'+Math.round(oppositeClear)+'mm'+(oppNG?'（要確認）':''), oppNG?'#c0392b':'#00695c', 12);
   }
-  // 奥行き方向クリア計算(生値ベース)。配管は製品奥行き(1668等)に込みのため別途足さない。
-  if (seiOkuyukiRaw && okuyukiRaw) {
-    var okuNeed = seiOkuyukiRaw;
-    var okuClear = okuyukiRaw - okuNeed;
+  // 奥行き方向クリア計算(swap後の値)。配管は製品奥行きに込みのため別途足さない。
+  if (seiOkuyuki && okuyuki) {
+    var okuNeed = seiOkuyuki;
+    var okuClear = okuyuki - okuNeed;
     noteY += 4;
     pushNote('【奥行き方向クリア】', '#37474f', 12);
-    pushNote('　建物奥行'+okuyukiRaw+' − 製品'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
+    pushNote('　建物奥行'+okuyuki+' − 製品'+okuNeed+' ＝ 残り'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
   }
 
   // 石膏ボード・設置方法・枠材
