@@ -7,7 +7,7 @@
    ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
      左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
 */
-// VERSION: 2026-09-17-108
+// VERSION: 2026-09-19-109
 // CREATED: 2026-09-17 23:10
 
 function numModal(v, def) {
@@ -158,12 +158,16 @@ function buildPlanSheet(sc) {
 
   // --- 右側：注記(クリア計算・勝手・石膏ボード・設置方法・メモ) ---
   var noteX = 430, noteY = 62;
-  function pushNote(text, color, size) {
+  function pushNote(text, color, size, opts) {
     // ★2026-09-16変更★ 全体的に文字を大きく(指定サイズ+4)。スクショで報告書に貼っても読みやすく。
     // ★2026-09-17変更★ 折り返しを24文字に(大きい文字でも右端で見切れないように)。
+    // ★2026-09-19変更★ opts.bold / opts.wrap で特定行だけ強調表示できるように(設置方法を目立たせるため)。
+    opts = opts || {};
     var fs = (size || 12) + 4;
-    wrapTextModal(text, 24).forEach(function(line){
-      svg += '<text x="'+noteX+'" y="'+noteY+'" font-size="'+fs+'" fill="'+color+'">'+escHtmlModal(line)+'</text>';
+    var wrapLen = opts.wrap || 24;
+    var weightAttr = opts.bold ? ' font-weight="bold"' : '';
+    wrapTextModal(text, wrapLen).forEach(function(line){
+      svg += '<text x="'+noteX+'" y="'+noteY+'" font-size="'+fs+'"'+weightAttr+' fill="'+color+'">'+escHtmlModal(line)+'</text>';
       noteY += fs + 6;
     });
   }
@@ -202,7 +206,8 @@ function buildPlanSheet(sc) {
   var sekkou = sc.bathSekkouBoard ? String(sc.bathSekkouBoard).split(',') : [];
   noteY += 4;
   if (sekkou.length) pushNote('石膏ボード：'+sekkou.join('・'), '#8e24aa', 12);
-  if (sc.bathSetchiHouhou) pushNote('設置方法：'+sc.bathSetchiHouhou, '#555', 12);
+  // ★2026-09-19変更★ 設置方法は現場で一番重要な項目のため、文字を大きく・太字・赤字にして目立たせる。折り返しも短めに。
+  if (sc.bathSetchiHouhou) pushNote('設置方法：'+sc.bathSetchiHouhou, '#c0392b', 20, {bold:true, wrap:16});
   if (sc.bathWakuzaiAtsumi) pushNote('枠材の厚み：'+sc.bathWakuzaiAtsumi, '#555', 12);
 
   // メモ(伝達事項) — 平面図の枚の下部に小さく
