@@ -1,7 +1,11 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-23-003 -->
+<!-- VERSION: 2026-09-23-004 -->
 <!--
   agenda.html（Today's Agenda）
+  2026-09-23-004：行動メモの紐付けに日付照合を追加
+   ・メモ行の「10/1」「10月1日」等を読み取り、施工日・下見日と照合（「施工」があれば施工日、「下見」があれば下見日のみ）
+   ・「勝沼 10/1施工」のように名前＋日付で書くと同名の複数手配から1件に絞り込める
+   ・候補チップに区分・施工日を併記（同じ施主名の手配が並んでも区別できるように）
   2026-09-23-003：新築とリフォームで注意喚起を分離
    ・新築：下見期限＝施工日の14日前(SK/SU)／21日前(SB)で「下見に行けよ」ピックアップ（従来どおり）
    ・リフォーム：下見は日程が決まれば行ける（前日等）ため期限判定はしない。
@@ -74,7 +78,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .mline-none{font-size:11px;color:#4b5563;}
 .mline-lbl{font-size:10px;color:#94a3b8;}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:bold;padding:4px 10px;border-radius:14px;cursor:pointer;border:1px solid transparent;max-width:100%;}
-.chip span.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.chip span.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px;}
 .chip-pin{background:#3b1f5c;color:#e9d5ff;border-color:#a855f7;}
 .chip-auto{background:#1e3a5f;color:#bfdbfe;border-color:#3b82f6;}
 .chip-cand{background:#1f2937;color:#cbd5e1;border-color:#4b5563;font-weight:normal;}
@@ -193,7 +197,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
     <div class="memo-wrap">
       <textarea class="memo-ta" id="memoTa" placeholder="1行に1つ。例）山田さん 下見日連絡&#10;栄通 図面確認&#10;佐藤邸 SU 再訪問" oninput="onMemoInput()"></textarea>
       <div class="memo-hint">
-        <span>施主名・案件名・住所・手配IDの一部で自動紐付け。候補が複数なら選んで確定</span>
+        <span>施主名・案件名・住所・手配ID・日付（例：勝沼 10/1施工）で自動紐付け。候補が複数なら選んで確定</span>
         <span class="memo-st" id="memoSt"></span>
       </div>
     </div>
@@ -594,20 +598,50 @@ function buildCaseIndex() {
       addr: getSafeVal(cols, 11),
       hid: normText(getSafeVal(cols, 0)),
       nameTokens: nameTokensOf(title),
-      seko: seko
+      seko: /^\d{4}-\d{2}-\d{2}$/.test(seko) ? seko : '',
+      shitami: (function(){ var e = getEffectiveShitamiDate(obj); return e ? e.date : ''; })()
     });
   });
   caseIndex = idx;
   return idx;
+}
+// メモ行から日付を抽出（10/1、10月1日、2026/10/1 等）。年なしは今日に近い年を補う
+function memoDates(line) {
+  var t = toHalf(line).replace(/／/g, '/');
+  var out = [];
+  var today = todayStr();
+  var re = /(?:(\d{4})\s*[\/\-\.年]\s*)?(\d{1,2})\s*[\/月]\s*(\d{1,2})日?/g;
+  var m;
+  while ((m = re.exec(t)) !== null) {
+    var mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+    var y = m[1] ? parseInt(m[1], 10) : parseInt(today.slice(0, 4), 10);
+    var ymd = y + '-' + ('0'+mo).slice(-2) + '-' + ('0'+d).slice(-2);
+    if (!m[1]) {
+      var diff = daysBetween(today, ymd);
+      if (diff < -180) ymd = (y+1) + ymd.slice(4);
+      else if (diff > 180) ymd = (y-1) + ymd.slice(4);
+    }
+    if (out.indexOf(ymd) < 0) out.push(ymd);
+  }
+  return out;
 }
 // 1行に対する候補案件をスコア順で返す
 function matchLine(line) {
   var idx = caseIndex || buildCaseIndex();
   var lineN = normText(line);
   var words = memoWords(line);
+  var dates = memoDates(line);
+  var wantSeko = line.indexOf('施工') >= 0;
+  var wantShitami = line.indexOf('下見') >= 0;
+  if (!wantSeko && !wantShitami) { wantSeko = true; wantShitami = true; }
   var hits = [];
   idx.forEach(function(c) {
     var score = 0;
+    dates.forEach(function(dt) {
+      if (wantSeko && c.seko === dt) score += 5;
+      else if (wantShitami && c.shitami === dt) score += 5;
+    });
     c.nameTokens.forEach(function(t) { if (lineN.indexOf(t) >= 0) score += 4; });
     words.forEach(function(w) {
       if ((c.hid && w === c.hid) || w === c.key) score += 10;
@@ -620,13 +654,22 @@ function matchLine(line) {
   return hits;
 }
 
+function caseLabel(key, title) {
+  var obj = globalTasks[key];
+  if (!obj) return title;
+  var cols = obj.csvData;
+  var seko = parseYMD(getSafeVal(cols, 2));
+  return title + (seko ? '（施工' + fmtMD(seko) + '）' : '');
+}
 function chipOpen(key, cls, icon, title, withX, hash) {
+  title = caseLabel(key, title);
   var h = '<span class="chip ' + cls + '" onclick="openModal(\'' + esc(key) + '\')">' + icon + '<span class="t">' + esc(title) + '</span>';
   if (withX) h += '<button class="chip-x" title="紐付け解除" onclick="event.stopPropagation();unpinLine(\'' + hash + '\')">✕</button>';
   h += '</span>';
   return h;
 }
 function chipCand(key, title, hash) {
+  title = caseLabel(key, title);
   return '<span class="chip chip-cand" onclick="pinLine(\'' + hash + '\',\'' + esc(key) + '\')">＋<span class="t">' + esc(title) + '</span></span>';
 }
 
