@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-02-003 -->
+<!-- VERSION: 2026-09-23-001 -->
 <!--
-  agenda.html（Today's Agenda）全面改修版
-  旧内容（Claude API連携の3日間プラン生成）は不安定化・未使用だったため全廃。
-  代わりに以下3機能をAI呼び出しなしのローカル計算のみで実装：
-   1) 下見実施チェック：過去の下見予定について「実際に行けたか」を毎朝確認する
-   2) 本日のコース設定：本日予定の案件を、座標(あれば直線距離)＋エリア表(なければ)で
-      簡易ルート計算し、順番・到着予定時刻を提案する
-   3) お風呂(SB)21日アラート：施工日が21日以内に迫っているのに下見未実施のSB案件を警告
+  agenda.html（Today's Agenda）
+  2026-09-23 叩き台：以下2機能を最上部に追加
+   A) 本日の行動メモ：フリー記入。行ごとにキーワードから案件を自動紐付けし、チップタップで案件モーダルを開く
+      保存先：app_agenda/{日付}/memo, app_agenda/{日付}/pins/{行ハッシュ}=案件key（候補から選んで確定した紐付け）
+   B) 新築SK・SU 下見ピックアップ：施工日が今日〜21日後、下見未完了(shitamiVisited無し)の新築SK/SUのみ抽出
+      14日以内=赤、15〜21日=黄。下見日未定・再訪問必要を「要行動」として上に出し、確定済みは折りたたみ
+      カードの「下見日を決める」で案件モーダルを開き、日付入力→閉じると自動で確定済みへ移動
+  既存機能（お風呂21日アラート／下見実施チェック／本日のコース設定）は維持
+  「🔁再訪問必要」で shitamiRevisit フラグを立てるよう変更（「✅現地下見完了」で解除）
+  旧内容（Claude API連携の3日間プラン生成）は全廃済み。AI呼び出しなしのローカル計算のみ
 -->
 <html lang="ja">
 <head>
@@ -37,11 +40,62 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .section-card{background:#111827;border:1px solid #1f2937;border-radius:10px;overflow:hidden;}
 .section-head{padding:10px 16px;font-size:13px;font-weight:bold;display:flex;align-items:center;gap:8px;}
 .section-head .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,0.1);padding:2px 9px;border-radius:10px;font-weight:normal;}
+.section-head.memo{background:#2a1f3d;border-bottom:2px solid #a855f7;color:#e9d5ff;}
+.section-head.pick{background:#3a2410;border-bottom:2px solid #f97316;color:#fed7aa;}
 .section-head.bath{background:#3b1d1d;border-bottom:2px solid #ef4444;color:#fca5a5;}
 .section-head.visit{background:#1e293b;border-bottom:2px solid #f59e0b;color:#fde68a;}
 .section-head.route{background:#1e3a5f;border-bottom:2px solid #3b82f6;color:#bfdbfe;}
 .section-body{padding:2px 0;}
 .section-empty{padding:16px;font-size:12px;color:#4b5563;text-align:center;}
+
+/* ===== A) 行動メモ ===== */
+.memo-wrap{padding:12px 16px;}
+.memo-ta{width:100%;min-height:110px;background:#0d1117;color:#e2e8f0;border:1px solid #374151;border-radius:8px;padding:10px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;}
+.memo-ta:focus{outline:none;border-color:#a855f7;}
+.memo-hint{font-size:11px;color:#64748b;margin-top:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.memo-st{color:#94a3b8;}
+.mlines{border-top:1px solid #1f2937;}
+.mline{padding:8px 16px;border-bottom:1px solid #1a2234;}
+.mline:last-child{border-bottom:none;}
+.mline-text{font-size:13px;color:#cbd5e1;word-break:break-all;}
+.mline-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;align-items:center;}
+.mline-none{font-size:11px;color:#4b5563;}
+.mline-lbl{font-size:10px;color:#94a3b8;}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:bold;padding:4px 10px;border-radius:14px;cursor:pointer;border:1px solid transparent;max-width:100%;}
+.chip span.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.chip-pin{background:#3b1f5c;color:#e9d5ff;border-color:#a855f7;}
+.chip-auto{background:#1e3a5f;color:#bfdbfe;border-color:#3b82f6;}
+.chip-cand{background:#1f2937;color:#cbd5e1;border-color:#4b5563;font-weight:normal;}
+.chip-cand:hover{border-color:#a855f7;}
+.chip-x{background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;padding:0 0 0 2px;}
+.chip-more{background:none;border:1px dashed #4b5563;color:#94a3b8;font-size:11px;padding:3px 9px;border-radius:14px;cursor:pointer;}
+
+/* ===== B) 新築SK/SUピックアップ ===== */
+.pick-legend{padding:8px 16px;font-size:11px;color:#94a3b8;display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #1f2937;}
+.pick-legend .r{color:#f87171;font-weight:bold;}
+.pick-legend .y{color:#facc15;font-weight:bold;}
+.pcard{display:flex;align-items:center;gap:10px;padding:10px 16px 10px 12px;border-bottom:1px solid #1a2234;border-left:5px solid transparent;}
+.pcard:last-child{border-bottom:none;}
+.pcard.tier-r{border-left-color:#ef4444;background:rgba(239,68,68,0.06);}
+.pcard.tier-y{border-left-color:#eab308;}
+.pcard-days{width:52px;min-width:52px;text-align:center;}
+.pcard-days .n{font-size:20px;font-weight:bold;line-height:1;}
+.pcard-days .u{font-size:10px;color:#94a3b8;}
+.tier-r .pcard-days .n{color:#f87171;}
+.tier-y .pcard-days .n{color:#facc15;}
+.pcard-main{flex:1;min-width:0;cursor:pointer;}
+.pcard-main:hover .acard-title{color:#60a5fa;text-decoration:underline;}
+.st{display:inline-block;font-size:10px;font-weight:bold;padding:1px 6px;border-radius:3px;margin-right:4px;}
+.st-none{background:#7f1d1d;color:#fecaca;}
+.st-past{background:#78350f;color:#fde68a;}
+.st-revisit{background:#4a2c00;color:#ffcc80;}
+.st-fixed{background:#14532d;color:#86efac;}
+.st-kubun{background:#1e293b;color:#cbd5e1;}
+.btn-decide{flex-shrink:0;background:#c2410c;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;}
+.btn-decide:hover{background:#ea580c;}
+.fold-toggle{display:block;width:100%;text-align:left;background:#0d1117;color:#94a3b8;border:none;border-top:1px solid #1f2937;padding:9px 16px;font-size:12px;cursor:pointer;}
+.fold-toggle:hover{color:#e2e8f0;}
+.fold-body .pcard{opacity:0.75;}
 
 .acard{padding:10px 16px;border-bottom:1px solid #1a2234;display:flex;align-items:center;gap:10px;}
 .acard:last-child{border-bottom:none;}
@@ -115,6 +169,33 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
   <span id="stMsg">読み込み中...</span>
 </div>
 
+<!-- A) 本日の行動メモ -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-head memo">📝 本日の行動メモ<span class="cnt" id="memoCnt">-</span></div>
+    <div class="memo-wrap">
+      <textarea class="memo-ta" id="memoTa" placeholder="1行に1つ。例）山田さん 下見日連絡&#10;栄通 図面確認&#10;佐藤邸 SU 再訪問" oninput="onMemoInput()"></textarea>
+      <div class="memo-hint">
+        <span>施主名・案件名・住所・手配IDの一部で自動紐付け。候補が複数なら選んで確定</span>
+        <span class="memo-st" id="memoSt"></span>
+      </div>
+    </div>
+    <div class="mlines" id="memoLinks"></div>
+  </div>
+</div>
+
+<!-- B) 新築SK・SU 下見ピックアップ -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-head pick">🏠 新築SK・SU 下見ピックアップ<span class="cnt" id="pickCnt">-</span></div>
+    <div class="pick-legend">
+      <span>施工日まで：<span class="r">■ 14日以内</span>　<span class="y">■ 15〜21日</span></span>
+      <span>下見未完了のみ表示</span>
+    </div>
+    <div class="section-body" id="pickBody"><div class="section-empty">読込中...</div></div>
+  </div>
+</div>
+
 <!-- ① お風呂21日アラート -->
 <div class="section">
   <div class="section-card">
@@ -167,8 +248,7 @@ var globalHeaders = [];
 var fullData = null;
 
 // ==================== 定数 ====================
-// 出発地点（札幌市白石区栄通18丁目付近の概算座標。誤差は数百m程度で、
-// ルート順の目安計算にのみ使用するため厳密な番地座標でなくてよい）
+// 出発地点（札幌市白石区栄通18丁目付近の概算座標。ルート順の目安計算にのみ使用）
 var HOME_POINT = { lat: 43.0430, lng: 141.3995 };
 
 var AREA_TABLE = [
@@ -181,6 +261,19 @@ var AREA_TABLE = [
 var DEFAULT_TRAVEL = 20;
 var STAY_MIN = 25;
 var BATH_ALERT_DAYS = 21;
+
+// 新築SK/SUピックアップ
+var PICK_RED_DAYS = 14;
+var PICK_MAX_DAYS = 21;
+
+// 行動メモ：施工日がこの日数より古い案件は紐付け対象外（過去案件の同姓ヒット抑制）
+var MEMO_OLD_DAYS = 60;
+var MEMO_MAX_CAND = 8;
+// 紐付け判定に使わない一般語（メモによく出る業務用語）
+var MEMO_STOP = ['電話','連絡','確認','下見','施工','新築','現場','見積','見積り','報告','報告書','本日','明日','今日','午前','午後',
+  '予定','変更','打合','打合せ','打ち合わせ','工事','日程','調整','送付','書類','図面','発注','手配','依頼','返信','訪問','再訪',
+  '再訪問','完了','準備','担当','会社','客様','お客様','キッチン','バス','ユニット','リフォーム','メール','ショートメール','洗面',
+  '浴室','風呂','採寸','寸法','写真','提出','期限','至急','要確認','折返','折り返し','不在','留守','留守電','施主','業者','監督'];
 
 function getTravelMin(addr) {
   if (!addr) return DEFAULT_TRAVEL;
@@ -256,7 +349,7 @@ function mapsUrl(addr) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr || '');
 }
 
-// ==================== キャッシュ読み書き（他ページと同じ appData_+userKey 方式） ====================
+// ==================== キャッシュ読み書き（appData_+userKey 方式） ====================
 function persistCache() {
   if (fullData) {
     fullData.app_tasks = globalTasks;
@@ -269,7 +362,7 @@ function loadData() {
   document.getElementById('stMsg').textContent = '読み込み中...';
   setHeader();
 
-  // ① まずキャッシュから即表示（他ページ同様、index.html訪問済みなら鮮度が高い）
+  // ① キャッシュから即表示
   try {
     var ls = localStorage.getItem(modalAppDataKey());
     if (ls) {
@@ -280,7 +373,7 @@ function loadData() {
     }
   } catch(e) {}
 
-  // ② Firebaseから最新のapp_tasks/app_metaを取得して上書き（毎朝の確認用ページなので鮮度優先）
+  // ② Firebaseから最新を取得
   Promise.all([
     db.ref('app_tasks').once('value'),
     db.ref('app_meta').once('value')
@@ -303,6 +396,9 @@ function loadData() {
   }).catch(function(e) {
     document.getElementById('stMsg').innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
   });
+
+  // ③ 行動メモ（案件データとは独立して読込。失敗しても他機能は動く）
+  loadMemo();
 }
 
 function setHeader() {
@@ -312,16 +408,15 @@ function setHeader() {
 
 function renderAll() {
   autoSyncVisitedFromReportCount();
+  caseIndex = null;
+  renderMemoLinks();
+  renderPickup();
   renderBathAlerts();
   renderVisitChecks();
   updateRouteAvailability();
 }
 
 // ==================== 下見本数(予/実)による自動確認 ====================
-// SF側レポートの「下見本数（予/実）」列（実施数=実 が1以上）が入っていれば、
-// 「実際に行った」ことがほぼ確実なため、本人に確認させるまでもなく自動でshitamiVisitedを立てる。
-// 列位置は固定インデックスではなく、ヘッダー名「下見本数」を含む列を都度検索する
-// （CSV列構成が将来変わっても壊れにくくするため）。
 var visitCountHeaderIdx = null;
 function findHeaderIndex(nameSubstr) {
   for (var i = 0; i < globalHeaders.length; i++) {
@@ -365,11 +460,304 @@ function openModal(key) {
   openCaseModal(key, globalTasks[key], globalHeaders, globalTasks, fullData, db, function() { renderAll(); });
 }
 
+// ==================== A) 本日の行動メモ ====================
+var memoState = { date: '', text: '', pins: {} };
+var memoSaveTimer = null;
+var memoRenderTimer = null;
+var memoExpanded = {};
+var caseIndex = null;
+
+function memoRefPath() { return 'app_agenda/' + memoState.date; }
+
+function loadMemo() {
+  memoState.date = todayStr();
+  setMemoSt('読込中...');
+  db.ref(memoRefPath()).once('value').then(function(snap) {
+    var v = snap.val() || {};
+    memoState.text = v.memo || '';
+    memoState.pins = v.pins || {};
+    var ta = document.getElementById('memoTa');
+    if (document.activeElement !== ta) ta.value = memoState.text;
+    setMemoSt(v.updatedAt ? '保存済み' : '');
+    renderMemoLinks();
+  }).catch(function(e) {
+    setMemoSt('<span class="err">読込失敗：' + esc(e.message) + '</span>');
+  });
+}
+function setMemoSt(html) { document.getElementById('memoSt').innerHTML = html; }
+
+function onMemoInput() {
+  memoState.text = document.getElementById('memoTa').value;
+  setMemoSt('入力中...');
+  clearTimeout(memoRenderTimer);
+  memoRenderTimer = setTimeout(renderMemoLinks, 300);
+  clearTimeout(memoSaveTimer);
+  memoSaveTimer = setTimeout(saveMemo, 800);
+}
+function saveMemo() {
+  if (!memoState.date) return;
+  setMemoSt('保存中...');
+  db.ref(memoRefPath()).update({ memo: memoState.text, updatedAt: new Date().toISOString() }).then(function() {
+    setMemoSt('<span class="ok">保存済み</span>');
+  }).catch(function(e) {
+    setMemoSt('<span class="err">保存失敗：' + esc(e.message) + '</span>');
+  });
+}
+
+function lineHash(s) {
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+  return 'h' + (h >>> 0).toString(36);
+}
+function normText(s) { return String(s || '').replace(/[\s　]+/g, ''); }
+
+var stopRe = null;
+function getStopRe() {
+  if (stopRe) return stopRe;
+  var words = MEMO_STOP.concat(['様邸','様','邸','殿','さん']).slice().sort(function(a,b){ return b.length - a.length; });
+  stopRe = new RegExp(words.map(function(w){ return w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }).join('|'), 'g');
+  return stopRe;
+}
+// 案件名から名前トークンを抽出（「山田太郎様邸 SK」→「山田太郎」）
+function nameTokensOf(title) {
+  var out = [];
+  String(title || '').split(/[\s　・,，、()（）\[\]【】\/／\-－_＿:：]+/).forEach(function(p) {
+    var m = p.match(/^(.+?)(様|邸|殿)/);
+    if (m) p = m[1];
+    p = p.replace(/さん$/, '');
+    if (p.length < 2) return;
+    if (/^[A-Za-z0-9ｦ-ﾟ]+$/.test(p)) return;
+    if (MEMO_STOP.indexOf(p) >= 0) return;
+    out.push(p);
+  });
+  return out;
+}
+// メモ1行からキーワード抽出（漢字列・カタカナ列・英数字3文字以上）
+function memoWords(line) {
+  var out = [];
+  var re = /[\u4E00-\u9FFF々〆ヵヶ]{2,}|[\u30A1-\u30FAー]{2,}|[\uFF66-\uFF9F]{2,}|[A-Za-z0-9]{3,}/g;
+  var m;
+  while ((m = re.exec(line)) !== null) {
+    m[0].replace(getStopRe(), '|').split('|').forEach(function(w) {
+      if (w.length >= 2 && out.indexOf(w) < 0) out.push(w);
+    });
+  }
+  return out;
+}
+function buildCaseIndex() {
+  var today = todayStr();
+  var idx = [];
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    var cols = obj.csvData;
+    if (!cols) return;
+    var seko = normalizeYMD(getSafeVal(cols, 2));
+    if (seko && /^\d{4}-\d{2}-\d{2}$/.test(seko) && daysBetween(seko, today) > MEMO_OLD_DAYS) return;
+    var title = getSafeVal(cols, 4).trim();
+    idx.push({
+      key: key,
+      title: title || key,
+      titleN: normText(title),
+      addrN: normText(getSafeVal(cols, 11)),
+      addr: getSafeVal(cols, 11),
+      hid: normText(getSafeVal(cols, 0)),
+      nameTokens: nameTokensOf(title),
+      seko: seko
+    });
+  });
+  caseIndex = idx;
+  return idx;
+}
+// 1行に対する候補案件をスコア順で返す
+function matchLine(line) {
+  var idx = caseIndex || buildCaseIndex();
+  var lineN = normText(line);
+  var words = memoWords(line);
+  var hits = [];
+  idx.forEach(function(c) {
+    var score = 0;
+    c.nameTokens.forEach(function(t) { if (lineN.indexOf(t) >= 0) score += 4; });
+    words.forEach(function(w) {
+      if ((c.hid && w === c.hid) || w === c.key) score += 10;
+      else if (c.titleN.indexOf(w) >= 0) score += 3;
+      else if (c.addrN.indexOf(w) >= 0) score += 1;
+    });
+    if (score > 0) hits.push({ c: c, score: score });
+  });
+  hits.sort(function(a,b){ return b.score - a.score || (a.c.seko || '9').localeCompare(b.c.seko || '9'); });
+  return hits;
+}
+
+function chipOpen(key, cls, icon, title, withX, hash) {
+  var h = '<span class="chip ' + cls + '" onclick="openModal(\'' + esc(key) + '\')">' + icon + '<span class="t">' + esc(title) + '</span>';
+  if (withX) h += '<button class="chip-x" title="紐付け解除" onclick="event.stopPropagation();unpinLine(\'' + hash + '\')">✕</button>';
+  h += '</span>';
+  return h;
+}
+function chipCand(key, title, hash) {
+  return '<span class="chip chip-cand" onclick="pinLine(\'' + hash + '\',\'' + esc(key) + '\')">＋<span class="t">' + esc(title) + '</span></span>';
+}
+
+function renderMemoLinks() {
+  var wrap = document.getElementById('memoLinks');
+  var lines = (memoState.text || '').split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+  if (!lines.length) {
+    wrap.innerHTML = '';
+    document.getElementById('memoCnt').textContent = '0行';
+    return;
+  }
+  if (!Object.keys(globalTasks).length) {
+    wrap.innerHTML = '<div class="section-empty">案件データ読込後に紐付けを表示します</div>';
+    return;
+  }
+  var linked = 0;
+  var html = '';
+  lines.forEach(function(line) {
+    var hash = lineHash(line);
+    var pinKey = memoState.pins[hash];
+    html += '<div class="mline"><div class="mline-text">' + esc(line) + '</div><div class="mline-links">';
+
+    if (pinKey && globalTasks[pinKey]) {
+      var pt = getSafeVal(globalTasks[pinKey].csvData, 4).trim() || pinKey;
+      html += chipOpen(pinKey, 'chip-pin', '📌', pt, true, hash);
+      linked++;
+    } else {
+      var hits = matchLine(line);
+      if (!hits.length) {
+        html += '<span class="mline-none">紐付けなし</span>';
+      } else {
+        var top = hits[0].score;
+        var tops = hits.filter(function(h){ return h.score === top; });
+        var auto = (tops.length === 1 && top >= 3) ? tops[0].c : null;
+        if (auto && !memoExpanded[hash]) {
+          html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, hash);
+          linked++;
+          if (hits.length > 1) html += '<button class="chip-more" onclick="toggleCand(\'' + hash + '\')">他候補' + (hits.length - 1) + '件</button>';
+          else html += '<button class="chip-more" onclick="pinLine(\'' + hash + '\',\'' + esc(auto.key) + '\')">📌確定</button>';
+        } else {
+          if (auto) {
+            html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, hash);
+            linked++;
+          }
+          html += '<span class="mline-lbl">候補から選択：</span>';
+          hits.slice(0, MEMO_MAX_CAND).forEach(function(h) {
+            if (auto && h.c.key === auto.key) {
+              html += '<button class="chip-more" onclick="pinLine(\'' + hash + '\',\'' + esc(auto.key) + '\')">📌この案件で確定</button>';
+              return;
+            }
+            html += chipCand(h.c.key, h.c.title, hash);
+          });
+          if (hits.length > MEMO_MAX_CAND) html += '<span class="mline-none">他' + (hits.length - MEMO_MAX_CAND) + '件（語を足して絞込）</span>';
+          if (auto) html += '<button class="chip-more" onclick="toggleCand(\'' + hash + '\')">閉じる</button>';
+        }
+      }
+    }
+    html += '</div></div>';
+  });
+  wrap.innerHTML = html;
+  document.getElementById('memoCnt').textContent = linked + '/' + lines.length + '行 紐付';
+}
+function toggleCand(hash) {
+  memoExpanded[hash] = !memoExpanded[hash];
+  renderMemoLinks();
+}
+function pinLine(hash, key) {
+  memoState.pins[hash] = key;
+  memoExpanded[hash] = false;
+  renderMemoLinks();
+  db.ref(memoRefPath() + '/pins/' + hash).set(key).catch(function(e) { alert('紐付け保存失敗：' + e.message); });
+}
+function unpinLine(hash) {
+  delete memoState.pins[hash];
+  renderMemoLinks();
+  db.ref(memoRefPath() + '/pins/' + hash).remove().catch(function(e) { alert('紐付け解除失敗：' + e.message); });
+}
+
+// ==================== B) 新築SK・SU 下見ピックアップ ====================
+// 対象：工事区分(cols[3])にSKまたはSUを含み、リフォーム(ﾘ/リ)でない＝新築、
+// 施工日(cols[2])が今日〜21日後、shitamiVisitedが立っていない案件。
+// 状態：再訪問必要(shitamiRevisit) / 下見日未定 / 予定日経過・未実施 → 要行動、下見日確定(未来日) → 折りたたみ
+var pickFoldOpen = false;
+function isShinchiku(kubun) { return kubun.indexOf('ﾘ') === -1 && kubun.indexOf('リ') === -1; }
+
+function renderPickup() {
+  var today = todayStr();
+  var action = [], fixed = [];
+  Object.keys(globalTasks).forEach(function(key) {
+    var obj = globalTasks[key];
+    var cols = obj.csvData;
+    if (!cols) return;
+    var kubun = getSafeVal(cols, 3);
+    if (kubun.indexOf('SK') === -1 && kubun.indexOf('SU') === -1) return;
+    if (!isShinchiku(kubun)) return;
+    var seko = normalizeYMD(getSafeVal(cols, 2));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(seko)) return;
+    var diff = daysBetween(today, seko);
+    if (diff < 0 || diff > PICK_MAX_DAYS) return;
+    if (obj.shitamiVisited) return;
+
+    var eff = getEffectiveShitamiDate(obj);
+    var state;
+    if (obj.shitamiRevisit && !(eff && eff.date >= today)) state = 'revisit';
+    else if (eff && eff.date >= today) state = 'fixed';
+    else if (eff) state = 'past';
+    else state = 'none';
+
+    var it = { key: key, obj: obj, cols: cols, kubun: kubun, seko: seko, diff: diff, eff: eff, state: state };
+    if (state === 'fixed') fixed.push(it); else action.push(it);
+  });
+  var byDiff = function(a,b){ return a.diff - b.diff; };
+  action.sort(byDiff); fixed.sort(byDiff);
+
+  document.getElementById('pickCnt').textContent = '要行動 ' + action.length + ' / 確定 ' + fixed.length;
+  var body = document.getElementById('pickBody');
+  if (!action.length && !fixed.length) {
+    body.innerHTML = '<div class="section-empty">🎉 21日以内の新築SK・SUはすべて下見完了です</div>';
+    return;
+  }
+  var html = '';
+  if (!action.length) {
+    html += '<div class="section-empty">✅ 要行動なし（下見日はすべて確定済み）</div>';
+  } else {
+    action.forEach(function(it) { html += pickCard(it, true); });
+  }
+  if (fixed.length) {
+    html += '<button class="fold-toggle" onclick="togglePickFold()">' + (pickFoldOpen ? '▾' : '▸') + ' 下見日確定済み・未実施 ' + fixed.length + '件</button>';
+    if (pickFoldOpen) {
+      html += '<div class="fold-body">';
+      fixed.forEach(function(it) { html += pickCard(it, false); });
+      html += '</div>';
+    }
+  }
+  body.innerHTML = html;
+}
+function togglePickFold() { pickFoldOpen = !pickFoldOpen; renderPickup(); }
+
+function pickCard(it, withBtn) {
+  var title = getSafeVal(it.cols, 4).trim() || it.key;
+  var addr = getSafeVal(it.cols, 11);
+  var tier = it.diff <= PICK_RED_DAYS ? 'tier-r' : 'tier-y';
+  var stHtml;
+  if (it.state === 'revisit') stHtml = '<span class="st st-revisit">🔁再訪問必要</span>';
+  else if (it.state === 'past') stHtml = '<span class="st st-past">⚠予定' + fmtMD(it.eff.date) + '経過・未実施</span>';
+  else if (it.state === 'fixed') stHtml = '<span class="st st-fixed">📅下見 ' + fmtMD(it.eff.date) + '(' + wday(it.eff.date) + ')' + (it.eff.time ? ' ' + esc(it.eff.time) : '') + '</span>';
+  else stHtml = '<span class="st st-none">下見日未定</span>';
+  var kb = it.kubun.indexOf('SK') >= 0 ? 'SK' : 'SU';
+
+  var h = '<div class="pcard ' + tier + '">';
+  h += '<div class="pcard-days"><div class="n">' + (it.diff === 0 ? '今日' : it.diff) + '</div><div class="u">' + (it.diff === 0 ? '施工' : '日後施工') + '</div></div>';
+  h += '<div class="pcard-main" onclick="openModal(\'' + esc(it.key) + '\')">';
+  h += '<div style="margin-bottom:3px;"><span class="st st-kubun">' + kb + '</span>' + stHtml + '</div>';
+  h += '<div class="acard-title">' + esc(title) + '</div>';
+  h += '<div class="acard-sub"><span>🔨施工 ' + fmtMD(it.seko) + '(' + wday(it.seko) + ')</span>';
+  if (addr) h += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
+  h += '</div></div>';
+  if (withBtn) h += '<button class="btn-decide" onclick="openModal(\'' + esc(it.key) + '\')">📅 下見日を決める</button>';
+  h += '</div>';
+  return h;
+}
+
 // ==================== ① お風呂21日アラート ====================
-// 対象：工事区分名(C3列=cols[3])に「SB」を含み、施工日(C2列=cols[2])が
-// 今日から21日以内、かつ shitamiVisited フラグが立っていない案件。
-// 「下見日が入力済みか」ではなく「実際に行けたか(shitamiVisited)」で判定する
-// ＝日程だけ入って現地訪問できていないケースを拾うのが目的。
 function renderBathAlerts() {
   var today = todayStr();
   var list = [];
@@ -413,11 +801,7 @@ function renderBathAlerts() {
 }
 
 // ==================== ② 下見実施チェック ====================
-// 業務ルール：CSV下見日・下見時間(cols[12]/[13]、SF由来)が入っている案件は「入ったら絶対行く」扱い。
-// そのためCSV下見日を最優先の判定基準とし、アプリ入力のobj.dateは補助として併用する。
-// 対象：①CSV下見日(cols[12])が今日より前で未確認、②obj.dateが今日より前で未確認、のどちらかに該当し、
-// かつ shitamiVisitedフラグが立っていない案件。
-// 表示する「予定日」はCSV下見日があればそちらを優先表示する（アプリ入力より確度が高いため）。
+// CSV下見日(cols[12]/[13]、SF由来)を最優先、アプリ入力のobj.dateは補助
 function getEffectiveShitamiDate(obj) {
   var cols = obj.csvData;
   var csvDate = normalizeYMD(getSafeVal(cols, 12));
@@ -467,14 +851,18 @@ function renderVisitChecks() {
   body.innerHTML = html;
 }
 
-// CSV下見日(cols[12]/[13])はSF取込データのためアプリからはクリアしない（次回CSV取込まで残る）。
-// クリアするのはアプリ入力のobj.date/timeのみ。連絡必要フラグ(needsContact)は使わない方針。
+// CSV下見日はSF取込データのためアプリからはクリアしない。クリアするのはアプリ入力のobj.date/timeのみ。
 function buildStamp() {
   var d = new Date();
   return d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
     + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
 }
-function clearScheduleWithMemo(key, label) {
+function afterVisitChange() {
+  renderVisitChecks();
+  renderPickup();
+  updateRouteAvailability();
+}
+function clearScheduleWithMemo(key, label, extra) {
   var obj = globalTasks[key];
   if (!obj) return;
   var stamp = buildStamp();
@@ -486,23 +874,24 @@ function clearScheduleWithMemo(key, label) {
   var noteLine = '【' + label + ' ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア' + csvNote;
   var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
   var updates = { date: '', time: '', order: '', memo: newMemo };
+  if (extra) for (var ek in extra) updates[ek] = extra[ek];
 
   db.ref('app_tasks/'+key).update(updates).then(function() {
     for (var k in updates) obj[k] = updates[k];
     persistCache();
-    renderVisitChecks();
-    updateRouteAvailability();
+    afterVisitChange();
   }).catch(function(e) { alert('更新失敗：' + e.message); });
 }
 function markVisited(key) {
   var obj = globalTasks[key];
   if (!obj) return;
   var nowIso = new Date().toISOString();
-  db.ref('app_tasks/'+key).update({ shitamiVisited: true, shitamiVisitedAt: nowIso }).then(function() {
+  db.ref('app_tasks/'+key).update({ shitamiVisited: true, shitamiVisitedAt: nowIso, shitamiRevisit: null }).then(function() {
     obj.shitamiVisited = true;
     obj.shitamiVisitedAt = nowIso;
+    delete obj.shitamiRevisit;
     persistCache();
-    renderVisitChecks();
+    afterVisitChange();
   }).catch(function(e) { alert('更新失敗：' + e.message); });
 }
 function markRevisitNeeded(key) {
@@ -511,7 +900,7 @@ function markRevisitNeeded(key) {
   var cols = obj.csvData;
   var title = getSafeVal(cols, 4).trim() || key;
   if (!confirm('「' + title + '」は現地には行ったが「再訪問が必要」として記録します。\n予定日時をクリアします。よろしいですか？')) return;
-  clearScheduleWithMemo(key, '再訪問必要');
+  clearScheduleWithMemo(key, '再訪問必要', { shitamiRevisit: true });
 }
 function markNotVisited(key) {
   var obj = globalTasks[key];
@@ -537,9 +926,6 @@ function haversineKm(lat1,lng1,lat2,lng2) {
   var c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R*c;
 }
-// 2点間の移動時間目安（分）。両方に使える座標があれば直線距離×道なり補正÷平均時速で概算。
-// どちらか座標が使えない場合は、従来のエリア表（自宅からの目安）にフォールバックする
-// （エリア表はもともと「自宅からの距離」しか表現できないため、区間移動としては粗い近似）。
 function travelMinBetween(fromPt, toObj) {
   var toGeo = getUsableGeo(toObj);
   if (fromPt && toGeo) {
@@ -577,8 +963,6 @@ function buildTodayCases() {
   return list;
 }
 
-// 挿入法（nearest insertion）：時間固定の案件を骨格とし、
-// 自由（時間未指定）案件は挿入コスト（追加移動距離）が最小になる位置に順次挿入する。
 function planTodayRoute(items) {
   var fixed = items.filter(function(it){ return !!it.fixedTime; })
                     .sort(function(a,b){ return a.fixedTime.localeCompare(b.fixedTime); });
@@ -594,7 +978,6 @@ function planTodayRoute(items) {
   function roughKm(fromNode, toNode) {
     var p1 = ptOf(fromNode), p2 = ptOf(toNode);
     if (p1 && p2) return haversineKm(p1.lat, p1.lng, p2.lat, p2.lng);
-    // 座標が使えない側はエリア表の分数を距離の代わりに使う（時速25km換算で粗く逆算）
     var addr = toNode.virtual ? '' : toNode.addr;
     return getTravelMin(addr) / 60 * 25;
   }
