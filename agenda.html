@@ -1,7 +1,18 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-23-001 -->
+<!-- VERSION: 2026-09-23-003 -->
 <!--
   agenda.html（Today's Agenda）
+  2026-09-23-003：新築とリフォームで注意喚起を分離
+   ・新築：下見期限＝施工日の14日前(SK/SU)／21日前(SB)で「下見に行けよ」ピックアップ（従来どおり）
+   ・リフォーム：下見は日程が決まれば行ける（前日等）ため期限判定はしない。
+     代わりに「下見日が決まっていない」案件を、先方担当者へ連絡して日時を決める対象として別セクションで表示
+  2026-09-23-002：ピックアップを「下見に行けよ」発見用に作り替え
+   ・対象をSK/SB/SU全区分・新築＋リフォーム全部に拡大（お風呂21日アラートは統合して廃止）
+   ・下見期限＝施工日の14日前(SK/SU)／21日前(SB)。期限超過→期限が近い順に表示
+   ・区分判定は工事区分(cols[3])＋案件名(cols[4]の【SB手配】等)の両方から
+   ・施工日は書式を問わず年月日を抽出（時刻付き・全角数字・年月日表記に対応）
+   ・下見日確定済みでも期限より後の予定なら要行動に出す
+   ・対象件数と施工日読取不可件数を表示（取りこぼし確認用）
   2026-09-23 叩き台：以下2機能を最上部に追加
    A) 本日の行動メモ：フリー記入。行ごとにキーワードから案件を自動紐付けし、チップタップで案件モーダルを開く
       保存先：app_agenda/{日付}/memo, app_agenda/{日付}/pins/{行ハッシュ}=案件key（候補から選んで確定した紐付け）
@@ -41,6 +52,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .section-head{padding:10px 16px;font-size:13px;font-weight:bold;display:flex;align-items:center;gap:8px;}
 .section-head .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,0.1);padding:2px 9px;border-radius:10px;font-weight:normal;}
 .section-head.memo{background:#2a1f3d;border-bottom:2px solid #a855f7;color:#e9d5ff;}
+.section-head.reform{background:#10302b;border-bottom:2px solid #14b8a6;color:#99f6e4;}
 .section-head.pick{background:#3a2410;border-bottom:2px solid #f97316;color:#fed7aa;}
 .section-head.bath{background:#3b1d1d;border-bottom:2px solid #ef4444;color:#fca5a5;}
 .section-head.visit{background:#1e293b;border-bottom:2px solid #f59e0b;color:#fde68a;}
@@ -81,6 +93,11 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .pcard-days{width:52px;min-width:52px;text-align:center;}
 .pcard-days .n{font-size:20px;font-weight:bold;line-height:1;}
 .pcard-days .u{font-size:10px;color:#94a3b8;}
+.pcard.tier-x{border-left-color:#dc2626;background:rgba(220,38,38,0.16);}
+.tier-x .pcard-days .n{color:#ff6b6b;}
+.st-late{background:#7c2d12;color:#fdba74;}
+.st-kind{background:#2d2a1a;color:#fbbf24;}
+.pick-diag{padding:6px 16px;font-size:10px;color:#64748b;border-bottom:1px solid #1f2937;}
 .tier-r .pcard-days .n{color:#f87171;}
 .tier-y .pcard-days .n{color:#facc15;}
 .pcard-main{flex:1;min-width:0;cursor:pointer;}
@@ -187,20 +204,25 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 <!-- B) 新築SK・SU 下見ピックアップ -->
 <div class="section">
   <div class="section-card">
-    <div class="section-head pick">🏠 新築SK・SU 下見ピックアップ<span class="cnt" id="pickCnt">-</span></div>
+    <div class="section-head pick">🚨 新築 下見に行けよピックアップ（SK・SB・SU）<span class="cnt" id="pickCnt">-</span></div>
     <div class="pick-legend">
-      <span>施工日まで：<span class="r">■ 14日以内</span>　<span class="y">■ 15〜21日</span></span>
-      <span>下見未完了のみ表示</span>
+      <span>新築のみ。下見期限＝施工日の SK/SU 14日前・SB 21日前</span>
+      <span>期限まで：<span class="r">■ 超過・7日以内</span>　<span class="y">■ 8〜21日</span></span>
     </div>
+    <div class="pick-diag" id="pickDiag"></div>
     <div class="section-body" id="pickBody"><div class="section-empty">読込中...</div></div>
   </div>
 </div>
 
-<!-- ① お風呂21日アラート -->
+<!-- C) リフォーム 下見日未定（担当者へ連絡） -->
 <div class="section">
   <div class="section-card">
-    <div class="section-head bath">🛁 お風呂・施工日接近アラート<span class="cnt" id="bathCnt">-</span></div>
-    <div class="section-body" id="bathBody"><div class="section-empty">読込中...</div></div>
+    <div class="section-head reform">📞 リフォーム 下見日未定 → 担当者に連絡<span class="cnt" id="reformCnt">-</span></div>
+    <div class="pick-legend">
+      <span>下見日が決まっていないリフォーム（SK・SB・SU）。施工日が近い順</span>
+      <span>施工日まで：<span class="r">■ 7日以内</span>　<span class="y">■ 8日以上</span></span>
+    </div>
+    <div class="section-body" id="reformBody"><div class="section-empty">読込中...</div></div>
   </div>
 </div>
 
@@ -260,11 +282,10 @@ var AREA_TABLE = [
 ];
 var DEFAULT_TRAVEL = 20;
 var STAY_MIN = 25;
-var BATH_ALERT_DAYS = 21;
-
-// 新築SK/SUピックアップ
-var PICK_RED_DAYS = 14;
-var PICK_MAX_DAYS = 21;
+// 下見ピックアップ：施工日の何日前までに下見を済ませるか
+var LEAD_DAYS = { SK: 14, SU: 14, SB: 21 };
+var PICK_RED_DAYS = 7;    // 期限までこの日数以内は赤
+var PICK_SHOW_DAYS = 21;  // 期限までこの日数以内を前面表示（それより先は折りたたみ）
 
 // 行動メモ：施工日がこの日数より古い案件は紐付け対象外（過去案件の同姓ヒット抑制）
 var MEMO_OLD_DAYS = 60;
@@ -315,8 +336,19 @@ function daysBetween(s1, s2) {
   var d2 = new Date(s2 + 'T00:00:00+09:00');
   return Math.round((d2 - d1) / 86400000);
 }
+function toHalf(s) {
+  return String(s || '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+}
+// 文字列中の「YYYY/M/D」「YYYY-MM-DD」「YYYY年M月D日」等を抽出（時刻付き・全角可）
+function parseYMD(ds) {
+  var m = toHalf(ds).match(/(\d{4})\s*[\/\-\.年]\s*(\d{1,2})\s*[\/\-\.月]\s*(\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + ('0'+m[2]).slice(-2) + '-' + ('0'+m[3]).slice(-2);
+}
 function normalizeYMD(ds) {
   if (!ds) return '';
+  var pz = parseYMD(ds);
+  if (pz) return pz;
   var d = String(ds).replace(/\s+/g,'').replace(/\//g,'-').replace(/\./g,'-');
   var p = d.split('-');
   if (p.length === 3) return p[0]+'-'+('0'+p[1]).slice(-2)+'-'+('0'+p[2]).slice(-2);
@@ -411,7 +443,7 @@ function renderAll() {
   caseIndex = null;
   renderMemoLinks();
   renderPickup();
-  renderBathAlerts();
+  renderReformPickup();
   renderVisitChecks();
   updateRouteAvailability();
 }
@@ -673,83 +705,123 @@ function unpinLine(hash) {
   db.ref(memoRefPath() + '/pins/' + hash).remove().catch(function(e) { alert('紐付け解除失敗：' + e.message); });
 }
 
-// ==================== B) 新築SK・SU 下見ピックアップ ====================
-// 対象：工事区分(cols[3])にSKまたはSUを含み、リフォーム(ﾘ/リ)でない＝新築、
-// 施工日(cols[2])が今日〜21日後、shitamiVisitedが立っていない案件。
-// 状態：再訪問必要(shitamiRevisit) / 下見日未定 / 予定日経過・未実施 → 要行動、下見日確定(未来日) → 折りたたみ
-var pickFoldOpen = false;
-function isShinchiku(kubun) { return kubun.indexOf('ﾘ') === -1 && kubun.indexOf('リ') === -1; }
+// ==================== B) 下見に行けよピックアップ ====================
+// 目的：「実際に下見に行かないとまずい案件」の発見。
+// 対象：SK/SB/SUを含む案件（区分cols[3]＋案件名cols[4]で判定、新築・リフォーム両方）、
+//       shitamiVisitedが立っていない、施工日が今日以降。
+// 下見期限＝施工日 − LEAD_DAYS（複数区分なら長い方）。期限までの日数で並べる。
+// 要行動：下見日未定／予定日経過・未実施／再訪問必要／下見予定が期限より後
+// 折りたたみ：下見日確定済み(期限内)／期限まで22日以上先／施工日読取不可
+var pickFold = { fixed: false, later: false, noseko: false };
+
+function kubunCodes(cols) {
+  var s = toHalf(getSafeVal(cols, 3) + ' ' + getSafeVal(cols, 4)).toUpperCase();
+  var out = [];
+  ['SK','SB','SU'].forEach(function(c){ if (s.indexOf(c) >= 0) out.push(c); });
+  return out;
+}
+function isReformCase(cols) {
+  var k = getSafeVal(cols, 3);
+  return k.indexOf('ﾘ') >= 0 || k.indexOf('リ') >= 0 || getSafeVal(cols, 4).indexOf('リフォーム') >= 0;
+}
 
 function renderPickup() {
   var today = todayStr();
-  var action = [], fixed = [];
+  var act = [], later = [], fixed = [], noSeko = [];
+  var total = 0;
   Object.keys(globalTasks).forEach(function(key) {
     var obj = globalTasks[key];
     var cols = obj.csvData;
     if (!cols) return;
-    var kubun = getSafeVal(cols, 3);
-    if (kubun.indexOf('SK') === -1 && kubun.indexOf('SU') === -1) return;
-    if (!isShinchiku(kubun)) return;
-    var seko = normalizeYMD(getSafeVal(cols, 2));
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(seko)) return;
-    var diff = daysBetween(today, seko);
-    if (diff < 0 || diff > PICK_MAX_DAYS) return;
+    var codes = kubunCodes(cols);
+    if (!codes.length) return;
     if (obj.shitamiVisited) return;
+    if (isReformCase(cols)) return; // リフォームは別セクション(C)
 
     var eff = getEffectiveShitamiDate(obj);
+    var seko = parseYMD(getSafeVal(cols, 2));
+    var base = { key: key, obj: obj, cols: cols, codes: codes, eff: eff, seko: seko, reform: false };
+
+    if (!seko) {
+      total++;
+      base.state = eff && eff.date >= today ? 'fixed' : (obj.shitamiRevisit ? 'revisit' : (eff ? 'past' : 'none'));
+      base.dl = null;
+      noSeko.push(base);
+      return;
+    }
+    if (daysBetween(today, seko) < 0) return; // 施工済み
+    total++;
+
+    var lead = 0;
+    codes.forEach(function(c){ if (LEAD_DAYS[c] > lead) lead = LEAD_DAYS[c]; });
+    base.deadline = addDays(seko, -lead);
+    base.dl = daysBetween(today, base.deadline);
+
     var state;
-    if (obj.shitamiRevisit && !(eff && eff.date >= today)) state = 'revisit';
-    else if (eff && eff.date >= today) state = 'fixed';
+    if (eff && eff.date >= today) state = (eff.date > base.deadline) ? 'late' : 'fixed';
+    else if (obj.shitamiRevisit) state = 'revisit';
     else if (eff) state = 'past';
     else state = 'none';
+    base.state = state;
 
-    var it = { key: key, obj: obj, cols: cols, kubun: kubun, seko: seko, diff: diff, eff: eff, state: state };
-    if (state === 'fixed') fixed.push(it); else action.push(it);
+    if (state === 'fixed') fixed.push(base);
+    else if (base.dl <= PICK_SHOW_DAYS) act.push(base);
+    else later.push(base);
   });
-  var byDiff = function(a,b){ return a.diff - b.diff; };
-  action.sort(byDiff); fixed.sort(byDiff);
+  var byDl = function(a,b){ return a.dl - b.dl; };
+  act.sort(byDl); later.sort(byDl); fixed.sort(byDl);
 
-  document.getElementById('pickCnt').textContent = '要行動 ' + action.length + ' / 確定 ' + fixed.length;
+  document.getElementById('pickCnt').textContent = '要行動 ' + act.length + '件';
+  document.getElementById('pickDiag').textContent =
+    '対象（新築SK/SB/SU・下見未完了・施工前）' + total + '件 ／ うち施工日読取不可 ' + noSeko.length + '件';
+
   var body = document.getElementById('pickBody');
-  if (!action.length && !fixed.length) {
-    body.innerHTML = '<div class="section-empty">🎉 21日以内の新築SK・SUはすべて下見完了です</div>';
-    return;
-  }
   var html = '';
-  if (!action.length) {
-    html += '<div class="section-empty">✅ 要行動なし（下見日はすべて確定済み）</div>';
-  } else {
-    action.forEach(function(it) { html += pickCard(it, true); });
-  }
-  if (fixed.length) {
-    html += '<button class="fold-toggle" onclick="togglePickFold()">' + (pickFoldOpen ? '▾' : '▸') + ' 下見日確定済み・未実施 ' + fixed.length + '件</button>';
-    if (pickFoldOpen) {
-      html += '<div class="fold-body">';
-      fixed.forEach(function(it) { html += pickCard(it, false); });
-      html += '</div>';
-    }
-  }
+  if (!act.length) html += '<div class="section-empty">✅ 期限21日以内で下見が必要な新築案件はありません</div>';
+  else act.forEach(function(it){ html += pickCard(it, true); });
+
+  html += foldBlock('later', '期限まで22日以上先・下見未完了', later, true);
+  html += foldBlock('fixed', '下見日確定済み（期限内）', fixed, false);
+  html += foldBlock('noseko', '施工日なし・読取不可', noSeko, true);
   body.innerHTML = html;
 }
-function togglePickFold() { pickFoldOpen = !pickFoldOpen; renderPickup(); }
+function foldBlock(name, label, list, withBtn) {
+  if (!list.length) return '';
+  var h = '<button class="fold-toggle" onclick="togglePickFold(\'' + name + '\')">' + (pickFold[name] ? '▾' : '▸') + ' ' + label + ' ' + list.length + '件</button>';
+  if (pickFold[name]) {
+    h += '<div class="fold-body">';
+    list.forEach(function(it){ h += pickCard(it, withBtn); });
+    h += '</div>';
+  }
+  return h;
+}
+function togglePickFold(name) { pickFold[name] = !pickFold[name]; renderPickup(); }
 
 function pickCard(it, withBtn) {
   var title = getSafeVal(it.cols, 4).trim() || it.key;
   var addr = getSafeVal(it.cols, 11);
-  var tier = it.diff <= PICK_RED_DAYS ? 'tier-r' : 'tier-y';
+  var tier, num, unit;
+  if (it.dl == null) { tier = ''; num = '?'; unit = '施工日なし'; }
+  else if (it.dl < 0) { tier = 'tier-x'; num = -it.dl; unit = '日 期限超過'; }
+  else if (it.dl === 0) { tier = 'tier-x'; num = '今日'; unit = '下見期限'; }
+  else { tier = it.dl <= PICK_RED_DAYS ? 'tier-r' : 'tier-y'; num = it.dl; unit = '日後 期限'; }
+
   var stHtml;
   if (it.state === 'revisit') stHtml = '<span class="st st-revisit">🔁再訪問必要</span>';
   else if (it.state === 'past') stHtml = '<span class="st st-past">⚠予定' + fmtMD(it.eff.date) + '経過・未実施</span>';
+  else if (it.state === 'late') stHtml = '<span class="st st-late">⏰下見' + fmtMD(it.eff.date) + 'は期限後</span>';
   else if (it.state === 'fixed') stHtml = '<span class="st st-fixed">📅下見 ' + fmtMD(it.eff.date) + '(' + wday(it.eff.date) + ')' + (it.eff.time ? ' ' + esc(it.eff.time) : '') + '</span>';
   else stHtml = '<span class="st st-none">下見日未定</span>';
-  var kb = it.kubun.indexOf('SK') >= 0 ? 'SK' : 'SU';
 
   var h = '<div class="pcard ' + tier + '">';
-  h += '<div class="pcard-days"><div class="n">' + (it.diff === 0 ? '今日' : it.diff) + '</div><div class="u">' + (it.diff === 0 ? '施工' : '日後施工') + '</div></div>';
+  h += '<div class="pcard-days"><div class="n">' + num + '</div><div class="u">' + unit + '</div></div>';
   h += '<div class="pcard-main" onclick="openModal(\'' + esc(it.key) + '\')">';
-  h += '<div style="margin-bottom:3px;"><span class="st st-kubun">' + kb + '</span>' + stHtml + '</div>';
+  h += '<div style="margin-bottom:3px;"><span class="st st-kubun">' + it.codes.join('/') + '</span>'
+     + '<span class="st st-kind">' + (it.reform ? 'ﾘ' : '新') + '</span>' + stHtml + '</div>';
   h += '<div class="acard-title">' + esc(title) + '</div>';
-  h += '<div class="acard-sub"><span>🔨施工 ' + fmtMD(it.seko) + '(' + wday(it.seko) + ')</span>';
+  h += '<div class="acard-sub">';
+  if (it.seko) h += '<span>🔨施工 ' + fmtMD(it.seko) + '(' + wday(it.seko) + ')</span><span class="daysleft">期限 ' + fmtMD(it.deadline) + '</span>';
+  else h += '<span>施工日欄：' + esc(getSafeVal(it.cols, 2) || '空') + '</span>';
   if (addr) h += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
   h += '</div></div>';
   if (withBtn) h += '<button class="btn-decide" onclick="openModal(\'' + esc(it.key) + '\')">📅 下見日を決める</button>';
@@ -757,47 +829,75 @@ function pickCard(it, withBtn) {
   return h;
 }
 
-// ==================== ① お風呂21日アラート ====================
-function renderBathAlerts() {
+// ==================== C) リフォーム 下見日未定 ====================
+// リフォームは下見日さえ決まれば行ける（前日等）ので期限判定はしない。
+// 下見日が決まっていない＝先方担当者に連絡して日時を決める必要がある案件を拾う。
+// 対象：SK/SB/SUのリフォーム、shitamiVisited無し、施工日が今日以降(施工日なしも含む)、
+//       かつ 下見日未定／予定日経過・未実施／再訪問必要（＝今日以降の下見日が入っていない）
+var reformFoldNoSeko = false;
+function renderReformPickup() {
   var today = todayStr();
-  var list = [];
+  var list = [], noSeko = [];
   Object.keys(globalTasks).forEach(function(key) {
     var obj = globalTasks[key];
     var cols = obj.csvData;
     if (!cols) return;
-    var kubun = getSafeVal(cols, 3);
-    if (kubun.indexOf('SB') === -1) return;
-    var sekoRaw = getSafeVal(cols, 2);
-    var seko = normalizeYMD(sekoRaw);
-    if (!seko) return;
-    var diff = daysBetween(today, seko);
-    if (diff < 0 || diff > BATH_ALERT_DAYS) return;
+    var codes = kubunCodes(cols);
+    if (!codes.length) return;
+    if (!isReformCase(cols)) return;
     if (obj.shitamiVisited) return;
-    list.push({ key: key, obj: obj, cols: cols, seko: seko, diff: diff });
+    var eff = getEffectiveShitamiDate(obj);
+    if (eff && eff.date >= today) return; // 下見日決定済み
+    var seko = parseYMD(getSafeVal(cols, 2));
+    if (seko && daysBetween(today, seko) < 0) return; // 施工済み
+    var state = obj.shitamiRevisit ? 'revisit' : (eff ? 'past' : 'none');
+    var it = { key: key, obj: obj, cols: cols, codes: codes, eff: eff, seko: seko, state: state,
+               sd: seko ? daysBetween(today, seko) : null };
+    if (seko) list.push(it); else noSeko.push(it);
   });
-  list.sort(function(a,b){ return a.diff - b.diff; });
+  list.sort(function(a,b){ return a.sd - b.sd; });
 
-  document.getElementById('bathCnt').textContent = list.length + '件';
-  var body = document.getElementById('bathBody');
-  if (list.length === 0) {
-    body.innerHTML = '<div class="section-empty">🎉 該当なし（21日以内・未実施のお風呂案件はありません）</div>';
-    return;
-  }
+  document.getElementById('reformCnt').textContent = '要連絡 ' + list.length + '件';
+  var body = document.getElementById('reformBody');
   var html = '';
-  list.forEach(function(it) {
-    var title = getSafeVal(it.cols, 4).trim() || it.key;
-    var addr = getSafeVal(it.cols, 11);
-    var diffLabel = it.diff === 0 ? '本日施工日' : it.diff + '日後';
-    html += '<div class="acard">';
-    html += '<div class="acard-main" onclick="openModal(\''+esc(it.key)+'\')">';
-    html += '<div class="acard-title">' + esc(title) + '</div>';
-    html += '<div class="acard-sub">';
-    html += '<span class="daysleft">🔨 施工日 ' + fmtMD(it.seko) + '（' + diffLabel + '）</span>';
-    if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
-    html += '</div></div>';
-    html += '</div>';
-  });
+  if (!list.length) html += '<div class="section-empty">✅ 施工日が入っていて下見日未定のリフォームはありません</div>';
+  else list.forEach(function(it){ html += reformCard(it); });
+  if (noSeko.length) {
+    html += '<button class="fold-toggle" onclick="reformFoldNoSeko=!reformFoldNoSeko;renderReformPickup();">' + (reformFoldNoSeko ? '▾' : '▸') + ' 施工日なし・下見日未定 ' + noSeko.length + '件</button>';
+    if (reformFoldNoSeko) {
+      html += '<div class="fold-body">';
+      noSeko.forEach(function(it){ html += reformCard(it); });
+      html += '</div>';
+    }
+  }
   body.innerHTML = html;
+}
+function reformCard(it) {
+  var title = getSafeVal(it.cols, 4).trim() || it.key;
+  var addr = getSafeVal(it.cols, 11);
+  var tier, num, unit;
+  if (it.sd == null) { tier = ''; num = '?'; unit = '施工日なし'; }
+  else if (it.sd === 0) { tier = 'tier-x'; num = '今日'; unit = '施工'; }
+  else { tier = it.sd <= PICK_RED_DAYS ? 'tier-r' : 'tier-y'; num = it.sd; unit = '日後施工'; }
+
+  var stHtml;
+  if (it.state === 'revisit') stHtml = '<span class="st st-revisit">🔁再訪問 日程再調整</span>';
+  else if (it.state === 'past') stHtml = '<span class="st st-past">⚠予定' + fmtMD(it.eff.date) + '経過・再調整</span>';
+  else stHtml = '<span class="st st-none">下見日未定</span>';
+
+  var h = '<div class="pcard ' + tier + '">';
+  h += '<div class="pcard-days"><div class="n">' + num + '</div><div class="u">' + unit + '</div></div>';
+  h += '<div class="pcard-main" onclick="openModal(\'' + esc(it.key) + '\')">';
+  h += '<div style="margin-bottom:3px;"><span class="st st-kubun">' + it.codes.join('/') + '</span><span class="st st-kind">ﾘ</span>' + stHtml + '</div>';
+  h += '<div class="acard-title">' + esc(title) + '</div>';
+  h += '<div class="acard-sub">';
+  if (it.seko) h += '<span>🔨施工 ' + fmtMD(it.seko) + '(' + wday(it.seko) + ')</span>';
+  if (it.obj.komu) h += '<span>👷' + esc(it.obj.komu) + '</span>';
+  if (addr) h += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
+  h += '</div></div>';
+  h += '<button class="btn-decide" onclick="openModal(\'' + esc(it.key) + '\')">📞 連絡して日時決定</button>';
+  h += '</div>';
+  return h;
 }
 
 // ==================== ② 下見実施チェック ====================
@@ -860,6 +960,7 @@ function buildStamp() {
 function afterVisitChange() {
   renderVisitChecks();
   renderPickup();
+  renderReformPickup();
   updateRouteAvailability();
 }
 function clearScheduleWithMemo(key, label, extra) {
