@@ -1,7 +1,15 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-23-005 -->
+<!-- VERSION: 2026-09-29-001 -->
 <!--
   agenda.html（Today's Agenda）
+  2026-09-29-001：行動メモを「消すまで残る」方式に変更
+   ・日付ごとの保存を廃止。メモは1件ずつ独立して保存（app_agenda/items/{id}）
+   ・記入日時（例：9/29(火) 14:30）と経過日数（今日／N日前）を各メモに表示。7日以上経過は黄色で強調
+   ・「＋追加」またはEnterで追加（Shift+Enterで改行。複数行を貼ると1行ずつ別メモになる）
+   ・各メモに ✎編集／🗑消す。消すまで日をまたいでも残る
+   ・新しい記入順に表示。案件の自動紐付け／📌確定はメモ単位で保存（メモを消すと紐付けも消える）
+   ・別端末（PC/iPad）とリアルタイム同期
+   ・旧仕様（app_agenda/{日付}/memo）のデータは引き継がない（Firebaseには残っている）
   2026-09-23-005：行動メモの検索を全件・全項目に拡大
    ・施工日60日以上前の除外を廃止（全案件が対象）
    ・案件名/住所/手配IDに加え、CSV全列・モーダルのメモ・工務担当も検索
@@ -24,7 +32,6 @@
    ・対象件数と施工日読取不可件数を表示（取りこぼし確認用）
   2026-09-23 叩き台：以下2機能を最上部に追加
    A) 本日の行動メモ：フリー記入。行ごとにキーワードから案件を自動紐付けし、チップタップで案件モーダルを開く
-      保存先：app_agenda/{日付}/memo, app_agenda/{日付}/pins/{行ハッシュ}=案件key（候補から選んで確定した紐付け）
    B) 新築SK・SU 下見ピックアップ：施工日が今日〜21日後、下見未完了(shitamiVisited無し)の新築SK/SUのみ抽出
       14日以内=赤、15〜21日=黄。下見日未定・再訪問必要を「要行動」として上に出し、確定済みは折りたたみ
       カードの「下見日を決める」で案件モーダルを開き、日付入力→閉じると自動で確定済みへ移動
@@ -71,14 +78,25 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 /* ===== A) 行動メモ ===== */
 .memo-wrap{padding:12px 16px;}
-.memo-ta{width:100%;min-height:110px;background:#0d1117;color:#e2e8f0;border:1px solid #374151;border-radius:8px;padding:10px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;}
+.memo-ta{width:100%;min-height:56px;background:#0d1117;color:#e2e8f0;border:1px solid #374151;border-radius:8px;padding:10px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;}
 .memo-ta:focus{outline:none;border-color:#a855f7;}
 .memo-hint{font-size:11px;color:#64748b;margin-top:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .memo-st{color:#94a3b8;}
+.btn-add{margin-top:8px;background:#7e22ce;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;}
+.btn-add:hover{background:#9333ea;}
 .mlines{border-top:1px solid #1f2937;}
 .mline{padding:8px 16px;border-bottom:1px solid #1a2234;}
 .mline:last-child{border-bottom:none;}
-.mline-text{font-size:13px;color:#cbd5e1;word-break:break-all;}
+.mline-head{display:flex;align-items:flex-start;gap:8px;}
+.mline-body{flex:1;min-width:0;}
+.mline-text{font-size:13px;color:#cbd5e1;word-break:break-all;white-space:pre-wrap;}
+.mline-meta{font-size:10px;color:#64748b;margin-top:2px;}
+.mline-meta .age{color:#94a3b8;}
+.mline-meta .old{color:#fbbf24;font-weight:bold;}
+.mline-ops{display:flex;gap:4px;flex-shrink:0;}
+.mop{background:#1f2937;color:#94a3b8;border:1px solid #374151;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;white-space:nowrap;}
+.mop:hover{color:#e2e8f0;border-color:#a855f7;}
+.mop-del:hover{color:#fca5a5;border-color:#c62828;}
 .mline-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;align-items:center;}
 .mline-none{font-size:11px;color:#4b5563;}
 .mline-lbl{font-size:10px;color:#94a3b8;}
@@ -195,16 +213,17 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
   <span id="stMsg">読み込み中...</span>
 </div>
 
-<!-- A) 本日の行動メモ -->
+<!-- A) 行動メモ（消すまで残る） -->
 <div class="section">
   <div class="section-card">
-    <div class="section-head memo">📝 本日の行動メモ<span class="cnt" id="memoCnt">-</span></div>
+    <div class="section-head memo">📝 行動メモ（消すまで残る）<span class="cnt" id="memoCnt">-</span></div>
     <div class="memo-wrap">
-      <textarea class="memo-ta" id="memoTa" placeholder="1行に1つ。例）山田さん 下見日連絡&#10;栄通 図面確認&#10;佐藤邸 SU 再訪問" oninput="onMemoInput()"></textarea>
+      <textarea class="memo-ta" id="memoTa" placeholder="気になることを記入 → 「＋追加」かEnter。例）山田さん 下見日連絡&#10;栄通 図面確認&#10;佐藤邸 SU 再訪問" onkeydown="onMemoKey(event)"></textarea>
       <div class="memo-hint">
-        <span>全案件・全項目から自動紐付け（例：勝沼 10/1施工）。候補が複数なら選んで確定</span>
+        <span>Enterで追加／Shift+Enterで改行。記入日時が残ります。案件は自動紐付け（例：勝沼 10/1施工）</span>
         <span class="memo-st" id="memoSt"></span>
       </div>
+      <button class="btn-add" onclick="addMemo()">＋ 追加</button>
     </div>
     <div class="mlines" id="memoLinks"></div>
   </div>
@@ -298,6 +317,8 @@ var PICK_SHOW_DAYS = 21;  // 期限までこの日数以内を前面表示（そ
 
 // 行動メモ：候補の初期表示件数（「全件表示」で残りも展開）
 var MEMO_MAX_CAND = 8;
+// 行動メモ：この日数以上経過したメモは黄色で強調
+var MEMO_OLD_DAYS = 7;
 // 紐付け判定に使わない一般語（メモによく出る業務用語）
 var MEMO_STOP = ['電話','連絡','確認','下見','施工','新築','現場','見積','見積り','報告','報告書','本日','明日','今日','午前','午後',
   '予定','変更','打合','打合せ','打ち合わせ','工事','日程','調整','送付','書類','図面','発注','手配','依頼','返信','訪問','再訪',
@@ -437,7 +458,7 @@ function loadData() {
     document.getElementById('stMsg').innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
   });
 
-  // ③ 行動メモ（案件データとは独立して読込。失敗しても他機能は動く）
+  // ③ 行動メモ（案件データとは独立して購読。失敗しても他機能は動く）
   loadMemo();
 }
 
@@ -500,56 +521,91 @@ function openModal(key) {
   openCaseModal(key, globalTasks[key], globalHeaders, globalTasks, fullData, db, function() { renderAll(); });
 }
 
-// ==================== A) 本日の行動メモ ====================
-var memoState = { date: '', text: '', pins: {} };
-var memoSaveTimer = null;
-var memoRenderTimer = null;
+// ==================== A) 行動メモ（消すまで残る） ====================
+// 保存先：app_agenda/items/{id} = { text, createdAt(ISO), pin(案件key・任意) }
+// 日付ごとの保存ではないので、日をまたいでも消すまで残る。別端末とはリアルタイム同期。
+var MEMO_PATH = 'app_agenda/items';
+var memoState = { items: {}, attached: false };
 var memoExpanded = {};
 var memoShowAll = {};
 var caseIndex = null;
 
-function memoRefPath() { return 'app_agenda/' + memoState.date; }
-
 function loadMemo() {
-  memoState.date = todayStr();
+  if (memoState.attached) return;
+  memoState.attached = true;
   setMemoSt('読込中...');
-  db.ref(memoRefPath()).once('value').then(function(snap) {
-    var v = snap.val() || {};
-    memoState.text = v.memo || '';
-    memoState.pins = v.pins || {};
-    var ta = document.getElementById('memoTa');
-    if (document.activeElement !== ta) ta.value = memoState.text;
-    setMemoSt(v.updatedAt ? '保存済み' : '');
+  db.ref(MEMO_PATH).on('value', function(snap) {
+    memoState.items = snap.val() || {};
+    setMemoSt('');
     renderMemoLinks();
-  }).catch(function(e) {
+  }, function(e) {
+    memoState.attached = false;
     setMemoSt('<span class="err">読込失敗：' + esc(e.message) + '</span>');
   });
 }
 function setMemoSt(html) { document.getElementById('memoSt').innerHTML = html; }
 
-function onMemoInput() {
-  memoState.text = document.getElementById('memoTa').value;
-  setMemoSt('入力中...');
-  clearTimeout(memoRenderTimer);
-  memoRenderTimer = setTimeout(renderMemoLinks, 300);
-  clearTimeout(memoSaveTimer);
-  memoSaveTimer = setTimeout(saveMemo, 800);
+function newMemoId() {
+  return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
-function saveMemo() {
-  if (!memoState.date) return;
+function onMemoKey(e) {
+  // 日本語変換中のEnter(確定)では追加しない
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+    e.preventDefault();
+    addMemo();
+  }
+}
+function addMemo() {
+  var ta = document.getElementById('memoTa');
+  var lines = ta.value.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+  if (!lines.length) return;
+  var nowIso = new Date().toISOString();
+  var updates = {};
+  lines.forEach(function(line) {
+    var id = newMemoId();
+    updates[MEMO_PATH + '/' + id] = { text: line, createdAt: nowIso };
+    memoState.items[id] = { text: line, createdAt: nowIso };
+  });
+  ta.value = '';
+  renderMemoLinks();
   setMemoSt('保存中...');
-  db.ref(memoRefPath()).update({ memo: memoState.text, updatedAt: new Date().toISOString() }).then(function() {
+  db.ref().update(updates).then(function() {
     setMemoSt('<span class="ok">保存済み</span>');
   }).catch(function(e) {
     setMemoSt('<span class="err">保存失敗：' + esc(e.message) + '</span>');
   });
 }
-
-function lineHash(s) {
-  var h = 5381;
-  for (var i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
-  return 'h' + (h >>> 0).toString(36);
+function editMemo(id) {
+  var it = memoState.items[id];
+  if (!it) return;
+  var t = prompt('メモを編集', it.text || '');
+  if (t == null) return;
+  t = t.trim();
+  if (!t) return;
+  it.text = t;
+  renderMemoLinks();
+  db.ref(MEMO_PATH + '/' + id + '/text').set(t).catch(function(e) { alert('編集の保存失敗：' + e.message); });
 }
+function deleteMemo(id) {
+  var it = memoState.items[id];
+  if (!it) return;
+  if (!confirm('このメモを消しますか？\n\n' + it.text)) return;
+  delete memoState.items[id];
+  renderMemoLinks();
+  db.ref(MEMO_PATH + '/' + id).remove().catch(function(e) { alert('削除失敗：' + e.message); });
+}
+
+// 記入日時の表示用（JST）
+function memoMeta(createdAt) {
+  var t = new Date(createdAt).getTime();
+  if (isNaN(t)) return { label: '', age: '', old: false };
+  var jst = new Date(t + 9*3600000).toISOString();
+  var d = jst.slice(0, 10), hm = jst.slice(11, 16);
+  var n = daysBetween(d, todayStr());
+  var age = n <= 0 ? '今日' : n + '日前';
+  return { label: fmtMD(d) + '(' + wday(d) + ') ' + hm + ' 記入', age: age, old: n >= MEMO_OLD_DAYS };
+}
+
 function normText(s) { return String(s || '').replace(/[\s　]+/g, ''); }
 
 var stopRe = null;
@@ -573,7 +629,7 @@ function nameTokensOf(title) {
   });
   return out;
 }
-// メモ1行からキーワード抽出（漢字列・カタカナ列・英数字3文字以上）
+// メモ1件からキーワード抽出（漢字列・カタカナ列・英数字3文字以上）
 function memoWords(line) {
   var out = [];
   var re = /[\u4E00-\u9FFF々〆ヵヶ]{2,}|[\u30A1-\u30FAー]{2,}|[\uFF66-\uFF9F]{2,}|[A-Za-z0-9]{3,}/g;
@@ -586,7 +642,6 @@ function memoWords(line) {
   return out;
 }
 function buildCaseIndex() {
-  var today = todayStr();
   var idx = [];
   Object.keys(globalTasks).forEach(function(key) {
     var obj = globalTasks[key];
@@ -610,7 +665,7 @@ function buildCaseIndex() {
   caseIndex = idx;
   return idx;
 }
-// メモ行から日付を抽出（10/1、10月1日、2026/10/1 等）。年なしは今日に近い年を補う
+// メモから日付を抽出（10/1、10月1日、2026/10/1 等）。年なしは今日に近い年を補う
 function memoDates(line) {
   var t = toHalf(line).replace(/／/g, '/');
   var out = [];
@@ -631,7 +686,7 @@ function memoDates(line) {
   }
   return out;
 }
-// 1行に対する候補案件をスコア順で返す
+// 1件に対する候補案件をスコア順で返す
 function matchLine(line) {
   var idx = caseIndex || buildCaseIndex();
   var lineN = normText(line);
@@ -669,41 +724,55 @@ function caseLabel(key, title) {
   var seko = parseYMD(getSafeVal(cols, 2));
   return title + (seko ? '（施工' + fmtMD(seko) + '）' : '');
 }
-function chipOpen(key, cls, icon, title, withX, hash) {
+function chipOpen(key, cls, icon, title, withX, id) {
   title = caseLabel(key, title);
   var h = '<span class="chip ' + cls + '" onclick="openModal(\'' + esc(key) + '\')">' + icon + '<span class="t">' + esc(title) + '</span>';
-  if (withX) h += '<button class="chip-x" title="紐付け解除" onclick="event.stopPropagation();unpinLine(\'' + hash + '\')">✕</button>';
+  if (withX) h += '<button class="chip-x" title="紐付け解除" onclick="event.stopPropagation();unpinLine(\'' + id + '\')">✕</button>';
   h += '</span>';
   return h;
 }
-function chipCand(key, title, hash) {
+function chipCand(key, title, id) {
   title = caseLabel(key, title);
-  return '<span class="chip chip-cand" onclick="pinLine(\'' + hash + '\',\'' + esc(key) + '\')">＋<span class="t">' + esc(title) + '</span></span>';
+  return '<span class="chip chip-cand" onclick="pinLine(\'' + id + '\',\'' + esc(key) + '\')">＋<span class="t">' + esc(title) + '</span></span>';
 }
 
 function renderMemoLinks() {
   var wrap = document.getElementById('memoLinks');
-  var lines = (memoState.text || '').split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-  if (!lines.length) {
-    wrap.innerHTML = '';
-    document.getElementById('memoCnt').textContent = '0行';
+  var ids = Object.keys(memoState.items).filter(function(id) {
+    var it = memoState.items[id];
+    return it && it.text;
+  });
+  // 新しい記入順
+  ids.sort(function(a, b) {
+    return String(memoState.items[b].createdAt || '').localeCompare(String(memoState.items[a].createdAt || ''));
+  });
+  if (!ids.length) {
+    wrap.innerHTML = '<div class="section-empty">メモはありません。気になることを上に記入してください</div>';
+    document.getElementById('memoCnt').textContent = '0件';
     return;
   }
-  if (!Object.keys(globalTasks).length) {
-    wrap.innerHTML = '<div class="section-empty">案件データ読込後に紐付けを表示します</div>';
-    return;
-  }
+  var haveCases = Object.keys(globalTasks).length > 0;
   var linked = 0;
   var html = '';
-  lines.forEach(function(line) {
-    var hash = lineHash(line);
-    var pinKey = memoState.pins[hash];
-    html += '<div class="mline"><div class="mline-text">' + esc(line) + '</div><div class="mline-links">';
+  ids.forEach(function(id) {
+    var it = memoState.items[id];
+    var line = it.text;
+    var meta = memoMeta(it.createdAt);
+    html += '<div class="mline"><div class="mline-head"><div class="mline-body">';
+    html += '<div class="mline-text">' + esc(line) + '</div>';
+    html += '<div class="mline-meta">' + esc(meta.label) + ' ・ <span class="' + (meta.old ? 'old' : 'age') + '">' + esc(meta.age) + '</span></div>';
+    html += '</div><div class="mline-ops">';
+    html += '<button class="mop" title="編集" onclick="editMemo(\'' + id + '\')">✎</button>';
+    html += '<button class="mop mop-del" title="消す" onclick="deleteMemo(\'' + id + '\')">🗑 消す</button>';
+    html += '</div></div><div class="mline-links">';
 
+    var pinKey = it.pin;
     if (pinKey && globalTasks[pinKey]) {
       var pt = getSafeVal(globalTasks[pinKey].csvData, 4).trim() || pinKey;
-      html += chipOpen(pinKey, 'chip-pin', '📌', pt, true, hash);
+      html += chipOpen(pinKey, 'chip-pin', '📌', pt, true, id);
       linked++;
+    } else if (!haveCases) {
+      html += '<span class="mline-none">案件データ読込後に紐付けを表示します</span>';
     } else {
       var hits = matchLine(line);
       if (!hits.length) {
@@ -712,56 +781,58 @@ function renderMemoLinks() {
         var top = hits[0].score;
         var tops = hits.filter(function(h){ return h.score === top; });
         var auto = (tops.length === 1 && top >= 3) ? tops[0].c : null;
-        if (auto && !memoExpanded[hash]) {
-          html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, hash);
+        if (auto && !memoExpanded[id]) {
+          html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, id);
           linked++;
-          if (hits.length > 1) html += '<button class="chip-more" onclick="toggleCand(\'' + hash + '\')">他候補' + (hits.length - 1) + '件</button>';
-          else html += '<button class="chip-more" onclick="pinLine(\'' + hash + '\',\'' + esc(auto.key) + '\')">📌確定</button>';
+          if (hits.length > 1) html += '<button class="chip-more" onclick="toggleCand(\'' + id + '\')">他候補' + (hits.length - 1) + '件</button>';
+          else html += '<button class="chip-more" onclick="pinLine(\'' + id + '\',\'' + esc(auto.key) + '\')">📌確定</button>';
         } else {
           if (auto) {
-            html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, hash);
+            html += chipOpen(auto.key, 'chip-auto', '🔗', auto.title, false, id);
             linked++;
           }
           html += '<span class="mline-lbl">候補から選択：</span>';
-          hits.slice(0, memoShowAll[hash] ? hits.length : MEMO_MAX_CAND).forEach(function(h) {
+          hits.slice(0, memoShowAll[id] ? hits.length : MEMO_MAX_CAND).forEach(function(h) {
             if (auto && h.c.key === auto.key) {
-              html += '<button class="chip-more" onclick="pinLine(\'' + hash + '\',\'' + esc(auto.key) + '\')">📌この案件で確定</button>';
+              html += '<button class="chip-more" onclick="pinLine(\'' + id + '\',\'' + esc(auto.key) + '\')">📌この案件で確定</button>';
               return;
             }
-            html += chipCand(h.c.key, h.c.title, hash);
+            html += chipCand(h.c.key, h.c.title, id);
           });
           if (hits.length > MEMO_MAX_CAND) {
-            html += memoShowAll[hash]
-              ? '<button class="chip-more" onclick="toggleShowAll(\'' + hash + '\')">折りたたむ</button>'
-              : '<button class="chip-more" onclick="toggleShowAll(\'' + hash + '\')">全件表示（他' + (hits.length - MEMO_MAX_CAND) + '件）</button>';
+            html += memoShowAll[id]
+              ? '<button class="chip-more" onclick="toggleShowAll(\'' + id + '\')">折りたたむ</button>'
+              : '<button class="chip-more" onclick="toggleShowAll(\'' + id + '\')">全件表示（他' + (hits.length - MEMO_MAX_CAND) + '件）</button>';
           }
-          if (auto) html += '<button class="chip-more" onclick="toggleCand(\'' + hash + '\')">閉じる</button>';
+          if (auto) html += '<button class="chip-more" onclick="toggleCand(\'' + id + '\')">閉じる</button>';
         }
       }
     }
     html += '</div></div>';
   });
   wrap.innerHTML = html;
-  document.getElementById('memoCnt').textContent = linked + '/' + lines.length + '行 紐付';
+  document.getElementById('memoCnt').textContent = ids.length + '件（紐付 ' + linked + '）';
 }
-function toggleShowAll(hash) {
-  memoShowAll[hash] = !memoShowAll[hash];
+function toggleShowAll(id) {
+  memoShowAll[id] = !memoShowAll[id];
   renderMemoLinks();
 }
-function toggleCand(hash) {
-  memoExpanded[hash] = !memoExpanded[hash];
+function toggleCand(id) {
+  memoExpanded[id] = !memoExpanded[id];
   renderMemoLinks();
 }
-function pinLine(hash, key) {
-  memoState.pins[hash] = key;
-  memoExpanded[hash] = false;
+function pinLine(id, key) {
+  if (!memoState.items[id]) return;
+  memoState.items[id].pin = key;
+  memoExpanded[id] = false;
   renderMemoLinks();
-  db.ref(memoRefPath() + '/pins/' + hash).set(key).catch(function(e) { alert('紐付け保存失敗：' + e.message); });
+  db.ref(MEMO_PATH + '/' + id + '/pin').set(key).catch(function(e) { alert('紐付け保存失敗：' + e.message); });
 }
-function unpinLine(hash) {
-  delete memoState.pins[hash];
+function unpinLine(id) {
+  if (!memoState.items[id]) return;
+  delete memoState.items[id].pin;
   renderMemoLinks();
-  db.ref(memoRefPath() + '/pins/' + hash).remove().catch(function(e) { alert('紐付け解除失敗：' + e.message); });
+  db.ref(MEMO_PATH + '/' + id + '/pin').remove().catch(function(e) { alert('紐付け解除失敗：' + e.message); });
 }
 
 // ==================== B) 下見に行けよピックアップ ====================
