@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-02-001 -->
-<!-- 第一次構想版：本日起こすべきアクション5本柱を一発表示するページ -->
+<!-- VERSION: 2026-09-29-001 -->
+<!-- 完了チェックボックス追加／今日・明日・明後日タブ追加 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -20,24 +20,42 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .refresh-btn{background:#1f2937;color:#9ca3af;border:1px solid #374151;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold;}
 .refresh-btn:hover{background:#374151;color:#e0e6f0;}
 
+.tabs{display:flex;gap:6px;margin:12px 12px 0;}
+.tab{flex:1;background:#151a24;border:1px solid #232938;border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;color:#9ca3af;}
+.tab .tab-name{font-size:13px;font-weight:bold;}
+.tab .tab-date{font-size:10px;margin-top:2px;}
+.tab .tab-prog{font-size:10px;margin-top:2px;color:#f0a500;}
+.tab .tab-prog.all{color:#6ee7b7;}
+.tab.active{background:#1b3a2e;border-color:#52b788;color:#d8f3dc;}
+
+.progress{margin:10px 12px 0;font-size:12px;color:#9ca3af;text-align:right;}
+.progress b{color:#6ee7b7;}
+
 .section{margin:14px 12px;background:#151a24;border-radius:10px;border:1px solid #232938;overflow:hidden;}
 .section-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #232938;cursor:pointer;}
 .section-head .icon{font-size:18px;}
 .section-head .title{font-size:14px;font-weight:bold;flex:1;color:#d8f3dc;}
 .section-head .count{font-size:12px;font-weight:bold;padding:2px 10px;border-radius:12px;background:#1f2937;color:#9ca3af;}
 .section-head .count.has{background:#7c2d12;color:#fed7aa;}
+.section-head .count.clear{background:#1b3a2e;color:#6ee7b7;}
 .section-body{padding:8px;}
 .section-body.collapsed{display:none;}
 .empty-msg{color:#4b5563;font-size:12px;text-align:center;padding:14px 4px;font-style:italic;}
 
-.action-card{background:#1a2232;border-radius:8px;padding:10px 12px;margin-bottom:6px;border-left:3px solid #52b788;cursor:pointer;transition:background 0.15s;}
+.action-card{background:#1a2232;border-radius:8px;padding:10px 12px;margin-bottom:6px;border-left:3px solid #52b788;cursor:pointer;transition:background 0.15s;display:flex;align-items:flex-start;gap:10px;}
 .action-card:hover{background:#212c40;}
 .action-card.contact{border-left-color:#00bcd4;}
 .action-card.sms{border-left-color:#8e24aa;}
 .action-card.report{border-left-color:#ef4444;}
 .action-card.kari{border-left-color:#f0a500;}
 .action-card.shitami{border-left-color:#4a90d9;}
-.action-card.done{opacity:0.4;}
+.action-card.done{opacity:0.5;border-left-color:#52b788;background:#16241f;}
+.action-card.done .card-title{text-decoration:line-through;color:#8a92a6;}
+.card-main{flex:1;min-width:0;}
+.chk{flex:0 0 auto;width:24px;height:24px;border-radius:6px;border:2px solid #4b5563;background:#0f1117;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;color:#0f1117;margin-top:1px;}
+.chk:hover{border-color:#52b788;}
+.chk.on{background:#52b788;border-color:#52b788;}
+.chk.lock{cursor:default;opacity:0.7;}
 .card-top-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
 .card-time{font-size:11px;font-weight:bold;color:#ffd166;}
 .card-title{font-size:13px;font-weight:bold;color:#e0e6f0;flex:1;word-break:break-all;}
@@ -48,6 +66,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
 .err{text-align:center;padding:20px;color:#ef4444;font-size:12px;}
+.note{margin:14px 12px;font-size:11px;color:#6b7280;text-align:center;line-height:1.6;}
 </style>
 </head>
 <body>
@@ -59,6 +78,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
   <button class="refresh-btn" onclick="loadAll()">🔄 更新</button>
 </div>
 
+<div id="tabsArea"></div>
 <div id="mainContent"><div class="loading">読み込み中...</div></div>
 
 <script src="shared-modal.js"></script>
@@ -78,15 +98,61 @@ var db=scopedDatabase(firebase.database());
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
 function getTodayStr(){var t=new Date();return new Date(t.getTime()+9*3600000).toISOString().slice(0,10);}
+function addDays(ymd,n){var d=new Date(ymd+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function dowLabel(ymd){return['日','月','火','水','木','金','土'][new Date(ymd+'T00:00:00Z').getUTCDay()];}
 function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,16);}
 function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 var todayStr=getTodayStr();
+var TAB_NAMES=['今日','明日','明後日'];
+var currentTab=0;
 var globalTasks={};
 var globalHeaders=[];
 var fullData=null;
 var smsList={};
 var kariSlotsAll={};
+var doneAll={}; // {日付:{セクション__キー:true}}
+
+function tabDate(i){return addDays(todayStr,i);}
+
+// ---- 完了チェックの保存（Firebase + localStorage 二重化） ----
+function mkId(sec,key){return sec+'__'+String(key).replace(/[.#$\[\]\/]/g,'_');}
+function loadLocalDone(){
+  try{return JSON.parse(localStorage.getItem('action_done_local')||'{}')||{};}catch(e){return{};}
+}
+function saveLocalDone(){
+  try{localStorage.setItem('action_done_local',JSON.stringify(doneAll));}catch(e){}
+}
+function mergeDone(a,b){
+  var out={};
+  [a,b].forEach(function(src){
+    Object.keys(src||{}).forEach(function(d){
+      out[d]=out[d]||{};
+      Object.keys(src[d]||{}).forEach(function(k){if(src[d][k])out[d][k]=true;});
+    });
+  });
+  return out;
+}
+function isManualDone(date,sec,key){
+  return !!(doneAll[date]&&doneAll[date][mkId(sec,key)]);
+}
+function toggleDone(ev,sec,key,locked){
+  if(ev){ev.stopPropagation();}
+  if(locked)return;
+  var date=tabDate(currentTab);
+  var id=mkId(sec,key);
+  doneAll[date]=doneAll[date]||{};
+  var ref=db.ref('action_done/'+date+'/'+id);
+  if(doneAll[date][id]){
+    delete doneAll[date][id];
+    ref.remove().catch(function(){});
+  }else{
+    doneAll[date][id]=true;
+    ref.set(true).catch(function(){});
+  }
+  saveLocalDone();
+  render();
+}
 
 // ---- データ読込 ----
 function loadAll(){
@@ -95,7 +161,11 @@ function loadAll(){
   var p2=db.ref('app_meta/headers').once('value').then(function(snap){globalHeaders=snap.val()||[];});
   var p3=db.ref('app_sms_list').once('value').then(function(snap){smsList=snap.val()||{};});
   var p4=db.ref('kari_yoyaku_slots').once('value').then(function(snap){kariSlotsAll=snap.val()||{};});
-  Promise.all([p1,p2,p3,p4]).then(function(){
+  var p5=db.ref('action_done').once('value').then(function(snap){return snap.val()||{};}).catch(function(){return {};}).then(function(remote){
+    doneAll=mergeDone(loadLocalDone(),remote);
+    saveLocalDone();
+  });
+  Promise.all([p1,p2,p3,p4,p5]).then(function(){
     fullData={app_tasks:globalTasks,app_meta:{headers:globalHeaders}};
     render();
   }).catch(function(e){
@@ -103,13 +173,13 @@ function loadAll(){
   });
 }
 
-// ---- ①本日下見予定 ----
-function buildTodayShitami(){
+// ---- 下見予定（日付指定） ----
+function buildShitamiByDate(dateStr){
   var items=[];
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
     var shitamiDate=formatYMD(getSafeVal(c,12))||(obj.date?String(obj.date).replace(/\s+/g,''):'');
-    if(shitamiDate!==todayStr)return;
+    if(shitamiDate!==dateStr)return;
     var shitamiTime=getSafeVal(c,13)||obj.time||'';
     items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,visited:!!obj.shitamiVisited});
   });
@@ -122,7 +192,7 @@ function buildTodayShitami(){
   return items;
 }
 
-// ---- ②連絡必要フラグ ----
+// ---- 連絡必要フラグ（今日のみ） ----
 function buildNeedsContact(){
   var items=[];
   Object.keys(globalTasks).forEach(function(key){
@@ -133,19 +203,19 @@ function buildNeedsContact(){
   return items;
 }
 
-// ---- ③SMS未送信キュー ----
+// ---- SMS未送信キュー（今日のみ） ----
 function buildSmsUnsent(){
   var items=[];
   Object.keys(smsList).forEach(function(fbKey){
     var item=smsList[fbKey];
     if(item.done)return;
-    items.push({fbKey:fbKey,label:item.label||'（メモなし）',tel:item.tel||'',body:item.body||'',caseKey:item.caseKey||null});
+    items.push({key:fbKey,label:item.label||'（メモなし）',tel:item.tel||'',body:item.body||'',caseKey:item.caseKey||null,createdAt:item.createdAt||0});
   });
   items.sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
   return items;
 }
 
-// ---- ④報告書未提出（下見実施済みなのに報告書提出済みに進んでいない） ----
+// ---- 報告書未提出（今日のみ） ----
 // SF「下見本数（予/実）」列（末尾=index14）を主判定に使用：実施数<予定数（典型は"1/0"）なら未提出候補。
 // 対象とする「下見が過去にあった」判定は、SF確定日（c[12]）とアプリ側の予定日（obj.date）のどちらか一方でも
 // 過去であれば対象にする（どちらか一方しか入っていないケースがあるため）。
@@ -167,14 +237,12 @@ function buildReportMissing(){
     var reasonTag='';
 
     if(honsu&&honsu.indexOf('/')>-1){
-      // SF列あり：実施数<予定数（典型は "1/0"）を報告書未提出として判定
       var parts=honsu.split('/');
       var yotei=parseInt(parts[0],10),jisshi=parseInt(parts[1],10);
       if(!isNaN(yotei)&&!isNaN(jisshi)&&jisshi<yotei){
         reportMissing=true;reasonTag='下見'+honsu+'（未提出）';
       }
     }else{
-      // SF列が未取込：localStatusベースの簡易フォールバック
       reportMissing=true;
       reasonTag=localStatus?('現在:'+localStatus+'（推定）'):'未着手（推定）';
     }
@@ -186,19 +254,19 @@ function buildReportMissing(){
   return items;
 }
 
-// ---- ⑤仮予約：未回答／未送信（本日以降のみ） ----
+// ---- 仮予約：今日タブ＝本日以降の未回答／未送信 ----
 function buildKariPending(){
   var items=[];
   Object.keys(kariSlotsAll).forEach(function(date){
-    if(date<todayStr)return; // 過去日は対象外
+    if(date<todayStr)return;
     var day=kariSlotsAll[date]||{};
     Object.keys(day).forEach(function(id){
       var e=day[id];
       var st=e.status||'仮';
       if(st==='仮'){
-        items.push({date:date,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:'未回答',area:e.area||''});
+        items.push({key:date+'_'+id,date:date,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:'未回答',area:e.area||''});
       }else if((st==='許可'||st==='断り')&&!e.replied){
-        items.push({date:date,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:(st==='許可'?'許可・未送信':'断り・未送信'),area:e.area||''});
+        items.push({key:date+'_'+id,date:date,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:(st==='許可'?'許可・未送信':'断り・未送信'),area:e.area||''});
       }
     });
   });
@@ -206,17 +274,60 @@ function buildKariPending(){
   return items;
 }
 
+// ---- 仮予約：明日以降タブ＝その日の予定（断り除く） ----
+function buildKariByDate(dateStr){
+  var items=[];
+  var day=kariSlotsAll[dateStr]||{};
+  Object.keys(day).forEach(function(id){
+    var e=day[id];
+    var st=e.status||'仮';
+    if(st==='断り')return;
+    items.push({key:dateStr+'_'+id,date:dateStr,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:st,area:e.area||''});
+  });
+  items.sort(function(a,b){return (a.time||'99:99').localeCompare(b.time||'99:99');});
+  return items;
+}
+
+// ---- 完了状態の付与・並び替え ----
+function prepItems(sec,items,autoFn){
+  var date=tabDate(currentTab);
+  items.forEach(function(it,i){
+    it._idx=i;
+    it._auto=autoFn?!!autoFn(it):false;
+    it._done=it._auto||isManualDone(date,sec,it.key);
+  });
+  items.sort(function(a,b){
+    if(a._done!==b._done)return a._done?1:-1;
+    return a._idx-b._idx;
+  });
+  return items;
+}
+
 // ---- レンダリング ----
-function sectionHtml(id,icon,title,items,renderCardFn){
-  var count=items.length;
+function cardWrap(sec,item,cls,onclickStr,inner){
+  return '<div class="action-card '+cls+(item._done?' done':'')+'" onclick="'+onclickStr+'">'
+    +'<div class="chk'+(item._done?' on':'')+(item._auto?' lock':'')+'" onclick="toggleDone(event,\''+sec+'\',\''+escHtml(item.key)+'\','+(item._auto?'true':'false')+')">'+(item._done?'✓':'')+'</div>'
+    +'<div class="card-main">'+inner+'</div>'
+    +'</div>';
+}
+
+function sectionHtml(id,icon,title,items,renderCardFn,emptyMsg){
+  var total=items.length;
+  var remain=items.filter(function(x){return !x._done;}).length;
+  var cls='';
+  var label=total+'件';
+  if(total>0){
+    if(remain>0){cls=' has';label='残'+remain+' / '+total+'件';}
+    else{cls=' clear';label='✅ 全完了 '+total+'件';}
+  }
   var html='<div class="section">';
   html+='<div class="section-head" onclick="toggleSection(\''+id+'\')">';
   html+='<span class="icon">'+icon+'</span><span class="title">'+title+'</span>';
-  html+='<span class="count'+(count>0?' has':'')+'">'+count+'件</span>';
+  html+='<span class="count'+cls+'">'+label+'</span>';
   html+='</div>';
   html+='<div class="section-body" id="body-'+id+'">';
-  if(count===0){
-    html+='<div class="empty-msg">対象なし</div>';
+  if(total===0){
+    html+='<div class="empty-msg">'+(emptyMsg||'対象なし')+'</div>';
   }else{
     items.forEach(function(item){html+=renderCardFn(item);});
   }
@@ -229,60 +340,118 @@ function toggleSection(id){
   if(el)el.classList.toggle('collapsed');
 }
 
+function switchTab(i){
+  currentTab=i;
+  render();
+}
+
+// 各タブの件数・完了数を集計（タブ見出し用）
+function tabStats(i){
+  var date=tabDate(i);
+  var total=0,done=0;
+  function count(sec,items,autoFn){
+    items.forEach(function(it){
+      total++;
+      if((autoFn&&autoFn(it))||isManualDone(date,sec,it.key))done++;
+    });
+  }
+  count('shitami',buildShitamiByDate(date),function(it){return it.visited;});
+  if(i===0){
+    count('contact',buildNeedsContact());
+    count('sms',buildSmsUnsent());
+    count('report',buildReportMissing());
+    count('kari',buildKariPending());
+  }else{
+    count('kari',buildKariByDate(date));
+  }
+  return {total:total,done:done};
+}
+
+function renderTabs(){
+  var html='<div class="tabs">';
+  for(var i=0;i<3;i++){
+    var d=tabDate(i);
+    var st=tabStats(i);
+    var remain=st.total-st.done;
+    var prog=st.total===0?'予定なし':(remain===0?'✅ 完了':'残'+remain+'件');
+    html+='<div class="tab'+(i===currentTab?' active':'')+'" onclick="switchTab('+i+')">'
+      +'<div class="tab-name">'+TAB_NAMES[i]+'</div>'
+      +'<div class="tab-date">'+parseInt(d.slice(5,7),10)+'/'+parseInt(d.slice(8,10),10)+'('+dowLabel(d)+')</div>'
+      +'<div class="tab-prog'+(st.total>0&&remain===0?' all':'')+'">'+prog+'</div>'
+      +'</div>';
+  }
+  html+='</div>';
+  document.getElementById('tabsArea').innerHTML=html;
+}
+
+function shitamiCardFn(item){
+  return cardWrap('shitami',item,'shitami','openTask(\''+escHtml(item.key)+'\')',
+    '<div class="card-top-row">'
+    +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
+    +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
+    +'<div class="card-sub">'
+    +(item.visited?'<span class="tag done-tag">✅ 下見完了</span>':'')
+    +(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
+}
+
 function render(){
-  var todayShitami=buildTodayShitami();
-  var needsContact=buildNeedsContact();
-  var smsUnsent=buildSmsUnsent();
-  var reportMissing=buildReportMissing();
-  var kariPending=buildKariPending();
-
+  renderTabs();
+  var date=tabDate(currentTab);
   var html='';
+  var totalAll=0,doneAllCnt=0;
+  function tally(items){items.forEach(function(x){totalAll++;if(x._done)doneAllCnt++;});}
 
-  html+=sectionHtml('shitami','📋','本日の下見予定',todayShitami,function(item){
-    return '<div class="action-card shitami'+(item.visited?' done':'')+'" onclick="openTask(\''+escHtml(item.key)+'\')">'
-      +'<div class="card-top-row">'
-      +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
-      +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
-      +'<div class="card-sub">'
-      +(item.visited?'<span class="tag done-tag">✅ 完了</span>':'')
-      +(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'
-      +'</div>';
-  });
+  var shitami=prepItems('shitami',buildShitamiByDate(date),function(it){return it.visited;});
+  tally(shitami);
+  var shitamiTitle=currentTab===0?'本日の下見予定':(TAB_NAMES[currentTab]+'の下見予定');
+  html+=sectionHtml('shitami','📋',shitamiTitle,shitami,shitamiCardFn,currentTab===0?'対象なし':'下見予定なし');
 
-  html+=sectionHtml('contact','📞','連絡必要',needsContact,function(item){
-    return '<div class="action-card contact" onclick="openTask(\''+escHtml(item.key)+'\')">'
-      +'<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
-      +'<div class="card-sub">'+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'
-      +'</div>';
-  });
+  if(currentTab===0){
+    var needsContact=prepItems('contact',buildNeedsContact());
+    var smsUnsent=prepItems('sms',buildSmsUnsent());
+    var reportMissing=prepItems('report',buildReportMissing());
+    var kariPending=prepItems('kari',buildKariPending());
+    tally(needsContact);tally(smsUnsent);tally(reportMissing);tally(kariPending);
 
-  html+=sectionHtml('sms','💬','SMS未送信',smsUnsent,function(item){
-    var bodyPreview=item.body.length>40?item.body.substring(0,40)+'…':item.body;
-    return '<div class="action-card sms" onclick="openSmsTool()">'
-      +'<div class="card-top-row"><span class="card-title">'+escHtml(item.label)+'</span></div>'
-      +'<div class="card-sub">☎ '+escHtml(item.tel)+'<br>'+escHtml(bodyPreview)+'</div>'
-      +'</div>';
-  });
+    html+=sectionHtml('contact','📞','連絡必要',needsContact,function(item){
+      return cardWrap('contact',item,'contact','openTask(\''+escHtml(item.key)+'\')',
+        '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
+        +'<div class="card-sub">'+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
+    });
 
-  html+=sectionHtml('report','📝','報告書未提出',reportMissing,function(item){
-    return '<div class="action-card report" onclick="openTask(\''+escHtml(item.key)+'\')">'
-      +'<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
-      +'<div class="card-sub"><span class="tag">'+escHtml(item.reason)+'</span>下見日:'+escHtml(item.shitamiDate.replace(/^\d{4}-/,''))
-      +(item.addr?'　<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'
-      +'</div>';
-  });
+    html+=sectionHtml('sms','💬','SMS未送信',smsUnsent,function(item){
+      var bodyPreview=item.body.length>40?item.body.substring(0,40)+'…':item.body;
+      return cardWrap('sms',item,'sms','openSmsTool()',
+        '<div class="card-top-row"><span class="card-title">'+escHtml(item.label)+'</span></div>'
+        +'<div class="card-sub">☎ '+escHtml(item.tel)+'<br>'+escHtml(bodyPreview)+'</div>');
+    });
 
-  html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち',kariPending,function(item){
-    return '<div class="action-card kari" onclick="openKari(\''+escHtml(item.date)+'\',\''+escHtml(item.id)+'\')">'
-      +'<div class="card-top-row">'
-      +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
-      +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
-      +'<div class="card-sub"><span class="tag">'+escHtml(item.kind)+'</span>'+escHtml(item.date)
-      +(item.area?'　📍'+escHtml(item.area):'')+'</div>'
-      +'</div>';
-  });
+    html+=sectionHtml('report','📝','報告書未提出',reportMissing,function(item){
+      return cardWrap('report',item,'report','openTask(\''+escHtml(item.key)+'\')',
+        '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
+        +'<div class="card-sub"><span class="tag">'+escHtml(item.reason)+'</span>下見日:'+escHtml(item.shitamiDate.replace(/^\d{4}-/,''))
+        +(item.addr?'　<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
+    });
 
-  document.getElementById('mainContent').innerHTML=html;
+    html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち',kariPending,kariCardFn);
+  }else{
+    var kariDay=prepItems('kari',buildKariByDate(date));
+    tally(kariDay);
+    html+=sectionHtml('kari','🗓',TAB_NAMES[currentTab]+'の仮予約',kariDay,kariCardFn,'仮予約なし');
+    html+='<div class="note">※ 連絡必要・SMS未送信・報告書未提出は「今日」タブのみ表示<br>チェックは日付ごとに保存されます</div>';
+  }
+
+  var prog='<div class="progress">'+TAB_NAMES[currentTab]+'の進捗：<b>'+doneAllCnt+'</b> / '+totalAll+' 件完了</div>';
+  document.getElementById('mainContent').innerHTML=prog+html;
+}
+
+function kariCardFn(item){
+  return cardWrap('kari',item,'kari','openKari(\''+escHtml(item.date)+'\',\''+escHtml(item.id)+'\')',
+    '<div class="card-top-row">'
+    +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
+    +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
+    +'<div class="card-sub"><span class="tag">'+escHtml(item.kind)+'</span>'+escHtml(item.date)
+    +(item.area?'　📍'+escHtml(item.area):'')+'</div>');
 }
 
 // ---- アクション ----
