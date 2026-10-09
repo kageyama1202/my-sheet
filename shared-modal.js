@@ -1,6 +1,6 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加】*/
-// VERSION: 2026-09-15-023
-// CREATED: 2026-09-15 22:05
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
+// VERSION: 2026-10-10-024
+// CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -236,6 +236,9 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   var timeOpts = generateTimeOptions();
   var isFlagged = obj.flagged || false;
   var isNeedsContact = obj.needsContact || false;
+  // ★2026-10-10追加★ 注目理由・連絡内容(OFFにしても残す。再ONで復活)
+  var flaggedNoteVal = obj.flaggedNote || '';
+  var needsContactNoteVal = obj.needsContactNote || '';
   var siteCheckObj = obj.siteCheck || {};
   // ★2026-09-15追加★ 施工図画像はモーダルを開いている間だけ保持(保存はしない)。別案件を開いた時に
   // 前の施工図が残らないよう、モーダルを開くたびにクリアする。
@@ -472,6 +475,18 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<a href="sms.html?tel='+_smsTel+'&label='+_smsLabel+'&casename='+_smsCase+'&casekey='+encodeURIComponent(key)+'" class="modal-sms-btn">💬 SMS作成</a>';
   html += '</div>';
 
+  // ★2026-10-10追加★ 注目理由・連絡内容の入力欄。ボタン行の「下」に置くことで、ONにした瞬間に
+  // ボタンの位置がずれない。ONの時だけ表示。OFFにしても入力済みテキストは保持する(再ONで復活)。
+  // today.htmlの備考列が「通常→注目理由→連絡内容」と交替表示するための元データ。
+  html += '<div id="modal-flag-note-wrap" style="display:'+(isFlagged?'block':'none')+';margin-top:10px;padding:8px;border:1px solid #f48fb1;border-radius:6px;background:#fff0f5;">';
+  html += '<label for="modal-flag-note" style="display:block;font-size:12px;font-weight:bold;color:#ad1457;margin-bottom:4px;">⚑ 注目理由</label>';
+  html += '<textarea id="modal-flag-note" placeholder="なぜ注目か(一覧に交替表示されます)" style="width:100%;box-sizing:border-box;min-height:44px;font-size:13px;padding:6px;border:1px solid #f48fb1;border-radius:4px;">'+escHtmlModal(flaggedNoteVal)+'</textarea>';
+  html += '</div>';
+  html += '<div id="modal-contact-note-wrap" style="display:'+(isNeedsContact?'block':'none')+';margin-top:8px;padding:8px;border:1px solid #4dd0e1;border-radius:6px;background:#e0f7fa;">';
+  html += '<label for="modal-contact-note" style="display:block;font-size:12px;font-weight:bold;color:#006064;margin-bottom:4px;">📞 連絡内容</label>';
+  html += '<textarea id="modal-contact-note" placeholder="誰に何を連絡するか(一覧に交替表示されます)" style="width:100%;box-sizing:border-box;min-height:44px;font-size:13px;padding:6px;border:1px solid #4dd0e1;border-radius:4px;">'+escHtmlModal(needsContactNoteVal)+'</textarea>';
+  html += '</div>';
+
   document.getElementById('modal-body').innerHTML = html;
   document.getElementById('modal-overlay').style.display = 'block';
   document.getElementById('modal-time').value = obj.time || '';
@@ -504,21 +519,48 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
-  // ⚑ 注目ボタン（即時）
+  // ⚑ 注目ボタン（即時）。ONにした時は理由入力欄を展開してフォーカス、OFFにした時は欄を隠す(テキストは保持)。
   document.getElementById('modal-flag-btn').addEventListener('click', function(){
     isFlagged = !isFlagged;
     this.classList.toggle('flagged', isFlagged);
     this.textContent = isFlagged ? '⚑ 注目中' : '⚐ 注目';
+    var wrap = document.getElementById('modal-flag-note-wrap');
+    if (wrap) wrap.style.display = isFlagged ? 'block' : 'none';
     saveField({flagged: isFlagged});
+    if (isFlagged) { var ni = document.getElementById('modal-flag-note'); if (ni) ni.focus(); }
   });
 
-  // 📞 連絡必要ボタン（即時）
+  // 📞 連絡必要ボタン（即時）。注目ボタンと同じく、ON時のみ連絡内容の入力欄を展開(テキストは保持)。
   document.getElementById('modal-contact-btn').addEventListener('click', function(){
     isNeedsContact = !isNeedsContact;
     this.classList.toggle('active', isNeedsContact);
     this.textContent = isNeedsContact ? '📞 連絡必要中' : '📞 連絡必要';
+    var wrap = document.getElementById('modal-contact-note-wrap');
+    if (wrap) wrap.style.display = isNeedsContact ? 'block' : 'none';
     saveField({needsContact: isNeedsContact});
+    if (isNeedsContact) { var ni = document.getElementById('modal-contact-note'); if (ni) ni.focus(); }
   });
+
+  // ★2026-10-10追加★ 注目理由・連絡内容の即時保存（入力停止0.8秒後＋フォーカスを外した時）
+  function bindNoteField(id, field) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var debounce;
+    el.addEventListener('input', function(){
+      clearTimeout(debounce);
+      var elAtInput = this;
+      debounce = setTimeout(function(){
+        var upd = {}; upd[field] = elAtInput.value; saveField(upd);
+      }, 800);
+    });
+    el.addEventListener('blur', function(){
+      clearTimeout(debounce);
+      var cur = (globalTasks[key] && globalTasks[key][field]) || '';
+      if (this.value !== cur) { var upd = {}; upd[field] = this.value; saveField(upd); }
+    });
+  }
+  bindNoteField('modal-flag-note', 'flaggedNote');
+  bindNoteField('modal-contact-note', 'needsContactNote');
 
   // 🚗 下見実施チェック（即時）
   document.getElementById('modal-visited-yes').addEventListener('click', function(){
