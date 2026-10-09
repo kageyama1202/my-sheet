@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-11-002 -->
+<!-- VERSION: 2026-10-10-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -135,6 +135,25 @@ tr.sms-pending-row:hover { background-color: #f5cfc9 !important; animation: none
 tr.visit-check-row { animation: visitCheckBlink 2.4s ease-in-out infinite; }
 tr.visit-check-row td { color: #6d4c00 !important; font-weight: 600; }
 tr.visit-check-row:hover { background-color: #ffecb3 !important; animation: none; box-shadow: none; }
+
+/* ★2026-10-10追加★ 備考列の交替表示(通常→注目理由→連絡内容)。理由/内容を表示している間は
+   行の色も強い色(注目=橙赤、連絡=濃い水色)に切り替えて、見落とさないようにする。 */
+@keyframes flagNoteBlink {
+  0%   { background-color: #ffe0b2; box-shadow: inset 4px 0 0 #ff9800; }
+  50%  { background-color: #ffb74d; box-shadow: inset 4px 0 0 #e65100; }
+  100% { background-color: #ffe0b2; box-shadow: inset 4px 0 0 #ff9800; }
+}
+@keyframes contactNoteBlink {
+  0%   { background-color: #b2ebf2; box-shadow: inset 4px 0 0 #00acc1; }
+  50%  { background-color: #4dd0e1; box-shadow: inset 4px 0 0 #006064; }
+  100% { background-color: #b2ebf2; box-shadow: inset 4px 0 0 #00acc1; }
+}
+tr.flagged-row.alt-flag, tr.needs-contact-row.alt-flag { animation: flagNoteBlink 1.2s ease-in-out infinite; }
+tr.flagged-row.alt-flag td, tr.needs-contact-row.alt-flag td { color: #bf360c !important; font-weight: 700; }
+tr.flagged-row.alt-contact, tr.needs-contact-row.alt-contact { animation: contactNoteBlink 1.2s ease-in-out infinite; }
+tr.flagged-row.alt-contact td, tr.needs-contact-row.alt-contact td { color: #004d40 !important; font-weight: 700; }
+tr.flagged-row.alt-flag:hover, tr.flagged-row.alt-contact:hover, tr.needs-contact-row.alt-flag:hover, tr.needs-contact-row.alt-contact:hover { animation: none; }
+tr.alt-flag .col-memo .cell-inner, tr.alt-contact .col-memo .cell-inner { font-weight: 800; }
 </style>
 </head>
 <body>
@@ -192,6 +211,9 @@ var database=scopedDatabase(firebase.database());
 
 // 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
 
+// ★2026-10-10追加★ 備考列の交替表示用カウンタ。最初のrenderTable()より前に初期化しておく必要がある。
+var altTick=0;
+
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
 var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
 var displayCols=[1,3,4,5,6,7,10,11,2,12,-5,-1,-4,-3,-6,-7];
@@ -199,7 +221,7 @@ var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-
 var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','時間','下見予定日','時間','順','下','コ'];
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
-function extractCompany(v){if(!v)return"";return v.trim().split(/[\s\u3000]+/)[0];}
+function extractCompany(v){if(!v)return"";return v.trim().split(/[\s　]+/)[0];}
 function extractArea(addr){if(!addr)return"";var a=addr.replace(/\s+/g,"");var s=a.match(/札幌市(.+?区)/);if(s)return s[1];var c=a.match(/北海道(.+?市)/);if(c&&!c[1].includes('札幌'))return c[1];var t=a.match(/郡(.+?[町村])/);if(t)return t[1];return"その他";}
 // ★2026-09-11追加★
 // グレー表示（下見完了系）の判定を、SF側の「手配ステータス」テキスト(下見完了/下見実施中)から
@@ -219,7 +241,7 @@ function parseShitamiCount(raw){
 function getTodayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,'0')+"-"+String(t.getDate()).padStart(2,'0');}
 function addDays(s,n){var d=new Date(s);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
 function inRange(d,f,t){if(!d)return false;if(f&&d<f)return false;if(t&&d>t)return false;return true;}
-function normalizePhone(raw){if(!raw)return"";return raw.replace(/[\s\-\(\)\.\u200B]/g,"").replace(/^\+81/,"0").replace(/^81(?=\d{9,10})/,"0").replace(/[^0-9]/g,"");}
+function normalizePhone(raw){if(!raw)return"";return raw.replace(/[\s\-\(\)\.​]/g,"").replace(/^\+81/,"0").replace(/^81(?=\d{9,10})/,"0").replace(/[^0-9]/g,"");}
 // mailto:/sms:が環境によって反応しない場合の保険として、本文をクリップボードにコピーする
 function copyTextFallback(text,btnEl){
   function done(ok){if(!btnEl){if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);return;}var o=btnEl.textContent;btnEl.textContent=ok?'✓ コピーしました':'コピー失敗';setTimeout(function(){btnEl.textContent=o;},1500);if(!ok)alert('コピーできませんでした。手動でコピーしてください：\n\n'+text);}
@@ -542,6 +564,39 @@ function applyTextSearch(){var w=normalizeSearchText(searchInput.value);var rows
 function getPersonalEventsInRange(from,to){var result=[];Object.keys(personalEvents).forEach(function(dateKey){if(from&&dateKey<from)return;if(to&&dateKey>to)return;var dayEvents=personalEvents[dateKey];if(!dayEvents)return;Object.keys(dayEvents).forEach(function(evId){var ev=dayEvents[evId];result.push({_type:'personal',dateKey:dateKey,title:ev.title||'',start:ev.start||dateKey,end:ev.end||'',allDay:ev.allDay||false,location:ev.location||''});});});result.sort(function(a,b){return a.start.localeCompare(b.start);});return result;}
 function fmtTime(s){if(!s||s.length<=10)return'終日';return s.substring(11,16);}
 function insertDeadlineLabelRow(tbody,type,dateStr,colCount){var tr=document.createElement('tr');tr.className='deadline-label '+(type==='10'?'deadline-label-10':'deadline-label-21');tr.style.pointerEvents='none';var td=document.createElement('td');td.colSpan=colCount+1;if(type==='10'){td.textContent='▲ ここまでに下見完了必須（新築SK 施工10日前デッドライン: '+dateStr+'以前の施工）';}else{td.textContent='▲ ここまでに下見完了推奨（新築 施工3週間前ボーダー: '+dateStr+'以前の施工）';}tr.appendChild(td);tbody.appendChild(tr);}
+
+// ★2026-10-10追加★ 備考列の交替表示。注目/連絡必要の行だけ、備考セルを「通常→🚩注目理由→📞連絡内容」と
+// 一定間隔で切り替え、理由/内容の表示中は行の色(alt-flag/alt-contact)も強い色に切り替える。
+// タイマーはページ全体で1つだけ(カードごとにsetIntervalを持たせると再描画のたびに増えるため)。
+// 理由/内容が未入力でもフェーズ自体は回し、「⚑ 注目」「📞 連絡必要」とだけ表示して色で目立たせる。
+function applyAltDisplay(){
+  var rows=document.querySelectorAll('#table-body tr[data-alt-phases]');
+  for(var i=0;i<rows.length;i++){
+    var tr=rows[i];
+    var phases=tr.getAttribute('data-alt-phases').split(',');
+    var phase=phases[altTick%phases.length];
+    var inner=tr.querySelector('.col-memo .cell-inner');
+    tr.classList.remove('alt-flag');tr.classList.remove('alt-contact');
+    if(!inner)continue;
+    if(inner.getAttribute('data-orig')===null)inner.setAttribute('data-orig',inner.textContent);
+    if(phase==='flag'){
+      var fn=(tr.getAttribute('data-flag-note')||'').replace(/[\r\n]+/g,' ');
+      inner.textContent='⚑ '+(fn||'注目');
+      inner.title=tr.getAttribute('data-flag-note')||'注目';
+      tr.classList.add('alt-flag');
+    }else if(phase==='contact'){
+      var cn=(tr.getAttribute('data-contact-note')||'').replace(/[\r\n]+/g,' ');
+      inner.textContent='📞 '+(cn||'連絡必要');
+      inner.title=tr.getAttribute('data-contact-note')||'連絡必要';
+      tr.classList.add('alt-contact');
+    }else{
+      inner.textContent=inner.getAttribute('data-orig');
+      inner.title='';
+    }
+  }
+}
+setInterval(function(){altTick++;applyAltDisplay();},3000);
+
 function renderTable(){
 var thead=document.getElementById('table-head'),tbody=document.getElementById('table-body');thead.innerHTML="";tbody.innerHTML="";
 var today=getTodayStr(),from=dateFrom.value,to=dateTo.value;
@@ -566,7 +621,8 @@ merged.forEach(function(item,idx){
   else if(item._type==='kari'){var ev=item.ev;var sb=kariStatusBadge(ev.status);var needsSend=(ev.status==='許可'||ev.status==='断り')&&!ev.replied;var tr=document.createElement('tr');tr.className='personal-row';tr.style.cursor='pointer';if(ev.status==='断り')tr.style.opacity='0.55';var tdNo=document.createElement('td');tdNo.className='col-no';tdNo.innerHTML='<span class="personal-badge" style="color:#e65100;">'+sb.badge+'</span>';tr.appendChild(tdNo);var tdMain=document.createElement('td');tdMain.colSpan=displayCols.length;tdMain.style.padding='4px 8px';tdMain.style.color='#e65100';tdMain.style.fontWeight='bold';tdMain.style.fontSize='12px';if(ev.status==='断り')tdMain.style.textDecoration='line-through';var memoStr=ev.memo?'　'+ev.memo:'';var areaStr=ev.area?'【'+ev.area+'】':'';var groupStr=ev.candidate_group?'（候補'+countCandidateGroupToday(ev.candidate_group)+'件中）':'';var sendStr=needsSend?' 📤未送信':'';tdMain.textContent=ev.dateKey+'　'+ev.start+'　['+sb.badge+sb.label+sendStr+']　'+ev.case_name+areaStr+groupStr+'（'+ev.tantou+'）'+memoStr;tr.appendChild(tdMain);tr.addEventListener('click',function(){openKariModalToday(ev);});tbody.appendChild(tr);}
   else{
     taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var shitamiCount=parseShitamiCount(getSafeVal(cols,14));var tr=document.createElement("tr");
-    tr.setAttribute('data-search-full',(Array.isArray(cols)?cols.join(' '):''));
+    // ★2026-10-10変更★ 検索対象に注目理由・連絡内容も含める。
+    tr.setAttribute('data-search-full',(Array.isArray(cols)?cols.join(' '):'')+' '+(obj.flaggedNote||'')+' '+(obj.needsContactNote||''));
     var isSmsPending=!!smsPendingKeys[key];
     // ★2026-09-02追加★ agenda.htmlの「下見実施チェック」と同じ判定：CSV下見日(cols[12])か
     // アプリ入力日(obj.date)のどちらかが今日より前で、かつshitamiVisitedが未確認なら対象。
@@ -627,6 +683,16 @@ merged.forEach(function(item,idx){
           }
         }else if(colIdx===6&&clean!==''){inner.innerHTML='<a href="tel:'+clean+'" class="link-text">'+disp+'</a>';}else{inner.textContent=disp;}
         if(colIdx!==12&&clean!==''){td.addEventListener('mouseenter',function(cc){return function(){tooltip.textContent=cc;tooltip.style.display='block';};}(cv));td.addEventListener('mousemove',function(e){tooltip.style.left=(e.clientX+15)+'px';tooltip.style.top=(e.clientY+15)+'px';});td.addEventListener('mouseleave',function(){tooltip.style.display='none';});}}td.appendChild(inner);tr.appendChild(td);}
+    // ★2026-10-10追加★ 注目/連絡必要の行は、備考列を「通常→注目理由→連絡内容」と交替表示する対象にする。
+    // 理由・内容は属性に持たせ、applyAltDisplay()(全体1タイマー)が切り替える。
+    if(obj.flagged||obj.needsContact){
+      var altPhases=['orig'];
+      if(obj.flagged)altPhases.push('flag');
+      if(obj.needsContact)altPhases.push('contact');
+      tr.setAttribute('data-alt-phases',altPhases.join(','));
+      tr.setAttribute('data-flag-note',obj.flaggedNote||'');
+      tr.setAttribute('data-contact-note',obj.needsContactNote||'');
+    }
     tr.addEventListener('click',function(k){return function(e){if(e.target.tagName==='A')return;openCaseModal(k,globalTasks[k],globalHeaders,globalTasks,fullData,database,renderTable);};}(key));
     tbody.appendChild(tr);
     if(!isNoSekou&&sekouDateStr!==""){var nextSekouDate2=null;for(var ni=idx+1;ni<merged.length;ni++){if(merged[ni]._type==="task"&&merged[ni].sekouDate&&merged[ni].sekouDate!=="9999-99-99"){nextSekouDate2=merged[ni].sekouDate;break;}}if(!inserted10&&sekouDateStr<=deadline10Date&&(nextSekouDate2===null||nextSekouDate2>deadline10Date)){insertDeadlineLabelRow(tbody,"10",deadline10Date,displayCols.length);inserted10=true;}if(!inserted21&&sekouDateStr<=deadline21Date&&(nextSekouDate2===null||nextSekouDate2>deadline21Date)){insertDeadlineLabelRow(tbody,"21",deadline21Date,displayCols.length);inserted21=true;}}
@@ -636,6 +702,8 @@ var countText='案件: '+taskCount+' 件　／　マイカレンダー: '+person
 if(nosekouCount>0)countText+='　（施工日なし: '+nosekouCount+' 件）';
 document.getElementById('countDisplay').textContent=countText;
 if(searchInput.value)applyTextSearch();
+// ★2026-10-10追加★ 再描画直後も現在のフェーズ(altTick)に合わせて備考列・行の色を反映する。
+applyAltDisplay();
 }
 </script>
 </body>
