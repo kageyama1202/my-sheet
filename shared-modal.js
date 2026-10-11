@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-10-11-001
+// VERSION: 2026-10-11-002
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -29,86 +29,7 @@ var SITECHECK_GROUPS_KITCHEN = [
   ]}
 ];
 
-// ★2026-09-12追加★ 現場チェックの浴室用グループ。
-// ★2026-09-14追加★ 「吊元・配管」グループを追加。左右クリア(bath-diagram.jsの自動計算)に
-// 必要な入力項目：吊元側の下地厚み・枠厚み・追加パネル厚み、配管方式(上配管/下配管)、
-// 上配管時の追加スペース。
-// ★2026-09-15変更★ 「水栓のある側」の手動選択は廃止。水栓の位置は勝手(A/B)から自動判定
-// (A=正面壁／B=扉と反対側の側面壁)するため、入力不要になった。
-var SITECHECK_GROUPS_BATH = [
-  { title: '間口・開口', items: [
-    { label:'ドア位置(勝手)', field:'bathDoorPosition', type:'select', options:['右','左'] },
-    { label:'浴槽の向き(A/B)', field:'bathKatteAB', type:'select', options:['A','B'] },
-    { label:'ドアタイプ', field:'bathDoorType', type:'select', options:['開き戸','引き戸'] },
-    { label:'扉の厚み(引き戸時のみ入力)', field:'bathHikidoAtsumi', type:'number' },
-    { label:'建物間口(扉のある壁の幅)', field:'bathMaguchi', type:'number' },
-    { label:'建物奥行き(扉と垂直方向)', field:'bathOkuyuki', type:'number' },
-    { label:'製品間口(浴槽基準)', field:'bathSeihinMaguchi', type:'number' },
-    { label:'製品奥行き(浴槽基準)', field:'bathSeihinOkuyuki', type:'number' },
-    { label:'開口寸法(額縁開口)', field:'bathKaikou', type:'number' },
-    { label:'リモコン開口 有無', field:'bathRemoconUmu', type:'select', options:['有','無'] },
-    { label:'リモコン開口 メモ', field:'bathRemoconMemo' },
-    { label:'ハンドバー設置方法', field:'bathHandbarHouhou', type:'select', options:['図面通り','要確認'] }
-  ]},
-  { title: '吊元・配管', items: [
-    { label:'吊元側下地厚み', field:'bathTsurimotoShitaji', type:'number' },
-    { label:'吊元側枠厚み', field:'bathTsurimotoWaku', type:'number' },
-    { label:'吊元側追加パネル厚み', field:'bathTsurimotoPanel', type:'number' },
-    { label:'配管方式', field:'bathHaikanHoushiki', type:'select', options:['下配管','上配管'] },
-    { label:'上配管時 追加スペース', field:'bathJouhaikanSupace', type:'number' }
-  ]},
-  { title: '石膏ボード', items: [
-    { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['カウンター面','カウンター対面','浴槽側面','洗場側面'] }
-  ]},
-  { title: '高さ・床構成', items: [
-    { label:'天井高さ(現場の天井)', field:'bathTenjouTakasa', type:'number' },
-    { label:'脱衣室高さ', field:'bathDatsuishitsuTakasa', type:'number' },
-    { label:'風呂の高さ(製品)', field:'bathFuroTakasa', type:'number' },
-    { label:'換気扇の高さ', field:'bathKankisenTakasa', type:'number' },
-    { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
-    { label:'沓摺り高さ(毎回要確認)', field:'bathKutsuzuriTakasa', type:'number' },
-    { label:'枠材の厚み', field:'bathWakuzaiAtsumi', type:'number' },
-    { label:'設置方法', field:'bathSetchiHouhou' },
-    { label:'床構成', field:'bathYukaKousei' },
-    { label:'スラブ寸法(スラブ〜床面高さ)', field:'bathSlabYukaTakasa', type:'number' },
-    { label:'床合わせ', field:'bathYukaAwase', type:'select', options:['○','✕'] },
-    { label:'床上がり高さ(床合わせ✕の場合)', field:'bathYukaAgariTakasa', type:'number' },
-    { label:'天井とのクリア(自動計算)', field:'bathTenjouClear', type:'computed' },
-    { label:'クリアA:風呂天井〜現場天井(自動)', field:'bathClearA', type:'computed' },
-    { label:'クリアB:換気扇頭〜現場天井(自動)', field:'bathClearB', type:'computed' },
-    { label:'上下総寸法(自動計算)', field:'bathJougeSousunpou', type:'computed' },
-    { label:'上下総寸法(実測値・解体後計測)', field:'bathJougeSousunpouJissoku', type:'number' }
-  ]},
-  { title: '窓', items: [
-    { label:'窓の有無', field:'bathMadoAri', type:'select', options:['有','無'] },
-    { label:'窓がある面', field:'bathMadoMen', type:'select', options:['正面','右面','左面'] },
-    { label:'窓幅(W)', field:'bathMadoW', type:'number' },
-    { label:'窓高さ(H)', field:'bathMadoH', type:'number' },
-    { label:'窓奥行(D)', field:'bathMadoD', type:'number' },
-    { label:'位置:上', field:'bathMadoUe', type:'number' },
-    { label:'位置:下', field:'bathMadoShita', type:'number' },
-    { label:'位置:左', field:'bathMadoHidari', type:'number' },
-    { label:'位置:右', field:'bathMadoMigi', type:'number' }
-  ]},
-  { title: '梁(コンクリート梁・基礎)', items: [
-    { label:'浴槽側面-上 高さ', field:'bathHariYokusoUeTakasa', type:'number' },
-    { label:'浴槽側面-上 奥行き', field:'bathHariYokusoUeOkuyuki', type:'number' },
-    { label:'浴槽側面-下 高さ', field:'bathHariYokusoShimoTakasa', type:'number' },
-    { label:'浴槽側面-下 奥行き', field:'bathHariYokusoShimoOkuyuki', type:'number' },
-    { label:'カウンター面-上 高さ', field:'bathHariCounterUeTakasa', type:'number' },
-    { label:'カウンター面-上 奥行き', field:'bathHariCounterUeOkuyuki', type:'number' },
-    { label:'カウンター面-下 高さ', field:'bathHariCounterShimoTakasa', type:'number' },
-    { label:'カウンター面-下 奥行き', field:'bathHariCounterShimoOkuyuki', type:'number' }
-  ]},
-  { title: '吊り金具', items: [
-    { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
-    { label:'吊り金具(型)', field:'bathTsuriKanaguSize', type:'select', options:['S','SN','M','L'] },
-    { label:'吊り金具 現地入れ', field:'bathTsuriKanaguGenchi', type:'select', options:['○','✕'] }
-  ]},
-  { title: 'メモ・連絡事項', items: [
-    { label:'メモ・連絡事項', field:'bathMemoRenraku' }
-  ]}
-];
+// ★2026-10-11変更★ 浴室用グループ(SITECHECK_GROUPS_BATH)は作図ページ(bath-diagram.html)側へ移した。
 
 // ★2026-09-12追加★ 現場チェックのタブ(キッチン/浴室)を1つのHTML文字列に組み立てる共通レンダラー。
 // siteCheckObjは案件のsiteCheckデータ全体(キッチン/浴室のフィールドが混在して入っている想定)。
@@ -239,20 +160,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // ★2026-10-10追加★ 注目理由・連絡内容(OFFにしても残す。再ONで復活)
   var flaggedNoteVal = obj.flaggedNote || '';
   var needsContactNoteVal = obj.needsContactNote || '';
-  var siteCheckObj = obj.siteCheck || {};
-  // ★2026-09-15追加★ 施工図画像はモーダルを開いている間だけ保持(保存はしない)。別案件を開いた時に
-  // 前の施工図が残らないよう、モーダルを開くたびにクリアする。
-  window.__bathSekouZuImage = null;
-  // ★2026-09-15追加★ 浴室：ドアタイプは既定「開き戸」、扉の厚みは開き戸の標準30を初期表示する。
-  // (どちらも未設定のときだけ既定を入れる。人間が後から変更するのは自由＝上書きしない。)
-  // 扉厚みは開き戸=30が標準だが、特殊ケースのため手動変更も可能にしておく(disableしない)。
-  if (siteCheckObj.bathDoorType == null || siteCheckObj.bathDoorType === '') {
-    siteCheckObj.bathDoorType = '開き戸';
-  }
-  if ((siteCheckObj.bathHikidoAtsumi == null || siteCheckObj.bathHikidoAtsumi === '')
-      && siteCheckObj.bathDoorType === '開き戸') {
-    siteCheckObj.bathHikidoAtsumi = '30';
-  }
+  var siteCheckObj = obj.siteCheck || {}; // モーダルではキッチンの現場チェックだけ使う(浴室は作図ページ側)
   var scheduleType = obj.scheduleType || '';
   var isVisited = obj.shitamiVisited || false;
 
@@ -380,37 +288,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<div id="modal-statusreport-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
   html += '</div>';
 
-  // 📄 報告書から自動入力／📐 施工図から自動入力：
-  // タカラSB下見報告書・施工図(製品図面)のテキスト or 画像/PDFをAIに渡し、現場チェック欄へ反映する。
-  // ★2026-09-15変更★ 報告書と施工図で抽出する情報が別物(報告書=建物実測、施工図=製品寸法+勝手)なので、
-  // 貼り付け欄を2つに分ける。AIには docType(report/drawing)で区別を伝え、取り違えを防ぐ。
-  // 実際にフォームへ反映するかはプレビュー確認後、ボタンを押してから(誤読み取り対策)。
-  // buildDocInputSection: プレフィックス(pfx)ごとに同じ構造の入力欄一式を生成する共通関数。
-  function buildDocInputSection(pfx, headColor, title, placeholder, showRegex) {
-    var h = '<div class="modal-section"><h4 style="color:'+headColor+';margin-bottom:6px;">'+title+'</h4>';
-    h += '<textarea id="'+pfx+'-paste-area" placeholder="'+placeholder+'" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;"></textarea>';
-    h += '<div style="margin-top:6px;">';
-    if (showRegex) {
-      h += '<button type="button" id="'+pfx+'-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
-      h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
-    } else {
-      h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIでテキスト解析</button>';
-    }
-    h += '</div>';
-    h += '<div id="'+pfx+'-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
-    h += '<div id="'+pfx+'-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
-    h += '<div style="margin-top:6px;"><label for="'+pfx+'-file-input" style="display:inline-block;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#fff;color:#4a148c;font-weight:bold;cursor:pointer;">📁 ファイルを選択</label><input type="file" id="'+pfx+'-file-input" accept="image/*,application/pdf" multiple style="display:none;" /></div>';
-    h += '<div style="margin-top:6px;"><button type="button" id="'+pfx+'-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="'+pfx+'-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
-    h += '<div id="'+pfx+'-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
-    h += '</div>';
-    return h;
-  }
-  // 報告書セクション（正規表現版ボタンあり）
-  html += buildDocInputSection('report', '#37474f', '📄 報告書から自動入力(タカラSB下見報告書)',
-    '下見報告書のテキストをここに貼り付け(iPadで画像/PDFを貼る場合もここに長押し→貼り付けでOK)', true);
-  // 施工図セクション（製品図面。正規表現版は無く、AI解析のみ）
-  html += buildDocInputSection('drawing', '#00695c', '📐 施工図から自動入力(製品図面)',
-    '施工図(製品図面)のテキストをここに貼り付け／下の欄に画像・PDFを貼り付けでもOK', false);
+  // ★2026-10-11変更★ 報告書/施工図からの自動入力欄は作図ページ(bath-diagram.html)へ移した。
 
 
   var memoVal = obj.memo || '';
@@ -429,28 +307,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</div>';
 
-  // 🛠️ 現場チェック（メモとは別。テキスト入力・項目離脱時に即時保存。キッチン/浴室をタブで手動切替）
-  // タブの選択状態はこの案件のsiteCheckLastTabに保存し、次回モーダルを開いた時も直前のタブを復元する。
-  var siteCheckLastTab = (siteCheckObj.__lastTab === 'bath') ? 'bath' : 'kitchen';
-  html += '<div class="modal-section"><h4 style="color:#e65100;margin-bottom:6px;">🛠️ 現場チェック</h4>';
-  html += '<div style="margin-bottom:8px;">';
-  html += '<button type="button" class="sitecheck-tab-btn" data-tab="kitchen" style="font-size:12px;padding:6px 14px;border-radius:4px 0 0 4px;border:1px solid #e65100;cursor:pointer;'
-    + (siteCheckLastTab==='kitchen' ? 'background:#e65100;color:#fff;font-weight:bold;' : 'background:#fff;color:#e65100;')
-    + '">🍳 キッチン</button>';
-  html += '<button type="button" class="sitecheck-tab-btn" data-tab="bath" style="font-size:12px;padding:6px 14px;border-radius:0 4px 4px 0;border:1px solid #e65100;border-left:none;cursor:pointer;'
-    + (siteCheckLastTab==='bath' ? 'background:#e65100;color:#fff;font-weight:bold;' : 'background:#fff;color:#e65100;')
-    + '">🛁 浴室</button>';
-  html += '</div>';
+  // 🛠️ 現場チェック（キッチン。メモとは別。テキスト入力・項目離脱時に即時保存）
+  // ★2026-10-11変更★ 浴室の現地情報入力は作図ページ(bath-diagram.html)へ移したため、キッチン/浴室のタブ切替は廃止。
+  html += '<div class="modal-section"><h4 style="color:#e65100;margin-bottom:6px;">🛠️ 現場チェック（キッチン）</h4>';
   html += '<div id="sitecheck-area">';
-  html += renderSiteCheckGroups(siteCheckLastTab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
+  html += renderSiteCheckGroups(SITECHECK_GROUPS_KITCHEN, siteCheckObj);
   html += '</div></div>';
 
-  // ★2026-09-12追加★ 📐 浴室図面：現場チェック(浴室タブ)で入力した数値をSVGに反映して表示する。
-  // ★2026-10-11変更★ 作図(図面表示)と現地情報の記入を分離。図面の表示はbath-diagram.html側で行い、
-  // モーダルにはそこへ飛ぶボタンだけを置く。現地情報の入力は従来どおりこのモーダルの「現場チェック」。
-  html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 浴室図面</h4>';
-  html += '<button type="button" id="bath-diagram-open-btn" style="font-size:12px;padding:8px 16px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">🖼 作図ページを開く</button>';
-  html += '<div style="font-size:11px;color:#888;margin-top:6px;">入力した現場チェックの内容で、別ページに図面を表示します（スクショ用）</div>';
+  // ★2026-10-11変更★ 📐 作図：入力と図面表示は別ページ(bath-diagram.html)。モーダルにはボタンだけ置く。
+  // ボタン名は「作図」にしてある(先々キッチンも同じボタンから作図ページへ行く想定)。
+  html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 作図</h4>';
+  html += '<button type="button" id="sakuzu-open-btn" style="font-size:13px;padding:10px 22px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">📐 作図</button>';
   html += '</div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
@@ -728,131 +595,40 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   }
 
-  // 🛠️ 現場チェック（テキスト/数値は離脱時、選択系(select・複数選択)は選択時に即時保存。イベント委譲で1リスナー）
+  // 🛠️ 現場チェック（キッチン専用。テキスト/数値は離脱時、選択系(select・複数選択)は選択時に即時保存。イベント委譲で1リスナー）
+  // ★2026-10-11変更★ 浴室の入力欄・自動計算・タブ切替は作図ページ(bath-diagram.html)へ移したため撤去。
+  // 保存は「変更した項目だけ」を書く(siteCheck丸ごと上書きしない)。作図ページ側で入力した浴室の値を、
+  // このモーダルが古いキャッシュで消してしまう事故を防ぐため。
   var sitecheckArea = document.getElementById('sitecheck-area');
-
-  // ★2026-09-12追加★ 浴室タブの自動計算：
-  // 天井とのクリア = 天井高さ − (床上がり高さ + 風呂の高さ + 換気扇の高さ)
-  // 上下総寸法     = 天井高さ + スラブ寸法(スラブ〜床面高さ)
-  function computeBathAutoFields() {
-    if (!sitecheckArea) return;
-    var clearEl = sitecheckArea.querySelector('[data-field="bathTenjouClear"]');
-    var totalEl = sitecheckArea.querySelector('[data-field="bathJougeSousunpou"]');
-    if (!clearEl && !totalEl) return; // 浴室タブが表示されていない
-    var tenjou = parseFloat(siteCheckObj.bathTenjouTakasa);
-    var agari = parseFloat(siteCheckObj.bathYukaAgariTakasa) || 0;
-    var furo = parseFloat(siteCheckObj.bathFuroTakasa);
-    var kankisen = parseFloat(siteCheckObj.bathKankisenTakasa);
-    var slab = parseFloat(siteCheckObj.bathSlabYukaTakasa);
-    var clearVal = (!isNaN(tenjou) && !isNaN(furo) && !isNaN(kankisen)) ? String(tenjou - agari - furo - kankisen) : '';
-    var totalVal = (!isNaN(tenjou) && !isNaN(slab)) ? String(tenjou + slab) : '';
-    siteCheckObj.bathTenjouClear = clearVal;
-    siteCheckObj.bathJougeSousunpou = totalVal;
-    if (clearEl) clearEl.textContent = clearVal;
-    if (totalEl) totalEl.textContent = totalVal;
-    // ★2026-09-15追加★ 施工者が知りたい2種類のクリアを自動計算。
-    // クリアA＝現場天井高さ − 風呂の高さ(製品)。お風呂の天井を載せたときの現場天井までの余裕。
-    // クリアB＝現場天井高さ − (風呂の高さ + 換気扇高さ)。一番高い点(換気扇の頭)と現場天井の余裕。
-    var clearAEl = sitecheckArea.querySelector('[data-field="bathClearA"]');
-    var clearBEl = sitecheckArea.querySelector('[data-field="bathClearB"]');
-    var clearAVal = (!isNaN(tenjou) && !isNaN(furo)) ? String(tenjou - furo) : '';
-    var clearBVal = (!isNaN(tenjou) && !isNaN(furo) && !isNaN(kankisen)) ? String(tenjou - (furo + kankisen)) : '';
-    siteCheckObj.bathClearA = clearAVal;
-    siteCheckObj.bathClearB = clearBVal;
-    if (clearAEl) clearAEl.textContent = clearAVal;
-    if (clearBEl) clearBEl.textContent = clearBVal;
+  function saveSiteCheckField(fkey, val) {
+    siteCheckObj[fkey] = val;
+    var u = {}; u[fkey] = val;
+    firebaseDB.ref('app_tasks/'+key+'/siteCheck').update(u);
+    if (globalTasks[key]) globalTasks[key].siteCheck = siteCheckObj;
+    if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem(modalAppDataKey(), JSON.stringify(fullData)); }
+    showSavedMsg();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
   }
-  // ★2026-09-12追加★ 床合わせが○の時は「床上がり高さ」を無効化(該当なしのため)
-  function applyBathYukaAwaseState() {
-    if (!sitecheckArea) return;
-    var awaseSel = sitecheckArea.querySelector('[data-field="bathYukaAwase"]');
-    var agariInput = sitecheckArea.querySelector('[data-field="bathYukaAgariTakasa"]');
-    if (!awaseSel || !agariInput) return;
-    var disable = awaseSel.value === '○';
-    agariInput.disabled = disable;
-    agariInput.style.background = disable ? '#eee' : '#fff';
-    if (disable && agariInput.value !== '') {
-      agariInput.value = '';
-      siteCheckObj.bathYukaAgariTakasa = '';
-      computeBathAutoFields();
-    }
-  }
-
   if (sitecheckArea) {
-    applyBathYukaAwaseState();
-    computeBathAutoFields();
-
-    // 数値入力中もリアルタイムで自動計算欄を更新(保存は従来通りfocusout時)
-    sitecheckArea.addEventListener('input', function(e){
-      var t = e.target;
-      if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
-        var calcFields = ['bathTenjouTakasa','bathYukaAgariTakasa','bathFuroTakasa','bathKankisenTakasa','bathSlabYukaTakasa'];
-        if (calcFields.indexOf(t.getAttribute('data-field')) !== -1) {
-          siteCheckObj[t.getAttribute('data-field')] = t.value;
-          computeBathAutoFields();
-        }
-      }
-    });
-
     sitecheckArea.addEventListener('focusout', function(e){
       var t = e.target;
       if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
-        var fkey = t.getAttribute('data-field');
-        siteCheckObj[fkey] = t.value;
-        saveField({siteCheck: siteCheckObj});
+        saveSiteCheckField(t.getAttribute('data-field'), t.value);
       }
     });
     sitecheckArea.addEventListener('change', function(e){
       var t = e.target;
       if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName === 'SELECT') {
-        var fkey = t.getAttribute('data-field');
-        siteCheckObj[fkey] = t.value;
-        if (fkey === 'bathYukaAwase') applyBathYukaAwaseState();
-        // ★2026-09-15追加★ ドアタイプ切替時：開き戸なら扉厚みを30に自動セット(空または前回引き戸値のとき)、
-        // 引き戸なら手入力してもらうため、30のままだった場合はクリアして入力を促す。
-        if (fkey === 'bathDoorType') {
-          var atsumiInput = sitecheckArea.querySelector('[data-field="bathHikidoAtsumi"]');
-          if (t.value === '開き戸') {
-            if (atsumiInput && (atsumiInput.value === '' )) { atsumiInput.value = '30'; }
-            if (atsumiInput) siteCheckObj.bathHikidoAtsumi = atsumiInput.value || '30';
-            if (atsumiInput && atsumiInput.value === '') { atsumiInput.value = '30'; siteCheckObj.bathHikidoAtsumi = '30'; }
-          } else if (t.value === '引き戸') {
-            if (atsumiInput && atsumiInput.value === '30') { atsumiInput.value = ''; siteCheckObj.bathHikidoAtsumi = ''; }
-          }
-        }
-        saveField({siteCheck: siteCheckObj});
+        saveSiteCheckField(t.getAttribute('data-field'), t.value);
       } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
         var group = t.closest('.sitecheck-multi');
         if (group) {
-          var fkey2 = group.getAttribute('data-field');
           var checkedVals = Array.prototype.slice.call(group.querySelectorAll('.sitecheck-multi-cb:checked')).map(function(cb){ return cb.value; });
-          siteCheckObj[fkey2] = checkedVals.join(',');
-          saveField({siteCheck: siteCheckObj});
+          saveSiteCheckField(group.getAttribute('data-field'), checkedVals.join(','));
         }
       }
     });
   }
-
-  // 🍳/🛁 現場チェックのタブ切替（キッチン⇔浴室）。切替時にそのタブの入力欄一式を再描画し、
-  // 直前に開いていたタブをsiteCheck.__lastTabとして保存(次回モーダルを開いた時に復元するため)。
-  document.querySelectorAll('.sitecheck-tab-btn').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var tab = this.getAttribute('data-tab');
-      siteCheckObj.__lastTab = tab;
-      saveField({siteCheck: siteCheckObj});
-      document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
-        var active = b.getAttribute('data-tab') === tab;
-        b.style.background = active ? '#e65100' : '#fff';
-        b.style.color = active ? '#fff' : '#e65100';
-        b.style.fontWeight = active ? 'bold' : 'normal';
-      });
-      if (sitecheckArea) {
-        sitecheckArea.innerHTML = renderSiteCheckGroups(tab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
-        applyBathYukaAwaseState();
-        computeBathAutoFields();
-      }
-    });
-  });
 
 
 
@@ -1030,333 +806,23 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   })();
 
-  // 📄 報告書から自動入力（タカラSB下見報告書のコピペテキスト → siteCheck/メモへの反映）
-  // report-parser.js（正規表現・無料・一瞬）とparseSBReportAI（Cloud Functions経由のClaude API・
-  // 数秒かかるが文面の崩れに強い）の2通りを用意し、どちらも同じ形の結果
-  // { fields, memoLines, bathMemoAppend } を返すので、プレビュー/反映のロジックは共通化する。
-  // ★2026-09-15変更★ 報告書・施工図の2セクションで同じ処理を使うため、プレフィックス(pfx)と
-  // docType を引数に取る関数に一般化。pfx='report'は報告書(正規表現版ボタンあり・docType省略)、
-  // pfx='drawing'は施工図(AIのみ・docType='drawing')。renderReportResult内の勝手プルダウンや
-  // フィールド反映ロジックは両方で共通に使える。
-  function setupDocAutoInput(pfx, docType) {
-    var pasteArea = document.getElementById(pfx+'-paste-area');
-    var parseBtn = document.getElementById(pfx+'-parse-btn'); // 施工図には無い(nullでOK)
-    var parseAiBtn = document.getElementById(pfx+'-parse-ai-btn');
-    var previewEl = document.getElementById(pfx+'-parse-preview');
-    if (!pasteArea) return;
-    var reportFieldLabels = {
-      bathMaguchi: '建物間口', bathOkuyuki: '建物奥行き', bathTenjouTakasa: '天井高さ',
-      bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
-      bathWakuzaiAtsumi: '枠材の厚み', bathTsurimotoWaku: '吊元側枠厚み',
-      bathSeihinMaguchi: '製品間口(浴槽基準)', bathSeihinOkuyuki: '製品奥行き(浴槽基準)',
-      bathKaikou: '額縁開口寸法', bathFuroTakasa: '風呂の高さ(製品)',
-      bathKankisenTakasa: '換気扇高さ', bathDuctTakasa: 'ダクト高さ', bathKutsuzuriTakasa: '沓摺り高さ',
-      bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
-      bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
-    };
-    // ★2026-09-13変更★ 正規表現版・AI版どちらの結果でも使う共通プレビュー描画＋反映処理。
-    function renderReportResult(result, sourceLabel) {
-      var keys = Object.keys(result.fields || {});
-      var hasKatte = typeof result.katte === 'string' && /^(AR|AL|BR|BL)$/.test(result.katte);
-      if (!keys.length && !hasKatte && !(result.memoLines && result.memoLines.length) && !result.bathMemoAppend) {
-        previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
-        return;
-      }
-      var html = '<div style="font-size:11px;color:#888;margin-bottom:4px;">'+sourceLabel+'の結果</div>';
-      html += '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
-      keys.forEach(function(k){
-        // ★2026-09-15追加★ 沓摺り高さは現場ごとに毎回異なるため、読み取れても⚠️で確認を促す。
-        var warn = (k === 'bathKutsuzuriTakasa') ? ' <span style="color:#c9721f;font-size:11px;">⚠️毎回要確認</span>' : '';
-        html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+escHtmlModal(result.fields[k])+'</b>'+warn+'</div>';
-      });
-      // ★2026-09-15追加★ 施工図から推定した勝手(AR/AL/BR/BL)は、図面の回転などで読み違えやすいため、
-      // プルダウンで選び直せる状態＋⚠️確認を促す表示にする(反映前にその場で直せる)。
-      if (hasKatte) {
-        var kOpts = ['AR','AL','BR','BL'].map(function(o){
-          return '<option value="'+o+'"'+(o===result.katte?' selected':'')+'>'+o+'</option>';
-        }).join('');
-        html += '<div style="margin-top:4px;padding-top:4px;border-top:1px dashed #ccc;">'
-          + '・勝手：<select id="'+pfx+'-katte-select" style="font-size:12px;padding:2px 6px;border:1px solid #c9721f;border-radius:3px;">'+kOpts+'</select>'
-          + ' <span style="color:#c9721f;font-size:11px;">⚠️施工図からの推定・図面と照らして確認してください</span></div>';
-      }
-      (result.memoLines || []).forEach(function(m){
-        html += '<div>・メモに追記：'+escHtmlModal(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
-      });
-      if (result.bathMemoAppend) {
-        html += '<div>・図面メモ(左下)に追記：'+escHtmlModal(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
-      }
-      html += '</div>';
-      html += '<button type="button" id="'+pfx+'-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容をフォームに反映</button>';
-      previewEl.innerHTML = html;
-
-      document.getElementById(pfx+'-apply-btn').addEventListener('click', function(){
-        Object.keys(result.fields || {}).forEach(function(k){ siteCheckObj[k] = result.fields[k]; });
-        // ★2026-09-15追加★ 勝手(AR/AL/BR/BL)を、内部の2フィールドに分解して保存。
-        // 1文字目=向き(A/B)→bathKatteAB、2文字目=扉位置(R/L)→bathDoorPosition(右/左)。
-        var katteSel = document.getElementById(pfx+'-katte-select');
-        var katteVal = katteSel ? katteSel.value : (hasKatte ? result.katte : '');
-        if (/^(AR|AL|BR|BL)$/.test(katteVal)) {
-          siteCheckObj.bathKatteAB = katteVal.charAt(0);
-          siteCheckObj.bathDoorPosition = (katteVal.charAt(1) === 'R') ? '右' : '左';
-        }
-        // ★2026-09-15変更★ 施工図(drawing)の画像は、Firebaseに保存すると文字数上限エラーになるため
-        // 保存しない(スクショ運用のため保存不要)。代わりにモーダルを開いている間だけ保持する
-        // ウィンドウ変数 window.__bathSekouZuImage に入れ、「図面を表示」時にその場で左上へ重ねる。
-        if (pfx === 'drawing') {
-          var firstImg = (pastedAttachments || []).filter(function(a){ return a.kind === 'image'; })[0];
-          if (firstImg && firstImg.dataUrl) {
-            window.__bathSekouZuImage = firstImg.dataUrl;
-          }
-        }
-        // 伝達事項は「4分割図面」の左下メモ(bathMemoRenraku)に追記する。
-        // こちらは職人さんがスクショで見る図面そのものに載るため、現場向けの伝達事項の置き場として適切。
-        if (result.bathMemoAppend) {
-          var stampBath = buildStamp();
-          var currentBathMemo = siteCheckObj.bathMemoRenraku || '';
-          siteCheckObj.bathMemoRenraku = (currentBathMemo ? currentBathMemo + '\n\n' : '') + '【報告書取込 ' + stampBath + '】\n' + result.bathMemoAppend;
-        }
-        var updates = { siteCheck: siteCheckObj };
-        if (result.memoLines && result.memoLines.length) {
-          var stamp = buildStamp();
-          var memoElNow = document.getElementById('modal-memo');
-          var currentMemo = memoElNow ? memoElNow.value : (obj.memo || '');
-          var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + '【報告書取込 ' + stamp + '】\n' + result.memoLines.join('\n');
-          if (memoElNow) memoElNow.value = newMemo;
-          updates.memo = newMemo;
-        }
-        // 現場チェックのタブを再描画して反映を可視化(浴室タブに切替えて表示)
-        siteCheckObj.__lastTab = 'bath';
-        if (sitecheckArea) {
-          document.querySelectorAll('.sitecheck-tab-btn').forEach(function(b){
-            var active = b.getAttribute('data-tab') === 'bath';
-            b.style.background = active ? '#e65100' : '#fff';
-            b.style.color = active ? '#fff' : '#e65100';
-            b.style.fontWeight = active ? 'bold' : 'normal';
-          });
-          sitecheckArea.innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_BATH, siteCheckObj);
-          applyBathYukaAwaseState();
-          computeBathAutoFields();
-        }
-        saveField(updates);
-        previewEl.innerHTML += '<div style="color:#2e7d32;margin-top:4px;">✔ 反映して保存しました</div>';
-      });
-    }
-
-    // 🔍 正規表現版（無料・一瞬・オフライン可）
-    if (parseBtn) parseBtn.addEventListener('click', function(){
-      var text = pasteArea.value;
-      if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
-      previewEl.textContent = '⏳ 解析中...';
-      ensureReportParserLibModal(function(){
-        var result = parseSBReportText(text);
-        renderReportResult(result, '🔍 正規表現');
-      });
-    });
-
-    // 🤖 AI版（Cloud Functions経由でClaude APIを呼ぶ。数秒かかるが文面の崩れに強い）
-    if (parseAiBtn) {
-      parseAiBtn.addEventListener('click', function(){
-        var text = pasteArea.value;
-        if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
-        previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
-        fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text, docType: docType })
-        }).then(function(res){
-          return res.json().then(function(data){ return { ok: res.ok, data: data }; });
-        }).then(function(r){
-          if (!r.ok || r.data.status !== 'ok') {
-            previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+escHtmlModal((r.data && r.data.message) || '不明なエラー')+'</span>';
-            return;
-          }
-          renderReportResult(r.data.result, '🤖 AI');
-        }).catch(function(e){
-          previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
-        });
-      });
-    }
-
-    // 📎 画像/PDFから解析（AI・PDFのテキスト抽出がうまくいかない場合の代替。そのまま読ませる）
-    // ★2026-09-13変更★ 報告書が複数ページにまたがる場合に対応するため、1枚固定ではなく
-    // 配列で複数枚(画像・PDF混在可)を保持できるようにする。貼り付けるたびに追加され、
-    // サムネイル一覧に個別の削除ボタンを出す。PDFはFinderでファイルをコピーしてから
-    // ここに⌘Vすると、クリップボードのfiles経由で取得できる。
-    var imagePasteArea = document.getElementById(pfx+'-image-paste');
-    var imagePreview = document.getElementById(pfx+'-image-preview');
-    var parseImageBtn = document.getElementById(pfx+'-parse-image-btn');
-    var imageClearBtn = document.getElementById(pfx+'-image-clear-btn');
-    var pastedAttachments = []; // [{kind:'image', mediaType, base64, dataUrl} | {kind:'pdf', base64, filename}]
-
-    function renderImageThumbs() {
-      if (!imagePreview) return;
-      imagePreview.innerHTML = '';
-      pastedAttachments.forEach(function(att, idx){
-        var wrap = document.createElement('div');
-        wrap.style.cssText = 'position:relative;display:inline-block;';
-        if (att.kind === 'pdf') {
-          var box = document.createElement('div');
-          box.style.cssText = 'width:120px;height:80px;border:1px solid #ccc;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;color:#555;background:#fafafa;padding:4px;text-align:center;word-break:break-all;';
-          box.innerHTML = '📄<br>'+escHtmlModal(att.filename || 'PDF');
-          wrap.appendChild(box);
-        } else {
-          var thumb = document.createElement('img');
-          thumb.src = att.dataUrl;
-          thumb.style.cssText = 'max-width:140px;max-height:140px;border:1px solid #ccc;border-radius:4px;display:block;';
-          wrap.appendChild(thumb);
-        }
-        var delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.textContent = '×';
-        delBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;width:20px;height:20px;line-height:18px;text-align:center;padding:0;font-size:13px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:50%;cursor:pointer;';
-        delBtn.addEventListener('click', function(){
-          pastedAttachments.splice(idx, 1);
-          renderImageThumbs();
-        });
-        wrap.appendChild(delBtn);
-        imagePreview.appendChild(wrap);
-      });
-    }
-
-    // ★2026-09-13変更★ iPad(iOS Safari)は通常の<div>に「貼り付け」操作(長押しメニュー)自体が
-    // 出せないため、divのpasteイベントが発火しない。本物の入力欄であるテキストエリア側にも
-    // 同じ検知処理を仕込み、iPadでもテキストエリアを長押し→貼り付けで画像/PDFを拾えるようにする。
-    function handlePasteForAttachments(e) {
-      var cd = e.clipboardData || window.clipboardData;
-      if (!cd) return;
-      var handled = false;
-      // 画像(スクショ等)：items経由
-      var items = cd.items;
-      if (items) {
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf('image') !== -1) {
-            handled = true;
-            var blob = items[i].getAsFile();
-            var reader = new FileReader();
-            reader.onload = function(ev){
-              var dataUrl = ev.target.result;
-              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
-              if (m) {
-                pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
-                renderImageThumbs();
-              }
-            };
-            reader.readAsDataURL(blob);
-          }
-        }
-      }
-      // PDFファイル：Finderでファイルをコピーして貼った場合はfiles経由で来る(PC限定。iOSは非対応が多い)
-      var files = cd.files;
-      if (files) {
-        for (var j = 0; j < files.length; j++) {
-          if (files[j].type === 'application/pdf') {
-            handled = true;
-            var f = files[j];
-            var reader2 = new FileReader();
-            reader2.onload = function(ev){
-              var dataUrl2 = ev.target.result;
-              var m2 = dataUrl2.match(/^data:application\/pdf;base64,(.+)$/);
-              if (m2) {
-                pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
-                renderImageThumbs();
-              }
-            };
-            reader2.readAsDataURL(f);
-          }
-        }
-      }
-      if (handled) e.preventDefault();
-    }
-    if (imagePasteArea) imagePasteArea.addEventListener('paste', handlePasteForAttachments);
-    // テキストエリア側は、画像/PDFの時だけこちらで処理してpreventDefaultする。
-    // 通常の文字の貼り付け(handled===falseのケース)は素通りするので、テキスト貼り付けの動作は変わらない。
-    if (pasteArea) pasteArea.addEventListener('paste', handlePasteForAttachments);
-
-    // 📁 ファイル選択（貼り付けが使えない/不安な場合の確実な代替。iPadのFilesアプリからも選べる）
-    var fileInput = document.getElementById(pfx+'-file-input');
-    if (fileInput) {
-      fileInput.addEventListener('change', function(){
-        var files = fileInput.files;
-        if (!files || !files.length) return;
-        Array.prototype.forEach.call(files, function(f){
-          var reader = new FileReader();
-          reader.onload = function(ev){
-            var dataUrl = ev.target.result;
-            if (f.type === 'application/pdf') {
-              var m2 = dataUrl.match(/^data:application\/pdf;base64,(.+)$/);
-              if (m2) pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
-            } else if (f.type.indexOf('image') !== -1) {
-              var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
-              if (m) pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
-            }
-            renderImageThumbs();
-          };
-          reader.readAsDataURL(f);
-        });
-        fileInput.value = ''; // 同じファイルを続けて選べるようにリセット
-      });
-    }
-
-    if (imageClearBtn) {
-      imageClearBtn.addEventListener('click', function(){
-        pastedAttachments = [];
-        renderImageThumbs();
-      });
-    }
-
-    if (parseImageBtn) {
-      parseImageBtn.addEventListener('click', function(){
-        if (!pastedAttachments.length) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像またはPDFを貼り付けてください</span>'; return; }
-        previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
-        var images = pastedAttachments.filter(function(a){ return a.kind === 'image'; }).map(function(a){ return { data: a.base64, mediaType: a.mediaType }; });
-        var pdfs = pastedAttachments.filter(function(a){ return a.kind === 'pdf'; }).map(function(a){ return { data: a.base64 }; });
-        fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images: images, pdfs: pdfs, docType: docType })
-        }).then(function(res){
-          return res.json().then(function(data){ return { ok: res.ok, data: data }; });
-        }).then(function(r){
-          if (!r.ok || r.data.status !== 'ok') {
-            previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+escHtmlModal((r.data && r.data.message) || '不明なエラー')+'</span>';
-            return;
-          }
-          renderReportResult(r.data.result, '📎 添付AI');
-        }).catch(function(e){
-          previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+escHtmlModal(e.message)+'</span>';
-        });
-      });
-    }
-  }
-  setupDocAutoInput('report');
-  setupDocAutoInput('drawing', 'drawing');
+  // ★2026-10-11変更★ 報告書/施工図からの自動入力は作図ページ(bath-diagram.html)側に移した。
 
 
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
 
-  // 📐 作図ページ(bath-diagram.html)へ飛ぶ。案件はkeyで渡し、図面側がFirebaseから現場チェックを読む。
-  // ★2026-10-11変更★ 図面の描画はbath-diagram.html側へ移した(モーダル内表示は廃止)。
-  // 施工図画像はFirebaseに保存しない運用(2026-09-15)のため、モーダル保持中のwindow.__bathSekouZuImageが
-  // あるときだけ、新しいタブへsessionStorage経由で一時的に渡す(window.openで開いたタブには引き継がれる)。
-  // 保存できない(容量超過など)場合は黙って施工図なしで開く。
+  // 📐 作図ページ(bath-diagram.html)へ飛ぶ。案件はkeyで渡す。
+  // ★2026-10-11変更★ 作図に使う情報の入力(現地情報・報告書/施工図の取込)と図面表示は、すべてbath-diagram.html側に移した。
+  // モーダルには入力欄を置かず、このボタンで飛ぶだけにする。今は浴室用ページへ飛ぶ。キッチンも作図対応になった時は、
+  // 工事区分(CSV 3列目)で飛び先を分けるか、作図ページ側で切り替える。
   (function(){
-    var btn = document.getElementById('bath-diagram-open-btn');
+    var btn = document.getElementById('sakuzu-open-btn');
     if (!btn) return;
     btn.addEventListener('click', function(){
-      try {
-        if (window.__bathSekouZuImage) {
-          sessionStorage.setItem('bathSekouZuImage', window.__bathSekouZuImage);
-          sessionStorage.setItem('bathSekouZuImageKey', key);
-        } else {
-          sessionStorage.removeItem('bathSekouZuImage');
-          sessionStorage.removeItem('bathSekouZuImageKey');
-        }
-      } catch (e) {
-        try { sessionStorage.removeItem('bathSekouZuImage'); sessionStorage.removeItem('bathSekouZuImageKey'); } catch (e2) {}
-      }
-      var w = window.open('bath-diagram.html?key=' + encodeURIComponent(key), '_blank');
-      if (!w) location.href = 'bath-diagram.html?key=' + encodeURIComponent(key); // ポップアップ不可の端末は同じタブで開く
+      var url = 'bath-diagram.html?key=' + encodeURIComponent(key);
+      var w = window.open(url, '_blank');
+      if (!w) location.href = url; // ポップアップ不可の端末は同じタブで開く
     });
   })();
 
@@ -1394,22 +860,8 @@ function ensureStorageSDKModal(cb) {
 // ★2026-10-11変更★ 浴室図面の遅延読込ローダー(ensureBathDiagramLibModal)は廃止。
 // 図面の描画はbath-diagram.html(bath-diagram.jsを直接読み込む)側で行う。
 
-// ============ 📄 報告書パーサー 遅延読込ローダー（report-parser.js） ============
-// ★2026-09-13追加★ タカラSB下見報告書のコピペテキスト解析コード(parseSBReportText)を
-// report-parser.jsへ分離し、「解析する」ボタンを押した時だけ読み込む。
-function ensureReportParserLibModal(cb) {
-  if (typeof parseSBReportText === 'function') { cb(); return; }
-  var existing = document.querySelector('script[data-reportparser]');
-  if (existing) {
-    existing.addEventListener('load', cb);
-    return;
-  }
-  var s = document.createElement('script');
-  s.src = 'report-parser.js';
-  s.setAttribute('data-reportparser', '1');
-  s.onload = cb;
-  document.head.appendChild(s);
-}
+// ★2026-10-11変更★ 報告書パーサーの遅延ローダー(ensureReportParserLibModal)は廃止。
+// 報告書・施工図の自動入力は作図ページ(bath-diagram.html)側に移した。
 
 var IMAGE_EXT_RE_MODAL = /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i;
 
