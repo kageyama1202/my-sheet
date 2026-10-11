@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-10-10-024
+// VERSION: 2026-10-11-001
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -445,12 +445,12 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += renderSiteCheckGroups(siteCheckLastTab === 'bath' ? SITECHECK_GROUPS_BATH : SITECHECK_GROUPS_KITCHEN, siteCheckObj);
   html += '</div></div>';
 
-  // ★2026-09-12追加★ 📐 浴室図面：現場チェック(浴室タブ)で入力した数値を4象限レイアウトのSVGに反映して画面表示するボタン。
-  // ★2026-09-13変更★ PDF化はやめ、モーダル内にSVGをそのまま表示する方式に変更(セールスフォースへはスクショで登録する運用のため)。
+  // ★2026-09-12追加★ 📐 浴室図面：現場チェック(浴室タブ)で入力した数値をSVGに反映して表示する。
+  // ★2026-10-11変更★ 作図(図面表示)と現地情報の記入を分離。図面の表示はbath-diagram.html側で行い、
+  // モーダルにはそこへ飛ぶボタンだけを置く。現地情報の入力は従来どおりこのモーダルの「現場チェック」。
   html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 浴室図面</h4>';
-  html += '<button type="button" id="bath-diagram-show-btn" style="font-size:12px;padding:8px 16px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">🖼 図面を表示(スクショ用)</button>';
-  html += '<div id="bath-diagram-status" style="font-size:11px;color:#888;margin-top:6px;"></div>';
-  html += '<div id="bath-diagram-preview" style="margin-top:10px;max-width:100%;overflow-x:auto;"></div>';
+  html += '<button type="button" id="bath-diagram-open-btn" style="font-size:12px;padding:8px 16px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">🖼 作図ページを開く</button>';
+  html += '<div style="font-size:11px;color:#888;margin-top:6px;">入力した現場チェックの内容で、別ページに図面を表示します（スクショ用）</div>';
   html += '</div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
@@ -1335,29 +1335,28 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
   initCaseAttachments(key);
 
-  // 📐 浴室図面 画面表示（bath-diagram.jsを必要時のみ動的読込。PDF化はせずスクショ用にそのまま表示）
+  // 📐 作図ページ(bath-diagram.html)へ飛ぶ。案件はkeyで渡し、図面側がFirebaseから現場チェックを読む。
+  // ★2026-10-11変更★ 図面の描画はbath-diagram.html側へ移した(モーダル内表示は廃止)。
+  // 施工図画像はFirebaseに保存しない運用(2026-09-15)のため、モーダル保持中のwindow.__bathSekouZuImageが
+  // あるときだけ、新しいタブへsessionStorage経由で一時的に渡す(window.openで開いたタブには引き継がれる)。
+  // 保存できない(容量超過など)場合は黙って施工図なしで開く。
   (function(){
-    var btn = document.getElementById('bath-diagram-show-btn');
-    var statusEl = document.getElementById('bath-diagram-status');
-    var previewEl = document.getElementById('bath-diagram-preview');
+    var btn = document.getElementById('bath-diagram-open-btn');
     if (!btn) return;
     btn.addEventListener('click', function(){
-      statusEl.textContent = '⏳ 図面を作成中...';
-      ensureBathDiagramLibModal(function(){
-        previewEl.innerHTML = '<div id="bath-diagram-render" style="background:#fff;display:inline-block;width:100%;"></div>';
-        // ★2026-09-15変更★ 施工図画像はFirebaseに保存しない(上限エラー回避)。描画のときだけ、
-        // モーダル保持中のwindow.__bathSekouZuImageを一時コピーに乗せて左上を施工図に差し替える。
-        // siteCheckObj本体には入れない(保存対象にしないため)。
-        var drawObj = siteCheckObj;
+      try {
         if (window.__bathSekouZuImage) {
-          drawObj = {};
-          for (var k in siteCheckObj) { if (siteCheckObj.hasOwnProperty(k)) drawObj[k] = siteCheckObj[k]; }
-          drawObj.bathSekouZuImage = window.__bathSekouZuImage;
+          sessionStorage.setItem('bathSekouZuImage', window.__bathSekouZuImage);
+          sessionStorage.setItem('bathSekouZuImageKey', key);
+        } else {
+          sessionStorage.removeItem('bathSekouZuImage');
+          sessionStorage.removeItem('bathSekouZuImageKey');
         }
-        document.getElementById('bath-diagram-render').innerHTML = buildBathDiagramSVG(drawObj);
-        statusEl.textContent = '✅ 表示しました（スクショしてご利用ください）';
-        setTimeout(function(){ statusEl.textContent = ''; }, 2500);
-      });
+      } catch (e) {
+        try { sessionStorage.removeItem('bathSekouZuImage'); sessionStorage.removeItem('bathSekouZuImageKey'); } catch (e2) {}
+      }
+      var w = window.open('bath-diagram.html?key=' + encodeURIComponent(key), '_blank');
+      if (!w) location.href = 'bath-diagram.html?key=' + encodeURIComponent(key); // ポップアップ不可の端末は同じタブで開く
     });
   })();
 
@@ -1392,23 +1391,8 @@ function ensureStorageSDKModal(cb) {
   document.head.appendChild(s);
 }
 
-// ============ 📐 浴室図面 遅延読込ローダー（bath-diagram.js） ============
-// ★2026-09-12追加★ buildBathDiagramSVG等の作図関連コードをbath-diagram.jsへ分離し、
-// 「図面を表示」ボタンを押した時だけ読み込む(ensureStorageSDKModalと同じ遅延読込パターン)。
-// ★2026-09-13変更★ PDF化は廃止(画面表示のみ)。html2canvas/jsPDFの読込は不要になったため撤去。
-function ensureBathDiagramLibModal(cb) {
-  if (typeof buildBathDiagramSVG === 'function') { cb(); return; }
-  var existing = document.querySelector('script[data-bathdiagram]');
-  if (existing) {
-    existing.addEventListener('load', cb);
-    return;
-  }
-  var s = document.createElement('script');
-  s.src = 'bath-diagram.js';
-  s.setAttribute('data-bathdiagram', '1');
-  s.onload = cb;
-  document.head.appendChild(s);
-}
+// ★2026-10-11変更★ 浴室図面の遅延読込ローダー(ensureBathDiagramLibModal)は廃止。
+// 図面の描画はbath-diagram.html(bath-diagram.jsを直接読み込む)側で行う。
 
 // ============ 📄 報告書パーサー 遅延読込ローダー（report-parser.js） ============
 // ★2026-09-13追加★ タカラSB下見報告書のコピペテキスト解析コード(parseSBReportText)を
