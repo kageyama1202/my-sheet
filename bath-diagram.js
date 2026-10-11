@@ -1,454 +1,268 @@
-/* bath-diagram.js — 浴室現場チェックの図面SVG生成【3枚独立構成】
-   shared-modal.js内「📐 浴室図面」の「図面を表示」ボタンから、
-   ensureBathDiagramLibModal()によってボタンクリック時にのみ動的読込される。
-   buildBathDiagramSVG(sc) は、平面図・高さ断面・窓の3枚を縦に並べたHTML文字列を返す。
-   各枚は独立したSVGなので、1枚ずつスクショして報告書に貼れる。
-   escHtmlModal()はshared-modal.js側にある想定(このファイルは常にshared-modal.jsの後に読み込まれる)。
-   ★2026-09-15全面刷新★ 従来の4象限1枚レイアウトを廃止し、平面/高さ/窓の3枚独立構成にした。
-     左下(メモ専用象限)は廃止。伝達事項メモは平面図の枚の下に小さく載せる。
-*/
-// VERSION: 2026-09-19-109
-// CREATED: 2026-09-17 23:10
+<!DOCTYPE html>
+<!-- VERSION: 2026-10-11-001 -->
+<!-- CREATED: 2026-10-11 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>浴室図面</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
+.header-bar{display:flex;align-items:center;gap:6px;background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 10px;position:sticky;top:0;z-index:11;}
+.header-bar .hb-title{font-size:13px;font-weight:600;color:#00695c;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hb-btn{display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#555;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;font-family:inherit;}
+.hb-btn:active{background:#f5f5f5;}
+.wrap{max-width:1000px;margin:0 auto;padding:12px;padding-bottom:3rem;}
+.case-info{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;}
+.case-info .ci-name{font-weight:bold;font-size:14px;}
+.case-info .ci-sub{font-size:12px;color:#666;}
+.status{font-size:12px;color:#888;text-align:center;padding:1.5rem 0;}
+.status.err{color:#c62828;}
+.hint{font-size:11px;color:#888;text-align:center;margin-bottom:10px;}
+#render{background:#fff;}
+.picker-search{width:100%;font-size:15px;padding:10px 12px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;margin-bottom:10px;font-family:inherit;-webkit-appearance:none;}
+.picker-search:focus{outline:none;border-color:#00695c;}
+.pick-item{display:block;width:100%;text-align:left;background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;}
+.pick-item:active{background:#f5f5f5;}
+.pick-name{font-size:14px;font-weight:600;color:#1a1a1a;}
+.pick-sub{font-size:11px;color:#888;margin-top:3px;}
+.badge-has{display:inline-block;font-size:10px;color:#004d40;background:#e0f2f1;border:1px solid #80cbc4;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
+</style>
+</head>
+<body>
 
-function numModal(v, def) {
-  var n = parseFloat(v);
-  return isNaN(n) ? (def === undefined ? null : def) : n;
+<div class="header-bar">
+  <button class="hb-btn" onclick="goBack()">‹ 戻る</button>
+  <span class="hb-title" id="hb-title">📐 浴室図面</span>
+  <button class="hb-btn" id="hb-reload" style="display:none;" onclick="reloadCase()">🔄 再読込</button>
+  <button class="hb-btn" id="hb-change" style="display:none;" onclick="showPicker()">案件変更</button>
+  <a class="hb-btn" href="index.html">🏠 トップ</a>
+</div>
+
+<div class="wrap">
+  <div id="msg" class="status">⏳ 読み込み中...</div>
+
+  <div id="picker" style="display:none;">
+    <div class="hint">図面を作る案件を選んでください（現地情報の入力は案件モーダルの「現場チェック」で行います）</div>
+    <input type="text" id="picker-search" class="picker-search" placeholder="案件名・住所で絞り込み">
+    <div id="picker-list"></div>
+  </div>
+
+  <div id="case-area" style="display:none;">
+    <div class="case-info" id="case-info"></div>
+    <div class="hint" id="draw-hint">各図は1枚ずつスクショして使えます</div>
+    <div id="render"></div>
+  </div>
+</div>
+
+<script src="bath-diagram.js"></script>
+<script>
+// bath-diagram.js が使う escHtmlModal() は本来 shared-modal.js 側にある。
+// このページでは shared-modal.js を読み込まないため、同じ処理をここで用意する。
+if (typeof escHtmlModal !== 'function') {
+  window.escHtmlModal = function (s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  };
 }
 
-// 間口(w)×奥行き(d)[mm]を、maxW×maxHの枠に収まる比率でスケールしたピクセルサイズに変換
-function fitBoxModal(w, d, maxW, maxH) {
-  if (!w || !d) return { w: maxW, h: maxH, scale: 1 };
-  var scale = Math.min(maxW / w, maxH / d);
-  return { w: w * scale, h: d * scale, scale: scale };
+var db = null;
+var allTasks = null;      // app_tasks 全体（案件選択用に一度だけ取得）
+var currentKey = '';
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return window.escHtmlModal(s); }
+function col(task, i) {
+  var c = task && task.csvData;
+  if (!c) return '';
+  return (c[i] != null) ? String(c[i]) : '';
 }
 
-// SVGの<text>は自動改行しないため、文字数ベースで簡易的に折り返す。
-function wrapTextModal(text, maxChars) {
-  var str = String(text == null ? '' : text);
-  var lines = [];
-  for (var i = 0; i < str.length; i += maxChars) {
-    lines.push(str.slice(i, i + maxChars));
-  }
-  return lines.length ? lines : [''];
+function setMsg(text, isErr) {
+  var m = $('msg');
+  if (!text) { m.style.display = 'none'; return; }
+  m.style.display = 'block';
+  m.className = 'status' + (isErr ? ' err' : '');
+  m.textContent = text;
 }
 
-// 1枚のSVGを開くヘルパー(横長 sheetW×sheetH、背景色つき)
-function openSheetSVG(sheetW, sheetH, title) {
-  var s = '<svg width="100%" viewBox="0 0 '+sheetW+' '+sheetH+'" preserveAspectRatio="xMidYMid meet" '
-    + 'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
-    + 'font-family="\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif" style="display:block;background:#fff;border:1px solid #ccc;">';
-  s += '<rect width="'+sheetW+'" height="'+sheetH+'" fill="#fdfaf3"/>';
-  if (title) s += '<text x="18" y="34" font-size="22" font-weight="bold" fill="#00695c">'+title+'</text>';
-  return s;
+function goBack() {
+  if (window.history.length > 1 && document.referrer) { history.back(); }
+  else { location.href = 'today.html'; }
 }
 
-// ============================================================
-// メイン：3枚(平面・高さ・窓)を縦に並べたHTMLを返す
-// ============================================================
-function buildBathDiagramSVG(sc) {
-  sc = sc || {};
-  var html = '';
-  html += '<div style="margin-bottom:14px;">' + buildPlanSheet(sc) + '</div>';
-  html += '<div style="margin-bottom:14px;">' + buildHeightSheet(sc) + '</div>';
-  html += '<div style="margin-bottom:4px;">'  + buildWindowSheet(sc) + '</div>';
-  return html;
+function getKeyFromUrl() {
+  var m = location.search.match(/[?&]key=([^&]*)/);
+  return m ? decodeURIComponent(m[1]) : '';
 }
 
-// ============================================================
-// 【1枚目】平面図（施工図画像 or 自前平面図）＋クリア・勝手・メモ
-// ============================================================
-function buildPlanSheet(sc) {
-  var W = 940, H = 720;
-  var svg = openSheetSVG(W, H, '① 平面図');
+// ---------- 案件を読み込んで図面を描く ----------
+function loadCase(key) {
+  currentKey = key;
+  $('picker').style.display = 'none';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  setMsg('⏳ 案件データを読み込み中...');
 
-  // --- 入力値の取り出し ---
-  // 【A/B】扉から見て浴槽の長手方向。A=縦長(奥行き方向)、B=横長(間口方向)。
-  // 【L/R】扉(下辺に固定)が右寄り(R)か左寄り(L)か。浴槽位置とは無関係。
-  // 建物寸法は入口(扉)基準で固定。製品寸法だけ勝手(A/B)で縦横を入れ替える(swapMO)。
-  var maguchiRaw = numModal(sc.bathMaguchi), okuyukiRaw = numModal(sc.bathOkuyuki);
-  var seiMaguchiRaw = numModal(sc.bathSeihinMaguchi), seiOkuyukiRaw = numModal(sc.bathSeihinOkuyuki);
-  var katteAB = sc.bathKatteAB || 'A';
-  var swapMO = katteAB === 'B';
-  var maguchi  = swapMO ? okuyukiRaw    : maguchiRaw;
-  var okuyuki  = swapMO ? maguchiRaw    : okuyukiRaw;
-  var seiMaguchi = swapMO ? seiOkuyukiRaw : seiMaguchiRaw;
-  var seiOkuyuki = swapMO ? seiMaguchiRaw : seiOkuyukiRaw;
-  var doorPos = sc.bathDoorPosition || '';
-  var doorType = sc.bathDoorType || '開き戸';
-  var abCode = sc.bathKatteAB || '';
-  var lrCode = doorPos === '右' ? 'R' : (doorPos === '左' ? 'L' : '');
-  var abrCode = (abCode && lrCode) ? (abCode+lrCode) : '';
-
-  // 図の描画領域(左側)と、注記の領域(右側)に分ける
-  var drawX = 40, drawY = 46, drawMaxW = 380, drawMaxH = 340;
-
-  var sekouZu = sc.bathSekouZuImage || '';
-  var hasSekouZu = typeof sekouZu === 'string' && sekouZu.indexOf('data:image') === 0;
-
-  if (hasSekouZu) {
-    // 施工図画像モード：施工図を大きく表示
-    svg += '<image x="'+drawX+'" y="'+drawY+'" width="'+drawMaxW+'" height="'+drawMaxH+'" xlink:href="'+sekouZu+'" href="'+sekouZu+'" preserveAspectRatio="xMidYMid meet"/>';
-    svg += '<text x="'+drawX+'" y="'+(drawY+drawMaxH+18)+'" font-size="15" fill="#00695c">↑施工図（現場数値は右に記載）</text>';
-  } else {
-    // 自前平面図モード
-    var outerBox = fitBoxModal(maguchi || seiMaguchi || 1600, okuyuki || seiOkuyuki || 1600, 300, 300);
-    var ox = drawX + 30, oy = drawY + 20, ow = outerBox.w, oh = outerBox.h;
-    // 間口ラベル(上)★図は扉を下に固定して描くため、A/Bで各辺に来る方向が変わる。
-    //   swap後の maguchi(この辺=間口方向の値)を表示する。値自体は報告書のまま(swapは並べ替えるだけ)。
-    svg += '<text x="'+(ox+ow/2)+'" y="'+(oy-8)+'" text-anchor="middle" font-size="14" fill="#555">'+(maguchi||'')+'</text>';
-    var hikidoAtsumi = numModal(sc.bathHikidoAtsumi);
-    if (doorType === '引き戸' && hikidoAtsumi && maguchiRaw) {
-      svg += '<text x="'+(ox+ow/2)+'" y="'+(oy+5)+'" text-anchor="middle" font-size="10" fill="#607d8b">(+引戸'+hikidoAtsumi+'＝'+(maguchiRaw+hikidoAtsumi)+')</text>';
+  db.ref('app_tasks/' + key).once('value').then(function (snap) {
+    var task = snap.val();
+    if (!task) {
+      setMsg('案件が見つかりませんでした。「案件変更」から選び直してください。', true);
+      $('hb-change').style.display = '';
+      return;
     }
-    // 外枠
-    svg += '<rect x="'+ox+'" y="'+oy+'" width="'+ow+'" height="'+oh+'" fill="none" stroke="#c0392b" stroke-width="2"/>';
-    // 内枠(製品)
-    var padX = 12, padY = 12;
-    if (seiMaguchi && maguchi) padX = Math.max(4, ow * (maguchi - seiMaguchi) / maguchi / 2);
-    if (seiOkuyuki && okuyuki) padY = Math.max(4, oh * (okuyuki - seiOkuyuki) / okuyuki / 2);
-    var ix = ox + padX, iy = oy + padY, iw = ow - padX*2, ih = oh - padY*2;
-    svg += '<rect x="'+ix+'" y="'+iy+'" width="'+iw+'" height="'+ih+'" fill="#dcecec" stroke="#00695c" stroke-width="1.5"/>';
-    // 内枠(製品)の数字も各辺の方向に合わせて(swap後)
-    if (seiMaguchi) svg += '<text x="'+(ix+iw/2)+'" y="'+(iy+16)+'" text-anchor="middle" font-size="12" fill="#00695c">'+seiMaguchi+'</text>';
-    if (seiOkuyuki) svg += '<text x="'+(ix+iw-10)+'" y="'+(iy+ih/2)+'" font-size="12" fill="#00695c" transform="rotate(90 '+(ix+iw-10)+' '+(iy+ih/2)+')" text-anchor="middle">'+seiOkuyuki+'</text>';
-    // 奥行きラベル(右)★swap後の okuyuki(この辺=奥行き方向の値)
-    svg += '<text x="'+(ox+ow+8)+'" y="'+(oy+oh/2)+'" font-size="14" fill="#555" transform="rotate(90 '+(ox+ow+8)+' '+(oy+oh/2)+')" text-anchor="middle">'+(okuyuki||'')+'</text>';
-
-    // 浴槽(A=縦長/B=横長、扉と反対側に配置)
-    var tubW, tubH, tubX, tubY;
-    if (swapMO) { tubW = iw; tubH = Math.min(ih*0.55, 90); tubX = ix; tubY = iy; }
-    else {
-      tubW = Math.min(iw*0.55, 90); tubH = ih; tubY = iy;
-      tubX = (doorPos === '左') ? (ix + iw - tubW) : ix;
-    }
-    svg += '<rect x="'+tubX+'" y="'+tubY+'" width="'+tubW+'" height="'+tubH+'" rx="10" ry="10" fill="#fff" stroke="#004d40" stroke-width="1.5"/>';
-    svg += '<text x="'+(tubX+tubW/2)+'" y="'+(tubY+tubH/2+4)+'" text-anchor="middle" font-size="11" fill="#004d40">浴槽</text>';
-
-    // ドア(下辺固定・室内側に開く)
-    var doorY = oy + oh;
-    var kaikou = numModal(sc.bathKaikou);
-    var doorWidthMM = kaikou || 650;
-    var doorR = Math.min(Math.max(15, doorWidthMM * outerBox.scale), ow*0.9, oh*0.9);
-    if (doorType === '引き戸') {
-      if (doorPos === '右') {
-        svg += '<rect x="'+(ox+ow-doorR)+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
-        svg += '<text x="'+(ox+ow-doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">→</text>';
-        svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">右勝手(引戸)'+(abrCode?'　'+abrCode:'')+'</text>';
-      } else if (doorPos === '左') {
-        svg += '<rect x="'+ox+'" y="'+(doorY-5)+'" width="'+doorR+'" height="10" fill="#607d8b" stroke="#37474f" stroke-width="1.5"/>';
-        svg += '<text x="'+(ox+doorR/2)+'" y="'+(doorY-10)+'" text-anchor="middle" font-size="14" fill="#37474f">←</text>';
-        svg += '<text x="'+drawX+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">左勝手(引戸)'+(abrCode?'　'+abrCode:'')+'</text>';
-      }
-    } else if (doorPos === '右') {
-      var rHingeX = ox+ow, rHingeY = doorY;
-      svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+rHingeX+'" y2="'+(rHingeY-doorR)+'" stroke="#222" stroke-width="3"/>';
-      svg += '<line x1="'+rHingeX+'" y1="'+rHingeY+'" x2="'+(rHingeX-doorR)+'" y2="'+rHingeY+'" stroke="#222" stroke-width="2"/>';
-      svg += '<path d="M'+rHingeX+','+(rHingeY-doorR)+' A'+doorR+','+doorR+' 0 0 0 '+(rHingeX-doorR)+','+rHingeY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-      svg += '<text x="'+(ox+ow+10)+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">右勝手'+(abrCode?'　'+abrCode:'')+'</text>';
-    } else if (doorPos === '左') {
-      var lHingeX = ox, lHingeY = doorY;
-      svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+lHingeX+'" y2="'+(lHingeY-doorR)+'" stroke="#222" stroke-width="3"/>';
-      svg += '<line x1="'+lHingeX+'" y1="'+lHingeY+'" x2="'+(lHingeX+doorR)+'" y2="'+lHingeY+'" stroke="#222" stroke-width="2"/>';
-      svg += '<path d="M'+lHingeX+','+(lHingeY-doorR)+' A'+doorR+','+doorR+' 0 0 1 '+(lHingeX+doorR)+','+lHingeY+'" fill="none" stroke="#999" stroke-width="1.5"/>';
-      svg += '<text x="'+drawX+'" y="'+(doorY+18)+'" font-size="13" fill="#c0392b">左勝手'+(abrCode?'　'+abrCode:'')+'</text>';
-    } else {
-      svg += '<text x="'+(ox+ow/2)+'" y="'+(doorY+16)+'" text-anchor="middle" font-size="12" fill="#aaa">(勝手未選択)</text>';
-    }
-  }
-
-  // --- 右側：注記(クリア計算・勝手・石膏ボード・設置方法・メモ) ---
-  var noteX = 430, noteY = 62;
-  function pushNote(text, color, size, opts) {
-    // ★2026-09-16変更★ 全体的に文字を大きく(指定サイズ+4)。スクショで報告書に貼っても読みやすく。
-    // ★2026-09-17変更★ 折り返しを24文字に(大きい文字でも右端で見切れないように)。
-    // ★2026-09-19変更★ opts.bold / opts.wrap で特定行だけ強調表示できるように(設置方法を目立たせるため)。
-    opts = opts || {};
-    var fs = (size || 12) + 4;
-    var wrapLen = opts.wrap || 24;
-    var weightAttr = opts.bold ? ' font-weight="bold"' : '';
-    wrapTextModal(text, wrapLen).forEach(function(line){
-      svg += '<text x="'+noteX+'" y="'+noteY+'" font-size="'+fs+'"'+weightAttr+' fill="'+color+'">'+escHtmlModal(line)+'</text>';
-      noteY += fs + 6;
-    });
-  }
-
-  // 勝手
-  if (abrCode) pushNote('勝手：'+abrCode, '#c0392b', 14);
-
-  // 間口方向クリア計算
-  // ★2026-09-17変更★ 報告書・施工図から入る間口/奥行きは「お風呂屋さん基準(浴槽基準)」に変換済みの値。
-  //   一般的な建物の間口/奥行きではないので、勝手(A/B)で建物の物理方向へ割り当て直す(swapMO)必要がある。
-  //   よってクリア計算も生値(Raw)ではなく、swap後の maguchi/okuyuki/seiMaguchi/seiOkuyuki を使う。
-  // ★2026-09-17変更★ 配管突出18mmは製品寸法に既に含まれているため、コードで別途+18しない。
-  var tsurimotoShitaji = numModal(sc.bathTsurimotoShitaji);
-  var tsurimotoWaku = numModal(sc.bathTsurimotoWaku);
-  var tsurimotoPanel = numModal(sc.bathTsurimotoPanel, 0);
-  var TSURIMOTO_STD_OFFSET = 34;
-  if (tsurimotoShitaji != null && tsurimotoWaku != null && maguchi && seiMaguchi && (doorPos === '右' || doorPos === '左')) {
-    var tsurimotoClear = tsurimotoShitaji + tsurimotoWaku - (TSURIMOTO_STD_OFFSET + tsurimotoPanel);
-    var oppositeClear = maguchi - tsurimotoClear - seiMaguchi;
-    var oppNG = oppositeClear < 15, tsuNG = tsurimotoClear < 0;
-    noteY += 4;
-    pushNote('【間口方向クリア】', '#37474f', 12);
-    pushNote('　吊元側：'+Math.round(tsurimotoClear)+'mm'+(tsuNG?'（不足）':''), tsuNG?'#c0392b':'#00695c', 12);
-    pushNote('　戸先側：'+Math.round(oppositeClear)+'mm'+(oppNG?'（要確認）':''), oppNG?'#c0392b':'#00695c', 12);
-  }
-  // 奥行き方向クリア計算(swap後の値)。配管は製品奥行きに込みのため別途足さない。
-  if (seiOkuyuki && okuyuki) {
-    var okuNeed = seiOkuyuki;
-    var okuClear = okuyuki - okuNeed;
-    noteY += 4;
-    pushNote('【奥行き方向クリア】', '#37474f', 12);
-    pushNote('　建物'+okuyuki+'−製品'+okuNeed+'＝'+Math.round(okuClear)+'mm'+(okuClear<0?'（不足）':''), okuClear<0?'#c0392b':'#00695c', 12);
-  }
-
-  // 石膏ボード・設置方法・枠材
-  var sekkou = sc.bathSekkouBoard ? String(sc.bathSekkouBoard).split(',') : [];
-  noteY += 4;
-  if (sekkou.length) pushNote('石膏ボード：'+sekkou.join('・'), '#8e24aa', 12);
-  // ★2026-09-19変更★ 設置方法は現場で一番重要な項目のため、文字を大きく・太字・赤字にして目立たせる。折り返しも短めに。
-  if (sc.bathSetchiHouhou) pushNote('設置方法：'+sc.bathSetchiHouhou, '#c0392b', 20, {bold:true, wrap:16});
-  if (sc.bathWakuzaiAtsumi) pushNote('枠材の厚み：'+sc.bathWakuzaiAtsumi, '#555', 12);
-
-  // メモ(伝達事項) — 平面図の枚の下部に小さく
-  var memo = sc.bathMemoRenraku || '';
-  if (memo) {
-    var memoY = 500;
-    svg += '<text x="40" y="'+memoY+'" font-size="15" fill="#3b6d11">メモ・伝達事項</text>';
-    memoY += 20;
-    String(memo).split('\n').forEach(function(raw){
-      wrapTextModal(raw, 46).forEach(function(line){
-        if (memoY < H - 10) {
-          svg += '<text x="40" y="'+memoY+'" font-size="14" fill="#333">'+escHtmlModal(line)+'</text>';
-          memoY += 18;
-        }
-      });
-    });
-  }
-
-  svg += '</svg>';
-  return svg;
+    renderCase(key, task);
+  }).catch(function (e) {
+    setMsg('読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+    $('hb-change').style.display = '';
+  });
 }
 
-// ============================================================
-// 【2枚目】高さ断面 ＋ クリアA/B・沓摺り・上下総寸法・梁
-// ============================================================
-function buildHeightSheet(sc) {
-  var W = 940, H = 700;
-  var svg = openSheetSVG(W, H, '② 高さ断面');
+function renderCase(key, task) {
+  var name = col(task, 4).trim() || '名称未設定';
+  var sekou = col(task, 2).replace(/\s+/g, '') || '未定';
+  var addr = col(task, 11).trim();
 
-  var maguchi = numModal(sc.bathMaguchi) || numModal(sc.bathSeihinMaguchi);
-  var tenjou = numModal(sc.bathTenjouTakasa);
-  var datsui = numModal(sc.bathDatsuishitsuTakasa);
-  var furo = numModal(sc.bathFuroTakasa);
-  var kankisen = numModal(sc.bathKankisenTakasa);
-  var duct = numModal(sc.bathDuctTakasa);
-  var kutsu = numModal(sc.bathKutsuzuriTakasa);
-  var agari = numModal(sc.bathYukaAgariTakasa, 0);
-  var clear = numModal(sc.bathTenjouClear);
-  var slab = numModal(sc.bathSlabYukaTakasa);
-  var total = numModal(sc.bathJougeSousunpou);
-  var totalJissoku = numModal(sc.bathJougeSousunpouJissoku);
+  var sc = {};
+  var src = task.siteCheck || {};
+  for (var k in src) { if (src.hasOwnProperty(k)) sc[k] = src[k]; }
 
-  var totalMM = tenjou || ((furo||0)+(kankisen||0)+(agari||0)+(clear||0)) || 2400;
-  var pxScale = 330 / totalMM;   // 断面の高さピクセル(330)を実寸に割り当て
-  var baseY = 400;               // 床(0mm)のY位置
-  var rx = 120;                  // 断面の箱の左端X
-  var hBoxW = Math.min(240, Math.max(80, Math.round((maguchi||1600) * pxScale)));
-  var labelX = rx + hBoxW + 14;
+  // 案件モーダルと同じ既定値（未設定のときだけ）。モーダル側は図面の描画時にこの既定を使っている。
+  if (sc.bathDoorType == null || sc.bathDoorType === '') sc.bathDoorType = '開き戸';
+  if ((sc.bathHikidoAtsumi == null || sc.bathHikidoAtsumi === '') && sc.bathDoorType === '開き戸') {
+    sc.bathHikidoAtsumi = '30';
+  }
 
-  function segY(mm) { return baseY - mm * pxScale; }
-  var yAgariTop = segY(agari);
-  var yFuroTop = segY(agari + (furo||0));
-  var yKankisenTop = segY(agari + (furo||0) + (kankisen||0));
-  var yTenjou = tenjou ? segY(tenjou) : yKankisenTop;
+  // 施工図画像はFirebaseに保存しない運用。モーダルから開いた時だけ、一時的にsessionStorageで受け取る。
+  var usedSekouZu = false;
+  try {
+    var imgKey = sessionStorage.getItem('bathSekouZuImageKey');
+    var img = sessionStorage.getItem('bathSekouZuImage');
+    if (img && imgKey === key) { sc.bathSekouZuImage = img; usedSekouZu = true; }
+  } catch (e) {}
 
-  var labelItems = [];
-  if (agari) {
-    svg += '<rect x="'+rx+'" y="'+yAgariTop+'" width="'+hBoxW+'" height="'+(baseY-yAgariTop)+'" fill="#e0e0e0" stroke="#888" stroke-width="1"/>';
-    labelItems.push({ y: yAgariTop+12, text: '床上がり：'+agari, color: '#666' });
-  }
-  if (furo) {
-    svg += '<rect x="'+rx+'" y="'+yFuroTop+'" width="'+hBoxW+'" height="'+(yAgariTop-yFuroTop)+'" fill="#dcecec" stroke="#00695c" stroke-width="1.3"/>';
-    labelItems.push({ y: yFuroTop+12, text: '風呂の高さ(製品)：'+furo, color: '#00695c' });
-  }
-  if (kankisen) {
-    svg += '<rect x="'+rx+'" y="'+yKankisenTop+'" width="'+hBoxW+'" height="'+(yFuroTop-yKankisenTop)+'" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.3"/>';
-    labelItems.push({ y: yKankisenTop+12, text: '換気扇高さ：'+kankisen, color: '#ef6c00' });
-  }
-  if (duct) {
-    var yDuct = baseY - duct * pxScale;
-    svg += '<line x1="'+(rx-15)+'" y1="'+yDuct+'" x2="'+(rx+hBoxW+15)+'" y2="'+yDuct+'" stroke="#6a1b9a" stroke-width="1" stroke-dasharray="2,2"/>';
-    svg += '<circle cx="'+(rx+hBoxW/2)+'" cy="'+yDuct+'" r="4" fill="#fff" stroke="#6a1b9a" stroke-width="1.5"/>';
-    labelItems.push({ y: yDuct+4, text: '排気ダクト(φ100)：'+duct, color: '#6a1b9a' });
-  }
-  if (clear !== null && tenjou) {
-    svg += '<rect x="'+rx+'" y="'+yTenjou+'" width="'+hBoxW+'" height="'+(yKankisenTop-yTenjou)+'" fill="#fff" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>';
-    labelItems.push({ y: yTenjou+12, text: '天井とのクリア：'+clear, color: '#c0392b' });
-  }
-  // ★2026-09-17変更★ 床構成は横に長いテキストなので、右のラベル列(labelX)に入れると
-  //   施工クリアboxと重なって隠れる。断面図の床ラインの下に、折り返して独立表示する。
-  // (labelItemsには入れない)
+  var info = '<div class="ci-name">🏷️ ' + esc(name) + '</div>'
+           + '<div class="ci-sub">🔨 施工日 ' + esc(sekou) + (addr ? ' ｜ 📍 ' + esc(addr) : '') + '</div>';
+  $('case-info').innerHTML = info;
+  $('hb-title').textContent = '📐 ' + name;
+  $('draw-hint').textContent = usedSekouZu
+    ? '各図は1枚ずつスクショして使えます（平面図は施工図画像を使用中）'
+    : '各図は1枚ずつスクショして使えます';
 
-  // 梁
-  var hariPanels = [
-    { key: '浴槽側面', ueT: numModal(sc.bathHariYokusoUeTakasa), ueD: numModal(sc.bathHariYokusoUeOkuyuki), shimoT: numModal(sc.bathHariYokusoShimoTakasa), shimoD: numModal(sc.bathHariYokusoShimoOkuyuki) },
-    { key: 'カウンター面', ueT: numModal(sc.bathHariCounterUeTakasa), ueD: numModal(sc.bathHariCounterUeOkuyuki), shimoT: numModal(sc.bathHariCounterShimoTakasa), shimoD: numModal(sc.bathHariCounterShimoOkuyuki) }
-  ];
-  var hariSubW = hBoxW / 2;
-  hariPanels.forEach(function(panel, pIdx){
-    var px = rx + pIdx*hariSubW;
-    if (panel.ueT) {
-      var ueH = Math.min(baseY-yTenjou, panel.ueT * pxScale);
-      svg += '<rect x="'+px+'" y="'+yTenjou+'" width="'+hariSubW+'" height="'+ueH+'" fill="#8d6e63" opacity="0.6" stroke="#5d4037" stroke-width="1.3"/>';
-      var clearAfterHari = (clear !== null) ? (clear - panel.ueT) : null;
-      labelItems.push({ y: yTenjou+12, text: panel.key+'-上 H'+panel.ueT+(panel.ueD?'/D'+panel.ueD:'')+(clearAfterHari!==null?'（クリア残'+clearAfterHari+'）':''), color: '#5d4037' });
-    }
-    if (panel.shimoT) {
-      var shimoH = Math.min(300, panel.shimoT * pxScale);
-      var shimoYTop = baseY - shimoH;
-      svg += '<rect x="'+px+'" y="'+shimoYTop+'" width="'+hariSubW+'" height="'+shimoH+'" fill="#8d6e63" opacity="0.6" stroke="#5d4037" stroke-width="1.3"/>';
-      labelItems.push({ y: shimoYTop+12, text: panel.key+'-下 H'+panel.shimoT+(panel.shimoD?'/D'+panel.shimoD:''), color: '#5d4037' });
-    }
+  try {
+    $('render').innerHTML = buildBathDiagramSVG(sc);
+  } catch (e) {
+    $('render').innerHTML = '';
+    setMsg('図面の作成でエラー：' + (e && e.message ? e.message : e), true);
+    $('case-area').style.display = 'block';
+    $('hb-reload').style.display = '';
+    $('hb-change').style.display = '';
+    return;
+  }
+
+  setMsg('');
+  $('case-area').style.display = 'block';
+  $('hb-reload').style.display = '';
+  $('hb-change').style.display = '';
+}
+
+function reloadCase() { if (currentKey) loadCase(currentKey); }
+
+// ---------- 案件選択（indexから来た時など、key指定が無い場合） ----------
+function hasSiteCheck(t) {
+  var s = t && t.siteCheck;
+  if (!s) return false;
+  for (var k in s) { if (s.hasOwnProperty(k) && k !== '__lastTab' && s[k] !== '' && s[k] != null) return true; }
+  return false;
+}
+function isBathTask(t) { return col(t, 3).indexOf('SB') >= 0; }
+
+function showPicker() {
+  currentKey = '';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  $('hb-title').textContent = '📐 浴室図面';
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+
+  if (allTasks) { buildPicker(); return; }
+  setMsg('⏳ 案件一覧を読み込み中...');
+  db.ref('app_tasks').once('value').then(function (snap) {
+    allTasks = snap.val() || {};
+    buildPicker();
+  }).catch(function (e) {
+    setMsg('案件一覧の読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+  });
+}
+
+function buildPicker() {
+  setMsg('');
+  $('picker').style.display = 'block';
+  drawPickerList();
+}
+
+function drawPickerList() {
+  var q = ($('picker-search').value || '').trim().toLowerCase();
+  var rows = [];
+  Object.keys(allTasks || {}).forEach(function (key) {
+    var t = allTasks[key];
+    if (!t || !t.csvData) return;
+    if (!(hasSiteCheck(t) || isBathTask(t))) return; // 浴室(SB)案件、または現場チェック入力済みの案件だけ
+    var name = col(t, 4).trim() || '名称未設定';
+    var addr = col(t, 11).trim();
+    if (q && (name + ' ' + addr).toLowerCase().indexOf(q) < 0) return;
+    rows.push({ key: key, t: t, name: name, addr: addr, sekou: col(t, 2).replace(/\s+/g, ''), has: hasSiteCheck(t) });
+  });
+  rows.sort(function (a, b) {
+    if (a.has !== b.has) return a.has ? -1 : 1;           // 現場チェック入力済みを上に
+    if (!a.sekou && b.sekou) return 1;
+    if (a.sekou && !b.sekou) return -1;
+    return a.sekou < b.sekou ? -1 : (a.sekou > b.sekou ? 1 : 0);
   });
 
-  // ラベル衝突回避(最低16px間隔)
-  labelItems.sort(function(a, b){ return a.y - b.y; });
-  var cur = -Infinity;
-  labelItems.forEach(function(item){ item.drawY = Math.max(item.y, cur + 20); cur = item.drawY; });
-  labelItems.forEach(function(item){
-    svg += '<text x="'+labelX+'" y="'+item.drawY+'" font-size="15" fill="'+item.color+'">'+item.text+'</text>';
+  var list = $('picker-list');
+  if (!rows.length) {
+    list.innerHTML = '<div class="status">該当する案件がありません</div>';
+    return;
+  }
+  var h = '';
+  rows.slice(0, 80).forEach(function (r) {
+    h += '<button type="button" class="pick-item" data-key="' + esc(r.key) + '">'
+       + '<div class="pick-name">' + esc(r.name) + (r.has ? '<span class="badge-has">現場チェック入力済</span>' : '') + '</div>'
+       + '<div class="pick-sub">🔨 ' + esc(r.sekou || '未定') + (r.addr ? ' ｜ ' + esc(r.addr) : '') + '</div>'
+       + '</button>';
   });
-
-  // 天井・床ライン
-  svg += '<line x1="'+(rx-20)+'" y1="'+yTenjou+'" x2="'+(labelX-4)+'" y2="'+yTenjou+'" stroke="#333" stroke-width="1"/>';
-  svg += '<text x="'+(rx-26)+'" y="'+(yTenjou-6)+'" text-anchor="end" font-size="15" fill="#555">現場天井'+(tenjou?'：'+tenjou:'')+'</text>';
-  svg += '<line x1="'+(rx-20)+'" y1="'+baseY+'" x2="'+(labelX-4)+'" y2="'+baseY+'" stroke="#333" stroke-width="1"/>';
-
-  // ★2026-09-17追加★ 床構成を床ラインの下に折り返して独立表示(施工クリアboxと重ならない左側 x=rx-20〜)。
-  if (sc.bathYukaKousei) {
-    var ykX = rx - 20, ykY = baseY + 26;
-    svg += '<text x="'+ykX+'" y="'+ykY+'" font-size="15" fill="#555">床構成</text>';
-    ykY += 22;
-    wrapTextModal(String(sc.bathYukaKousei), 22).forEach(function(line){
-      svg += '<text x="'+ykX+'" y="'+ykY+'" font-size="15" fill="#333">'+escHtmlModal(line)+'</text>';
-      ykY += 22;
-    });
-  } else {
-    svg += '<text x="'+(rx-20)+'" y="'+(baseY+26)+'" font-size="15" fill="#999">床構成：(未入力)</text>';
-  }
-
-  // 脱衣室高さ
-  if (datsui) {
-    var yD = baseY - datsui * pxScale;
-    svg += '<line x1="'+(rx-70)+'" y1="'+baseY+'" x2="'+(rx-70)+'" y2="'+yD+'" stroke="#5c6bc0" stroke-width="1"/>';
-    svg += '<text x="'+(rx-76)+'" y="'+((baseY+yD)/2)+'" text-anchor="end" font-size="14" fill="#5c6bc0">脱衣室：'+datsui+'</text>';
-  }
-  // スラブ・上下総寸法
-  if (slab) {
-    var ySlab = baseY + slab * pxScale;
-    svg += '<line x1="'+(rx-20)+'" y1="'+ySlab+'" x2="'+(labelX-4)+'" y2="'+ySlab+'" stroke="#333" stroke-width="1"/>';
-    svg += '<text x="'+(rx-26)+'" y="'+(ySlab+13)+'" text-anchor="end" font-size="15" fill="#555">スラブ：'+slab+'</text>';
-    var bracketX = labelX + 250;
-    svg += '<line x1="'+bracketX+'" y1="'+yTenjou+'" x2="'+bracketX+'" y2="'+ySlab+'" stroke="#00695c" stroke-width="1"/>';
-    svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2-6)+'" text-anchor="end" font-size="15" fill="#00695c">上下総寸法：'+(total!==null?total:'?')+'</text>';
-    if (totalJissoku !== null) svg += '<text x="'+(bracketX-10)+'" y="'+((yTenjou+ySlab)/2+10)+'" text-anchor="end" font-size="15" fill="#c0392b">実測：'+totalJissoku+'</text>';
-  }
-
-  // --- 右下：施工者向けクリアA/B・沓摺り(枠で囲って強調) ---
-  var boxX = 540, boxY = 400, boxW = 340, boxH = 220;
-  svg += '<rect x="'+boxX+'" y="'+boxY+'" width="'+boxW+'" height="'+boxH+'" fill="#f1f8f5" stroke="#00695c" stroke-width="1.2" rx="6"/>';
-  var ly = boxY + 24;
-  svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="17" font-weight="bold" fill="#00695c">施工クリア(お風呂天井を載せる余裕)</text>'; ly += 32;
-  // クリアA = 現場天井 − 風呂の高さ
-  var clearA = (tenjou != null && furo != null) ? (tenjou - furo) : null;
-  var clearB = (tenjou != null && furo != null && kankisen != null) ? (tenjou - (furo + kankisen)) : null;
-  if (clearA !== null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="'+(clearA<0?'#c0392b':'#333')+'">A 風呂天井〜現場天井：'+clearA+'mm'+(clearA<0?'（不足）':'')+'</text>'; ly += 28;
-  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#aaa">A：現場天井・風呂高さ未入力</text>'; ly += 28; }
-  if (clearB !== null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="'+(clearB<0?'#c0392b':'#333')+'">B 換気扇頭〜現場天井：'+clearB+'mm'+(clearB<0?'（不足）':'')+'</text>'; ly += 28;
-  } else { svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#aaa">B：換気扇高さ未入力</text>'; ly += 28; }
-  if (kutsu != null) {
-    svg += '<text x="'+(boxX+12)+'" y="'+ly+'" font-size="16" fill="#c9721f">沓摺り高さ：'+kutsu+'mm ⚠毎回要確認</text>'; ly += 28;
-  }
-
-  svg += '</svg>';
-  return svg;
+  if (rows.length > 80) h += '<div class="status">他 ' + (rows.length - 80) + ' 件（絞り込んでください）</div>';
+  list.innerHTML = h;
 }
 
-// ============================================================
-// 【3枚目】窓
-// ============================================================
-function buildWindowSheet(sc) {
-  var W = 940, H = 500;
-  var svg = openSheetSVG(W, H, '③ 窓');
+$('picker-list').addEventListener('click', function (e) {
+  var el = e.target;
+  while (el && el !== this && !(el.getAttribute && el.getAttribute('data-key'))) el = el.parentNode;
+  if (!el || el === this) return;
+  var key = el.getAttribute('data-key');
+  try { history.replaceState(null, '', '?key=' + encodeURIComponent(key)); } catch (err) {}
+  loadCase(key);
+});
+$('picker-search').addEventListener('input', drawPickerList);
 
-  var maguchi = numModal(sc.bathMaguchi) || numModal(sc.bathSeihinMaguchi);
-  var okuyuki = numModal(sc.bathOkuyuki) || numModal(sc.bathSeihinOkuyuki);
-  var tenjou = numModal(sc.bathTenjouTakasa);
-  var madoAri = sc.bathMadoAri || '';
-
-  if (madoAri === '無') {
-    svg += '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" font-size="30" font-weight="bold" fill="#999">窓なし</text>';
-    svg += '</svg>';
-    return svg;
-  }
-
-  var madoW = numModal(sc.bathMadoW), madoH = numModal(sc.bathMadoH), madoD = numModal(sc.bathMadoD);
-  var madoUe = numModal(sc.bathMadoUe), madoShita = numModal(sc.bathMadoShita), madoHidari = numModal(sc.bathMadoHidari), madoMigi = numModal(sc.bathMadoMigi);
-  var madoMen = sc.bathMadoMen || '';
-
-  var wallWidthMM = null, wallHeightMM = null, wallAreaM2 = null;
-  if (madoMen === '正面') { wallWidthMM = maguchi || null; wallHeightMM = tenjou || null; }
-  else if (madoMen === '右面' || madoMen === '左面') { wallWidthMM = okuyuki || null; wallHeightMM = tenjou || null; }
-  var trueWallMode = !!(wallWidthMM && wallHeightMM);
-  if (trueWallMode) wallAreaM2 = Math.round((wallWidthMM/1000)*(wallHeightMM/1000)*100)/100;
-
-  var scaleReady2 = madoW!=null && madoH!=null && madoUe!=null && madoShita!=null && madoHidari!=null && madoMigi!=null;
-  if (!trueWallMode && scaleReady2) { wallWidthMM = madoHidari+madoW+madoMigi; wallHeightMM = madoUe+madoH+madoShita; }
-  var scaleReady = trueWallMode || scaleReady2;
-  var winBox = scaleReady ? fitBoxModal(wallWidthMM, wallHeightMM, 300, 300) : { w: 300, h: 300, scale: null };
-  var wallW = winBox.w, wallH = winBox.h;
-  var wx = 60, wy = 70;
-
-  var winTitle = '窓のある壁';
-  if (trueWallMode) winTitle += '（'+madoMen+'・約'+wallAreaM2+'㎡）';
-  else if (!scaleReady) winTitle += '（概算配置）';
-  svg += '<text x="'+wx+'" y="'+(wy-14)+'" font-size="16" fill="#333">'+winTitle+'</text>';
-  svg += '<rect x="'+wx+'" y="'+wy+'" width="'+wallW+'" height="'+wallH+'" fill="#eef3ee" stroke="#00695c" stroke-width="1.5"/>';
-
-  var mW, mH, mx1, my1;
-  if (scaleReady) {
-    mW = madoW!=null ? madoW*winBox.scale : wallW*0.35;
-    mH = madoH!=null ? madoH*winBox.scale : wallH*0.35;
-    mx1 = madoHidari!=null ? wx + madoHidari*winBox.scale : wx + (wallW-mW)/2;
-    my1 = madoUe!=null ? wy + madoUe*winBox.scale : wy + (wallH-mH)/2;
-  } else {
-    mW = wallW*0.35; mH = wallH*0.35; mx1 = wx+(wallW-mW)/2; my1 = wy+(wallH-mH)/2;
-  }
-  svg += '<rect x="'+mx1+'" y="'+my1+'" width="'+mW+'" height="'+mH+'" fill="#dcecec" stroke="#004d40" stroke-width="1.5"/>';
-  // 離れ点線
-  svg += '<line x1="'+wx+'" y1="'+(my1+mH/2)+'" x2="'+mx1+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW)+'" y1="'+(my1+mH/2)+'" x2="'+(wx+wallW)+'" y2="'+(my1+mH/2)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW/2)+'" y1="'+wy+'" x2="'+(mx1+mW/2)+'" y2="'+my1+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<line x1="'+(mx1+mW/2)+'" y1="'+(my1+mH)+'" x2="'+(mx1+mW/2)+'" y2="'+(wy+wallH)+'" stroke="#004d40" stroke-width="0.8" stroke-dasharray="2,2"/>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy-2)+'" text-anchor="middle" font-size="11" fill="#004d40">'+(madoUe!=null?madoUe:'')+'</text>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(wy+wallH+14)+'" text-anchor="middle" font-size="11" fill="#004d40">'+(madoShita!=null?madoShita:'')+'</text>';
-  svg += '<text x="'+(wx-6)+'" y="'+(my1+mH/2+4)+'" text-anchor="end" font-size="11" fill="#004d40">'+(madoHidari!=null?madoHidari:'')+'</text>';
-  svg += '<text x="'+(wx+wallW+6)+'" y="'+(my1+mH/2+4)+'" font-size="11" fill="#004d40">'+(madoMigi!=null?madoMigi:'')+'</text>';
-  svg += '<text x="'+(mx1+mW/2)+'" y="'+(my1+mH/2)+'" text-anchor="middle" font-size="11" fill="#004d40">'+(madoW||'?')+'×'+(madoH||'?')+'</text>';
-
-  // 右側に窓の数値一覧
-  var tx = 480, ty = 90;
-  function winLine(t){ svg += '<text x="'+tx+'" y="'+ty+'" font-size="17" fill="#333">'+escHtmlModal(t)+'</text>'; ty += 30; }
-  winLine('窓のある面：'+(madoMen||'未選択'));
-  winLine('窓サイズ：W'+(madoW||'?')+' × H'+(madoH||'?'));
-  winLine('窓奥行 D：'+(madoD!=null?madoD:'?'));
-  winLine('離れ 上：'+(madoUe!=null?madoUe:'?')+'　下：'+(madoShita!=null?madoShita:'?'));
-  winLine('離れ 左：'+(madoHidari!=null?madoHidari:'?')+'　右：'+(madoMigi!=null?madoMigi:'?'));
-  if (trueWallMode) winLine('壁面積：約'+wallAreaM2+'㎡');
-
-  svg += '</svg>';
-  return svg;
-}
+// ---------- 起動 ----------
+window.addEventListener('load', function () {
+  db = scopedDatabase(firebase.database());
+  var key = getKeyFromUrl();
+  if (key) loadCase(key);
+  else showPicker();
+});
+</script>
+</body>
+</html>
