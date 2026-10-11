@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-10-11-002 -->
+<!-- CREATED: 2026-10-11 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>浴室 作図</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
+.header-bar{display:flex;align-items:center;gap:6px;background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 10px;position:sticky;top:0;z-index:11;}
+.header-bar .hb-title{font-size:13px;font-weight:600;color:#00695c;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hb-btn{display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#555;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;font-family:inherit;}
+.hb-btn:active{background:#f5f5f5;}
+.wrap{max-width:1000px;margin:0 auto;padding:12px;padding-bottom:4rem;}
+.case-info{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;}
+.case-info .ci-name{font-weight:bold;font-size:14px;}
+.case-info .ci-sub{font-size:12px;color:#666;}
+.status{font-size:12px;color:#888;text-align:center;padding:1.5rem 0;}
+.status.err{color:#c62828;}
+.hint{font-size:11px;color:#888;margin-bottom:8px;}
+.sec{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 14px;margin-bottom:12px;}
+.sec > summary{font-size:14px;font-weight:bold;cursor:pointer;list-style:none;padding:2px 0;}
+.sec > summary::-webkit-details-marker{display:none;}
+.sec > summary::before{content:'▸ ';color:#888;}
+.sec[open] > summary::before{content:'▾ ';}
+.sec-body{margin-top:8px;}
+.sec h3{font-size:14px;margin-bottom:6px;}
+.doc-box{border-top:1px dashed #ddd;margin-top:10px;padding-top:8px;}
+.doc-box:first-child{border-top:none;margin-top:0;padding-top:0;}
+#render{background:#fff;}
+.render-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.btn-sub{font-size:12px;padding:6px 14px;border:1px solid #00695c;border-radius:6px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;font-family:inherit;}
+.picker-search{width:100%;font-size:15px;padding:10px 12px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;margin-bottom:10px;font-family:inherit;-webkit-appearance:none;}
+.picker-search:focus{outline:none;border-color:#00695c;}
+.pick-item{display:block;width:100%;text-align:left;background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;}
+.pick-item:active{background:#f5f5f5;}
+.pick-name{font-size:14px;font-weight:600;color:#1a1a1a;}
+.pick-sub{font-size:11px;color:#888;margin-top:3px;}
+.badge-has{display:inline-block;font-size:10px;color:#004d40;background:#e0f2f1;border:1px solid #80cbc4;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
+#save-toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);color:#fff;font-size:12px;padding:6px 14px;border-radius:16px;display:none;z-index:50;}
+#save-toast.err{background:rgba(198,40,40,0.92);}
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <button class="hb-btn" onclick="goBack()">‹ 戻る</button>
+  <span class="hb-title" id="hb-title">📐 浴室 作図</span>
+  <button class="hb-btn" id="hb-reload" style="display:none;" onclick="reloadCase()">🔄 再読込</button>
+  <button class="hb-btn" id="hb-change" style="display:none;" onclick="showPicker()">案件変更</button>
+  <a class="hb-btn" href="index.html">🏠 トップ</a>
+</div>
+
+<div class="wrap">
+  <div id="msg" class="status">⏳ 読み込み中...</div>
+
+  <div id="picker" style="display:none;">
+    <div class="hint">作図する案件を選んでください</div>
+    <input type="text" id="picker-search" class="picker-search" placeholder="案件名・住所で絞り込み">
+    <div id="picker-list"></div>
+  </div>
+
+  <div id="case-area" style="display:none;">
+    <div class="case-info" id="case-info"></div>
+
+    <details class="sec" id="sec-import">
+      <summary>📄 報告書／📐 施工図 から自動入力</summary>
+      <div class="sec-body" id="import-body"></div>
+    </details>
+
+    <details class="sec" id="sec-input" open>
+      <summary>🛁 現地情報（入力）</summary>
+      <div class="sec-body">
+        <div class="hint">入力した内容は項目ごとに自動で保存され、下の図面にもすぐ反映されます。</div>
+        <div id="sitecheck-area"></div>
+      </div>
+    </details>
+
+    <div class="sec">
+      <h3>📐 図面</h3>
+      <div class="render-bar">
+        <button type="button" class="btn-sub" onclick="renderDiagram()">🔄 図面を更新</button>
+        <span class="hint" id="draw-hint" style="margin:0;">各図は1枚ずつスクショして使えます</span>
+      </div>
+      <div id="render"></div>
+    </div>
+  </div>
+</div>
+<div id="save-toast"></div>
+
+<script src="bath-diagram.js"></script>
+<script src="report-parser.js"></script>
+<script>
+// bath-diagram.js が使う escHtmlModal() は本来 shared-modal.js 側にある。
+// このページでは shared-modal.js を読み込まないため、同じ処理をここで用意する。
+if (typeof escHtmlModal !== 'function') {
+  window.escHtmlModal = function (s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  };
+}
+
+// ★2026-09-12追加★ 現場チェックの浴室用グループ。
+// ★2026-09-14追加★ 「吊元・配管」グループを追加。左右クリア(bath-diagram.jsの自動計算)に
+// 必要な入力項目：吊元側の下地厚み・枠厚み・追加パネル厚み、配管方式(上配管/下配管)、
+// 上配管時の追加スペース。
+// ★2026-09-15変更★ 「水栓のある側」の手動選択は廃止。水栓の位置は勝手(A/B)から自動判定
+// (A=正面壁／B=扉と反対側の側面壁)するため、入力不要になった。
+var SITECHECK_GROUPS_BATH = [
+  { title: '間口・開口', items: [
+    { label:'ドア位置(勝手)', field:'bathDoorPosition', type:'select', options:['右','左'] },
+    { label:'浴槽の向き(A/B)', field:'bathKatteAB', type:'select', options:['A','B'] },
+    { label:'ドアタイプ', field:'bathDoorType', type:'select', options:['開き戸','引き戸'] },
+    { label:'扉の厚み(引き戸時のみ入力)', field:'bathHikidoAtsumi', type:'number' },
+    { label:'建物間口(扉のある壁の幅)', field:'bathMaguchi', type:'number' },
+    { label:'建物奥行き(扉と垂直方向)', field:'bathOkuyuki', type:'number' },
+    { label:'製品間口(浴槽基準)', field:'bathSeihinMaguchi', type:'number' },
+    { label:'製品奥行き(浴槽基準)', field:'bathSeihinOkuyuki', type:'number' },
+    { label:'開口寸法(額縁開口)', field:'bathKaikou', type:'number' },
+    { label:'リモコン開口 有無', field:'bathRemoconUmu', type:'select', options:['有','無'] },
+    { label:'リモコン開口 メモ', field:'bathRemoconMemo' },
+    { label:'ハンドバー設置方法', field:'bathHandbarHouhou', type:'select', options:['図面通り','要確認'] }
+  ]},
+  { title: '吊元・配管', items: [
+    { label:'吊元側下地厚み', field:'bathTsurimotoShitaji', type:'number' },
+    { label:'吊元側枠厚み', field:'bathTsurimotoWaku', type:'number' },
+    { label:'吊元側追加パネル厚み', field:'bathTsurimotoPanel', type:'number' },
+    { label:'配管方式', field:'bathHaikanHoushiki', type:'select', options:['下配管','上配管'] },
+    { label:'上配管時 追加スペース', field:'bathJouhaikanSupace', type:'number' }
+  ]},
+  { title: '石膏ボード', items: [
+    { label:'石膏ボード部分', field:'bathSekkouBoard', type:'multi', options:['カウンター面','カウンター対面','浴槽側面','洗場側面'] }
+  ]},
+  { title: '高さ・床構成', items: [
+    { label:'天井高さ(現場の天井)', field:'bathTenjouTakasa', type:'number' },
+    { label:'脱衣室高さ', field:'bathDatsuishitsuTakasa', type:'number' },
+    { label:'風呂の高さ(製品)', field:'bathFuroTakasa', type:'number' },
+    { label:'換気扇の高さ', field:'bathKankisenTakasa', type:'number' },
+    { label:'ダクト高さ', field:'bathDuctTakasa', type:'number' },
+    { label:'沓摺り高さ(毎回要確認)', field:'bathKutsuzuriTakasa', type:'number' },
+    { label:'枠材の厚み', field:'bathWakuzaiAtsumi', type:'number' },
+    { label:'設置方法', field:'bathSetchiHouhou' },
+    { label:'床構成', field:'bathYukaKousei' },
+    { label:'スラブ寸法(スラブ〜床面高さ)', field:'bathSlabYukaTakasa', type:'number' },
+    { label:'床合わせ', field:'bathYukaAwase', type:'select', options:['○','✕'] },
+    { label:'床上がり高さ(床合わせ✕の場合)', field:'bathYukaAgariTakasa', type:'number' },
+    { label:'天井とのクリア(自動計算)', field:'bathTenjouClear', type:'computed' },
+    { label:'クリアA:風呂天井〜現場天井(自動)', field:'bathClearA', type:'computed' },
+    { label:'クリアB:換気扇頭〜現場天井(自動)', field:'bathClearB', type:'computed' },
+    { label:'上下総寸法(自動計算)', field:'bathJougeSousunpou', type:'computed' },
+    { label:'上下総寸法(実測値・解体後計測)', field:'bathJougeSousunpouJissoku', type:'number' }
+  ]},
+  { title: '窓', items: [
+    { label:'窓の有無', field:'bathMadoAri', type:'select', options:['有','無'] },
+    { label:'窓がある面', field:'bathMadoMen', type:'select', options:['正面','右面','左面'] },
+    { label:'窓幅(W)', field:'bathMadoW', type:'number' },
+    { label:'窓高さ(H)', field:'bathMadoH', type:'number' },
+    { label:'窓奥行(D)', field:'bathMadoD', type:'number' },
+    { label:'位置:上', field:'bathMadoUe', type:'number' },
+    { label:'位置:下', field:'bathMadoShita', type:'number' },
+    { label:'位置:左', field:'bathMadoHidari', type:'number' },
+    { label:'位置:右', field:'bathMadoMigi', type:'number' }
+  ]},
+  { title: '梁(コンクリート梁・基礎)', items: [
+    { label:'浴槽側面-上 高さ', field:'bathHariYokusoUeTakasa', type:'number' },
+    { label:'浴槽側面-上 奥行き', field:'bathHariYokusoUeOkuyuki', type:'number' },
+    { label:'浴槽側面-下 高さ', field:'bathHariYokusoShimoTakasa', type:'number' },
+    { label:'浴槽側面-下 奥行き', field:'bathHariYokusoShimoOkuyuki', type:'number' },
+    { label:'カウンター面-上 高さ', field:'bathHariCounterUeTakasa', type:'number' },
+    { label:'カウンター面-上 奥行き', field:'bathHariCounterUeOkuyuki', type:'number' },
+    { label:'カウンター面-下 高さ', field:'bathHariCounterShimoTakasa', type:'number' },
+    { label:'カウンター面-下 奥行き', field:'bathHariCounterShimoOkuyuki', type:'number' }
+  ]},
+  { title: '吊り金具', items: [
+    { label:'吊り金具(区分)', field:'bathTsuriKanaguKubun', type:'select', options:['62','20'] },
+    { label:'吊り金具(型)', field:'bathTsuriKanaguSize', type:'select', options:['S','SN','M','L'] },
+    { label:'吊り金具 現地入れ', field:'bathTsuriKanaguGenchi', type:'select', options:['○','✕'] }
+  ]},
+  { title: 'メモ・連絡事項', items: [
+    { label:'メモ・連絡事項', field:'bathMemoRenraku' }
+  ]}
+];
+
+// ★2026-09-12追加★ 現場チェックのタブ(キッチン/浴室)を1つのHTML文字列に組み立てる共通レンダラー。
+// siteCheckObjは案件のsiteCheckデータ全体(キッチン/浴室のフィールドが混在して入っている想定)。
+function renderSiteCheckGroups(groups, siteCheckObj) {
+  var html = '';
+  groups.forEach(function(group){
+    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
+    group.items.forEach(function(item){
+      var label = item.label, fkey = item.field, type = item.type || 'text';
+      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
+      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
+      if (type === 'select') {
+        html += '<select class="sitecheck-input" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;background:#fff;">';
+        html += '<option value=""'+(v===''?' selected':'')+'>--</option>';
+        (item.options||[]).forEach(function(opt){
+          html += '<option value="'+opt+'"'+(v===opt?' selected':'')+'>'+opt+'</option>';
+        });
+        html += '</select>';
+      } else if (type === 'multi') {
+        var savedArr = v ? String(v).split(',') : [];
+        html += '<div class="sitecheck-multi" data-field="'+fkey+'" style="display:flex;flex-wrap:wrap;gap:4px 8px;padding:4px 0;">';
+        (item.options||[]).forEach(function(opt){
+          var checked = savedArr.indexOf(opt) !== -1 ? ' checked' : '';
+          html += '<label style="font-size:11px;color:#333;white-space:nowrap;"><input type="checkbox" class="sitecheck-multi-cb" value="'+opt+'"'+checked+'> '+opt+'</label>';
+        });
+        html += '</div>';
+      } else if (type === 'computed') {
+        html += '<div class="sitecheck-computed" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:3px;background:#f5f5f5;color:#333;min-height:18px;">'+escHtmlModal(v)+'</div>';
+      } else {
+        html += '<input type="'+(type==='number'?'number':'text')+'" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtmlModal(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" />';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+var db = null;
+var allTasks = null;       // app_tasks 全体（案件選択用に一度だけ取得）
+var currentKey = '';
+var currentTask = null;    // 読み込んだ案件
+var sc = {};               // この案件の siteCheck（画面上の最新値）
+var sekouZuImage = null;   // 施工図の画像(dataURL)。Firebaseには保存しない。このページを開いている間だけ保持
+var sekouZuKey = '';
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return window.escHtmlModal(s); }
+function col(task, i) {
+  var c = task && task.csvData;
+  if (!c) return '';
+  return (c[i] != null) ? String(c[i]) : '';
+}
+
+function setMsg(text, isErr) {
+  var m = $('msg');
+  if (!text) { m.style.display = 'none'; return; }
+  m.style.display = 'block';
+  m.className = 'status' + (isErr ? ' err' : '');
+  m.textContent = text;
+}
+
+var toastTimer = null;
+function toast(text, isErr) {
+  var t = $('save-toast');
+  t.textContent = text;
+  t.className = isErr ? 'err' : '';
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.style.display = 'none'; }, isErr ? 4000 : 1400);
+}
+
+function goBack() {
+  if (window.history.length > 1 && document.referrer) { history.back(); }
+  else { location.href = 'today.html'; }
+}
+
+function getKeyFromUrl() {
+  var m = location.search.match(/[?&]key=([^&]*)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+function buildStamp() {
+  var d = new Date();
+  return d.getFullYear() + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2)
+    + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+}
+
+// ============================================================
+// 保存（項目単位。siteCheck丸ごと上書きはしない＝他画面の古いデータで消さないため）
+// ============================================================
+var COMPUTED_FIELDS = ['bathTenjouClear', 'bathJougeSousunpou', 'bathClearA', 'bathClearB'];
+
+function saveSC(map) {
+  Object.keys(map).forEach(function (k) { sc[k] = map[k]; });
+  return db.ref('app_tasks/' + currentKey + '/siteCheck').update(map).then(function () {
+    toast('✔ 保存しました');
+  }).catch(function (e) {
+    toast('保存に失敗：' + (e && e.message ? e.message : e), true);
+    throw e;
+  });
+}
+function withComputed(map) {
+  COMPUTED_FIELDS.forEach(function (k) { map[k] = sc[k] != null ? sc[k] : ''; });
+  return map;
+}
+
+// ============================================================
+// 浴室の自動計算（モーダルから移設）
+//   天井とのクリア = 天井高さ − (床上がり高さ + 風呂の高さ + 換気扇の高さ)
+//   上下総寸法     = 天井高さ + スラブ寸法(スラブ〜床面高さ)
+//   クリアA = 天井高さ − 風呂の高さ(製品)
+//   クリアB = 天井高さ − (風呂の高さ + 換気扇高さ)
+// ============================================================
+function computeBathAutoFields() {
+  var area = $('sitecheck-area');
+  var tenjou = parseFloat(sc.bathTenjouTakasa);
+  var agari = parseFloat(sc.bathYukaAgariTakasa) || 0;
+  var furo = parseFloat(sc.bathFuroTakasa);
+  var kankisen = parseFloat(sc.bathKankisenTakasa);
+  var slab = parseFloat(sc.bathSlabYukaTakasa);
+  var clearVal = (!isNaN(tenjou) && !isNaN(furo) && !isNaN(kankisen)) ? String(tenjou - agari - furo - kankisen) : '';
+  var totalVal = (!isNaN(tenjou) && !isNaN(slab)) ? String(tenjou + slab) : '';
+  var clearAVal = (!isNaN(tenjou) && !isNaN(furo)) ? String(tenjou - furo) : '';
+  var clearBVal = (!isNaN(tenjou) && !isNaN(furo) && !isNaN(kankisen)) ? String(tenjou - (furo + kankisen)) : '';
+  sc.bathTenjouClear = clearVal;
+  sc.bathJougeSousunpou = totalVal;
+  sc.bathClearA = clearAVal;
+  sc.bathClearB = clearBVal;
+  if (!area) return;
+  var set = function (f, v) { var el = area.querySelector('[data-field="' + f + '"]'); if (el) el.textContent = v; };
+  set('bathTenjouClear', clearVal); set('bathJougeSousunpou', totalVal);
+  set('bathClearA', clearAVal); set('bathClearB', clearBVal);
+}
+
+// 床合わせが○の時は「床上がり高さ」を無効化(該当なしのため)
+function applyBathYukaAwaseState() {
+  var area = $('sitecheck-area');
+  if (!area) return;
+  var awaseSel = area.querySelector('[data-field="bathYukaAwase"]');
+  var agariInput = area.querySelector('[data-field="bathYukaAgariTakasa"]');
+  if (!awaseSel || !agariInput) return;
+  var disable = awaseSel.value === '○';
+  agariInput.disabled = disable;
+  agariInput.style.background = disable ? '#eee' : '#fff';
+  if (disable && agariInput.value !== '') {
+    agariInput.value = '';
+    sc.bathYukaAgariTakasa = '';
+    computeBathAutoFields();
+    saveSC(withComputed({ bathYukaAgariTakasa: '' })).catch(function () {});
+  }
+}
+
+function renderBathInputs() {
+  $('sitecheck-area').innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_BATH, sc);
+  applyBathYukaAwaseState();
+  computeBathAutoFields();
+}
+
+var diagramTimer = null;
+function scheduleDiagram() {
+  clearTimeout(diagramTimer);
+  diagramTimer = setTimeout(renderDiagram, 500);
+}
+function renderDiagram() {
+  clearTimeout(diagramTimer);
+  var drawObj = {};
+  for (var k in sc) { if (sc.hasOwnProperty(k)) drawObj[k] = sc[k]; }
+  var usedImg = false;
+  if (sekouZuImage && sekouZuKey === currentKey) { drawObj.bathSekouZuImage = sekouZuImage; usedImg = true; }
+  $('draw-hint').textContent = usedImg
+    ? '各図は1枚ずつスクショして使えます（平面図は施工図画像を使用中・ページを開き直すと外れます）'
+    : '各図は1枚ずつスクショして使えます';
+  try {
+    $('render').innerHTML = buildBathDiagramSVG(drawObj);
+  } catch (e) {
+    $('render').innerHTML = '<div class="status err">図面の作成でエラー：' + esc(e && e.message ? e.message : e) + '</div>';
+  }
+}
+
+// ============================================================
+// 入力欄のイベント（イベント委譲）。テキスト/数値は離脱時、選択系は選択時に保存
+// ============================================================
+function bindInputEvents() {
+  var area = $('sitecheck-area');
+
+  // 数値入力中もリアルタイムで自動計算欄と図面を更新(保存は離脱時)
+  area.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
+      sc[t.getAttribute('data-field')] = t.value;
+      computeBathAutoFields();
+      scheduleDiagram();
+    }
+  });
+
+  area.addEventListener('focusout', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
+      var f = t.getAttribute('data-field');
+      sc[f] = t.value;
+      computeBathAutoFields();
+      var m = {}; m[f] = t.value;
+      saveSC(withComputed(m)).catch(function () {});
+      scheduleDiagram();
+    }
+  });
+
+  area.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName === 'SELECT') {
+      var f = t.getAttribute('data-field');
+      sc[f] = t.value;
+      var m = {}; m[f] = t.value;
+      if (f === 'bathYukaAwase') applyBathYukaAwaseState();
+      // ドアタイプ切替時：開き戸なら扉厚みを30に自動セット(空のとき)、引き戸なら30のままの場合クリアして入力を促す
+      if (f === 'bathDoorType') {
+        var atsumi = area.querySelector('[data-field="bathHikidoAtsumi"]');
+        if (atsumi) {
+          if (t.value === '開き戸' && atsumi.value === '') { atsumi.value = '30'; }
+          else if (t.value === '引き戸' && atsumi.value === '30') { atsumi.value = ''; }
+          sc.bathHikidoAtsumi = atsumi.value;
+          m.bathHikidoAtsumi = atsumi.value;
+        }
+      }
+      computeBathAutoFields();
+      saveSC(withComputed(m)).catch(function () {});
+      scheduleDiagram();
+    } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
+      var group = t.closest('.sitecheck-multi');
+      if (group) {
+        var f2 = group.getAttribute('data-field');
+        var vals = Array.prototype.slice.call(group.querySelectorAll('.sitecheck-multi-cb:checked')).map(function (cb) { return cb.value; });
+        sc[f2] = vals.join(',');
+        var m2 = {}; m2[f2] = sc[f2];
+        saveSC(withComputed(m2)).catch(function () {});
+        scheduleDiagram();
+      }
+    }
+  });
+}
+var inputEventsBound = false;
+
+// ============================================================
+// 📄 報告書／📐 施工図 から自動入力（モーダルから移設）
+// ============================================================
+function buildDocInputSection(pfx, headColor, title, placeholder, showRegex) {
+  var h = '<div class="doc-box"><h4 style="color:'+headColor+';margin-bottom:6px;font-size:13px;">'+title+'</h4>';
+  h += '<textarea id="'+pfx+'-paste-area" placeholder="'+placeholder+'" style="width:100%;box-sizing:border-box;min-height:70px;font-size:12px;padding:6px;border:1px solid #ccc;border-radius:4px;font-family:inherit;"></textarea>';
+  h += '<div style="margin-top:6px;">';
+  if (showRegex) {
+    h += '<button type="button" id="'+pfx+'-parse-btn" style="font-size:12px;padding:6px 14px;border:1px solid #37474f;border-radius:4px;background:#eceff1;color:#263238;font-weight:bold;cursor:pointer;">🔍 解析する</button>';
+    h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIで解析(高精度)</button>';
+  } else {
+    h += '<button type="button" id="'+pfx+'-parse-ai-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">🤖 AIでテキスト解析</button>';
+  }
+  h += '</div>';
+  h += '<div id="'+pfx+'-image-paste" tabindex="0" style="margin-top:8px;border:1px dashed #999;border-radius:4px;padding:10px;font-size:12px;color:#888;text-align:center;cursor:text;">PCの場合：ここをクリックしてから ⌘V(Cmd+V) でスクショまたはPDFファイルを貼り付け(複数ページは1枚ずつ続けて貼り付け可)<br>iPadの場合：上のテキスト欄を長押し→「貼り付け」でOK(PDFファイルの貼り付けはiPadでは非対応の場合があります。スクショなら貼れます)</div>';
+  h += '<div id="'+pfx+'-image-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>';
+  h += '<div style="margin-top:6px;"><label for="'+pfx+'-file-input" style="display:inline-block;font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#fff;color:#4a148c;font-weight:bold;cursor:pointer;">📁 ファイルを選択</label><input type="file" id="'+pfx+'-file-input" accept="image/*,application/pdf" multiple style="display:none;" /></div>';
+  h += '<div style="margin-top:6px;"><button type="button" id="'+pfx+'-parse-image-btn" style="font-size:12px;padding:6px 14px;border:1px solid #6a1b9a;border-radius:4px;background:#f3e5f5;color:#4a148c;font-weight:bold;cursor:pointer;">📎 AIで解析</button><button type="button" id="'+pfx+'-image-clear-btn" style="margin-left:6px;font-size:12px;padding:6px 14px;border:1px solid #999;border-radius:4px;background:#fff;color:#555;cursor:pointer;">🗑 クリア</button></div>';
+  h += '<div id="'+pfx+'-parse-preview" style="margin-top:8px;font-size:12px;"></div>';
+  h += '</div>';
+  return h;
+}
+
+function setupDocAutoInput(pfx, docType) {
+  var pasteArea = $(pfx+'-paste-area');
+  var parseBtn = $(pfx+'-parse-btn'); // 施工図には無い(nullでOK)
+  var parseAiBtn = $(pfx+'-parse-ai-btn');
+  var previewEl = $(pfx+'-parse-preview');
+  if (!pasteArea) return;
+  var reportFieldLabels = {
+    bathMaguchi: '建物間口', bathOkuyuki: '建物奥行き', bathTenjouTakasa: '天井高さ',
+    bathSetchiHouhou: '設置方法', bathYukaKousei: '床構成', bathYukaAwase: '床合わせ',
+    bathWakuzaiAtsumi: '枠材の厚み', bathTsurimotoWaku: '吊元側枠厚み',
+    bathSeihinMaguchi: '製品間口(浴槽基準)', bathSeihinOkuyuki: '製品奥行き(浴槽基準)',
+    bathKaikou: '額縁開口寸法', bathFuroTakasa: '風呂の高さ(製品)',
+    bathKankisenTakasa: '換気扇高さ', bathDuctTakasa: 'ダクト高さ', bathKutsuzuriTakasa: '沓摺り高さ',
+    bathSekkouBoard: '石膏ボード部分', bathTsuriKanaguKubun: '吊り金具(区分)',
+    bathTsuriKanaguSize: '吊り金具(型)', bathTsuriKanaguGenchi: '吊り金具(現地入れ)'
+  };
+  var pastedAttachments = []; // [{kind:'image', mediaType, base64, dataUrl} | {kind:'pdf', base64, filename}]
+
+  // 正規表現版・AI版どちらの結果でも使う共通プレビュー描画＋反映処理。
+  function renderReportResult(result, sourceLabel) {
+    var keys = Object.keys(result.fields || {});
+    var hasKatte = typeof result.katte === 'string' && /^(AR|AL|BR|BL)$/.test(result.katte);
+    if (!keys.length && !hasKatte && !(result.memoLines && result.memoLines.length) && !result.bathMemoAppend) {
+      previewEl.innerHTML = '<span style="color:#c62828;">項目を抽出できませんでした(報告書の形式が違う可能性があります)</span>';
+      return;
+    }
+    var html = '<div style="font-size:11px;color:#888;margin-bottom:4px;">'+sourceLabel+'の結果</div>';
+    html += '<div style="background:#f5f5f5;border-radius:4px;padding:8px;">';
+    keys.forEach(function(k){
+      // 沓摺り高さは現場ごとに毎回異なるため、読み取れても⚠️で確認を促す。
+      var warn = (k === 'bathKutsuzuriTakasa') ? ' <span style="color:#c9721f;font-size:11px;">⚠️毎回要確認</span>' : '';
+      html += '<div>・'+(reportFieldLabels[k]||k)+'：<b>'+esc(result.fields[k])+'</b>'+warn+'</div>';
+    });
+    // 施工図から推定した勝手(AR/AL/BR/BL)は読み違えやすいので、プルダウンで選び直せる＋確認を促す。
+    if (hasKatte) {
+      var kOpts = ['AR','AL','BR','BL'].map(function(o){
+        return '<option value="'+o+'"'+(o===result.katte?' selected':'')+'>'+o+'</option>';
+      }).join('');
+      html += '<div style="margin-top:4px;padding-top:4px;border-top:1px dashed #ccc;">'
+        + '・勝手：<select id="'+pfx+'-katte-select" style="font-size:12px;padding:2px 6px;border:1px solid #c9721f;border-radius:3px;">'+kOpts+'</select>'
+        + ' <span style="color:#c9721f;font-size:11px;">⚠️施工図からの推定・図面と照らして確認してください</span></div>';
+    }
+    (result.memoLines || []).forEach(function(m){
+      html += '<div>・メモに追記：'+esc(m.length>50 ? m.slice(0,50)+'…' : m)+'</div>';
+    });
+    if (result.bathMemoAppend) {
+      html += '<div>・図面メモに追記：'+esc(result.bathMemoAppend.length>50 ? result.bathMemoAppend.slice(0,50)+'…' : result.bathMemoAppend)+'</div>';
+    }
+    html += '</div>';
+    html += '<button type="button" id="'+pfx+'-apply-btn" style="margin-top:6px;font-size:12px;padding:6px 14px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;">✅ この内容を反映</button>';
+    previewEl.innerHTML = html;
+
+    $(pfx+'-apply-btn').addEventListener('click', function(){
+      var changed = {};
+      Object.keys(result.fields || {}).forEach(function(k){ sc[k] = result.fields[k]; changed[k] = result.fields[k]; });
+      // 勝手(AR/AL/BR/BL)を内部の2フィールドに分解。1文字目=向き(A/B)→bathKatteAB、2文字目=扉位置(R/L)→bathDoorPosition(右/左)。
+      var katteSel = $(pfx+'-katte-select');
+      var katteVal = katteSel ? katteSel.value : (hasKatte ? result.katte : '');
+      if (/^(AR|AL|BR|BL)$/.test(katteVal)) {
+        sc.bathKatteAB = katteVal.charAt(0);
+        sc.bathDoorPosition = (katteVal.charAt(1) === 'R') ? '右' : '左';
+        changed.bathKatteAB = sc.bathKatteAB;
+        changed.bathDoorPosition = sc.bathDoorPosition;
+      }
+      // 施工図(drawing)の画像はFirebaseに保存しない(文字数上限エラー回避)。このページを開いている間だけ保持して平面図に使う。
+      if (pfx === 'drawing') {
+        var firstImg = pastedAttachments.filter(function(a){ return a.kind === 'image'; })[0];
+        if (firstImg && firstImg.dataUrl) { sekouZuImage = firstImg.dataUrl; sekouZuKey = currentKey; }
+      }
+      // 伝達事項は図面メモ(bathMemoRenraku)に追記。職人さんがスクショで見る図面に載る。
+      if (result.bathMemoAppend) {
+        var cur = sc.bathMemoRenraku || '';
+        sc.bathMemoRenraku = (cur ? cur + '\n\n' : '') + '【報告書取込 ' + buildStamp() + '】\n' + result.bathMemoAppend;
+        changed.bathMemoRenraku = sc.bathMemoRenraku;
+      }
+      renderBathInputs();   // 反映を可視化
+      withComputed(changed);
+      var scSave = saveSC(changed);
+      var memoSave = Promise.resolve();
+      if (result.memoLines && result.memoLines.length) {
+        var curMemo = (currentTask && currentTask.memo) || '';
+        var newMemo = (curMemo ? curMemo + '\n\n' : '') + '【報告書取込 ' + buildStamp() + '】\n' + result.memoLines.join('\n');
+        if (currentTask) currentTask.memo = newMemo;
+        memoSave = db.ref('app_tasks/' + currentKey).update({ memo: newMemo });
+      }
+      renderDiagram();
+      Promise.all([scSave, memoSave]).then(function(){
+        previewEl.innerHTML += '<div style="color:#2e7d32;margin-top:4px;">✔ 反映して保存しました（下の「現地情報」「図面」に反映されています）</div>';
+      }).catch(function(e){
+        previewEl.innerHTML += '<div style="color:#c62828;margin-top:4px;">保存に失敗：' + esc(e && e.message ? e.message : e) + '</div>';
+      });
+    });
+  }
+
+  // 🔍 正規表現版（無料・一瞬・オフライン可）
+  if (parseBtn) parseBtn.addEventListener('click', function(){
+    var text = pasteArea.value;
+    if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
+    previewEl.textContent = '⏳ 解析中...';
+    renderReportResult(parseSBReportText(text), '🔍 正規表現');
+  });
+
+  // 🤖 AI版（Cloud Functions経由でClaude APIを呼ぶ。数秒かかるが文面の崩れに強い）
+  if (parseAiBtn) {
+    parseAiBtn.addEventListener('click', function(){
+      var text = pasteArea.value;
+      if (!text.trim()) { previewEl.innerHTML = '<span style="color:#c62828;">テキストが空です</span>'; return; }
+      previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
+      fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, docType: docType })
+      }).then(function(res){
+        return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+      }).then(function(r){
+        if (!r.ok || r.data.status !== 'ok') {
+          previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+esc((r.data && r.data.message) || '不明なエラー')+'</span>';
+          return;
+        }
+        renderReportResult(r.data.result, '🤖 AI');
+      }).catch(function(e){
+        previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+esc(e.message)+'</span>';
+      });
+    });
+  }
+
+  // 📎 画像/PDFから解析（AI）。複数枚(画像・PDF混在可)を配列で保持し、サムネイルに個別削除ボタンを出す。
+  var imagePasteArea = $(pfx+'-image-paste');
+  var imagePreview = $(pfx+'-image-preview');
+  var parseImageBtn = $(pfx+'-parse-image-btn');
+  var imageClearBtn = $(pfx+'-image-clear-btn');
+
+  function renderImageThumbs() {
+    if (!imagePreview) return;
+    imagePreview.innerHTML = '';
+    pastedAttachments.forEach(function(att, idx){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      if (att.kind === 'pdf') {
+        var box = document.createElement('div');
+        box.style.cssText = 'width:120px;height:80px;border:1px solid #ccc;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;color:#555;background:#fafafa;padding:4px;text-align:center;word-break:break-all;';
+        box.innerHTML = '📄<br>'+esc(att.filename || 'PDF');
+        wrap.appendChild(box);
+      } else {
+        var thumb = document.createElement('img');
+        thumb.src = att.dataUrl;
+        thumb.style.cssText = 'max-width:140px;max-height:140px;border:1px solid #ccc;border-radius:4px;display:block;';
+        wrap.appendChild(thumb);
+      }
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = '×';
+      delBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;width:20px;height:20px;line-height:18px;text-align:center;padding:0;font-size:13px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:50%;cursor:pointer;';
+      delBtn.addEventListener('click', function(){
+        pastedAttachments.splice(idx, 1);
+        renderImageThumbs();
+      });
+      wrap.appendChild(delBtn);
+      imagePreview.appendChild(wrap);
+    });
+  }
+
+  // iPad(iOS Safari)は通常の<div>に「貼り付け」が出せないため、テキストエリア側にも同じ検知処理を付ける。
+  function handlePasteForAttachments(e) {
+    var cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    var handled = false;
+    var items = cd.items;
+    if (items) {
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          handled = true;
+          var blob = items[i].getAsFile();
+          var reader = new FileReader();
+          reader.onload = function(ev){
+            var dataUrl = ev.target.result;
+            var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+            if (m) {
+              pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+              renderImageThumbs();
+            }
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    }
+    var files = cd.files;
+    if (files) {
+      for (var j = 0; j < files.length; j++) {
+        if (files[j].type === 'application/pdf') {
+          handled = true;
+          var f = files[j];
+          var reader2 = new FileReader();
+          reader2.onload = function(ev){
+            var dataUrl2 = ev.target.result;
+            var m2 = dataUrl2.match(/^data:application\/pdf;base64,(.+)$/);
+            if (m2) {
+              pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
+              renderImageThumbs();
+            }
+          };
+          reader2.readAsDataURL(f);
+        }
+      }
+    }
+    if (handled) e.preventDefault();
+  }
+  if (imagePasteArea) imagePasteArea.addEventListener('paste', handlePasteForAttachments);
+  // テキストエリア側は、画像/PDFの時だけこちらで処理する。通常の文字の貼り付けは素通り。
+  if (pasteArea) pasteArea.addEventListener('paste', handlePasteForAttachments);
+
+  // 📁 ファイル選択（貼り付けが使えない場合の確実な代替。iPadのFilesアプリからも選べる）
+  var fileInput = $(pfx+'-file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', function(){
+      var files = fileInput.files;
+      if (!files || !files.length) return;
+      Array.prototype.forEach.call(files, function(f){
+        var reader = new FileReader();
+        reader.onload = function(ev){
+          var dataUrl = ev.target.result;
+          if (f.type === 'application/pdf') {
+            var m2 = dataUrl.match(/^data:application\/pdf;base64,(.+)$/);
+            if (m2) pastedAttachments.push({ kind: 'pdf', base64: m2[1], filename: f.name });
+          } else if (f.type.indexOf('image') !== -1) {
+            var m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+            if (m) pastedAttachments.push({ kind: 'image', mediaType: m[1], base64: m[2], dataUrl: dataUrl });
+          }
+          renderImageThumbs();
+        };
+        reader.readAsDataURL(f);
+      });
+      fileInput.value = ''; // 同じファイルを続けて選べるようにリセット
+    });
+  }
+
+  if (imageClearBtn) {
+    imageClearBtn.addEventListener('click', function(){
+      pastedAttachments = [];
+      renderImageThumbs();
+    });
+  }
+
+  if (parseImageBtn) {
+    parseImageBtn.addEventListener('click', function(){
+      if (!pastedAttachments.length) { previewEl.innerHTML = '<span style="color:#c62828;">まず画像またはPDFを貼り付けてください</span>'; return; }
+      previewEl.textContent = '⏳ AIが解析中...(数秒かかります)';
+      var images = pastedAttachments.filter(function(a){ return a.kind === 'image'; }).map(function(a){ return { data: a.base64, mediaType: a.mediaType }; });
+      var pdfs = pastedAttachments.filter(function(a){ return a.kind === 'pdf'; }).map(function(a){ return { data: a.base64 }; });
+      fetch('https://us-central1-project-6745138395263517914.cloudfunctions.net/parseSBReportAI', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: images, pdfs: pdfs, docType: docType })
+      }).then(function(res){
+        return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+      }).then(function(r){
+        if (!r.ok || r.data.status !== 'ok') {
+          previewEl.innerHTML = '<span style="color:#c62828;">AI解析に失敗しました：'+esc((r.data && r.data.message) || '不明なエラー')+'</span>';
+          return;
+        }
+        renderReportResult(r.data.result, '📎 添付AI');
+      }).catch(function(e){
+        previewEl.innerHTML = '<span style="color:#c62828;">通信エラー：'+esc(e.message)+'</span>';
+      });
+    });
+  }
+}
+
+function buildImportSection() {
+  var h = '';
+  h += buildDocInputSection('report', '#37474f', '📄 報告書から自動入力(タカラSB下見報告書)',
+    '下見報告書のテキストをここに貼り付け(iPadで画像/PDFを貼る場合もここに長押し→貼り付けでOK)', true);
+  h += buildDocInputSection('drawing', '#00695c', '📐 施工図から自動入力(製品図面)',
+    '施工図(製品図面)のテキストをここに貼り付け／下の欄に画像・PDFを貼り付けでもOK', false);
+  $('import-body').innerHTML = h;
+  setupDocAutoInput('report');
+  setupDocAutoInput('drawing', 'drawing');
+}
+
+// ============================================================
+// 案件の読み込み・表示
+// ============================================================
+function loadCase(key) {
+  if (currentKey && currentKey !== key) { sekouZuImage = null; sekouZuKey = ''; }
+  currentKey = key;
+  $('picker').style.display = 'none';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  setMsg('⏳ 案件データを読み込み中...');
+
+  db.ref('app_tasks/' + key).once('value').then(function (snap) {
+    var task = snap.val();
+    if (!task) {
+      setMsg('案件が見つかりませんでした。「案件変更」から選び直してください。', true);
+      $('hb-change').style.display = '';
+      return;
+    }
+    renderCase(key, task);
+  }).catch(function (e) {
+    setMsg('読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+    $('hb-change').style.display = '';
+  });
+}
+
+function renderCase(key, task) {
+  currentTask = task;
+  var name = col(task, 4).trim() || '名称未設定';
+  var sekou = col(task, 2).replace(/\s+/g, '') || '未定';
+  var addr = col(task, 11).trim();
+
+  sc = {};
+  var src = task.siteCheck || {};
+  for (var k in src) { if (src.hasOwnProperty(k)) sc[k] = src[k]; }
+  // 既定値（未設定のときだけ）。ドアタイプは開き戸、開き戸の扉厚みは標準30。
+  if (sc.bathDoorType == null || sc.bathDoorType === '') sc.bathDoorType = '開き戸';
+  if ((sc.bathHikidoAtsumi == null || sc.bathHikidoAtsumi === '') && sc.bathDoorType === '開き戸') {
+    sc.bathHikidoAtsumi = '30';
+  }
+
+  $('case-info').innerHTML = '<div class="ci-name">🏷️ ' + esc(name) + '</div>'
+    + '<div class="ci-sub">🔨 施工日 ' + esc(sekou) + (addr ? ' ｜ 📍 ' + esc(addr) : '') + '</div>';
+  $('hb-title').textContent = '📐 ' + name;
+
+  buildImportSection();
+  renderBathInputs();
+  if (!inputEventsBound) { bindInputEvents(); inputEventsBound = true; }
+  renderDiagram();
+
+  setMsg('');
+  $('case-area').style.display = 'block';
+  $('hb-reload').style.display = '';
+  $('hb-change').style.display = '';
+}
+
+function reloadCase() { if (currentKey) loadCase(currentKey); }
+
+// ---------- 案件選択（indexから来た時など、key指定が無い場合） ----------
+function hasSiteCheck(t) {
+  var s = t && t.siteCheck;
+  if (!s) return false;
+  for (var k in s) { if (s.hasOwnProperty(k) && k !== '__lastTab' && s[k] !== '' && s[k] != null) return true; }
+  return false;
+}
+function isBathTask(t) { return col(t, 3).indexOf('SB') >= 0; }
+
+function showPicker() {
+  currentKey = '';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  $('hb-title').textContent = '📐 浴室 作図';
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+
+  if (allTasks) { buildPicker(); return; }
+  setMsg('⏳ 案件一覧を読み込み中...');
+  db.ref('app_tasks').once('value').then(function (snap) {
+    allTasks = snap.val() || {};
+    buildPicker();
+  }).catch(function (e) {
+    setMsg('案件一覧の読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+  });
+}
+
+function buildPicker() {
+  setMsg('');
+  $('picker').style.display = 'block';
+  drawPickerList();
+}
+
+function drawPickerList() {
+  var q = ($('picker-search').value || '').trim().toLowerCase();
+  var rows = [];
+  Object.keys(allTasks || {}).forEach(function (key) {
+    var t = allTasks[key];
+    if (!t || !t.csvData) return;
+    if (!(hasSiteCheck(t) || isBathTask(t))) return; // 浴室(SB)案件、または現場チェック入力済みの案件だけ
+    var name = col(t, 4).trim() || '名称未設定';
+    var addr = col(t, 11).trim();
+    if (q && (name + ' ' + addr).toLowerCase().indexOf(q) < 0) return;
+    rows.push({ key: key, t: t, name: name, addr: addr, sekou: col(t, 2).replace(/\s+/g, ''), has: hasSiteCheck(t) });
+  });
+  rows.sort(function (a, b) {
+    if (a.has !== b.has) return a.has ? -1 : 1;           // 入力済みを上に
+    if (!a.sekou && b.sekou) return 1;
+    if (a.sekou && !b.sekou) return -1;
+    return a.sekou < b.sekou ? -1 : (a.sekou > b.sekou ? 1 : 0);
+  });
+
+  var list = $('picker-list');
+  if (!rows.length) {
+    list.innerHTML = '<div class="status">該当する案件がありません</div>';
+    return;
+  }
+  var h = '';
+  rows.slice(0, 80).forEach(function (r) {
+    h += '<button type="button" class="pick-item" data-key="' + esc(r.key) + '">'
+       + '<div class="pick-name">' + esc(r.name) + (r.has ? '<span class="badge-has">入力済</span>' : '') + '</div>'
+       + '<div class="pick-sub">🔨 ' + esc(r.sekou || '未定') + (r.addr ? ' ｜ ' + esc(r.addr) : '') + '</div>'
+       + '</button>';
+  });
+  if (rows.length > 80) h += '<div class="status">他 ' + (rows.length - 80) + ' 件（絞り込んでください）</div>';
+  list.innerHTML = h;
+}
+
+$('picker-list').addEventListener('click', function (e) {
+  var el = e.target;
+  while (el && el !== this && !(el.getAttribute && el.getAttribute('data-key'))) el = el.parentNode;
+  if (!el || el === this) return;
+  var key = el.getAttribute('data-key');
+  try { history.replaceState(null, '', '?key=' + encodeURIComponent(key)); } catch (err) {}
+  loadCase(key);
+});
+$('picker-search').addEventListener('input', drawPickerList);
+
+// ---------- 起動 ----------
+window.addEventListener('load', function () {
+  db = scopedDatabase(firebase.database());
+  var key = getKeyFromUrl();
+  if (key) loadCase(key);
+  else showPicker();
+});
+</script>
+</body>
+</html>
