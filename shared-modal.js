@@ -1,73 +1,11 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-10-11-002
+// VERSION: 2026-10-12-001
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
-// ★2026-09-12追加★ 現場チェックのキッチン用グループ。項目は従来通り(フィールドキーは既存データ互換のため変更なし)。
-// { label, field, type }: type省略時は'text'。'number'/'select'(要options)/'multi'(要options・複数選択)に対応。
-var SITECHECK_GROUPS_KITCHEN = [
-  { title: '床暖まわり', items: [
-    { label:'床暖', field:'yukadan' }, { label:'巾木厚さ', field:'habakiAtsusa' }, { label:'搬入時刻', field:'hannyuJikoku' },
-    { label:'電動シャッター', field:'dendouShutter' }, { label:'追い焚き有無', field:'oidaki' },
-    { label:'角依頼(屋さん合番)', field:'kadoIraiYasan' }, { label:'依頼状況', field:'iraiJoukyou' },
-    { label:'クラウド報告', field:'cloudHoukoku' }, { label:'施工日確認(帳場さん)', field:'sekoKakuninBanba' }
-  ]},
-  { title: '養生まわり', items: [
-    { label:'養生', field:'yousei' }, { label:'図面吊戸棚高', field:'zumenTsuridanaTakasa' }, { label:'図面天井高', field:'zumenTenjouTakasa' },
-    { label:'レンジフード変更', field:'rangeHoodHenkou' }, { label:'天井高さ', field:'tenjouTakasa' }, { label:'施工日確認(相手)', field:'sekoKakuninAite' }
-  ]},
-  { title: '窓台まわり', items: [
-    { label:'窓台高さ', field:'madodaiTakasa' }, { label:'天吊りフード', field:'tentsuriHood' }, { label:'ニッチ', field:'nicchi' },
-    { label:'SK下がり壁', field:'skSagariKabe' }, { label:'CB下がり壁', field:'cbSagariKabe' }, { label:'設備', field:'setsubi' },
-    { label:'KP貼り方', field:'kpHarikata' }, { label:'コンセント', field:'consent' }, { label:'ダクト', field:'duct' }
-  ]},
-  { title: '大工完了まわり', items: [
-    { label:'大工完了', field:'daikuKanryo' }, { label:'搬入経路', field:'hannyuKeiro' }, { label:'パネルカット', field:'panelCut' },
-    { label:'駐車スペース', field:'chuushaSpace' }, { label:'写メ', field:'shame' }, { label:'キーBOX', field:'keyBox' },
-    { label:'SK下地', field:'skShita' }, { label:'天板下地', field:'tenbanShita' }, { label:'CB下地', field:'cbShita' }
-  ]}
-];
-
-// ★2026-10-11変更★ 浴室用グループ(SITECHECK_GROUPS_BATH)は作図ページ(bath-diagram.html)側へ移した。
-
-// ★2026-09-12追加★ 現場チェックのタブ(キッチン/浴室)を1つのHTML文字列に組み立てる共通レンダラー。
-// siteCheckObjは案件のsiteCheckデータ全体(キッチン/浴室のフィールドが混在して入っている想定)。
-function renderSiteCheckGroups(groups, siteCheckObj) {
-  var html = '';
-  groups.forEach(function(group){
-    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
-    group.items.forEach(function(item){
-      var label = item.label, fkey = item.field, type = item.type || 'text';
-      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
-      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
-      if (type === 'select') {
-        html += '<select class="sitecheck-input" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;background:#fff;">';
-        html += '<option value=""'+(v===''?' selected':'')+'>--</option>';
-        (item.options||[]).forEach(function(opt){
-          html += '<option value="'+opt+'"'+(v===opt?' selected':'')+'>'+opt+'</option>';
-        });
-        html += '</select>';
-      } else if (type === 'multi') {
-        var savedArr = v ? String(v).split(',') : [];
-        html += '<div class="sitecheck-multi" data-field="'+fkey+'" style="display:flex;flex-wrap:wrap;gap:4px 8px;padding:4px 0;">';
-        (item.options||[]).forEach(function(opt){
-          var checked = savedArr.indexOf(opt) !== -1 ? ' checked' : '';
-          html += '<label style="font-size:11px;color:#333;white-space:nowrap;"><input type="checkbox" class="sitecheck-multi-cb" value="'+opt+'"'+checked+'> '+opt+'</label>';
-        });
-        html += '</div>';
-      } else if (type === 'computed') {
-        html += '<div class="sitecheck-computed" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:3px;background:#f5f5f5;color:#333;min-height:18px;">'+escHtmlModal(v)+'</div>';
-      } else {
-        html += '<input type="'+(type==='number'?'number':'text')+'" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtmlModal(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" />';
-      }
-      html += '</div>';
-    });
-    html += '</div>';
-  });
-  return html;
-}
+// ★2026-10-12変更★ キッチンの現場チェック(SITECHECK_GROUPS_KITCHEN)と入力欄の組み立て(renderSiteCheckGroups)は
+// キッチン作図ページ(kitchen-diagram.html)側へ移した。浴室は bath-diagram.html 側。
 
 function normalizePhoneModal(raw) {
   if (!raw) return "";
@@ -160,7 +98,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // ★2026-10-10追加★ 注目理由・連絡内容(OFFにしても残す。再ONで復活)
   var flaggedNoteVal = obj.flaggedNote || '';
   var needsContactNoteVal = obj.needsContactNote || '';
-  var siteCheckObj = obj.siteCheck || {}; // モーダルではキッチンの現場チェックだけ使う(浴室は作図ページ側)
   var scheduleType = obj.scheduleType || '';
   var isVisited = obj.shitamiVisited || false;
 
@@ -307,17 +244,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   }
   html += '</div>';
 
-  // 🛠️ 現場チェック（キッチン。メモとは別。テキスト入力・項目離脱時に即時保存）
-  // ★2026-10-11変更★ 浴室の現地情報入力は作図ページ(bath-diagram.html)へ移したため、キッチン/浴室のタブ切替は廃止。
-  html += '<div class="modal-section"><h4 style="color:#e65100;margin-bottom:6px;">🛠️ 現場チェック（キッチン）</h4>';
-  html += '<div id="sitecheck-area">';
-  html += renderSiteCheckGroups(SITECHECK_GROUPS_KITCHEN, siteCheckObj);
-  html += '</div></div>';
-
   // ★2026-10-11変更★ 📐 作図：入力と図面表示は別ページ(bath-diagram.html)。モーダルにはボタンだけ置く。
   // ボタン名は「作図」にしてある(先々キッチンも同じボタンから作図ページへ行く想定)。
-  html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 作図</h4>';
-  html += '<button type="button" id="sakuzu-open-btn" style="font-size:13px;padding:10px 22px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">📐 作図</button>';
+  html += '<div class="modal-section"><h4 style="color:#00695c;margin-bottom:6px;">📐 現地情報・作図</h4>';
+  html += '<button type="button" id="sakuzu-open-btn" style="font-size:13px;padding:10px 22px;border:1px solid #00695c;border-radius:4px;background:#e0f2f1;color:#004d40;font-weight:bold;cursor:pointer;">📐 現地情報・作図を開く</button>';
   html += '</div>';
 
   // 📎 添付ファイル（Firebase Storage: users/{userKey}/case_files/{key}/）
@@ -595,43 +525,6 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     });
   }
 
-  // 🛠️ 現場チェック（キッチン専用。テキスト/数値は離脱時、選択系(select・複数選択)は選択時に即時保存。イベント委譲で1リスナー）
-  // ★2026-10-11変更★ 浴室の入力欄・自動計算・タブ切替は作図ページ(bath-diagram.html)へ移したため撤去。
-  // 保存は「変更した項目だけ」を書く(siteCheck丸ごと上書きしない)。作図ページ側で入力した浴室の値を、
-  // このモーダルが古いキャッシュで消してしまう事故を防ぐため。
-  var sitecheckArea = document.getElementById('sitecheck-area');
-  function saveSiteCheckField(fkey, val) {
-    siteCheckObj[fkey] = val;
-    var u = {}; u[fkey] = val;
-    firebaseDB.ref('app_tasks/'+key+'/siteCheck').update(u);
-    if (globalTasks[key]) globalTasks[key].siteCheck = siteCheckObj;
-    if (fullData) { fullData.app_tasks = globalTasks; localStorage.setItem(modalAppDataKey(), JSON.stringify(fullData)); }
-    showSavedMsg();
-    if (typeof onSaveCallback === 'function') onSaveCallback();
-  }
-  if (sitecheckArea) {
-    sitecheckArea.addEventListener('focusout', function(e){
-      var t = e.target;
-      if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
-        saveSiteCheckField(t.getAttribute('data-field'), t.value);
-      }
-    });
-    sitecheckArea.addEventListener('change', function(e){
-      var t = e.target;
-      if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName === 'SELECT') {
-        saveSiteCheckField(t.getAttribute('data-field'), t.value);
-      } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
-        var group = t.closest('.sitecheck-multi');
-        if (group) {
-          var checkedVals = Array.prototype.slice.call(group.querySelectorAll('.sitecheck-multi-cb:checked')).map(function(cb){ return cb.value; });
-          saveSiteCheckField(group.getAttribute('data-field'), checkedVals.join(','));
-        }
-      }
-    });
-  }
-
-
-
   // 🔄 施工日の変更希望（定型文コピー＋工務担当者へのメッセージ起動）
   (function(){
     var kibouEl = document.getElementById('modal-changereq-kibou');
@@ -820,7 +713,10 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var btn = document.getElementById('sakuzu-open-btn');
     if (!btn) return;
     btn.addEventListener('click', function(){
-      var url = 'bath-diagram.html?key=' + encodeURIComponent(key);
+      // 工事区分(CSV 4列目)がSKのみならキッチン用、それ以外は浴室用ページへ
+      var kubun = getSafeValModal(cols, 3);
+      var page = (kubun.indexOf('SK') >= 0 && kubun.indexOf('SB') < 0) ? 'kitchen-diagram.html' : 'bath-diagram.html';
+      var url = page + '?key=' + encodeURIComponent(key);
       var w = window.open(url, '_blank');
       if (!w) location.href = url; // ポップアップ不可の端末は同じタブで開く
     });
