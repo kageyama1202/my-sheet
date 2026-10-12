@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-11-001 -->
+<!-- VERSION: 2026-10-12-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -23,6 +23,11 @@
     .menu-btn { display: block; text-decoration: none; padding: 18px; background-color: #007bff; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
     .menu-btn:hover { opacity: 0.85; }
     .menu-btn.disabled { background-color: #ccc !important; color: #888; pointer-events: none; box-shadow: none; }
+    /* ★2026-10-12追加★ 今日のアクションのボタン内に出す件数バッジ（注目／連絡必要） */
+    .action-badges { display: none; margin-top: 8px; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .action-badge { font-size: 13px; font-weight: bold; padding: 3px 12px; border-radius: 12px; background: rgba(255,255,255,0.92); color: #b71c1c; }
+    .action-badge.contact { color: #006064; }
+    .menu-btn.disabled .action-badge { background: rgba(255,255,255,0.6); color: #888; }
     @keyframes sms-blink {
       0%,100% { background-color: #1a1a1a; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
       50% { background-color: #e53935; box-shadow: 0 0 14px rgba(229,57,53,0.85); }
@@ -49,13 +54,15 @@
     <div id="calSyncStatus" class="cal-status" style="display:none;"></div>
 
     <div class="menu-grid">
-      <a href="action.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション</a>
+      <a href="action.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション<div id="actionBadges" class="action-badges"></div></a>
       <a href="agenda.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#1a237e;">🎯 Today's Agenda</a>
       <a href="today.html"    class="menu-btn disabled">📋 案件リスト</a>
       <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
       <a href="sogo.html"     class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
       <a id="smsBtn" href="sms.html" class="menu-btn disabled" style="background-color:#1a1a1a;">💬 SMS送信</a>
-      <a href="clipboard.html" class="menu-btn" style="background-color:#4f8ef7;">📋 クリップボード</a>
+      <!-- キッチン・浴室の作図ページは案件をその場でFirebaseから読むため、appData読み込み待ちに依存しない。常時クリック可能。 -->
+      <a href="kitchen-diagram.html" class="menu-btn" style="background-color:#8d6e3f;">🍳 キッチン作図</a>
+      <a href="bath-diagram.html" class="menu-btn" style="background-color:#00695c;">🛁 浴室作図</a>
       <!-- ★修正: CSV取込は初回データ投入に必要なため、データ有無に関わらず常時クリック可能にする -->
       <a href="admin.html"    class="menu-btn" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
       <!-- 仮予約(kari-yoyaku.html)は専用ログイン(kari-login.html)で権限管理しているため、
@@ -63,8 +70,7 @@
       <a href="kari-yoyaku.html" class="menu-btn" style="grid-column:1/3;background-color:#e65100;">🟠 仮予約</a>
       <!-- 保存庫(files.html)もログイン後は常時利用可能なため、他メニューと違いdisabled不要 -->
       <a href="files.html" class="menu-btn" style="grid-column:1/3;background-color:#00897b;">📁 保存庫</a>
-      <!-- 浴室図面(bath-diagram.html)は案件をその場でFirebaseから読むため、appData読み込み待ちに依存しない。常時クリック可能。 -->
-      <a href="bath-diagram.html" class="menu-btn" style="grid-column:1/3;background-color:#00695c;">📐 浴室図面（作図）</a>
+      <a href="clipboard.html" class="menu-btn" style="grid-column:1/3;background-color:#4f8ef7;">📋 クリップボード</a>
       <!-- 工務担当者リスト(koumu-contacts.html)は全ユーザー共通のマスタ管理画面のため、他メニューと違いdisabled不要 -->
       <a href="koumu-contacts.html" class="menu-btn" style="grid-column:1/3;background-color:#8e24aa;">☎️ 工務担当者リスト</a>
     </div>
@@ -130,6 +136,27 @@
       document.querySelectorAll('.menu-btn').forEach(function(btn) {
         btn.classList.remove('disabled');
       });
+    }
+
+    // ★2026-10-12追加★
+    // 「今日のアクション」ボタンの中に、注目(flagged)と連絡必要(needsContact)の件数を出す。
+    // 案件データ(app_tasks)から数えるだけで、Firebaseへの追加読み込みはしない。
+    // キャッシュ読込時と最新データ取得時の両方で呼ぶ。0件のときは表示しない。
+    function updateActionBadge(tasks) {
+      var box = document.getElementById('actionBadges');
+      if (!box) return;
+      var flagged = 0, contact = 0;
+      Object.keys(tasks || {}).forEach(function(key) {
+        var t = tasks[key];
+        if (!t || !t.csvData) return;
+        if (t.flagged) flagged++;
+        if (t.needsContact) contact++;
+      });
+      var html = '';
+      if (flagged > 0) html += '<span class="action-badge">⚑ 注目 ' + flagged + '件</span>';
+      if (contact > 0) html += '<span class="action-badge contact">📞 連絡必要 ' + contact + '件</span>';
+      box.innerHTML = html;
+      box.style.display = html ? 'flex' : 'none';
     }
 
     // ★2026-09-02追加★
@@ -257,6 +284,9 @@
         });
         dbData.app_tasks = filtered;
 
+        // ★2026-10-12追加★ 最新データで注目／連絡必要の件数バッジを更新
+        updateActionBadge(filtered);
+
         // ★2026-09-01修正★
         // これまでは localStorage.setItem が例外を投げなければ「保存成功」とみなし、
         // 画面には常に「✅最新データ取得完了」を表示していた。しかしiOSのブラウザ
@@ -363,6 +393,11 @@
         var statusMsg = document.getElementById('statusMsg');
         statusMsg.className = 'status success';
         statusMsg.innerHTML = '✅ キャッシュ読込済み<br><span style="font-size:11px;font-weight:normal;">（Firebase同期中...）</span>';
+        // ★2026-10-12追加★ キャッシュ上の案件で先に件数バッジを出す（最新取得後に上書きされる）
+        try {
+          var cachedObj = JSON.parse(cached);
+          if (cachedObj && cachedObj.app_tasks) updateActionBadge(cachedObj.app_tasks);
+        } catch(e) {}
       }
 
       // ③ 認証はlogin.html/viewer.htmlで完了済み（トークン方式）。ここでの匿名ログインは行わない。
