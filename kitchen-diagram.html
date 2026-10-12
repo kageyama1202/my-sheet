@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-10-12-001 -->
+<!-- CREATED: 2026-10-12 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>キッチン 現地情報・作図</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;}
+.header-bar{display:flex;align-items:center;gap:6px;background:#fff;border-bottom:1px solid #e0e0e0;padding:8px 10px;position:sticky;top:0;z-index:11;}
+.header-bar .hb-title{font-size:13px;font-weight:600;color:#8d5a00;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hb-btn{display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#555;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;font-family:inherit;}
+.hb-btn:active{background:#f5f5f5;}
+.wrap{max-width:1000px;margin:0 auto;padding:12px;padding-bottom:4rem;}
+.case-info{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.7;}
+.case-info .ci-name{font-weight:bold;font-size:14px;}
+.case-info .ci-sub{font-size:12px;color:#666;}
+.status{font-size:12px;color:#888;text-align:center;padding:1.5rem 0;}
+.status.err{color:#c62828;}
+.hint{font-size:11px;color:#888;margin-bottom:8px;}
+.sec{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 14px;margin-bottom:12px;}
+.sec h3{font-size:14px;margin-bottom:6px;}
+.picker-search{width:100%;font-size:15px;padding:10px 12px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;margin-bottom:10px;font-family:inherit;-webkit-appearance:none;}
+.picker-search:focus{outline:none;border-color:#8d5a00;}
+.pick-item{display:block;width:100%;text-align:left;background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;}
+.pick-item:active{background:#f5f5f5;}
+.pick-name{font-size:14px;font-weight:600;color:#1a1a1a;}
+.pick-sub{font-size:11px;color:#888;margin-top:3px;}
+.badge-has{display:inline-block;font-size:10px;color:#6d4c00;background:#fff3d6;border:1px solid #e0b860;border-radius:4px;padding:1px 5px;margin-left:6px;font-weight:normal;}
+#save-toast{position:fixed;bottom:34px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);color:#fff;font-size:12px;padding:6px 14px;border-radius:16px;display:none;z-index:50;}
+#save-toast.err{background:rgba(198,40,40,0.92);}
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <button class="hb-btn" onclick="goBack()">‹ 戻る</button>
+  <span class="hb-title" id="hb-title">🍳 キッチン 現地情報</span>
+  <button class="hb-btn" id="hb-reload" style="display:none;" onclick="reloadCase()">🔄 再読込</button>
+  <button class="hb-btn" id="hb-change" style="display:none;" onclick="showPicker()">案件変更</button>
+  <a class="hb-btn" href="index.html">🏠 トップ</a>
+</div>
+
+<div class="wrap">
+  <div id="msg" class="status">⏳ 読み込み中...</div>
+
+  <div id="picker" style="display:none;">
+    <div class="hint">現地情報を入力する案件を選んでください（キッチン案件のみ）</div>
+    <input type="text" id="picker-search" class="picker-search" placeholder="案件名・住所で絞り込み">
+    <div id="picker-list"></div>
+  </div>
+
+  <div id="case-area" style="display:none;">
+    <div class="case-info" id="case-info"></div>
+
+    <div class="sec">
+      <h3>🛠️ 現場チェック（キッチン）</h3>
+      <div class="hint">入力した内容は項目ごとに自動で保存されます。キッチンの図面は今後ここに追加します。</div>
+      <div id="sitecheck-area"></div>
+    </div>
+  </div>
+</div>
+<div id="save-toast"></div>
+
+<script>
+// 現場チェックのキッチン用グループ（shared-modal.jsから移設。フィールドキーは既存データ互換のため変更なし）。
+// { label, field, type }: type省略時は'text'。'number'/'select'(要options)/'multi'(要options・複数選択)に対応。
+var SITECHECK_GROUPS_KITCHEN = [
+  { title: '床暖まわり', items: [
+    { label:'床暖', field:'yukadan' }, { label:'巾木厚さ', field:'habakiAtsusa' }, { label:'搬入時刻', field:'hannyuJikoku' },
+    { label:'電動シャッター', field:'dendouShutter' }, { label:'追い焚き有無', field:'oidaki' },
+    { label:'角依頼(屋さん合番)', field:'kadoIraiYasan' }, { label:'依頼状況', field:'iraiJoukyou' },
+    { label:'クラウド報告', field:'cloudHoukoku' }, { label:'施工日確認(帳場さん)', field:'sekoKakuninBanba' }
+  ]},
+  { title: '養生まわり', items: [
+    { label:'養生', field:'yousei' }, { label:'図面吊戸棚高', field:'zumenTsuridanaTakasa' }, { label:'図面天井高', field:'zumenTenjouTakasa' },
+    { label:'レンジフード変更', field:'rangeHoodHenkou' }, { label:'天井高さ', field:'tenjouTakasa' }, { label:'施工日確認(相手)', field:'sekoKakuninAite' }
+  ]},
+  { title: '窓台まわり', items: [
+    { label:'窓台高さ', field:'madodaiTakasa' }, { label:'天吊りフード', field:'tentsuriHood' }, { label:'ニッチ', field:'nicchi' },
+    { label:'SK下がり壁', field:'skSagariKabe' }, { label:'CB下がり壁', field:'cbSagariKabe' }, { label:'設備', field:'setsubi' },
+    { label:'KP貼り方', field:'kpHarikata' }, { label:'コンセント', field:'consent' }, { label:'ダクト', field:'duct' }
+  ]},
+  { title: '大工完了まわり', items: [
+    { label:'大工完了', field:'daikuKanryo' }, { label:'搬入経路', field:'hannyuKeiro' }, { label:'パネルカット', field:'panelCut' },
+    { label:'駐車スペース', field:'chuushaSpace' }, { label:'写メ', field:'shame' }, { label:'キーBOX', field:'keyBox' },
+    { label:'SK下地', field:'skShita' }, { label:'天板下地', field:'tenbanShita' }, { label:'CB下地', field:'cbShita' }
+  ]}
+];
+
+function escHtml(s) {
+  if (s == null || s === '') return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderSiteCheckGroups(groups, siteCheckObj) {
+  var html = '';
+  groups.forEach(function(group){
+    html += '<div style="font-weight:bold;font-size:12px;color:#555;margin:10px 0 4px;border-bottom:1px solid #eee;padding-bottom:2px;">'+group.title+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-bottom:8px;">';
+    group.items.forEach(function(item){
+      var label = item.label, fkey = item.field, type = item.type || 'text';
+      var v = siteCheckObj[fkey] != null ? siteCheckObj[fkey] : '';
+      html += '<div><label style="font-size:11px;color:#888;display:block;margin-bottom:2px;">'+label+'</label>';
+      if (type === 'select') {
+        html += '<select class="sitecheck-input" data-field="'+fkey+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;background:#fff;">';
+        html += '<option value=""'+(v===''?' selected':'')+'>--</option>';
+        (item.options||[]).forEach(function(opt){
+          html += '<option value="'+opt+'"'+(v===opt?' selected':'')+'>'+opt+'</option>';
+        });
+        html += '</select>';
+      } else if (type === 'multi') {
+        var savedArr = v ? String(v).split(',') : [];
+        html += '<div class="sitecheck-multi" data-field="'+fkey+'" style="display:flex;flex-wrap:wrap;gap:4px 8px;padding:4px 0;">';
+        (item.options||[]).forEach(function(opt){
+          var checked = savedArr.indexOf(opt) !== -1 ? ' checked' : '';
+          html += '<label style="font-size:11px;color:#333;white-space:nowrap;"><input type="checkbox" class="sitecheck-multi-cb" value="'+opt+'"'+checked+'> '+opt+'</label>';
+        });
+        html += '</div>';
+      } else {
+        html += '<input type="'+(type==='number'?'number':'text')+'" class="sitecheck-input" data-field="'+fkey+'" value="'+escHtml(v)+'" style="width:100%;box-sizing:border-box;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:3px;" />';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+var db = null;
+var allTasks = null;
+var currentKey = '';
+var sc = {};   // この案件の siteCheck（画面上の最新値）
+
+function $(id) { return document.getElementById(id); }
+function col(task, i) {
+  var c = task && task.csvData;
+  if (!c) return '';
+  return (c[i] != null) ? String(c[i]) : '';
+}
+
+function setMsg(text, isErr) {
+  var m = $('msg');
+  if (!text) { m.style.display = 'none'; return; }
+  m.style.display = 'block';
+  m.className = 'status' + (isErr ? ' err' : '');
+  m.textContent = text;
+}
+
+var toastTimer = null;
+function toast(text, isErr) {
+  var t = $('save-toast');
+  t.textContent = text;
+  t.className = isErr ? 'err' : '';
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.style.display = 'none'; }, isErr ? 4000 : 1400);
+}
+
+function goBack() {
+  if (window.history.length > 1 && document.referrer) { history.back(); }
+  else { location.href = 'today.html'; }
+}
+
+function getKeyFromUrl() {
+  var m = location.search.match(/[?&]key=([^&]*)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// 保存は項目単位（siteCheck丸ごと上書きはしない＝他画面の古いデータで消さないため）
+function saveSC(map) {
+  Object.keys(map).forEach(function (k) { sc[k] = map[k]; });
+  return db.ref('app_tasks/' + currentKey + '/siteCheck').update(map).then(function () {
+    toast('✔ 保存しました');
+  }).catch(function (e) {
+    toast('保存に失敗：' + (e && e.message ? e.message : e), true);
+    throw e;
+  });
+}
+
+// 入力欄のイベント（イベント委譲）。テキスト/数値は離脱時、選択系は選択時に保存
+var inputEventsBound = false;
+function bindInputEvents() {
+  var area = $('sitecheck-area');
+  area.addEventListener('focusout', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName !== 'SELECT') {
+      var f = t.getAttribute('data-field');
+      var m = {}; m[f] = t.value;
+      saveSC(m).catch(function () {});
+    }
+  });
+  area.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('sitecheck-input') && t.tagName === 'SELECT') {
+      var m = {}; m[t.getAttribute('data-field')] = t.value;
+      saveSC(m).catch(function () {});
+    } else if (t && t.classList && t.classList.contains('sitecheck-multi-cb')) {
+      var group = t.closest('.sitecheck-multi');
+      if (group) {
+        var vals = Array.prototype.slice.call(group.querySelectorAll('.sitecheck-multi-cb:checked')).map(function (cb) { return cb.value; });
+        var m2 = {}; m2[group.getAttribute('data-field')] = vals.join(',');
+        saveSC(m2).catch(function () {});
+      }
+    }
+  });
+}
+
+// ---------- 案件の読み込み・表示 ----------
+function loadCase(key) {
+  currentKey = key;
+  $('picker').style.display = 'none';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  setMsg('⏳ 案件データを読み込み中...');
+
+  db.ref('app_tasks/' + key).once('value').then(function (snap) {
+    var task = snap.val();
+    if (!task) {
+      setMsg('案件が見つかりませんでした。「案件変更」から選び直してください。', true);
+      $('hb-change').style.display = '';
+      return;
+    }
+    renderCase(key, task);
+  }).catch(function (e) {
+    setMsg('読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+    $('hb-change').style.display = '';
+  });
+}
+
+function renderCase(key, task) {
+  var name = col(task, 4).trim() || '名称未設定';
+  var sekou = col(task, 2).replace(/\s+/g, '') || '未定';
+  var addr = col(task, 11).trim();
+
+  sc = {};
+  var src = task.siteCheck || {};
+  for (var k in src) { if (src.hasOwnProperty(k)) sc[k] = src[k]; }
+
+  $('case-info').innerHTML = '<div class="ci-name">🏷️ ' + escHtml(name) + '</div>'
+    + '<div class="ci-sub">🔨 施工日 ' + escHtml(sekou) + (addr ? ' ｜ 📍 ' + escHtml(addr) : '') + '</div>';
+  $('hb-title').textContent = '🍳 ' + name;
+
+  $('sitecheck-area').innerHTML = renderSiteCheckGroups(SITECHECK_GROUPS_KITCHEN, sc);
+  if (!inputEventsBound) { bindInputEvents(); inputEventsBound = true; }
+
+  setMsg('');
+  $('case-area').style.display = 'block';
+  $('hb-reload').style.display = '';
+  $('hb-change').style.display = '';
+}
+
+function reloadCase() { if (currentKey) loadCase(currentKey); }
+
+// ---------- 案件選択（indexから来た時など、key指定が無い場合） ----------
+// キッチン側の入力があるか（浴室用の項目 bath〜 は数えない）
+function hasKitchenCheck(t) {
+  var s = t && t.siteCheck;
+  if (!s) return false;
+  for (var k in s) {
+    if (s.hasOwnProperty(k) && k !== '__lastTab' && k.indexOf('bath') !== 0 && s[k] !== '' && s[k] != null) return true;
+  }
+  return false;
+}
+function isKitchenTask(t) { return col(t, 3).indexOf('SK') >= 0; }
+
+function showPicker() {
+  currentKey = '';
+  $('case-area').style.display = 'none';
+  $('hb-reload').style.display = 'none';
+  $('hb-change').style.display = 'none';
+  $('hb-title').textContent = '🍳 キッチン 現地情報';
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+
+  if (allTasks) { buildPicker(); return; }
+  setMsg('⏳ 案件一覧を読み込み中...');
+  db.ref('app_tasks').once('value').then(function (snap) {
+    allTasks = snap.val() || {};
+    buildPicker();
+  }).catch(function (e) {
+    setMsg('案件一覧の読み込みに失敗しました：' + (e && e.message ? e.message : e), true);
+  });
+}
+
+function buildPicker() {
+  setMsg('');
+  $('picker').style.display = 'block';
+  drawPickerList();
+}
+
+function drawPickerList() {
+  var q = ($('picker-search').value || '').trim().toLowerCase();
+  var rows = [];
+  Object.keys(allTasks || {}).forEach(function (key) {
+    var t = allTasks[key];
+    if (!t || !t.csvData) return;
+    if (!(hasKitchenCheck(t) || isKitchenTask(t))) return; // キッチン(SK)案件、またはキッチン側の入力済み案件だけ
+    var name = col(t, 4).trim() || '名称未設定';
+    var addr = col(t, 11).trim();
+    if (q && (name + ' ' + addr).toLowerCase().indexOf(q) < 0) return;
+    rows.push({ key: key, name: name, addr: addr, sekou: col(t, 2).replace(/\s+/g, ''), has: hasKitchenCheck(t) });
+  });
+  rows.sort(function (a, b) {
+    if (a.has !== b.has) return a.has ? -1 : 1;           // 入力済みを上に
+    if (!a.sekou && b.sekou) return 1;
+    if (a.sekou && !b.sekou) return -1;
+    return a.sekou < b.sekou ? -1 : (a.sekou > b.sekou ? 1 : 0);
+  });
+
+  var list = $('picker-list');
+  if (!rows.length) {
+    list.innerHTML = '<div class="status">該当する案件がありません</div>';
+    return;
+  }
+  var h = '';
+  rows.slice(0, 80).forEach(function (r) {
+    h += '<button type="button" class="pick-item" data-key="' + escHtml(r.key) + '">'
+       + '<div class="pick-name">' + escHtml(r.name) + (r.has ? '<span class="badge-has">入力済</span>' : '') + '</div>'
+       + '<div class="pick-sub">🔨 ' + escHtml(r.sekou || '未定') + (r.addr ? ' ｜ ' + escHtml(r.addr) : '') + '</div>'
+       + '</button>';
+  });
+  if (rows.length > 80) h += '<div class="status">他 ' + (rows.length - 80) + ' 件（絞り込んでください）</div>';
+  list.innerHTML = h;
+}
+
+$('picker-list').addEventListener('click', function (e) {
+  var el = e.target;
+  while (el && el !== this && !(el.getAttribute && el.getAttribute('data-key'))) el = el.parentNode;
+  if (!el || el === this) return;
+  var key = el.getAttribute('data-key');
+  try { history.replaceState(null, '', '?key=' + encodeURIComponent(key)); } catch (err) {}
+  loadCase(key);
+});
+$('picker-search').addEventListener('input', drawPickerList);
+
+// ---------- 起動 ----------
+// 認証セッションの復元が完了してからデータを読む（未認証での即時アクセスによるpermission_denied対策）
+window.addEventListener('load', function () {
+  db = scopedDatabase(firebase.database());
+  var started = false;
+  firebase.auth().onAuthStateChanged(function (user) {
+    if (started) return;
+    if (!user) {
+      setMsg('ログインセッションが確認できません。トップページ（index.html）から入り直してください。', true);
+      return;
+    }
+    started = true;
+    var key = getKeyFromUrl();
+    if (key) loadCase(key);
+    else showPicker();
+  });
+});
+</script>
+</body>
+</html>
