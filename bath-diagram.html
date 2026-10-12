@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-11-002 -->
+<!-- VERSION: 2026-10-12-001 -->
 <!-- CREATED: 2026-10-11 -->
 <html lang="ja">
 <head>
@@ -798,7 +798,8 @@ function reloadCase() { if (currentKey) loadCase(currentKey); }
 function hasSiteCheck(t) {
   var s = t && t.siteCheck;
   if (!s) return false;
-  for (var k in s) { if (s.hasOwnProperty(k) && k !== '__lastTab' && s[k] !== '' && s[k] != null) return true; }
+  // 浴室用の項目(bath〜)だけを見る。キッチン側の入力(別ページ)があっても浴室の一覧に混ざらないように。
+  for (var k in s) { if (s.hasOwnProperty(k) && k.indexOf('bath') === 0 && s[k] !== '' && s[k] != null) return true; }
   return false;
 }
 function isBathTask(t) { return col(t, 3).indexOf('SB') >= 0; }
@@ -873,11 +874,21 @@ $('picker-list').addEventListener('click', function (e) {
 $('picker-search').addEventListener('input', drawPickerList);
 
 // ---------- 起動 ----------
+// 認証セッションの復元が完了してからデータを読む（未認証での即時アクセスによるpermission_denied対策。action.htmlと同じ）
 window.addEventListener('load', function () {
   db = scopedDatabase(firebase.database());
-  var key = getKeyFromUrl();
-  if (key) loadCase(key);
-  else showPicker();
+  var started = false;
+  firebase.auth().onAuthStateChanged(function (user) {
+    if (started) return;
+    if (!user) {
+      setMsg('ログインセッションが確認できません。トップページ（index.html）から入り直してください。', true);
+      return;
+    }
+    started = true;
+    var key = getKeyFromUrl();
+    if (key) loadCase(key);
+    else showPicker();
+  });
 });
 </script>
 </body>
