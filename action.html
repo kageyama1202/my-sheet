@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-29-001 -->
-<!-- 完了チェックボックス追加／今日・明日・明後日タブ追加 -->
+<!-- VERSION: 2026-10-12-002 -->
+<!-- 注目セクション追加／注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしないよう変更 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -45,6 +45,10 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .action-card{background:#1a2232;border-radius:8px;padding:10px 12px;margin-bottom:6px;border-left:3px solid #52b788;cursor:pointer;transition:background 0.15s;display:flex;align-items:flex-start;gap:10px;}
 .action-card:hover{background:#212c40;}
 .action-card.contact{border-left-color:#00bcd4;}
+.action-card.flag{border-left-color:#ec407a;}
+.ord{font-size:10px;font-weight:bold;background:#1e3a5f;color:#93c5fd;padding:1px 6px;border-radius:3px;white-space:nowrap;}
+.card-sub .sekou{color:#ffd166;margin-right:8px;white-space:nowrap;}
+.card-sub .note-line{display:block;margin-top:3px;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;}
 .action-card.sms{border-left-color:#8e24aa;}
 .action-card.report{border-left-color:#ef4444;}
 .action-card.kari{border-left-color:#f0a500;}
@@ -101,6 +105,17 @@ function getTodayStr(){var t=new Date();return new Date(t.getTime()+9*3600000).t
 function addDays(ymd,n){var d=new Date(ymd+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 function dowLabel(ymd){return['日','月','火','水','木','金','土'][new Date(ymd+'T00:00:00Z').getUTCDay()];}
 function shortAddr(addr){if(!addr)return'';var a=addr.replace(/\s+/g,'').replace(/^北海道/,'').replace(/^札幌市/,'');var m=a.match(/(.{0,4}区.{0,12})/);return m?m[1]:a.substring(0,16);}
+// 施工日(CSV 3列目)を「10/25(日)」形式に。年月日として読めない文字列はそのまま出す
+function fmtSekou(raw){
+  if(!raw)return'';
+  var s=String(raw).replace(/\s+/g,'');
+  var m=s.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if(!m)return s;
+  var ymd=m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  return parseInt(m[2],10)+'/'+parseInt(m[3],10)+'('+dowLabel(ymd)+')';
+}
+function sekouHtml(item){return item.sekou?'<span class="sekou">🔨施工日 '+escHtml(item.sekou)+'</span>':'';}
+function ordHtml(item){var n=parseInt(item.order,10);return(!isNaN(n)&&n>=1)?'<span class="ord">順 '+n+'</span>':'';}
 function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 var todayStr=getTodayStr();
@@ -181,7 +196,7 @@ function buildShitamiByDate(dateStr){
     var shitamiDate=formatYMD(getSafeVal(c,12))||(obj.date?String(obj.date).replace(/\s+/g,''):'');
     if(shitamiDate!==dateStr)return;
     var shitamiTime=getSafeVal(c,13)||obj.time||'';
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,visited:!!obj.shitamiVisited});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,sekou:fmtSekou(getSafeVal(c,2)),visited:!!obj.shitamiVisited});
   });
   items.sort(function(a,b){
     var oa=parseInt(a.order,10);var ob=parseInt(b.order,10);
@@ -198,9 +213,23 @@ function buildNeedsContact(){
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
     if(!obj.needsContact)return;
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11)});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.needsContactNote||''});
   });
   return items;
+}
+
+// ---- 注目フラグ（今日のみ）。ON/OFFはモーダルの「⚑ 注目」ボタンで行う。注目理由はflaggedNote ----
+function buildFlagged(){
+  var items=[];
+  Object.keys(globalTasks).forEach(function(key){
+    var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
+    if(!obj.flagged)return;
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.flaggedNote||''});
+  });
+  return items;
+}
+function noteHtml(item){
+  return item.note?'<div class="card-sub"><span class="note-line">📝 '+escHtml(item.note)+'</span></div>':'';
 }
 
 // ---- SMS未送信キュー（今日のみ） ----
@@ -248,7 +277,7 @@ function buildReportMissing(){
     }
 
     if(!reportMissing)return;
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',shitamiDate:pastDate,reason:reasonTag,addr:getSafeVal(c,11)});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',shitamiDate:pastDate,reason:reasonTag,sekou:fmtSekou(getSafeVal(c,2)),addr:getSafeVal(c,11)});
   });
   items.sort(function(a,b){return a.shitamiDate.localeCompare(b.shitamiDate);});
   return items;
@@ -357,6 +386,7 @@ function tabStats(i){
   }
   count('shitami',buildShitamiByDate(date),function(it){return it.visited;});
   if(i===0){
+    count('flag',buildFlagged());
     count('contact',buildNeedsContact());
     count('sms',buildSmsUnsent());
     count('report',buildReportMissing());
@@ -387,10 +417,12 @@ function renderTabs(){
 function shitamiCardFn(item){
   return cardWrap('shitami',item,'shitami','openTask(\''+escHtml(item.key)+'\')',
     '<div class="card-top-row">'
+    +ordHtml(item)
     +(item.time?'<span class="card-time">🕐 '+escHtml(item.time)+'</span>':'')
     +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
     +'<div class="card-sub">'
     +(item.visited?'<span class="tag done-tag">✅ 下見完了</span>':'')
+    +sekouHtml(item)
     +(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
 }
 
@@ -407,16 +439,23 @@ function render(){
   html+=sectionHtml('shitami','📋',shitamiTitle,shitami,shitamiCardFn,currentTab===0?'対象なし':'下見予定なし');
 
   if(currentTab===0){
+    var flagged=prepItems('flag',buildFlagged());
     var needsContact=prepItems('contact',buildNeedsContact());
     var smsUnsent=prepItems('sms',buildSmsUnsent());
     var reportMissing=prepItems('report',buildReportMissing());
     var kariPending=prepItems('kari',buildKariPending());
-    tally(needsContact);tally(smsUnsent);tally(reportMissing);tally(kariPending);
+    tally(flagged);tally(needsContact);tally(smsUnsent);tally(reportMissing);tally(kariPending);
+
+    html+=sectionHtml('flag','⚑','注目',flagged,function(item){
+      return cardWrap('flag',item,'flag','openTask(\''+escHtml(item.key)+'\')',
+        '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
+        +'<div class="card-sub">'+sekouHtml(item)+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'+noteHtml(item));
+    });
 
     html+=sectionHtml('contact','📞','連絡必要',needsContact,function(item){
       return cardWrap('contact',item,'contact','openTask(\''+escHtml(item.key)+'\')',
         '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
-        +'<div class="card-sub">'+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
+        +'<div class="card-sub">'+sekouHtml(item)+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'+noteHtml(item));
     });
 
     html+=sectionHtml('sms','💬','SMS未送信',smsUnsent,function(item){
@@ -429,7 +468,7 @@ function render(){
     html+=sectionHtml('report','📝','報告書未提出',reportMissing,function(item){
       return cardWrap('report',item,'report','openTask(\''+escHtml(item.key)+'\')',
         '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
-        +'<div class="card-sub"><span class="tag">'+escHtml(item.reason)+'</span>下見日:'+escHtml(item.shitamiDate.replace(/^\d{4}-/,''))
+        +'<div class="card-sub">'+sekouHtml(item)+'<span class="tag">'+escHtml(item.reason)+'</span>下見日:'+escHtml(item.shitamiDate.replace(/^\d{4}-/,''))
         +(item.addr?'　<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
     });
 
@@ -438,7 +477,7 @@ function render(){
     var kariDay=prepItems('kari',buildKariByDate(date));
     tally(kariDay);
     html+=sectionHtml('kari','🗓',TAB_NAMES[currentTab]+'の仮予約',kariDay,kariCardFn,'仮予約なし');
-    html+='<div class="note">※ 連絡必要・SMS未送信・報告書未提出は「今日」タブのみ表示<br>チェックは日付ごとに保存されます</div>';
+    html+='<div class="note">※ 注目・連絡必要・SMS未送信・報告書未提出は「今日」タブのみ表示<br>チェックは日付ごとに保存されます</div>';
   }
 
   var prog='<div class="progress">'+TAB_NAMES[currentTab]+'の進捗：<b>'+doneAllCnt+'</b> / '+totalAll+' 件完了</div>';
@@ -457,7 +496,8 @@ function kariCardFn(item){
 // ---- アクション ----
 function openTask(key){
   if(!key||!globalTasks[key])return;
-  openCaseModal(key,globalTasks[key],globalHeaders,globalTasks,fullData,db,function(){loadAll();});
+  // fullDataにnullを渡す＝モーダルは端末キャッシュ(appData_*)を書き換えない（index.htmlが容量対策で絞って保存した内容を膨らませないため）
+  openCaseModal(key,globalTasks[key],globalHeaders,globalTasks,null,db,function(){loadAll();});
 }
 function openSmsTool(){
   location.href='sms.html';
