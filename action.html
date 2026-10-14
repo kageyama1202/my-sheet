@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-12-002 -->
-<!-- 注目セクション追加／注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしないよう変更 -->
+<!-- VERSION: 2026-10-14-002 -->
+<!-- 本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -193,10 +193,21 @@ function buildShitamiByDate(dateStr){
   var items=[];
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
-    var shitamiDate=formatYMD(getSafeVal(c,12))||(obj.date?String(obj.date).replace(/\s+/g,''):'');
-    if(shitamiDate!==dateStr)return;
-    var shitamiTime=getSafeVal(c,13)||obj.time||'';
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,sekou:fmtSekou(getSafeVal(c,2)),visited:!!obj.shitamiVisited});
+    // SF確定下見日(c[12])・アプリ側の下見予定日(obj.date)のどちらか一方でも対象日に一致すれば表示する
+    // （SF日が基本。下見済みでも最終確認などでアプリ側だけ今日に入れたケースも拾う）
+    var appDate=obj.date?formatYMD(String(obj.date).replace(/\s+/g,'')):'';
+    var sfDate=formatYMD(getSafeVal(c,12));
+    var matchSf=(sfDate===dateStr);
+    var matchApp=(appDate===dateStr);
+    if(!matchSf&&!matchApp)return;
+    // 時間：SF一致ならSF側の時間を優先、アプリ側のみ一致ならアプリ側の時間
+    var shitamiTime=matchSf?(getSafeVal(c,13)||obj.time||''):(obj.time||'');
+    // 日付が食い違うときは、もう一方の日付をタグで見せる
+    var dateNote='';
+    function md(s){return parseInt(s.slice(5,7),10)+'/'+parseInt(s.slice(8,10),10);}
+    if(matchApp&&!matchSf&&sfDate)dateNote='SF下見日 '+md(sfDate);
+    else if(matchSf&&!matchApp&&appDate)dateNote='アプリ予定日 '+md(appDate);
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,sekou:fmtSekou(getSafeVal(c,2)),visited:!!obj.shitamiVisited,dateNote:dateNote});
   });
   items.sort(function(a,b){
     var oa=parseInt(a.order,10);var ob=parseInt(b.order,10);
@@ -422,6 +433,7 @@ function shitamiCardFn(item){
     +'<span class="card-title">'+escHtml(item.title)+'</span></div>'
     +'<div class="card-sub">'
     +(item.visited?'<span class="tag done-tag">✅ 下見完了</span>':'')
+    +(item.dateNote?'<span class="tag">'+escHtml(item.dateNote)+'</span>':'')
     +sekouHtml(item)
     +(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
 }
