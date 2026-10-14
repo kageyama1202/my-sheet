@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-14-001 -->
+<!-- VERSION: 2026-10-14-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -154,6 +154,10 @@ tr.flagged-row.alt-contact, tr.needs-contact-row.alt-contact { animation: contac
 tr.flagged-row.alt-contact td, tr.needs-contact-row.alt-contact td { color: #004d40 !important; font-weight: 700; }
 tr.flagged-row.alt-flag:hover, tr.flagged-row.alt-contact:hover, tr.needs-contact-row.alt-flag:hover, tr.needs-contact-row.alt-contact:hover { animation: none; }
 tr.alt-flag .col-memo .cell-inner, tr.alt-contact .col-memo .cell-inner { font-weight: 800; }
+/* ★2026-10-14追加★ 注目/連絡の大表示(全列ぶち抜き・巨大文字) */
+td.alt-big-td{padding:8px 14px;white-space:normal;font-size:30px;line-height:1.25;font-weight:900;cursor:pointer;}
+td.alt-big-td .alt-big-text{display:block;font-size:30px;font-weight:900;}
+td.alt-big-td .alt-big-name{display:block;font-size:12px;font-weight:700;opacity:.75;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -570,28 +574,36 @@ function insertDeadlineLabelRow(tbody,type,dateStr,colCount){var tr=document.cre
 // タイマーはページ全体で1つだけ(カードごとにsetIntervalを持たせると再描画のたびに増えるため)。
 // 理由/内容が未入力でもフェーズ自体は回し、「⚑ 注目」「📞 連絡必要」とだけ表示して色で目立たせる。
 function applyAltDisplay(){
+  // ★2026-10-14変更★ 注目理由/連絡内容の表示中は、その行の全セルを隠して1つの大きなセル(全列ぶち抜き)に
+  // 巨大な文字で表示する。通常フェーズでは元のセルに戻す。通常⇄大表示が交互に切り替わって点滅状に見える。
   var rows=document.querySelectorAll('#table-body tr[data-alt-phases]');
   for(var i=0;i<rows.length;i++){
     var tr=rows[i];
     var phases=tr.getAttribute('data-alt-phases').split(',');
     var phase=phases[altTick%phases.length];
-    var inner=tr.querySelector('.col-memo .cell-inner');
     tr.classList.remove('alt-flag');tr.classList.remove('alt-contact');
-    if(!inner)continue;
-    if(inner.getAttribute('data-orig')===null)inner.setAttribute('data-orig',inner.textContent);
-    if(phase==='flag'){
-      var fn=(tr.getAttribute('data-flag-note')||'').replace(/[\r\n]+/g,' ');
-      inner.textContent='⚑ '+(fn||'注目');
-      inner.title=tr.getAttribute('data-flag-note')||'注目';
-      tr.classList.add('alt-flag');
-    }else if(phase==='contact'){
-      var cn=(tr.getAttribute('data-contact-note')||'').replace(/[\r\n]+/g,' ');
-      inner.textContent='📞 '+(cn||'連絡必要');
-      inner.title=tr.getAttribute('data-contact-note')||'連絡必要';
-      tr.classList.add('alt-contact');
+    var big=tr._altBigTd||null;
+    var tds=[];
+    for(var k=0;k<tr.children.length;k++){if(tr.children[k]!==big)tds.push(tr.children[k]);}
+    if(phase==='flag'||phase==='contact'){
+      var isFlag=(phase==='flag');
+      var note=(tr.getAttribute(isFlag?'data-flag-note':'data-contact-note')||'').replace(/[\r\n]+/g,' ');
+      if(!big){
+        big=document.createElement('td');big.className='alt-big-td';
+        tr._altBigTd=big;tr.appendChild(big);
+      }
+      var nameTxt=tds.length>3?tds[3].textContent:'';
+      big.colSpan=tds.length;
+      big.innerHTML='';
+      var nm=document.createElement('span');nm.className='alt-big-name';nm.textContent=nameTxt;
+      var tx=document.createElement('span');tx.className='alt-big-text';tx.textContent=(isFlag?'⚑ ':'📞 ')+(note||(isFlag?'注目':'連絡必要'));
+      big.appendChild(tx);big.appendChild(nm);
+      big.style.display='';
+      for(var m=0;m<tds.length;m++)tds[m].style.display='none';
+      tr.classList.add(isFlag?'alt-flag':'alt-contact');
     }else{
-      inner.textContent=inner.getAttribute('data-orig');
-      inner.title='';
+      if(big)big.style.display='none';
+      for(var m2=0;m2<tds.length;m2++)tds[m2].style.display='';
     }
   }
 }
