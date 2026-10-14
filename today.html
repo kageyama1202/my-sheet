@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-10-001 -->
+<!-- VERSION: 2026-10-14-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -686,9 +686,11 @@ merged.forEach(function(item,idx){
     // ★2026-10-10追加★ 注目/連絡必要の行は、備考列を「通常→注目理由→連絡内容」と交替表示する対象にする。
     // 理由・内容は属性に持たせ、applyAltDisplay()(全体1タイマー)が切り替える。
     if(obj.flagged||obj.needsContact){
+      // ★2026-10-14変更★ 注目理由・連絡内容の間に必ず通常表示(orig)を挟み、「通常⇄連絡のみ」が交互に切り替わって点滅状に見えるようにする。
       var altPhases=['orig'];
-      if(obj.flagged)altPhases.push('flag');
-      if(obj.needsContact)altPhases.push('contact');
+      if(obj.flagged){altPhases.push('flag');altPhases.push('orig');}
+      if(obj.needsContact){altPhases.push('contact');altPhases.push('orig');}
+      if(altPhases.length>2&&altPhases[altPhases.length-1]==='orig')altPhases.pop();
       tr.setAttribute('data-alt-phases',altPhases.join(','));
       tr.setAttribute('data-flag-note',obj.flaggedNote||'');
       tr.setAttribute('data-contact-note',obj.needsContactNote||'');
