@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-14-003 -->
+<!-- VERSION: 2026-10-14-004 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -155,9 +155,7 @@ tr.flagged-row.alt-contact td, tr.needs-contact-row.alt-contact td { color: #004
 tr.flagged-row.alt-flag:hover, tr.flagged-row.alt-contact:hover, tr.needs-contact-row.alt-flag:hover, tr.needs-contact-row.alt-contact:hover { animation: none; }
 tr.alt-flag .col-memo .cell-inner, tr.alt-contact .col-memo .cell-inner { font-weight: 800; }
 /* ★2026-10-14追加★ 注目/連絡の大表示(全列ぶち抜き・巨大文字) */
-td.alt-big-td{padding:4px 12px;white-space:normal;font-size:22px;line-height:1.2;font-weight:900;cursor:pointer;}
-td.alt-big-td .alt-big-text{display:block;font-size:22px;font-weight:900;}
-td.alt-big-td .alt-big-name{display:block;font-size:11px;font-weight:700;opacity:.75;margin-top:1px;}
+td.alt-big-td{padding:0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:900;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -588,16 +586,19 @@ function applyAltDisplay(){
     if(phase==='flag'||phase==='contact'){
       var isFlag=(phase==='flag');
       var note=(tr.getAttribute(isFlag?'data-flag-note':'data-contact-note')||'').replace(/[\r\n]+/g,' ');
+      if(!tr._origH)tr._origH=tr.getBoundingClientRect().height;
       if(!big){
         big=document.createElement('td');big.className='alt-big-td';
         tr._altBigTd=big;tr.appendChild(big);
       }
-      var nameTxt=tds.length>3?tds[3].textContent:'';
+      // 行の高さは通常表示のまま変えない(切替でガタつかないように)。通常時の高さを測って固定し、その中に収まる最大の文字サイズで1行表示する。
+      var h=Math.round(tr._origH);
       big.colSpan=tds.length;
-      big.innerHTML='';
-      var nm=document.createElement('span');nm.className='alt-big-name';nm.textContent=nameTxt;
-      var tx=document.createElement('span');tx.className='alt-big-text';tx.textContent=(isFlag?'⚑ ':'📞 ')+(note||(isFlag?'注目':'連絡必要'));
-      big.appendChild(tx);big.appendChild(nm);
+      big.style.height=h+'px';
+      big.style.fontSize=Math.min(22,Math.max(13,h-8))+'px';
+      var full=(isFlag?'⚑ ':'📞 ')+(note||(isFlag?'注目':'連絡必要'));
+      big.textContent=full;
+      big.title=full;
       big.style.display='';
       for(var m=0;m<tds.length;m++)tds[m].style.display='none';
       tr.classList.add(isFlag?'alt-flag':'alt-contact');
