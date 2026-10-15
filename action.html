@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-14-002 -->
-<!-- 本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
+<!-- VERSION: 2026-10-15-001 -->
+<!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -294,11 +294,20 @@ function buildReportMissing(){
   return items;
 }
 
-// ---- 仮予約：今日タブ＝本日以降の未回答／未送信 ----
+// ---- 仮予約：状態ラベル（未回答／許可／許可・未送信／断り・未送信） ----
+function kariKind(e){
+  var st=e.status||'仮';
+  if(st==='仮')return '未回答';
+  if(st==='許可'||st==='確定')return e.replied?'許可':'許可・未送信';
+  if(st==='断り')return e.replied?'断り':'断り・未送信';
+  return st;
+}
+
+// ---- 仮予約：今日タブ＝明日以降の未回答／未送信（今日分は「本日の仮予約」に出す） ----
 function buildKariPending(){
   var items=[];
   Object.keys(kariSlotsAll).forEach(function(date){
-    if(date<todayStr)return;
+    if(date<=todayStr)return;
     var day=kariSlotsAll[date]||{};
     Object.keys(day).forEach(function(id){
       var e=day[id];
@@ -322,7 +331,7 @@ function buildKariByDate(dateStr){
     var e=day[id];
     var st=e.status||'仮';
     if(st==='断り')return;
-    items.push({key:dateStr+'_'+id,date:dateStr,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:st,area:e.area||''});
+    items.push({key:dateStr+'_'+id,date:dateStr,id:id,title:(e.case_name||'（無題）')+(e.tantou?'（'+e.tantou+'）':''),time:e.start||'',kind:kariKind(e),area:e.area||''});
   });
   items.sort(function(a,b){return (a.time||'99:99').localeCompare(b.time||'99:99');});
   return items;
@@ -401,6 +410,7 @@ function tabStats(i){
     count('contact',buildNeedsContact());
     count('sms',buildSmsUnsent());
     count('report',buildReportMissing());
+    count('karitoday',buildKariByDate(date));
     count('kari',buildKariPending());
   }else{
     count('kari',buildKariByDate(date));
@@ -451,6 +461,10 @@ function render(){
   html+=sectionHtml('shitami','📋',shitamiTitle,shitami,shitamiCardFn,currentTab===0?'対象なし':'下見予定なし');
 
   if(currentTab===0){
+    var kariToday=prepItems('karitoday',buildKariByDate(date));
+    tally(kariToday);
+    html+=sectionHtml('karitoday','🗓','本日の仮予約',kariToday,kariCardFn,'本日の仮予約なし');
+
     var flagged=prepItems('flag',buildFlagged());
     var needsContact=prepItems('contact',buildNeedsContact());
     var smsUnsent=prepItems('sms',buildSmsUnsent());
@@ -484,7 +498,7 @@ function render(){
         +(item.addr?'　<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
     });
 
-    html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち',kariPending,kariCardFn);
+    html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち（明日以降）',kariPending,kariCardFn);
   }else{
     var kariDay=prepItems('kari',buildKariByDate(date));
     tally(kariDay);
