@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-10-20-001 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>スケジュールチェック</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #4f8ef7;
+    --accent-dim: rgba(79,142,247,0.15);
+    --kari: #f0a500;
+    --kari-dim: rgba(240,165,0,0.18);
+    --ok: #2e9e5b;
+    --ok-dim: rgba(46,158,91,0.18);
+    --ng: #e05c5c;
+    --ng-dim: rgba(224,92,92,0.18);
+    --purple: #b07cf0;
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 10px 14px 40px; }
+  #topBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  #topBar a.back { color: var(--accent); text-decoration: none; font-weight: 700; font-size: 14px; }
+  h1 { font-size: 17px; font-weight: 700; }
+  .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+  #adminBadge { font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; font-weight: 700; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 10px; }
+  label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=date], input[type=text], select {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 10px; font-size: 15px; outline: none; font-family: var(--font);
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > div { flex: 1; }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 0 14px; align-items: start; }
+  @media (min-width: 900px) { .layout { grid-template-columns: 1fr 1fr; } }
+
+  .target-btn { display: block; width: 100%; text-align: left; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 14px; font-size: 15px; margin-bottom: 8px; cursor: pointer; }
+  .target-btn.current { border-color: var(--accent); color: var(--accent); }
+  .switch-target { font-size: 12px; color: var(--accent); text-decoration: underline; cursor: pointer; display: inline-block; margin-right: 12px; }
+
+  .verdict { border-radius: 10px; padding: 12px; margin-top: 12px; border: 1px solid var(--border); background: var(--surface2); }
+  .verdict.ok { border-color: var(--ok); background: var(--ok-dim); }
+  .verdict.warn { border-color: var(--kari); background: var(--kari-dim); }
+  .verdict.ng { border-color: var(--ng); background: var(--ng-dim); }
+  .verdict .vt { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .verdict .vl { font-size: 12.5px; color: #ddd; line-height: 1.6; }
+  .go-kari { display: block; text-align: center; text-decoration: none; margin-top: 12px; background: var(--accent); color: #fff; border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700; }
+
+  .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+  .chip { text-align: center; padding: 8px 2px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: 2px solid transparent; }
+  .chip.ok { background: var(--ok-dim); color: var(--ok); }
+  .chip.warn { background: var(--kari-dim); color: var(--kari); }
+  .chip.ng { background: var(--ng-dim); color: var(--ng); }
+  .chip.sel { border-color: #fff; }
+  .legend { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
+
+  .item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; font-size: 13px; }
+  .item.click { cursor: pointer; }
+  .item .tm { min-width: 46px; font-weight: 700; color: var(--accent); }
+  .item .tm.none { color: var(--text-dim); font-weight: 400; font-size: 11px; }
+  .item .tx { flex: 1; word-break: break-all; }
+  .item .st { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--kari-dim); color: var(--kari); font-weight: 700; white-space: nowrap; }
+  .item .st.ok { background: var(--ok-dim); color: var(--ok); }
+  .item .same { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .item.declined { opacity: 0.5; }
+  .item.declined .tx { text-decoration: line-through; }
+  .item.info { opacity: 0.8; }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 4px 2px; }
+  .dh { font-size: 12px; font-weight: 700; color: #ccc; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .dh:first-child { margin-top: 0; }
+
+  .week-nav { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .month-wd { text-align: center; font-size: 10px; color: #888; padding-bottom: 4px; }
+  .month-cell { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; min-height: 58px; padding: 3px 2px; text-align: center; cursor: pointer; font-size: 10px; }
+  .month-cell.other { opacity: 0.35; }
+  .month-cell.today { border-color: var(--accent); }
+  .month-cell.sel { background: var(--accent-dim); border-color: var(--accent); }
+  .month-cell .mnum { font-weight: 700; font-size: 12px; }
+  .mtag { display: block; font-size: 9px; font-weight: 700; margin-top: 1px; }
+  .mtag.a { color: var(--accent); }
+  .mtag.k { color: var(--kari); }
+  .mtag.o { color: var(--ok); }
+  .mtag.p { color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <a href="index.html" class="back">◀ トップ</a>
+  <h1>🗓 スケジュールチェック</h1>
+  <span id="adminBadge" style="display:none;">管理者</span>
+</div>
+<div id="authNote" class="sub">読み込み中...</div>
+
+<!-- 対象者選択 -->
+<div id="targetPicker" style="display:none;">
+  <div class="card">
+    <h2>誰の予定を確認しますか？</h2>
+    <div id="targetList"></div>
+  </div>
+</div>
+
+<!-- 本体 -->
+<div id="mainArea" style="display:none;">
+  <div style="margin-bottom:6px;">
+    <span class="switch-target" onclick="backToPicker()">← 対象者を変更</span>
+    <span class="switch-target" onclick="reloadAll()">🔄 データ再読込</span>
+  </div>
+  <div class="sub" id="targetLabel"></div>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <h2>🔍 この日時は空いている？</h2>
+        <label>日付</label>
+        <input type="date" id="qDate">
+        <div class="row2">
+          <div>
+            <label>時間</label>
+            <select id="qTime"></select>
+          </div>
+          <div>
+            <label>エリア（任意・近所の判定用）</label>
+            <input type="text" id="qArea" list="areaOptions" placeholder="例：豊平区">
+            <datalist id="areaOptions">
+              <option value="北区"><option value="西区"><option value="厚別区"><option value="手稲区">
+              <option value="東区"><option value="清田区"><option value="豊平区"><option value="中央区">
+              <option value="南区"><option value="白石区">
+              <option value="江別市"><option value="北広島市"><option value="倶知安町"><option value="岩見沢市">
+              <option value="南幌町"><option value="石狩市"><option value="その他">
+            </datalist>
+          </div>
+        </div>
+        <div id="verdict" class="verdict"></div>
+        <a id="goKari" class="go-kari" href="kari-yoyaku.html">この日で仮予約へ進む</a>
+      </div>
+
+      <div class="card">
+        <h2>⏱ この日の時間帯ごとの空き（タップで時間を選択）</h2>
+        <div id="slotGrid" class="chips"></div>
+        <div class="legend">緑＝空き　黄＝前後72分以内に予定／終日予定あり　赤＝同時刻に予定あり<br>仮予約（打診中）も全員分を含めて判定しています。断り済みは空き扱いです。</div>
+      </div>
+
+      <div class="card">
+        <h2 id="dayTitle">この日の予定</h2>
+        <div id="dayList"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="nearTitle">前後3日の予定</h2>
+        <div id="nearList"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <button class="week-nav" onclick="shiftMonth(-1)">◀</button>
+          <div id="monthLabel" style="font-size:13px;color:#aaa;font-weight:700;"></div>
+          <button class="week-nav" onclick="shiftMonth(1)">▶</button>
+        </div>
+        <div id="monthGrid" class="month-grid"></div>
+        <div class="legend">
+          <span style="color:var(--accent);">下＝下見の件数</span>　<span style="color:var(--kari);">仮＝打診中</span>　<span style="color:var(--ok);">可＝対応可で枠確保</span>　<span style="color:var(--purple);">終日＝終日の個人予定</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📩 打診中・確保中の仮予約（今日以降・全員分）</h2>
+        <div id="pendingList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 設定 ============
+var firebaseConfig = {
+  apiKey: "AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",
+  authDomain: "project-6745138395263517914.firebaseapp.com",
+  databaseURL: "https://project-6745138395263517914-default-rtdb.firebaseio.com",
+  projectId: "project-6745138395263517914",
+  storageBucket: "project-6745138395263517914.firebasestorage.app",
+  messagingSenderId: "1054295910908",
+  appId: "1:1054295910908:web:4072df05bd90bbdc896a79"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var rawDb = firebase.database(); // users/{userKey}/... を明示パスで扱う（kari-yoyaku.htmlと同じ方式）
+
+var NEARBY_MIN = 72; // 前後72分以内は「近い予定あり」（kari-yoyaku.htmlと同じ基準）
+var isAdmin = false, isKari = false, myUserKey = null;
+var targetUserKey = null;
+var kariTargets = {};
+var targetTasks = {}, targetPersonal = {}, kariSlots = {};
+var slotsRef = null;
+var viewMonth = null;
+
+// ============ ユーティリティ ============
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function dateToStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function dateFromStr(s) { var p = s.split('-'); return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10)); }
+function todayStr() { return dateToStr(new Date()); }
+function addDaysStr(s, n) { var d = dateFromStr(s); d.setDate(d.getDate() + n); return dateToStr(d); }
+var WD = ['日', '月', '火', '水', '木', '金', '土'];
+function fmtLong(s) { var d = dateFromStr(s); return (d.getMonth() + 1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')'; }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function formatToYMD(v) {
+  if (!v) return '';
+  var m = String(v).trim().match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+}
+function extractArea(addr) {
+  if (!addr) return '';
+  var a = String(addr).replace(/\s+/g, '');
+  var s = a.match(/札幌市(.+?区)/); if (s) return s[1];
+  var c = a.match(/北海道(.+?市)/); if (c && c[1].indexOf('札幌') === -1) return c[1];
+  var t = a.match(/郡(.+?[町村])/); if (t) return t[1];
+  return 'その他';
+}
+// "10:00" / "2026-10-20T10:00:00" などから分に変換。時刻が無ければnull
+function parseHM(v) {
+  if (!v) return null;
+  var m = String(v).match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+function minToHM(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+function sameArea(a, b) {
+  a = (a || '').trim(); b = (b || '').trim();
+  if (!a || !b) return false;
+  return a.indexOf(b) !== -1 || b.indexOf(a) !== -1;
+}
+
+// 時間の選択肢（30分刻み 7:00〜19:30）
+(function () {
+  var sel = document.getElementById('qTime');
+  var html = '<option value="">（時間を指定しない）</option>';
+  for (var m = 7 * 60; m <= 19 * 60 + 30; m += 30) {
+    html += '<option value="' + minToHM(m) + '">' + minToHM(m) + '</option>';
+  }
+  sel.innerHTML = html;
+  sel.value = '10:00';
+})();
+
+function getUrlDateParam() {
+  try {
+    var v = new URLSearchParams(location.search).get('date');
+    return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+  } catch (e) { return null; }
+}
+document.getElementById('qDate').value = getUrlDateParam() || todayStr();
+
+// ============ 認証（kari-yoyaku.htmlと同じ） ============
+firebase.auth().onAuthStateChanged(function (user) {
+  if (user) afterAuth(user);
+  else redirectToLogin();
+});
+function redirectToLogin() {
+  var here = location.pathname.split('/').pop() || 'schedule-check.html';
+  location.replace('kari-login.html?return=' + encodeURIComponent(here));
+}
+function afterAuth(user) {
+  user.getIdTokenResult().then(function (res) {
+    var claims = res.claims || {};
+    isAdmin = !!claims.admin;
+    isKari = claims.role === 'kari';
+    myUserKey = claims.userKey || null;
+    if (!isAdmin && !isKari && claims.role !== 'staff') {
+      firebase.auth().signOut().then(redirectToLogin);
+      return;
+    }
+    document.getElementById('adminBadge').style.display = isAdmin ? 'inline-block' : 'none';
+    document.getElementById('authNote').textContent = isAdmin
+      ? '管理者としてアクセス中です。'
+      : (isKari ? '仮予約用アカウントでアクセス中です。' : 'スタッフとしてアクセス中です。');
+    loadTargets();
+  });
+}
+
+// ============ 対象者選択 ============
+function loadTargets() {
+  rawDb.ref('config/kari_targets').once('value').then(function (snap) {
+    kariTargets = snap.val() || {};
+    renderTargetPicker();
+  }).catch(function (e) {
+    document.getElementById('authNote').textContent = '対象者リストの取得に失敗しました：' + e.message;
+  });
+}
+function renderTargetPicker() {
+  var box = document.getElementById('targetList');
+  box.innerHTML = '';
+  var keys = Object.keys(kariTargets);
+  if (keys.length === 0) box.innerHTML = '<div class="empty">対象者が未登録です（config/kari_targetsに追加してください）</div>';
+  keys.forEach(function (key) {
+    var btn = document.createElement('button');
+    btn.className = 'target-btn' + (key === myUserKey ? ' current' : '');
+    btn.textContent = (kariTargets[key].name || key) + (key === myUserKey ? '（自分）' : '');
+    btn.onclick = function () { selectTarget(key); };
+    box.appendChild(btn);
+  });
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+  // 自分のuserKeyが分かっているスタッフ/管理者は自動選択（kari権限は毎回選ぶ）
+  if (myUserKey && kariTargets[myUserKey] && !isKari) selectTarget(myUserKey);
+}
+function detachSlots() {
+  if (slotsRef) { slotsRef.off(); slotsRef = null; }
+}
+function backToPicker() {
+  detachSlots();
+  targetUserKey = null;
+  document.getElementById('targetPicker').style.display = 'block';
+  document.getElementById('mainArea').style.display = 'none';
+}
+function selectTarget(key) {
+  detachSlots();
+  targetUserKey = key;
+  targetTasks = {}; targetPersonal = {}; kariSlots = {};
+  document.getElementById('targetLabel').textContent = '対象：' + (kariTargets[key].name || key);
+  document.getElementById('targetPicker').style.display = 'none';
+  document.getElementById('mainArea').style.display = 'block';
+  viewMonth = null;
+  loadCaseData();
+  slotsRef = rawDb.ref('users/' + key + '/kari_yoyaku_slots');
+  slotsRef.on('value', function (snap) {
+    kariSlots = snap.val() || {};
+    renderAll();
+  }, function (e) {
+    document.getElementById('authNote').textContent = '仮予約データの取得に失敗しました：' + e.message;
+  });
+  renderAll();
+}
+function loadCaseData() {
+  var key = targetUserKey;
+  rawDb.ref('users/' + key + '/app_tasks').once('value').then(function (snap) {
+    if (key !== targetUserKey) return;
+    targetTasks = snap.val() || {};
+    renderAll();
+  }).catch(function (e) { console.warn('app_tasks取得失敗', e); });
+  rawDb.ref('users/' + key + '/personal_calendar').once('value').then(function (snap) {
+    if (key !== targetUserKey) return;
+    targetPersonal = snap.val() || {};
+    renderAll();
+  }).catch(function (e) { console.warn('personal_calendar取得失敗', e); });
+}
+function reloadAll() { if (targetUserKey) loadCaseData(); }
+
+// ============ 予定の組み立て ============
+function kariBadge(status) {
+  if (status === '許可' || status === '確定') return { badge: '🟢', label: '対応可（枠確保）', ok: true };
+  if (status === '断り') return { badge: '❌', label: '対応不可', ok: false };
+  return { badge: '🟠', label: '打診中（仮予約）', ok: false };
+}
+function buildDayItems(date) {
+  var items = [];
+  Object.keys(targetTasks).forEach(function (key) {
+    var obj = targetTasks[key]; var cols = obj && obj.csvData; if (!cols) return;
+    if (obj.localStatus === 'キャンセル') return;
+    var title = cols[4] || '(無題)';
+    var area = extractArea(cols[11] || '');
+    var shitami = formatToYMD(cols[12]);
+    var yotei = formatToYMD(obj.date);
+    var seko = formatToYMD(cols[2]);
+    if (shitami === date) {
+      items.push({ kind: 'shitami', badge: '🔵', label: '下見', title: title, area: area, time: cols[13] || obj.time || '', blocking: true });
+    }
+    if (yotei === date && yotei !== shitami) {
+      items.push({ kind: 'yotei', badge: '🟣', label: '下見予定', title: title, area: area, time: obj.time || '', blocking: true });
+    }
+    if (seko === date) {
+      // 施工日は時間を持たないため、判定には使わず参考表示のみ
+      items.push({ kind: 'seko', badge: '🔨', label: '施工', title: title, area: area, time: '', blocking: false });
+    }
+  });
+  var pday = targetPersonal[date];
+  if (pday) {
+    Object.keys(pday).forEach(function (id) {
+      var ev = pday[id] || {};
+      var sm = parseHM(ev.start || '');
+      var em = parseHM(ev.end || '');
+      var allDay = !!ev.allDay || sm === null;
+      items.push({
+        kind: 'personal', badge: '📅', label: '個人予定', title: ev.title || '', area: '',
+        time: allDay ? '' : minToHM(sm), endMin: (!allDay && em !== null && em > sm) ? em : null,
+        allDay: allDay, blocking: true
+      });
+    });
+  }
+  var kday = kariSlots[date] || {};
+  Object.keys(kday).forEach(function (id) {
+    var e = kday[id] || {};
+    var st = e.status || '仮';
+    var kb = kariBadge(st);
+    items.push({
+      kind: 'kari', badge: kb.badge, label: kb.label, title: e.case_name || '', area: e.area || '',
+      time: e.start || '', who: e.tantou || '', status: st, statusOk: kb.ok,
+      declined: st === '断り', blocking: st !== '断り'
+    });
+  });
+  items.sort(function (a, b) {
+    var ma = parseHM(a.time), mb = parseHM(b.time);
+    var ka = ma === null ? 9999 : ma, kb2 = mb === null ? 9999 : mb;
+    return ka - kb2;
+  });
+  return items;
+}
+
+// 指定時刻(分)に対する判定。exact=同時刻／nearby=前後72分／allday=終日の個人予定／untimed=時間未定の予定
+function checkSlot(items, tMin) {
+  var r = { exact: [], nearby: [], allday: [], untimed: [] };
+  items.forEach(function (it) {
+    if (!it.blocking) return;
+    if (it.kind === 'personal' && it.allDay) { r.allday.push(it); return; }
+    var m = parseHM(it.time);
+    if (m === null) { r.untimed.push(it); return; }
+    if (it.kind === 'personal' && it.endMin && tMin >= m && tMin < it.endMin) { r.exact.push(it); return; }
+    if (m === tMin) r.exact.push(it);
+    else if (Math.abs(m - tMin) <= NEARBY_MIN) r.nearby.push(it);
+  });
+  return r;
+}
+function slotState(r) {
+  if (r.exact.length) return 'ng';
+  if (r.nearby.length || r.allday.length) return 'warn';
+  return 'ok';
+}
+
+// ============ 表示 ============
+function itemText(it, qArea) {
+  var t = it.time ? it.time : (it.kind === 'personal' && it.allDay ? '終日' : (it.kind === 'seko' ? '施工' : '時間未定'));
+  var s = t + ' ' + it.badge + ' ' + it.label;
+  if (it.title) s += '：' + it.title;
+  if (it.area) s += '【' + it.area + '】';
+  if (it.who) s += '（' + it.who + '）';
+  return s;
+}
+function itemRowHtml(it, qArea, dateAttr) {
+  var tm = it.time ? '<span class="tm">' + escapeHtml(it.time) + '</span>'
+    : '<span class="tm none">' + (it.kind === 'personal' && it.allDay ? '終日' : (it.kind === 'seko' ? '施工日' : '時間未定')) + '</span>';
+  var tag = '';
+  if (it.kind === 'kari') tag = '<span class="st' + (it.statusOk ? ' ok' : '') + '">' + escapeHtml(it.label) + '</span>';
+  var same = (qArea && sameArea(it.area, qArea)) ? '<span class="same">同エリア</span>' : '';
+  var cls = 'item' + (dateAttr ? ' click' : '') + (it.declined ? ' declined' : '') + (it.kind === 'seko' ? ' info' : '');
+  var text = it.badge + ' ' + (it.kind === 'kari' ? '' : escapeHtml(it.label) + (it.title ? '：' : '')) + escapeHtml(it.title || '')
+    + (it.area ? '【' + escapeHtml(it.area) + '】' : '') + (it.who ? '（' + escapeHtml(it.who) + '）' : '');
+  return '<div class="' + cls + '"' + (dateAttr ? ' data-date="' + dateAttr + '"' : '') + '>' + tm + '<span class="tx">' + text + '</span>' + tag + same + '</div>';
+}
+
+function renderVerdict(items) {
+  var date = document.getElementById('qDate').value;
+  var time = document.getElementById('qTime').value;
+  var box = document.getElementById('verdict');
+  var go = document.getElementById('goKari');
+  go.href = 'kari-yoyaku.html' + (date ? '?date=' + encodeURIComponent(date) : '');
+  if (!date) { box.className = 'verdict'; box.innerHTML = '<div class="vl">日付を選んでください</div>'; return; }
+  var head = fmtLong(date) + (time ? ' ' + time : '');
+  var past = date < todayStr() ? '<div class="vl" style="margin-top:4px;">※過去の日付です</div>' : '';
+  if (!time) {
+    var cnt = items.filter(function (it) { return it.blocking && it.kind !== 'seko'; }).length;
+    var kari = items.filter(function (it) { return it.kind === 'kari' && it.status === '仮'; }).length;
+    box.className = 'verdict' + (cnt === 0 ? ' ok' : '');
+    box.innerHTML = '<div class="vt">' + escapeHtml(head) + '</div><div class="vl">'
+      + (cnt === 0 ? 'この日は予定なし（施工日を除く）' : '予定 ' + cnt + '件' + (kari ? '（うち打診中 ' + kari + '件）' : ''))
+      + '<br>時間を指定すると、空き／被りを判定します。</div>' + past;
+    return;
+  }
+  var r = checkSlot(items, parseHM(time));
+  var st = slotState(r);
+  var title, lines = [];
+  if (st === 'ng') {
+    title = '⛔ 被りあり';
+    lines.push('同じ時刻に予定があります：');
+    r.exact.forEach(function (it) { lines.push('・' + itemText(it)); });
+    if (r.nearby.length) { lines.push('前後72分以内：'); r.nearby.forEach(function (it) { lines.push('・' + itemText(it)); }); }
+  } else if (st === 'warn') {
+    title = '⚠ 近くに予定あり';
+    if (r.nearby.length) { lines.push('前後72分以内：'); r.nearby.forEach(function (it) { lines.push('・' + itemText(it)); }); }
+    if (r.allday.length) { lines.push('終日の個人予定：'); r.allday.forEach(function (it) { lines.push('・' + itemText(it)); }); }
+  } else {
+    title = '✅ 空いています';
+    lines.push('この時間の前後72分に予定はありません。');
+  }
+  if (r.untimed.length) {
+    lines.push('※時間未定の予定が ' + r.untimed.length + '件あります（下見など。当日の件数として確認）');
+  }
+  box.className = 'verdict ' + st;
+  box.innerHTML = '<div class="vt">' + escapeHtml(head) + '　' + title + '</div><div class="vl">'
+    + lines.map(escapeHtml).join('<br>') + '</div>' + past;
+}
+
+function renderSlotGrid(items) {
+  var box = document.getElementById('slotGrid');
+  var time = document.getElementById('qTime').value;
+  var html = '';
+  for (var m = 7 * 60; m <= 19 * 60 + 30; m += 30) {
+    var st = slotState(checkSlot(items, m));
+    var hm = minToHM(m);
+    html += '<div class="chip ' + st + (hm === time ? ' sel' : '') + '" data-t="' + hm + '">' + hm + '</div>';
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('.chip').forEach(function (el) {
+    el.onclick = function () {
+      document.getElementById('qTime').value = this.getAttribute('data-t');
+      renderAll();
+    };
+  });
+}
+
+function renderDayList(items, date, qArea) {
+  document.getElementById('dayTitle').textContent = date ? fmtLong(date) + ' の予定' : 'この日の予定';
+  var box = document.getElementById('dayList');
+  if (!items.length) { box.innerHTML = '<div class="empty">この日の予定はありません</div>'; return; }
+  box.innerHTML = items.map(function (it) { return itemRowHtml(it, qArea, null); }).join('');
+}
+
+function renderNearList(date, qArea) {
+  var title = document.getElementById('nearTitle');
+  var box = document.getElementById('nearList');
+  if (!date) { box.innerHTML = ''; return; }
+  title.textContent = '前後3日の予定' + (qArea ? '（' + qArea + ' のみ）' : '（全エリア。エリアを入力すると絞り込み）');
+  var html = '';
+  for (var d = -3; d <= 3; d++) {
+    if (d === 0) continue;
+    var ds = addDaysStr(date, d);
+    var items = buildDayItems(ds).filter(function (it) {
+      if (it.kind === 'personal' || it.declined) return false;
+      if (qArea) return sameArea(it.area, qArea);
+      return true;
+    });
+    if (!items.length) continue;
+    html += '<div class="dh">' + fmtLong(ds) + '（' + (d > 0 ? '+' : '') + d + '日）</div>';
+    html += items.map(function (it) { return itemRowHtml(it, qArea, ds); }).join('');
+  }
+  box.innerHTML = html || '<div class="empty">前後3日に該当する予定はありません</div>';
+  box.querySelectorAll('.item.click').forEach(function (el) {
+    el.onclick = function () {
+      document.getElementById('qDate').value = this.getAttribute('data-date');
+      renderAll();
+    };
+  });
+}
+
+function renderMonth(date) {
+  if (!viewMonth) viewMonth = date ? dateFromStr(date) : new Date();
+  var y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+  var gridStart = new Date(y, m, 1 - new Date(y, m, 1).getDay());
+  var today = todayStr();
+  var html = WD.map(function (l) { return '<div class="month-wd">' + l + '</div>'; }).join('');
+  for (var i = 0; i < 42; i++) {
+    var d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
+    var ds = dateToStr(d);
+    var items = buildDayItems(ds);
+    var nShitami = 0, nKari = 0, nOk = 0, allday = false;
+    items.forEach(function (it) {
+      if (it.kind === 'shitami' || it.kind === 'yotei') nShitami++;
+      else if (it.kind === 'kari') { if (it.status === '仮') nKari++; else if (it.statusOk) nOk++; }
+      else if (it.kind === 'personal' && it.allDay) allday = true;
+    });
+    var cls = 'month-cell' + (d.getMonth() !== m ? ' other' : '') + (ds === today ? ' today' : '') + (ds === date ? ' sel' : '');
+    html += '<div class="' + cls + '" data-pick="' + ds + '"><div class="mnum">' + d.getDate() + '</div>'
+      + (nShitami ? '<span class="mtag a">下' + nShitami + '</span>' : '')
+      + (nKari ? '<span class="mtag k">仮' + nKari + '</span>' : '')
+      + (nOk ? '<span class="mtag o">可' + nOk + '</span>' : '')
+      + (allday ? '<span class="mtag p">終日</span>' : '')
+      + '</div>';
+  }
+  var grid = document.getElementById('monthGrid');
+  grid.innerHTML = html;
+  document.getElementById('monthLabel').textContent = y + '年' + (m + 1) + '月';
+  grid.querySelectorAll('[data-pick]').forEach(function (el) {
+    el.onclick = function () {
+      document.getElementById('qDate').value = this.getAttribute('data-pick');
+      renderAll();
+    };
+  });
+}
+function shiftMonth(delta) {
+  if (!viewMonth) viewMonth = new Date();
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + delta, 1);
+  renderMonth(document.getElementById('qDate').value);
+}
+
+function renderPending() {
+  var box = document.getElementById('pendingList');
+  var today = todayStr();
+  var list = [];
+  Object.keys(kariSlots).forEach(function (d) {
+    if (d < today) return;
+    Object.keys(kariSlots[d] || {}).forEach(function (id) {
+      var e = kariSlots[d][id] || {};
+      var st = e.status || '仮';
+      if (st === '断り') return;
+      list.push({ date: d, e: e, st: st });
+    });
+  });
+  list.sort(function (a, b) { return (a.date + (a.e.start || '')).localeCompare(b.date + (b.e.start || '')); });
+  if (!list.length) { box.innerHTML = '<div class="empty">打診中・確保中の仮予約はありません</div>'; return; }
+  box.innerHTML = list.map(function (x) {
+    var kb = kariBadge(x.st);
+    return '<div class="item click" data-date="' + x.date + '" data-time="' + escapeHtml(x.e.start || '') + '">'
+      + '<span class="tm">' + fmtLong(x.date) + '</span>'
+      + '<span class="tx"><b style="color:var(--accent);">' + escapeHtml(x.e.start || '') + '</b> ' + kb.badge + ' '
+      + escapeHtml(x.e.case_name || '(案件名なし)') + (x.e.area ? '【' + escapeHtml(x.e.area) + '】' : '')
+      + (x.e.tantou ? '（' + escapeHtml(x.e.tantou) + '）' : '') + '</span>'
+      + '<span class="st' + (kb.ok ? ' ok' : '') + '">' + (kb.ok ? '対応可' : '打診中') + '</span></div>';
+  }).join('');
+  box.querySelectorAll('.item.click').forEach(function (el) {
+    el.onclick = function () {
+      document.getElementById('qDate').value = this.getAttribute('data-date');
+      var t = this.getAttribute('data-time');
+      if (t && document.querySelector('#qTime option[value="' + t + '"]')) document.getElementById('qTime').value = t;
+      renderAll();
+    };
+  });
+}
+
+function renderAll() {
+  if (!targetUserKey) return;
+  var date = document.getElementById('qDate').value;
+  var qArea = document.getElementById('qArea').value.trim();
+  var items = date ? buildDayItems(date) : [];
+  renderVerdict(items);
+  renderSlotGrid(items);
+  renderDayList(items, date, qArea);
+  renderNearList(date, qArea);
+  // 選択日が表示月から外れたら月を合わせる
+  if (date && viewMonth) {
+    var dObj = dateFromStr(date);
+    if (dObj.getFullYear() !== viewMonth.getFullYear() || dObj.getMonth() !== viewMonth.getMonth()) {
+      viewMonth = new Date(dObj.getFullYear(), dObj.getMonth(), 1);
+    }
+  }
+  renderMonth(date);
+  renderPending();
+}
+
+document.getElementById('qDate').addEventListener('change', renderAll);
+document.getElementById('qTime').addEventListener('change', renderAll);
+document.getElementById('qArea').addEventListener('input', renderAll);
+</script>
+</body>
+</html>
