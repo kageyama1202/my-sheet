@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>現場カメラ</title>
+<!-- VERSION: 2026-11-05 -->
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%;height:100dvh}
+#stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center}
+#view{max-width:100%;max-height:100%;object-fit:contain}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+#err{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;line-height:1.6;display:none;background:rgba(0,0,0,.7);padding:12px;border-radius:10px}
+#err button{margin-top:8px}
+#panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;overflow-y:auto}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.row label{font-size:11px;color:#aaa;white-space:nowrap;min-width:44px}
+input[type=text],select{flex:1;min-width:0;font-size:16px;padding:7px 8px;border-radius:8px;border:1px solid #444;background:#2c2c2e;color:#fff}
+input[type=range]{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.chip{font-size:13px;padding:5px 10px;border-radius:14px;background:#3a3a3c;border:none;color:#fff}
+.chip.on{background:#0a84ff}
+button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;background:#000}
+#shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:5px solid #888;padding:0}
+#shutter:active{background:#ddd}
+#save{background:#0a84ff;min-width:92px}
+#save:disabled{background:#3a3a3c;color:#777}
+#tray{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;height:56px}
+.th{position:relative;flex:0 0 auto;height:56px}
+.th img{height:56px;border-radius:6px;display:block}
+.th b{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:#ff453a;font-size:12px;line-height:20px;text-align:center}
+.ck{display:flex;align-items:center;gap:4px;font-size:13px}
+.ck input{width:18px;height:18px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="view"></canvas>
+    <div id="flash"></div>
+    <div id="err"></div>
+  </div>
+
+  <div id="bar">
+    <div id="tray"></div>
+    <button id="shutter" aria-label="撮影"></button>
+    <button id="save" disabled>保存 (0)</button>
+  </div>
+
+  <div id="panel">
+    <div class="row"><label>現場名</label><input type="text" id="site" list="siteList" placeholder="例: ○○マンション 305" autocomplete="off"><datalist id="siteList"></datalist></div>
+    <div class="row"><label>備考</label><input type="text" id="note" placeholder="例: 浴室 施工前" autocomplete="off"></div>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <label>位置</label>
+      <select id="pos">
+        <option value="bl">左下</option><option value="br">右下</option>
+        <option value="tl">左上</option><option value="tr">右上</option>
+      </select>
+      <label class="ck"><input type="checkbox" id="dt" checked>日時</label>
+      <button id="flip">カメラ切替</button>
+    </div>
+    <div class="row"><label>文字サイズ</label><input type="range" id="size" min="50" max="220" value="100"></div>
+    <div class="row"><label>背景濃さ</label><input type="range" id="bg" min="0" max="90" value="55"></div>
+  </div>
+</div>
+
+<video id="video" playsinline muted autoplay style="position:fixed;left:-9999px;top:0;width:1px;height:1px"></video>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const video=$('video'), view=$('view'), vctx=view.getContext('2d');
+const TAGS=['施工前','施工中','施工後','下見','既存','搬入','養生','完了'];
+const LS='genbaCamera.v1';
+let facing='environment', stream=null;
+let tray=[]; // {blob,name,url}
+
+/* ---------- settings ---------- */
+const S=Object.assign({site:'',note:'',pos:'bl',dt:true,size:100,bg:55,hist:[]},
+  (()=>{try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}})());
+function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function loadUI(){
+  $('site').value=S.site;$('note').value=S.note;$('pos').value=S.pos;
+  $('dt').checked=S.dt;$('size').value=S.size;$('bg').value=S.bg;
+  renderHist();renderChips();
+}
+function renderHist(){
+  $('siteList').innerHTML=S.hist.map(h=>'<option value="'+h.replace(/"/g,'&quot;')+'">').join('');
+}
+function renderChips(){
+  const c=$('chips');c.innerHTML='';
+  TAGS.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='chip'+(S.note===t?' on':'');b.textContent=t;
+    b.onclick=()=>{S.note=(S.note===t?'':t);$('note').value=S.note;saveS();renderChips();};
+    c.appendChild(b);
+  });
+}
+$('site').oninput=e=>{S.site=e.target.value;saveS()};
+$('note').oninput=e=>{S.note=e.target.value;saveS();renderChips()};
+$('pos').onchange=e=>{S.pos=e.target.value;saveS()};
+$('dt').onchange=e=>{S.dt=e.target.checked;saveS()};
+$('size').oninput=e=>{S.size=+e.target.value;saveS()};
+$('bg').oninput=e=>{S.bg=+e.target.value;saveS()};
+
+/* ---------- camera ---------- */
+function showErr(msg,retry){
+  const e=$('err');e.style.display='block';
+  e.innerHTML=msg+(retry?'<br><button id="retry">再試行</button>':'');
+  if(retry)$('retry').onclick=startCam;
+}
+async function startCam(){
+  $('err').style.display='none';
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showErr('このブラウザはカメラに対応していません。HTTPS(GitHub Pages等)で開いてください。');return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:2160}},audio:false});
+    video.srcObject=stream;
+    await video.play().catch(()=>{});
+  }catch(err){
+    showErr('カメラを起動できません。<br>設定でカメラの許可を確認してください。<br>('+(err.name||err)+')',true);
+  }
+}
+$('flip').onclick=()=>{facing=(facing==='environment'?'user':'environment');startCam()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||!stream.active))startCam()});
+
+/* ---------- overlay ---------- */
+const p2=n=>String(n).padStart(2,'0');
+function dtStr(d){return d.getFullYear()+'/'+p2(d.getMonth()+1)+'/'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes())}
+function fileStamp(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'_'+p2(d.getHours())+p2(d.getMinutes())+p2(d.getSeconds())}
+const FONT='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
+function rrect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function drawOverlay(c,w,h,date){
+  const lines=[];
+  if(S.site.trim())lines.push({t:S.site.trim(),k:1.25,b:true});
+  if(S.note.trim())lines.push({t:S.note.trim(),k:1,b:true});
+  if(S.dt)lines.push({t:dtStr(date),k:.85,b:false});
+  if(!lines.length)return;
+  let fs=Math.min(w,h)*0.045*(S.size/100);
+  const measure=()=>{
+    let mw=0;
+    lines.forEach(l=>{c.font=(l.b?'bold ':'')+(fs*l.k)+'px '+FONT;mw=Math.max(mw,c.measureText(l.t).width)});
+    return mw;
+  };
+  let mw=measure();const maxW=w*0.94-fs;
+  if(mw>maxW){fs*=maxW/mw;mw=measure()}
+  const pad=fs*0.55,gap=fs*0.18,mg=fs*0.6;
+  const lh=lines.map(l=>fs*l.k*1.15);
+  const bw=mw+pad*2,bh=lh.reduce((a,b)=>a+b,0)+gap*(lines.length-1)+pad*2;
+  const x=S.pos.endsWith('r')?w-mg-bw:mg;
+  const y=S.pos.startsWith('b')?h-mg-bh:mg;
+  if(S.bg>0){c.fillStyle='rgba(0,0,0,'+(S.bg/100)+')';rrect(c,x,y,bw,bh,fs*0.35);c.fill()}
+  c.textBaseline='top';c.textAlign='left';
+  let ty=y+pad;
+  lines.forEach((l,i)=>{
+    c.font=(l.b?'bold ':'')+(fs*l.k)+'px '+FONT;
+    if(S.bg<25){c.lineWidth=fs*l.k*0.14;c.strokeStyle='rgba(0,0,0,.85)';c.lineJoin='round';c.strokeText(l.t,x+pad,ty)}
+    c.fillStyle='#fff';c.fillText(l.t,x+pad,ty);
+    ty+=lh[i]+gap;
+  });
+}
+function render(c,w,h,date){
+  c.drawImage(video,0,0,w,h);
+  drawOverlay(c,w,h,date);
+}
+
+/* ---------- preview loop ---------- */
+function loop(){
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(vw&&vh){
+    const sc=Math.min(1,1280/Math.max(vw,vh));
+    const cw=Math.round(vw*sc),ch=Math.round(vh*sc);
+    if(view.width!==cw||view.height!==ch){view.width=cw;view.height=ch}
+    render(vctx,cw,ch,new Date());
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- capture ---------- */
+function updateTray(){
+  const t=$('tray');t.innerHTML='';
+  tray.forEach((p,i)=>{
+    const d=document.createElement('div');d.className='th';
+    const im=document.createElement('img');im.src=p.url;
+    const x=document.createElement('b');x.textContent='×';
+    x.onclick=()=>{URL.revokeObjectURL(p.url);tray.splice(i,1);updateTray()};
+    d.appendChild(im);d.appendChild(x);t.appendChild(d);
+  });
+  t.scrollLeft=t.scrollWidth;
+  $('save').textContent='保存 ('+tray.length+')';
+  $('save').disabled=!tray.length;
+}
+$('shutter').onclick=()=>{
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw)return;
+  const date=new Date();
+  const cv=document.createElement('canvas');cv.width=vw;cv.height=vh;
+  render(cv.getContext('2d'),vw,vh,date);
+  const f=$('flash');f.style.opacity=.8;setTimeout(()=>f.style.opacity=0,80);
+  cv.toBlob(blob=>{
+    if(!blob)return;
+    const base=(S.site.trim()||'photo').replace(/[\\\/:*?"<>|\s]+/g,'_').slice(0,40);
+    const name=base+'_'+fileStamp(date)+'.jpg';
+    tray.push({blob,name,url:URL.createObjectURL(blob)});
+    updateTray();
+    const s=S.site.trim();
+    if(s){S.hist=[s].concat(S.hist.filter(h=>h!==s)).slice(0,15);saveS();renderHist()}
+  },'image/jpeg',0.92);
+};
+
+/* ---------- save ---------- */
+function clearTray(){tray.forEach(p=>URL.revokeObjectURL(p.url));tray=[];updateTray()}
+$('save').onclick=async()=>{
+  if(!tray.length)return;
+  const files=tray.map(p=>new File([p.blob],p.name,{type:'image/jpeg'}));
+  try{
+    if(navigator.canShare&&navigator.canShare({files})){
+      await navigator.share({files});
+      clearTray();return;
+    }
+  }catch(e){
+    if(e&&e.name==='AbortError')return; // キャンセル時はトレイ保持
+  }
+  // fallback: download
+  tray.forEach((p,i)=>setTimeout(()=>{
+    const a=document.createElement('a');a.href=p.url;a.download=p.name;
+    document.body.appendChild(a);a.click();a.remove();
+  },i*400));
+  setTimeout(clearTray,tray.length*400+500);
+};
+
+loadUI();updateTray();startCam();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
