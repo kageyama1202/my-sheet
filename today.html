@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-06-002 -->
+<!-- VERSION: 2026-11-06-003 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -660,6 +660,7 @@ merged.forEach(function(item,idx){
         var yoteiTime=obj.time||'';
         inner.textContent=yoteiTime;
         if(yoteiTime){inner.style.color='#6a1b9a';inner.style.fontWeight='600';inner.style.textAlign='center';}
+        if(obj.timeNote){var tnSpan=document.createElement('div');tnSpan.textContent='📝'+obj.timeNote;tnSpan.style.cssText='color:#c62828;font-size:9.5px;font-weight:700;line-height:1.2;text-align:center;';inner.appendChild(tnSpan);}
       }else if(colIdx===-5){
         var shitamiTimeVal=getSafeVal(cols,13)||'';
         inner.textContent=shitamiTimeVal;
