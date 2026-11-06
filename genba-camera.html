@@ -12,7 +12,10 @@
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
 #app{display:flex;flex-direction:column;height:100%;height:100dvh}
 #stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center}
-#view{max-width:100%;max-height:100%;object-fit:contain}
+#frame{position:relative;width:100%;height:100%}
+#frame video,#frame canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+#frame video{object-fit:fill}
+#view{pointer-events:none}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 #err{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;line-height:1.6;display:none;background:rgba(0,0,0,.7);padding:12px;border-radius:10px}
 #err button{margin-top:8px}
@@ -41,7 +44,10 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
 <body>
 <div id="app">
   <div id="stage">
-    <canvas id="view"></canvas>
+    <div id="frame">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="view"></canvas>
+    </div>
     <div id="flash"></div>
     <div id="err"></div>
   </div>
@@ -66,7 +72,7 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
       <button id="flip">カメラ切替</button>
     </div>
     <div class="row">
-      <label>位置</label>
+      <label>GPS</label>
       <label class="ck"><input type="checkbox" id="gps" checked>GPS付与</label>
       <label class="ck"><input type="checkbox" id="addr" checked>住所表示</label>
       <span id="gpsst" style="font-size:11px;color:#aaa"></span>
@@ -75,8 +81,6 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
     <div class="row"><label>背景濃さ</label><input type="range" id="bg" min="0" max="90" value="55"></div>
   </div>
 </div>
-
-<video id="video" playsinline muted autoplay style="position:fixed;left:-9999px;top:0;width:1px;height:1px"></video>
 
 <script>
 (function(){
@@ -91,7 +95,7 @@ let tray=[]; // {blob,name,url}
 /* ---------- settings ---------- */
 const S=Object.assign({site:'',note:'',pos:'bl',dt:true,gps:true,addr:true,size:100,bg:55,hist:[]},
   (()=>{try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}})());
-function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}redraw()}
 function loadUI(){
   $('site').value=S.site;$('note').value=S.note;$('pos').value=S.pos;
   $('dt').checked=S.dt;$('gps').checked=S.gps;$('addr').checked=S.addr;
@@ -133,7 +137,7 @@ async function startCam(){
   }
   try{
     stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:2160}},audio:false});
+      video:{facingMode:{ideal:facing},width:{ideal:4032},height:{ideal:3024},aspectRatio:{ideal:4/3}},audio:false});
     video.srcObject=stream;
     await video.play().catch(()=>{});
   }catch(err){
@@ -169,12 +173,14 @@ async function revGeo(lat,lon){
       if(m){const a=String(m).split(',');if(a.length>=4)pre=a[1]+a[3]}
     }
     geo.addr=pre+(res.lv01Nm||'');
+    redraw();
   }catch(e){geo.lastQ=null}
 }
-function startGeo(){
+// 位置情報は常時取得せず、起動時・前面復帰時・60秒ごとに1回だけ取得(省電力)
+function refreshGeo(){
+  if(!S.gps&&!S.addr)return;
   if(!navigator.geolocation){gst('不可');return}
-  loadMuni();
-  navigator.geolocation.watchPosition(p=>{
+  navigator.geolocation.getCurrentPosition(p=>{
     geo.pos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
     gst('OK ±'+Math.round(p.coords.accuracy)+'m');
     if(!geo.lastQ||dist(geo.lastQ,geo.pos)>30){
@@ -182,8 +188,12 @@ function startGeo(){
       revGeo(geo.pos.lat,geo.pos.lon);
     }
   },e=>gst(e.code===1?'許可なし':'取得失敗'),
-  {enableHighAccuracy:true,maximumAge:10000,timeout:30000});
-  gst('取得中…');
+  {enableHighAccuracy:true,maximumAge:30000,timeout:20000});
+}
+function startGeo(){
+  loadMuni();gst('取得中…');refreshGeo();
+  setInterval(()=>{if(!document.hidden)refreshGeo()},60000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshGeo()});
 }
 
 /* ---------- EXIF (日時 + GPS) ---------- */
@@ -280,17 +290,34 @@ function render(c,w,h,date){
   drawOverlay(c,w,h,date);
 }
 
-/* ---------- preview loop ---------- */
-function loop(){
+/* ---------- preview (映像はそのまま表示、文字は必要時のみ再描画) ---------- */
+const stage=$('stage'), frame=$('frame');
+function layout(){
   const vw=video.videoWidth,vh=video.videoHeight;
-  if(vw&&vh){
-    const sc=Math.min(1,1280/Math.max(vw,vh));
-    const cw=Math.round(vw*sc),ch=Math.round(vh*sc);
-    if(view.width!==cw||view.height!==ch){view.width=cw;view.height=ch}
-    render(vctx,cw,ch,new Date());
-  }
-  requestAnimationFrame(loop);
+  if(!vw||!vh)return;
+  const r=stage.getBoundingClientRect();
+  const sc=Math.min(r.width/vw,r.height/vh);
+  frame.style.width=Math.floor(vw*sc)+'px';
+  frame.style.height=Math.floor(vh*sc)+'px';
 }
+function sizeOverlay(){
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw||!vh)return;
+  const sc=Math.min(1,1280/Math.max(vw,vh));
+  const cw=Math.round(vw*sc),ch=Math.round(vh*sc);
+  if(view.width!==cw||view.height!==ch){view.width=cw;view.height=ch}
+  layout();redraw();
+}
+function redraw(){
+  if(!view.width)return;
+  vctx.clearRect(0,0,view.width,view.height);
+  drawOverlay(vctx,view.width,view.height,new Date());
+}
+video.addEventListener('loadedmetadata',sizeOverlay);
+video.addEventListener('resize',sizeOverlay);
+window.addEventListener('resize',layout);
+if(window.ResizeObserver)new ResizeObserver(layout).observe(stage);
+setInterval(redraw,10000); // 日時表示の更新用
 
 /* ---------- capture ---------- */
 function updateTray(){
@@ -348,7 +375,7 @@ $('save').onclick=async()=>{
   setTimeout(clearTray,tray.length*400+500);
 };
 
-loadUI();updateTray();startCam();startGeo();requestAnimationFrame(loop);
+loadUI();updateTray();startCam();startGeo();
 })();
 </script>
 </body>
