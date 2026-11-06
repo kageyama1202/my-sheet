@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-05 -->
+<!-- VERSION: 2026-11-06 -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -65,6 +65,12 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
       <label class="ck"><input type="checkbox" id="dt" checked>日時</label>
       <button id="flip">カメラ切替</button>
     </div>
+    <div class="row">
+      <label>位置</label>
+      <label class="ck"><input type="checkbox" id="gps" checked>GPS付与</label>
+      <label class="ck"><input type="checkbox" id="addr" checked>住所表示</label>
+      <span id="gpsst" style="font-size:11px;color:#aaa"></span>
+    </div>
     <div class="row"><label>文字サイズ</label><input type="range" id="size" min="50" max="220" value="100"></div>
     <div class="row"><label>背景濃さ</label><input type="range" id="bg" min="0" max="90" value="55"></div>
   </div>
@@ -83,12 +89,13 @@ let facing='environment', stream=null;
 let tray=[]; // {blob,name,url}
 
 /* ---------- settings ---------- */
-const S=Object.assign({site:'',note:'',pos:'bl',dt:true,size:100,bg:55,hist:[]},
+const S=Object.assign({site:'',note:'',pos:'bl',dt:true,gps:true,addr:true,size:100,bg:55,hist:[]},
   (()=>{try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}})());
 function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
 function loadUI(){
   $('site').value=S.site;$('note').value=S.note;$('pos').value=S.pos;
-  $('dt').checked=S.dt;$('size').value=S.size;$('bg').value=S.bg;
+  $('dt').checked=S.dt;$('gps').checked=S.gps;$('addr').checked=S.addr;
+  $('size').value=S.size;$('bg').value=S.bg;
   renderHist();renderChips();
 }
 function renderHist(){
@@ -107,6 +114,8 @@ $('site').oninput=e=>{S.site=e.target.value;saveS()};
 $('note').oninput=e=>{S.note=e.target.value;saveS();renderChips()};
 $('pos').onchange=e=>{S.pos=e.target.value;saveS()};
 $('dt').onchange=e=>{S.dt=e.target.checked;saveS()};
+$('gps').onchange=e=>{S.gps=e.target.checked;saveS()};
+$('addr').onchange=e=>{S.addr=e.target.checked;saveS()};
 $('size').oninput=e=>{S.size=+e.target.value;saveS()};
 $('bg').oninput=e=>{S.bg=+e.target.value;saveS()};
 
@@ -134,6 +143,102 @@ async function startCam(){
 $('flip').onclick=()=>{facing=(facing==='environment'?'user':'environment');startCam()};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||!stream.active))startCam()});
 
+/* ---------- location ---------- */
+const geo={pos:null,addr:'',lastQ:null};
+let muni=null;
+function gst(t){$('gpsst').textContent=t}
+function loadMuni(){
+  const s=document.createElement('script');
+  s.src='https://maps.gsi.go.jp/js/muni.js';
+  s.onload=()=>{try{muni=window.GSI&&window.GSI.MUNI_ARRAY}catch(e){}};
+  document.head.appendChild(s);
+}
+function dist(a,b){
+  const R=6371000,r=Math.PI/180;
+  const dx=(b.lon-a.lon)*r*Math.cos(a.lat*r),dy=(b.lat-a.lat)*r;
+  return R*Math.sqrt(dx*dx+dy*dy);
+}
+async function revGeo(lat,lon){
+  try{
+    const r=await fetch('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat='+lat+'&lon='+lon);
+    const j=await r.json();const res=j&&j.results;
+    if(!res){geo.lastQ=null;return}
+    let pre='';
+    if(muni&&res.muniCd){
+      const m=muni[String(parseInt(res.muniCd,10))];
+      if(m){const a=String(m).split(',');if(a.length>=4)pre=a[1]+a[3]}
+    }
+    geo.addr=pre+(res.lv01Nm||'');
+  }catch(e){geo.lastQ=null}
+}
+function startGeo(){
+  if(!navigator.geolocation){gst('不可');return}
+  loadMuni();
+  navigator.geolocation.watchPosition(p=>{
+    geo.pos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
+    gst('OK ±'+Math.round(p.coords.accuracy)+'m');
+    if(!geo.lastQ||dist(geo.lastQ,geo.pos)>30){
+      geo.lastQ={lat:geo.pos.lat,lon:geo.pos.lon};
+      revGeo(geo.pos.lat,geo.pos.lon);
+    }
+  },e=>gst(e.code===1?'許可なし':'取得失敗'),
+  {enableHighAccuracy:true,maximumAge:10000,timeout:30000});
+  gst('取得中…');
+}
+
+/* ---------- EXIF (日時 + GPS) ---------- */
+function buildExif(date,pos){
+  const gps=!!pos;
+  const dtS=date.getFullYear()+':'+p2(date.getMonth()+1)+':'+p2(date.getDate())+' '+
+    p2(date.getHours())+':'+p2(date.getMinutes())+':'+p2(date.getSeconds());
+  const nIfd0=gps?2:1;
+  const exifOff=8+2+nIfd0*12+4;
+  const dtOff=exifOff+2+12+4;
+  const gpsOff=dtOff+20;
+  const latOff=gpsOff+2+5*12+4;
+  const lonOff=latOff+24;
+  const total=gps?lonOff+24:gpsOff;
+  const b=new Uint8Array(total),v=new DataView(b.buffer);
+  b[0]=0x4D;b[1]=0x4D;v.setUint16(2,0x2A);v.setUint32(4,8);
+  let p=8;
+  const e=(tag,type,cnt,val)=>{v.setUint16(p,tag);v.setUint16(p+2,type);v.setUint32(p+4,cnt);v.setUint32(p+8,val>>>0);p+=12};
+  // IFD0
+  v.setUint16(p,nIfd0);p+=2;
+  e(0x8769,4,1,exifOff);
+  if(gps)e(0x8825,4,1,gpsOff);
+  p+=4;
+  // Exif IFD
+  p=exifOff;v.setUint16(p,1);p+=2;
+  e(0x9003,2,20,dtOff);p+=4;
+  for(let i=0;i<19;i++)b[dtOff+i]=dtS.charCodeAt(i);
+  if(gps){
+    const put=(off,val)=>{
+      const a=Math.abs(val);const d=Math.floor(a);const mf=(a-d)*60;const m=Math.floor(mf);const s=(mf-m)*60;
+      v.setUint32(off,d);v.setUint32(off+4,1);
+      v.setUint32(off+8,m);v.setUint32(off+12,1);
+      v.setUint32(off+16,Math.round(s*10000));v.setUint32(off+20,10000);
+    };
+    p=gpsOff;v.setUint16(p,5);p+=2;
+    e(0,1,4,0x02030000);
+    e(1,2,2,(pos.lat>=0?0x4E:0x53)<<24);
+    e(2,5,3,latOff);
+    e(3,2,2,(pos.lon>=0?0x45:0x57)<<24);
+    e(4,5,3,lonOff);
+    put(latOff,pos.lat);put(lonOff,pos.lon);
+  }
+  const len=2+6+total;
+  const app1=new Uint8Array(2+len);
+  app1[0]=0xFF;app1[1]=0xE1;app1[2]=len>>8;app1[3]=len&255;
+  app1.set([0x45,0x78,0x69,0x66,0,0],4);
+  app1.set(b,10);
+  return app1;
+}
+async function addExif(blob,date,pos){
+  const buf=new Uint8Array(await blob.arrayBuffer());
+  if(buf[0]!==0xFF||buf[1]!==0xD8)return blob;
+  return new Blob([buf.subarray(0,2),buildExif(date,pos),buf.subarray(2)],{type:'image/jpeg'});
+}
+
 /* ---------- overlay ---------- */
 const p2=n=>String(n).padStart(2,'0');
 function dtStr(d){return d.getFullYear()+'/'+p2(d.getMonth()+1)+'/'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes())}
@@ -144,6 +249,7 @@ function drawOverlay(c,w,h,date){
   const lines=[];
   if(S.site.trim())lines.push({t:S.site.trim(),k:1.25,b:true});
   if(S.note.trim())lines.push({t:S.note.trim(),k:1,b:true});
+  if(S.addr&&geo.addr)lines.push({t:geo.addr,k:.85,b:false});
   if(S.dt)lines.push({t:dtStr(date),k:.85,b:false});
   if(!lines.length)return;
   let fs=Math.min(w,h)*0.045*(S.size/100);
@@ -207,8 +313,11 @@ $('shutter').onclick=()=>{
   const cv=document.createElement('canvas');cv.width=vw;cv.height=vh;
   render(cv.getContext('2d'),vw,vh,date);
   const f=$('flash');f.style.opacity=.8;setTimeout(()=>f.style.opacity=0,80);
-  cv.toBlob(blob=>{
-    if(!blob)return;
+  const pos=(S.gps&&geo.pos)?{lat:geo.pos.lat,lon:geo.pos.lon}:null;
+  cv.toBlob(async blob0=>{
+    if(!blob0)return;
+    let blob=blob0;
+    try{blob=await addExif(blob0,date,pos)}catch(err){blob=blob0}
     const base=(S.site.trim()||'photo').replace(/[\\\/:*?"<>|\s]+/g,'_').slice(0,40);
     const name=base+'_'+fileStamp(date)+'.jpg';
     tray.push({blob,name,url:URL.createObjectURL(blob)});
@@ -239,7 +348,7 @@ $('save').onclick=async()=>{
   setTimeout(clearTray,tray.length*400+500);
 };
 
-loadUI();updateTray();startCam();requestAnimationFrame(loop);
+loadUI();updateTray();startCam();startGeo();requestAnimationFrame(loop);
 })();
 </script>
 </body>
