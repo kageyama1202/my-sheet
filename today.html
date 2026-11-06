@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-14-004 -->
+<!-- VERSION: 2026-11-06-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -34,7 +34,8 @@ body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px
 .date-area span{font-size:12px;font-weight:bold;}
 .sm-btn{font-size:10px;padding:2px 6px;cursor:pointer;border:1px solid #999;border-radius:3px;background:#fff;font-weight:bold;}.sm-btn:hover{background:#f0f0f0;}
 .table-wrapper{overflow:auto;background:#fff;border:1px solid #ccc;height:calc(100vh - 170px);}
-table{border-collapse:collapse;table-layout:fixed;width:max-content;}
+/* ★2026-11-06変更★ width:max-content だとiPad(WebKit)でtable-layout:fixedが無効になり、仮予約/個人予定のcolspan行の長文で列が広がって見切れが崩れる。全列幅の合計をpx固定して絶対に崩れないようにした(列幅を変えたら合計も直すこと: 30+45+25+155+90+105+26+140+155+80+80+52+92+52+40+34+30=1231) */
+table{border-collapse:collapse;table-layout:fixed;width:1231px;}
 th,td{border:1px solid #ccc;text-align:left;font-size:12px;vertical-align:middle;}
 th{background:#e0e0e0;padding:3px 5px;position:sticky;top:0;z-index:10;white-space:nowrap;}
 tbody tr:hover{background:#e8f4ff;cursor:pointer;}
@@ -156,6 +157,8 @@ tr.flagged-row.alt-flag:hover, tr.flagged-row.alt-contact:hover, tr.needs-contac
 tr.alt-flag .col-memo .cell-inner, tr.alt-contact .col-memo .cell-inner { font-weight: 800; }
 /* ★2026-10-14追加★ 注目/連絡の大表示(全列ぶち抜き・巨大文字) */
 td.alt-big-td{padding:0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:900;cursor:pointer;}
+/* ★2026-11-06変更★ 大表示セルの文字幅が表の列幅計算に影響して住所などが見切れなくなる不具合の対策: 中身を幅0基準の内側divに入れ、セルの最小幅への寄与をゼロにする */
+td.alt-big-td .alt-big-in{display:block;width:0;min-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 </style>
 </head>
 <body>
@@ -597,7 +600,9 @@ function applyAltDisplay(){
       big.style.height=h+'px';
       big.style.fontSize=Math.min(22,Math.max(13,h-8))+'px';
       var full=(isFlag?'⚑ ':'📞 ')+(note||(isFlag?'注目':'連絡必要'));
-      big.textContent=full;
+      var bigIn=big.firstChild;
+      if(!bigIn){bigIn=document.createElement('div');bigIn.className='alt-big-in';big.appendChild(bigIn);}
+      bigIn.textContent=full;
       big.title=full;
       big.style.display='';
       for(var m=0;m<tds.length;m++)tds[m].style.display='none';
