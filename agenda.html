@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-09-29-001 -->
+<!-- VERSION: 2026-11-06-001 -->
 <!--
   agenda.html（Today's Agenda）
   2026-09-29-001：行動メモを「消すまで残る」方式に変更
@@ -1069,6 +1069,7 @@ function renderVisitChecks() {
     html += '<div class="acard-title">' + esc(title) + '</div>';
     html += '<div class="acard-sub">';
     html += '<span class="lock">⏰' + srcLabel + ' ' + fmtMD(it.eff.date) + (it.eff.time ? ' ' + esc(it.eff.time) : '') + '</span>';
+    if (globalTasks[it.key] && globalTasks[it.key].timeNote) html += '<span class="lock">📝' + esc(globalTasks[it.key].timeNote) + '</span>';
     if (addr) html += '<span class="area">📍' + esc(trimAddr(addr)) + '</span>';
     html += '</div></div>';
     html += '<div class="acard-btns">';
@@ -1104,7 +1105,7 @@ function clearScheduleWithMemo(key, label, extra) {
   var csvNote = (eff && eff.source === 'csv') ? '（CSV下見日はSF側の更新が必要）' : '';
   var noteLine = '【' + label + ' ' + stamp + '】予定日時' + srcTag + ' ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア' + csvNote;
   var newMemo = (obj.memo ? obj.memo + '\n\n' : '') + noteLine;
-  var updates = { date: '', time: '', order: '', memo: newMemo };
+  var updates = { date: '', time: '', order: '', timeNote: '', memo: newMemo };
   if (extra) for (var ek in extra) updates[ek] = extra[ek];
 
   db.ref('app_tasks/'+key).update(updates).then(function() {
