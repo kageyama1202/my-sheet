@@ -19,6 +19,9 @@ html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-sys
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 #err{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;line-height:1.6;display:none;background:rgba(0,0,0,.7);padding:12px;border-radius:10px}
 #err button{margin-top:8px}
+#paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);font-size:18px;line-height:1.9;z-index:4}
+#toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(40,40,42,.95);padding:8px 8px 8px 16px;border-radius:20px;font-size:14px;white-space:nowrap;z-index:5}
+#toast button{background:#0a84ff;padding:6px 14px}
 #panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;overflow-y:auto}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .row label{font-size:11px;color:#aaa;white-space:nowrap;min-width:44px}
@@ -49,6 +52,8 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
       <canvas id="view"></canvas>
     </div>
     <div id="flash"></div>
+    <div id="toast"></div>
+    <div id="paused">カメラを一時停止中<br>タップで再開</div>
     <div id="err"></div>
   </div>
 
@@ -145,7 +150,26 @@ async function startCam(){
   }
 }
 $('flip').onclick=()=>{facing=(facing==='environment'?'user':'environment');startCam()};
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||!stream.active))startCam()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!paused&&(!stream||!stream.active))startCam()});
+
+/* ---------- 放置で自動停止(省電力) ---------- */
+let paused=false,lastActive=Date.now();
+const IDLE_MS=180000; // 3分
+function touch(){lastActive=Date.now()}
+['pointerdown','keydown','input'].forEach(ev=>document.addEventListener(ev,touch,true));
+function pauseCam(){
+  paused=true;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  video.srcObject=null;
+  $('paused').style.display='flex';
+}
+function resumeCam(){
+  paused=false;touch();
+  $('paused').style.display='none';
+  startCam();refreshGeo();
+}
+$('paused').onclick=resumeCam;
+setInterval(()=>{if(!paused&&!document.hidden&&Date.now()-lastActive>IDLE_MS)pauseCam()},15000);
 
 /* ---------- location ---------- */
 const geo={pos:null,addr:'',lastQ:null};
@@ -192,7 +216,7 @@ function refreshGeo(){
 }
 function startGeo(){
   loadMuni();gst('取得中…');refreshGeo();
-  setInterval(()=>{if(!document.hidden)refreshGeo()},60000);
+  setInterval(()=>{if(!document.hidden&&!paused)refreshGeo()},60000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshGeo()});
 }
 
@@ -334,6 +358,7 @@ function updateTray(){
   $('save').disabled=!tray.length;
 }
 $('shutter').onclick=()=>{
+  if(paused){resumeCam();return}
   const vw=video.videoWidth,vh=video.videoHeight;
   if(!vw)return;
   const date=new Date();
@@ -356,23 +381,40 @@ $('shutter').onclick=()=>{
 
 /* ---------- save ---------- */
 function clearTray(){tray.forEach(p=>URL.revokeObjectURL(p.url));tray=[];updateTray()}
+let lastSent=null, toastTimer=null;
+function releaseSent(){
+  if(lastSent){lastSent.forEach(p=>URL.revokeObjectURL(p.url));lastSent=null}
+}
+function showToast(n){
+  const t=$('toast');
+  t.innerHTML='<span>'+n+'枚 送信済み</span><button id="undo">戻す</button>';
+  t.style.display='flex';
+  $('undo').onclick=()=>{
+    if(lastSent){tray=lastSent.concat(tray);lastSent=null;updateTray()}
+    t.style.display='none';clearTimeout(toastTimer);
+  };
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.style.display='none';releaseSent()},20000);
+}
 $('save').onclick=async()=>{
   if(!tray.length)return;
-  const files=tray.map(p=>new File([p.blob],p.name,{type:'image/jpeg'}));
-  try{
-    if(navigator.canShare&&navigator.canShare({files})){
-      await navigator.share({files});
-      clearTray();return;
-    }
-  }catch(e){
-    if(e&&e.name==='AbortError')return; // キャンセル時はトレイ保持
+  const sending=tray.slice();
+  const files=sending.map(p=>new File([p.blob],p.name,{type:'image/jpeg'}));
+  if(navigator.canShare&&navigator.canShare({files})){
+    try{await navigator.share({files})}catch(e){}
+    // 結果に関わらず一覧から外し、20秒間「戻す」を表示(キャンセル時の救済)
+    releaseSent();
+    tray=tray.filter(p=>!sending.includes(p));
+    lastSent=sending;
+    updateTray();showToast(sending.length);
+    return;
   }
   // fallback: download
-  tray.forEach((p,i)=>setTimeout(()=>{
+  sending.forEach((p,i)=>setTimeout(()=>{
     const a=document.createElement('a');a.href=p.url;a.download=p.name;
     document.body.appendChild(a);a.click();a.remove();
   },i*400));
-  setTimeout(clearTray,tray.length*400+500);
+  setTimeout(clearTray,sending.length*400+500);
 };
 
 loadUI();updateTray();startCam();startGeo();
