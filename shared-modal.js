@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-11-06-003
+// VERSION: 2026-11-06-004
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -119,7 +119,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
-  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button></div></div>';
+  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button> <button id="modal-camera-btn" class="modal-copy-btn" style="background:#e8f5e9;border-color:#4caf50;color:#1b5e20;font-weight:bold;">📷 撮影</button></div></div>';
 
   var geoM = obj.geocode || null;
   var geoOkM = geoM && (geoM.confidence === 'exact' || geoM.confidence === 'high') && geoM.lat != null && geoM.lng != null;
@@ -316,6 +316,14 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+currentStatus;
 
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
+
+  // ★2026-11-06追加★ 📷 撮影：この案件を選んだ状態で現場カメラ(genba-camera.html)を新しいタブで開く。
+  // 案件名(管理名)と住所をURLで渡す。保存前の写真を持つ既存のカメラタブを上書きしないよう、毎回新しいタブで開く。
+  document.getElementById('modal-camera-btn').addEventListener('click',function(){
+    var url='genba-camera.html?case='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''));
+    var w=window.open(url,'_blank');
+    if(!w){location.href=url;}
+  });
 
   // ★2026-11-05追加★ 名前のみコピー：先頭の【SK手配】等のプレフィックスを除いた「小野 奈津子 様邸」部分だけをコピー
   document.getElementById('modal-copy-name-btn').addEventListener('click',function(){
