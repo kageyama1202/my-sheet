@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-11-05-001
+// VERSION: 2026-11-06-003
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -178,6 +178,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
+  html += '<div class="modal-input-row"><label>📝 時間メモ:</label><input type="text" id="modal-timenote" maxlength="60" placeholder="例：11時の○○邸終了後すぐ" value="'+escHtmlModal(obj.timeNote||'')+'" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:14px;" /></div>';
   html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;white-space:pre-line;"></div>';
   var orderValInt = parseInt(obj.order, 10);
   var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
@@ -391,10 +392,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var noteLine = '【' + label + ' ' + stamp + '】予定日時 ' + prevDate + (prevTime ? ' ' + prevTime : '') + ' → クリア';
     var newMemo = (currentMemo ? currentMemo + '\n\n' : '') + noteLine;
     if (memoElNow) memoElNow.value = newMemo;
-    saveField({ date: '', time: '', order: '', memo: newMemo });
+    saveField({ date: '', time: '', order: '', timeNote: '', memo: newMemo });
     var dEl = document.getElementById('modal-date'); if (dEl) dEl.value = '';
     var tEl = document.getElementById('modal-time'); if (tEl) tEl.value = '';
     var oEl = document.getElementById('modal-order'); if (oEl) oEl.value = '';
+    var tnEl = document.getElementById('modal-timenote'); if (tnEl) tnEl.value = '';
     var st = document.getElementById('modal-visited-status');
     if (st) st.textContent = '未確認（' + stamp + ' ' + label + '）';
     document.querySelector('.modal-date-row').innerHTML='🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 未定';
@@ -514,6 +516,23 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     saveField({time: newTime});
     checkTimeConflict();
   });
+  // 📝 時間メモ（「○○邸終了後すぐ」など時刻で表せない条件）：入力1秒後 or フォーカス外れで即時保存
+  (function(){
+    var tnEl = document.getElementById('modal-timenote');
+    if (!tnEl) return;
+    var tnDeb;
+    var lastSaved = obj.timeNote || '';
+    function flush(){
+      clearTimeout(tnDeb);
+      var v = tnEl.value.trim();
+      if (v === lastSaved) return;
+      lastSaved = v;
+      saveField({ timeNote: v });
+    }
+    tnEl.addEventListener('input', function(){ clearTimeout(tnDeb); tnDeb = setTimeout(flush, 1000); });
+    tnEl.addEventListener('change', flush);
+    tnEl.addEventListener('blur', flush);
+  })();
   // 🔢 順：他案件の自動並べ替えは廃止。入力した数値をそのまま保存するだけ。
   document.getElementById('modal-order').addEventListener('change', function(){
     var noRaw = parseInt(this.value, 10);
