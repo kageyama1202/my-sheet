@@ -6,7 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-06 -->
+<!-- VERSION: 2026-11-06 案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始ボタン/右下に案件名/テンプレ文言(Firebase保存) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -42,6 +46,28 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
 .th b{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:#ff453a;font-size:12px;line-height:20px;text-align:center}
 .ck{display:flex;align-items:center;gap:4px;font-size:13px}
 .ck input{width:18px;height:18px}
+
+#panel{padding-bottom:calc(34px + env(safe-area-inset-bottom))}
+#caseBtn{flex:1;min-width:0;text-align:left;font-size:15px;font-weight:bold;padding:9px 10px;background:#0a84ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#caseBtn.empty{background:#ff9f0a;color:#000}
+#tplSave{background:#30d158;color:#000;white-space:nowrap}
+#modal{position:fixed;inset:0;background:#000;z-index:30;display:none;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom))}
+#modal h2{margin:4px 0 8px;font-size:16px}
+#mSearch{width:100%;flex:none;margin-bottom:8px}
+#mList{flex:1;min-height:0;overflow-y:auto}
+.mi{display:block;width:100%;text-align:left;margin-bottom:6px;padding:10px 12px;background:#2c2c2e;border-radius:10px;font-size:15px}
+.mi b{display:block;font-size:16px}
+.mi small{display:block;color:#aaa;font-size:12px;margin-top:2px;white-space:normal}
+.mi .tg{display:inline-block;font-size:11px;background:#ff9f0a;color:#000;border-radius:8px;padding:1px 7px;margin-right:6px;font-weight:bold}
+.mi.keep{background:#0a84ff}
+.msec{font-size:12px;color:#aaa;margin:8px 0 4px}
+#mFoot{flex:none;display:flex;gap:8px;margin-top:8px}
+.mi.sel{outline:3px solid #30d158;background:#1f3a29}
+#mSel{flex:none;font-size:14px;color:#aaa;margin-bottom:8px;line-height:1.4}
+#mSel b{color:#fff;font-size:16px}
+#mStart{flex:none;width:100%;padding:16px;font-size:18px;font-weight:bold;background:#30d158;color:#000;margin-top:10px}
+#mStart:disabled{background:#3a3a3c;color:#777}
+#mManual{flex:1;min-width:0}
 </style>
 </head>
 <body>
@@ -64,8 +90,8 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
   </div>
 
   <div id="panel">
-    <div class="row"><label>現場名</label><input type="text" id="site" list="siteList" placeholder="例: ○○マンション 305" autocomplete="off"><datalist id="siteList"></datalist></div>
-    <div class="row"><label>備考</label><input type="text" id="note" placeholder="例: 浴室 施工前" autocomplete="off"></div>
+    <div class="row"><label>案件</label><button id="caseBtn" class="empty">案件を選ぶ</button></div>
+    <div class="row"><label>文言</label><input type="text" id="note" placeholder="テンプレを選ぶ/打って保存" autocomplete="off"><button id="tplSave">保存</button></div>
     <div class="chips" id="chips"></div>
     <div class="row">
       <label>位置</label>
@@ -87,39 +113,78 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
   </div>
 </div>
 
+<div id="modal">
+  <h2>今日撮る案件を選んでください</h2>
+  <div id="mSel"></div>
+  <input type="text" id="mSearch" placeholder="名前・住所で検索(全案件から)" autocomplete="off">
+  <div id="mList"></div>
+  <div id="mFoot"><input type="text" id="mManual" placeholder="手入力(案件にない現場)"><button id="mManualOk">決定</button></div>
+  <button id="mStart" disabled>撮影開始</button>
+</div>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
 const video=$('video'), view=$('view'), vctx=view.getContext('2d');
-const TAGS=['施工前','施工中','施工後','下見','既存','搬入','養生','完了'];
-const LS='genbaCamera.v1';
+const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
+const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
 let facing='environment', stream=null;
 let tray=[]; // {blob,name,url}
 
 /* ---------- settings ---------- */
-const S=Object.assign({site:'',note:'',pos:'bl',dt:true,gps:true,addr:true,size:100,bg:55,hist:[]},
-  (()=>{try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}})());
+function readLS(k){try{return JSON.parse(localStorage.getItem(k))||null}catch(e){return null}}
+const old=readLS(LS_OLD)||{};
+const carry={};['size','bg','dt','gps','addr'].forEach(k=>{if(old[k]!==undefined)carry[k]=old[k]});
+// 位置の初期値は右下(旧バージョンの左下設定は引き継がない)
+const S=Object.assign({site:'',siteAddr:'',note:'',pos:'br',dt:true,gps:true,addr:true,size:100,bg:55},carry,readLS(LS)||{});
 function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}redraw()}
 function loadUI(){
-  $('site').value=S.site;$('note').value=S.note;$('pos').value=S.pos;
+  $('note').value=S.note;$('pos').value=S.pos;
   $('dt').checked=S.dt;$('gps').checked=S.gps;$('addr').checked=S.addr;
   $('size').value=S.size;$('bg').value=S.bg;
-  renderHist();renderChips();
+  renderCase();renderChips();
 }
-function renderHist(){
-  $('siteList').innerHTML=S.hist.map(h=>'<option value="'+h.replace(/"/g,'&quot;')+'">').join('');
+function renderCase(){
+  const b=$('caseBtn');
+  if(S.site){b.textContent=S.site;b.classList.remove('empty')}
+  else{b.textContent='案件を選ぶ';b.classList.add('empty')}
+}
+
+/* ---------- テンプレ文言(Firebase保存 + 端末キャッシュ) ---------- */
+let tpls=TPL_DEFAULT.slice();
+(function(){const c=readLS(TPLKEY);if(Array.isArray(c)&&c.length)tpls=c})();
+let fdb=null;
+function getDb(){
+  if(fdb)return fdb;
+  try{if(window.scopedDatabase&&window.firebase)fdb=scopedDatabase(firebase.database())}catch(e){}
+  return fdb;
+}
+function cacheTpls(){try{localStorage.setItem(TPLKEY,JSON.stringify(tpls))}catch(e){}}
+function pushTpls(){const d=getDb();if(d)d.ref('genba_camera_templates').set(tpls).catch(()=>{})}
+function loadTpls(){
+  const d=getDb();if(!d)return;
+  d.ref('genba_camera_templates').once('value').then(sn=>{
+    let v=sn.val();
+    if(v&&!Array.isArray(v))v=Object.keys(v).map(k=>v[k]);
+    if(Array.isArray(v)&&v.length){tpls=v.filter(x=>typeof x==='string'&&x);cacheTpls();renderChips()}
+    else{pushTpls()} // 初回: 初期17件をFirebaseへ書き込む
+  }).catch(()=>{});
 }
 function renderChips(){
   const c=$('chips');c.innerHTML='';
-  TAGS.forEach(t=>{
+  tpls.forEach(t=>{
     const b=document.createElement('button');
     b.className='chip'+(S.note===t?' on':'');b.textContent=t;
     b.onclick=()=>{S.note=(S.note===t?'':t);$('note').value=S.note;saveS();renderChips();};
     c.appendChild(b);
   });
 }
-$('site').oninput=e=>{S.site=e.target.value;saveS()};
+$('tplSave').onclick=()=>{
+  const t=$('note').value.trim();
+  if(!t)return;
+  if(!tpls.includes(t)){tpls.push(t);cacheTpls();pushTpls();renderChips()}
+  const b=$('tplSave');b.textContent='✓';setTimeout(()=>b.textContent='保存',900);
+};
 $('note').oninput=e=>{S.note=e.target.value;saveS();renderChips()};
 $('pos').onchange=e=>{S.pos=e.target.value;saveS()};
 $('dt').onchange=e=>{S.dt=e.target.checked;saveS()};
@@ -127,6 +192,96 @@ $('gps').onchange=e=>{S.gps=e.target.checked;saveS()};
 $('addr').onchange=e=>{S.addr=e.target.checked;saveS()};
 $('size').oninput=e=>{S.size=+e.target.value;saveS()};
 $('bg').oninput=e=>{S.bg=+e.target.value;saveS()};
+
+/* ---------- 案件(Firebase app_tasks → 端末キャッシュ) ---------- */
+let cases=readLS(CASEKEY)||[];
+const sv=(c,i)=>{if(!c)return'';if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):'';if(typeof c==='object')return c[i]!=null?String(c[i]):'';return''};
+function ymd(ds){
+  if(!ds)return'';
+  const d=String(ds).replace(/\s+/g,'').replace(/\//g,'-').replace(/\./g,'-').split('-');
+  return d.length===3?d[0]+'-'+p2(+d[1])+'-'+p2(+d[2]):'';
+}
+function todayStr(){const t=new Date();return t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate())}
+function loadCases(){
+  const d=getDb();if(!d)return;
+  d.ref('app_tasks').once('value').then(sn=>{
+    const t=sn.val()||{},arr=[];
+    Object.keys(t).forEach(k=>{
+      const o=t[k],c=o&&o.csvData;if(!c)return;
+      const name=sv(c,4).trim();if(!name)return;
+      const status=sv(c,1).replace(/\s+/g,'');
+      if(status==='完了')return;
+      arr.push({name,addr:sv(c,11).replace(/\s+/g,''),sekou:ymd(sv(c,2)),shitami:ymd(sv(c,12)),yotei:ymd(o.date||'')});
+    });
+    if(arr.length){
+      cases=arr;
+      try{localStorage.setItem(CASEKEY,JSON.stringify(arr))}catch(e){}
+      if($('modal').style.display==='flex')renderModal();
+    }
+  }).catch(()=>{});
+}
+
+/* ---------- 案件選択モーダル ---------- */
+const norm=t=>String(t||'').normalize('NFKC').replace(/[\s　]+/g,'').toLowerCase();
+function pickCase(name,addr){
+  S.site=name;S.siteAddr=addr||'';saveS();renderCase();updateSel();
+}
+function updateSel(){
+  const m=$('mSel');m.textContent='';
+  if(S.site){m.appendChild(document.createTextNode('選択中: '));const b=document.createElement('b');b.textContent=S.site;m.appendChild(b)}
+  else m.textContent='案件が未選択です。下から選んで「撮影開始」を押してください';
+  $('mStart').disabled=!S.site;
+  $('mStart').textContent=(stream&&stream.active)?'この案件で撮影を続ける':'撮影開始';
+  document.querySelectorAll('#mList .mi').forEach(b=>b.classList.toggle('sel',!!S.site&&b.dataset.name===S.site));
+}
+function openModal(){
+  $('mSearch').value='';$('mManual').value='';
+  $('modal').style.display='flex';renderModal();
+}
+function closeModal(){
+  $('modal').style.display='none';
+  // モーダルから撮影開始: 案件を決めた(または前回のまま続ける)時点でカメラを起動する
+  if(!paused&&(!stream||!stream.active))startCam();
+}
+function caseTags(c){
+  const td=todayStr(),a=[];
+  if(c.shitami===td)a.push('今日 下見');
+  else if(c.yotei===td)a.push('今日 下見予定');
+  if(c.sekou===td)a.push('今日 施工');
+  return a;
+}
+function renderModal(){
+  const q=norm($('mSearch').value),L=$('mList');L.innerHTML='';
+  let list,head;
+  if(q){
+    list=cases.filter(c=>norm(c.name).includes(q)||norm(c.addr).includes(q)).slice(0,40);
+    head='検索結果('+list.length+'件)';
+  }else{
+    list=cases.filter(c=>caseTags(c).length);
+    head='今日の案件('+list.length+'件)  ※他の案件は検索で選べます';
+  }
+  const h=document.createElement('div');h.className='msec';h.textContent=head;L.appendChild(h);
+  if(!cases.length){
+    const m=document.createElement('div');m.className='msec';
+    m.textContent='案件データがありません。電波の良い所で一度開き直してください。手入力はできます。';
+    L.appendChild(m);
+  }
+  list.forEach(c=>{
+    const b=document.createElement('button');b.className='mi';b.dataset.name=c.name;
+    const n=document.createElement('b');
+    caseTags(c).forEach(t=>{const g=document.createElement('span');g.className='tg';g.textContent=t;n.appendChild(g)});
+    n.appendChild(document.createTextNode(c.name));
+    const a=document.createElement('small');a.textContent=c.addr;
+    b.appendChild(n);b.appendChild(a);
+    b.onclick=()=>pickCase(c.name,c.addr);
+    L.appendChild(b);
+  });
+  updateSel();
+}
+$('mSearch').oninput=renderModal;
+$('mManualOk').onclick=()=>{const t=$('mManual').value.trim();if(t)pickCase(t,'')};
+$('mStart').onclick=closeModal;
+$('caseBtn').onclick=openModal;
 
 /* ---------- camera ---------- */
 function showErr(msg,retry){
@@ -150,7 +305,7 @@ async function startCam(){
   }
 }
 $('flip').onclick=()=>{facing=(facing==='environment'?'user':'environment');startCam()};
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!paused&&(!stream||!stream.active))startCam()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!paused&&$('modal').style.display!=='flex'&&(!stream||!stream.active))startCam()});
 
 /* ---------- 放置で自動停止(省電力) ---------- */
 let paused=false,lastActive=Date.now();
@@ -280,30 +435,42 @@ function fileStamp(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+
 const FONT='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
 function rrect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 function drawOverlay(c,w,h,date){
-  const lines=[];
-  if(S.site.trim())lines.push({t:S.site.trim(),k:1.25,b:true});
-  if(S.note.trim())lines.push({t:S.note.trim(),k:1,b:true});
-  if(S.addr&&geo.addr)lines.push({t:geo.addr,k:.85,b:false});
-  if(S.dt)lines.push({t:dtStr(date),k:.85,b:false});
-  if(!lines.length)return;
+  // 上から: 案件名(最大) / テンプレ・入力文言 / 住所(小・折返し) / 日時(小)
+  const rows=[];
+  if(S.site.trim())rows.push({t:S.site.trim(),k:1.45,b:true});
+  if(S.note.trim())rows.push({t:S.note.trim(),k:1,b:true});
+  if(S.addr&&geo.addr)rows.push({t:geo.addr,k:.7,b:false,wrap:true});
+  if(S.dt)rows.push({t:dtStr(date),k:.7,b:false});
+  if(!rows.length)return;
   let fs=Math.min(w,h)*0.045*(S.size/100);
-  const measure=()=>{
-    let mw=0;
-    lines.forEach(l=>{c.font=(l.b?'bold ':'')+(fs*l.k)+'px '+FONT;mw=Math.max(mw,c.measureText(l.t).width)});
-    return mw;
-  };
-  let mw=measure();const maxW=w*0.94-fs;
-  if(mw>maxW){fs*=maxW/mw;mw=measure()}
+  const fnt=(l,f)=>(l.b?'bold ':'')+(f*l.k)+'px '+FONT;
+  const maxW=w*0.94-fs*1.1;
+  const widest=f=>{let m=0;rows.forEach(l=>{if(l.wrap)return;c.font=fnt(l,f);m=Math.max(m,c.measureText(l.t).width)});return m};
+  let mw=widest(fs);
+  if(mw>maxW){fs*=maxW/mw;mw=widest(fs)}
+  const wrapW=Math.min(maxW,Math.max(mw,w*0.5));
+  const lines=[];
+  rows.forEach(l=>{
+    if(!l.wrap){lines.push(l);return}
+    c.font=fnt(l,fs);
+    let cur='';
+    for(const ch of l.t){
+      if(cur&&c.measureText(cur+ch).width>wrapW){lines.push({t:cur,k:l.k,b:l.b});cur=ch}
+      else cur+=ch;
+    }
+    if(cur)lines.push({t:cur,k:l.k,b:l.b});
+  });
+  let tw=0;lines.forEach(l=>{c.font=fnt(l,fs);tw=Math.max(tw,c.measureText(l.t).width)});
   const pad=fs*0.55,gap=fs*0.18,mg=fs*0.6;
   const lh=lines.map(l=>fs*l.k*1.15);
-  const bw=mw+pad*2,bh=lh.reduce((a,b)=>a+b,0)+gap*(lines.length-1)+pad*2;
+  const bw=tw+pad*2,bh=lh.reduce((a,b)=>a+b,0)+gap*(lines.length-1)+pad*2;
   const x=S.pos.endsWith('r')?w-mg-bw:mg;
   const y=S.pos.startsWith('b')?h-mg-bh:mg;
   if(S.bg>0){c.fillStyle='rgba(0,0,0,'+(S.bg/100)+')';rrect(c,x,y,bw,bh,fs*0.35);c.fill()}
   c.textBaseline='top';c.textAlign='left';
   let ty=y+pad;
   lines.forEach((l,i)=>{
-    c.font=(l.b?'bold ':'')+(fs*l.k)+'px '+FONT;
+    c.font=fnt(l,fs);
     if(S.bg<25){c.lineWidth=fs*l.k*0.14;c.strokeStyle='rgba(0,0,0,.85)';c.lineJoin='round';c.strokeText(l.t,x+pad,ty)}
     c.fillStyle='#fff';c.fillText(l.t,x+pad,ty);
     ty+=lh[i]+gap;
@@ -374,8 +541,6 @@ $('shutter').onclick=()=>{
     const name=base+'_'+fileStamp(date)+'.jpg';
     tray.push({blob,name,url:URL.createObjectURL(blob)});
     updateTray();
-    const s=S.site.trim();
-    if(s){S.hist=[s].concat(S.hist.filter(h=>h!==s)).slice(0,15);saveS();renderHist()}
   },'image/jpeg',0.92);
 };
 
@@ -417,7 +582,21 @@ $('save').onclick=async()=>{
   setTimeout(clearTray,sending.length*400+500);
 };
 
-loadUI();updateTray();startCam();startGeo();
+loadUI();updateTray();startGeo();loadTpls();loadCases();
+// 案件モーダルの「📷 撮影」から開かれた場合は、その案件を選んだ状態で直接カメラを起動する。
+// それ以外(直接開いた場合)は、案件選択モーダルを出す。
+(function(){
+  let q=null;
+  try{q=new URLSearchParams(location.search)}catch(e){}
+  const c=q&&q.get('case');
+  if(c){
+    S.site=c;S.siteAddr=q.get('addr')||'';saveS();renderCase();
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    startCam();
+  }else{
+    openModal();
+  }
+})();
 })();
 </script>
 </body>
