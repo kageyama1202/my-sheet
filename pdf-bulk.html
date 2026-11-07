@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-08 / pdf-bulk v1 (iCloudのPDFを案件ごとにFirebase Storageへ一括アップロード) -->
+<!-- VERSION: 2026-11-08 / pdf-bulk v3 (照合を「名前の完全一致＋【SB/SK/SU】一致を優先」に変更。失敗時は自動で最大3回やり直し) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -81,25 +81,33 @@ database.ref('app_tasks').once('value').then(function(snap){
     var c=v[k]&&v[k].csvData; if(!c)return;
     var id=String(c[0]==null?'':c[0]).trim();
     var nm=stripPrefix(String(c[4]||'').trim());
-    tasks.push({key:k,id:id,label:String(c[4]||'').trim(),nameN:norm(nm)});
+    var pm=String(c[4]||'').match(/^[【\[]([^】\]]*)[】\]]/);
+    tasks.push({key:k,id:id,label:String(c[4]||'').trim(),prefix:pm?pm[1]:'',nameN:norm(nm)});
   });
   $('msg').textContent='案件 '+tasks.length+' 件を読み込みました。フォルダかファイルを選んでください。';
 }).catch(function(e){
   $('msg').textContent='⚠ 案件データを読めません: '+e.message+'(ログインし直してください)';
 });
 
-// 案件を探す: ①手配No(長い数字列から一致) ②お客様名
+// ファイル名から「【手配種別】」と「お客様名」を取り出す(最初の「_」より前がお客様名)
+function parseFile(path){
+  var base=String(path).replace(/^.*[\/\\]/,'').replace(/\.[^.]+$/,'');
+  var m=base.match(/^[【\[]([^】\]]*)[】\]]/);
+  return {prefix:m?m[1]:'',nameN:norm(stripPrefix(base).split('_')[0])};
+}
+// 案件を探す: ①手配No ②お客様名が完全一致(【SB/SK/SU手配】も同じ案件を優先)
 function findTask(path){
   var best=null,bestLen=0;
   tasks.forEach(function(t){
     if(t.id&&t.id.length>=4&&path.indexOf(t.id)>=0&&t.id.length>bestLen){best=t;bestLen=t.id.length;}
   });
   if(best)return best;
-  var pn=norm(path);
-  tasks.forEach(function(t){
-    if(t.nameN&&t.nameN.length>=3&&pn.indexOf(t.nameN)>=0&&t.nameN.length>bestLen){best=t;bestLen=t.nameN.length;}
-  });
-  return best;
+  var f=parseFile(path);
+  if(!f.nameN)return null;
+  var cand=tasks.filter(function(t){return t.nameN&&t.nameN===f.nameN;});
+  if(!cand.length)return null;
+  var same=cand.filter(function(t){return t.prefix===f.prefix;});
+  return (same.length?same:cand)[0];
 }
 
 function isTarget(f){return /\.pdf$/i.test(f.name)||/\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);}
@@ -150,6 +158,15 @@ function checkExisting(){
   });
 }
 
+// 1ファイルの送信。スリープ等で途切れたら、同じ場所に最大3回までやり直す
+function putWithRetry(r,ref,n){
+  return ref.put(r.file).catch(function(e){
+    if(n>=3)throw e;
+    $('upmsg').textContent='⚠ 失敗したのでやり直します('+(n+1)+'/3) '+r.file.name;
+    return new Promise(function(res){setTimeout(res,2000);}).then(function(){return putWithRetry(r,ref,n+1);});
+  });
+}
+
 // アップロード
 function upload(){
   var todo=rows.filter(function(r){return r.task&&r.state!=='dup'&&r.state!=='done';});
@@ -167,7 +184,7 @@ function upload(){
     $('bar').firstChild.style.width=Math.round(i/todo.length*100)+'%';
     $('upmsg').textContent='⏳ '+(i+1)+' / '+todo.length+'  '+r.file.name;
     var ref=storage.ref('users/'+getUserKey()+'/case_files/'+r.task.key+'/'+Date.now()+'_'+r.file.name);
-    ref.put(r.file).then(function(){
+    putWithRetry(r,ref,0).then(function(){
       r.state='done';
       if(existingCache[r.task.key])existingCache[r.task.key][r.file.name]=1;
     }).catch(function(e){r.state='err';r.err=e.message||'失敗';}).then(function(){i++;next();});
