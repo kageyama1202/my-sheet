@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v2 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-07 / pdf-note v3 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -20,8 +20,8 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 .sw.on{border-color:#fff;box-shadow:0 0 0 2px #1e88e5}
 #pg{min-width:52px;text-align:center}
 #msg{font-size:12px;color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#bFill{display:none}
-#bFill.show{display:inline-block}
+#bDel{display:none;background:#8e2424}
+#bDel.show{display:inline-block}
 #viewer{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;background:#555}
 #content{position:absolute;left:0;top:0;transform-origin:0 0}
 .page{position:absolute;left:0;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.5);overflow:hidden}
@@ -40,6 +40,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
     <button class="b" data-tool="hl">🖍 蛍光</button>
     <button class="b" data-tool="rect">▭ 四角</button>
     <button class="b" data-tool="text">Ａ 文字</button>
+    <button class="b" data-tool="select">⬚ 選択</button>
   </div>
   <div class="grp" id="colors"></div>
   <div class="grp" id="sizes">
@@ -48,6 +49,8 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
     <button class="b" data-size="2">太</button>
   </div>
   <button class="b" id="bFill">□ 枠のみ</button>
+  <button class="b" id="bDash">─ 実線</button>
+  <button class="b" id="bDel">🗑 削除</button>
   <div class="grp"><button class="b" id="bUndo">↩︎ 戻す</button><button class="b" id="bClear">🗑 全消し</button></div>
   <span id="msg"></span>
 </div>
@@ -72,7 +75,8 @@ const MINZ=0.4, MAXZ=8, PX_CAP=9e6;
 /* ===== 状態 ===== */
 const $=id=>document.getElementById(id);
 const viewer=$('viewer'), content=$('content');
-let tool='pen', color='#e53935', sizeIdx=1, fill=false;
+let tool='pen', color='#e53935', sizeIdx=1, fill=false, dash=false;
+let sel=null, selZ=0, drag=null, hist=[], tapCand=null;
 let pdf=null, fp=null, fileName='', pages=[], items=[], elMap=new Map();
 let baseW=0, totalH=0, z=1, tx=8, ty=8, vw=0, vh=0;
 let editor=null, cur=null, skipClick=false, textDown=null, lastDownType='', downPos={x:0,y:0};
@@ -142,7 +146,7 @@ async function openBlob(blob,name,isNew){
 }
 function resetDoc(){
   for(const p of pages)releasePage(p);
-  content.innerHTML='';pages=[];items=[];elMap=new Map();
+  content.innerHTML='';pages=[];items=[];elMap=new Map();sel=null;hist=[];drag=null;
   if(pdf){try{pdf.destroy();}catch(e){}}
   pdf=null;fp=null;
 }
@@ -175,6 +179,7 @@ function apply(){
   clampView();
   content.style.transform='translate3d('+tx+'px,'+ty+'px,0) scale('+z+')';
   positionEditor();
+  if(sel&&selZ!==z)drawSel();
   if(pages.length)$('pg').textContent=(curPage()+1)+'/'+pages.length;
 }
 function curPage(){
@@ -288,29 +293,34 @@ function pathD(pts){
   }
   const l=pts[n-1];return d+'L'+l[0]+' '+l[1];
 }
-function setAttrs(el,o){for(const k in o)el.setAttribute(k,o[k]);}
+function setAttrs(el,o){for(const k in o)if(o[k]!=null)el.setAttribute(k,o[k]);}
+function strokeAttrs(it){
+  const o={stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round','stroke-linecap':it.d?'butt':'round'};
+  if(it.d)o['stroke-dasharray']=r1(it.sw*3.5)+' '+r1(it.sw*2.5);
+  return o;
+}
 function buildEl(it){
   let el;
   if(it.t==='pen'||it.t==='hl'){
     el=document.createElementNS(SVGNS,'path');
-    setAttrs(el,{d:pathD(it.pts),fill:'none',stroke:it.c,'stroke-width':it.sw,'stroke-linecap':'round','stroke-linejoin':'round'});
+    setAttrs(el,Object.assign({d:pathD(it.pts),fill:'none'},strokeAttrs(it)));
     if(it.t==='hl')el.setAttribute('stroke-opacity','0.35');
   }else if(it.t==='rect'){
     el=document.createElementNS(SVGNS,'rect');
-    setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h,stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round',fill:it.f?it.c:'none','fill-opacity':'0.25'});
+    setAttrs(el,Object.assign({x:it.x,y:it.y,width:it.w,height:it.h,fill:it.f?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
   }else if(it.t==='ell'){
     el=document.createElementNS(SVGNS,'ellipse');
-    setAttrs(el,{cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry,stroke:it.c,'stroke-width':it.sw,fill:'none'});
+    setAttrs(el,Object.assign({cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry,fill:it.f?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
   }else if(it.t==='poly'){
     el=document.createElementNS(SVGNS,'path');
-    setAttrs(el,{d:polyD(it.pts,it.closed),fill:'none',stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round','stroke-linecap':'round'});
+    setAttrs(el,Object.assign({d:polyD(it.pts,it.closed),fill:(it.f&&it.closed)?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
   }else if(it.t==='text'){
     el=document.createElementNS(SVGNS,'text');
     setAttrs(el,{x:it.x,y:r1(it.y+it.s*0.97),fill:it.c,'font-size':it.s,'font-weight':'600','font-family':"'Hiragino Sans','Noto Sans JP',sans-serif",stroke:'#fff','stroke-width':r1(it.s*0.22),'paint-order':'stroke','stroke-linejoin':'round'});
     it.text.split('\n').forEach((ln,i)=>{
       const ts=document.createElementNS(SVGNS,'tspan');
       setAttrs(ts,{x:it.x,dy:i?r1(it.s*1.2):0});
-      ts.textContent=ln===''?' ':ln;el.appendChild(ts);
+      ts.textContent=ln===''?'\u00a0':ln;el.appendChild(ts);
     });
   }
   return el;
@@ -330,22 +340,63 @@ function renderItem(it){
 }
 
 /* ===== ツール・UI ===== */
+const byId=id=>items.find(i=>i.id===id);
+function pushH(a){hist.push(a);if(hist.length>200)hist.shift();}
+function replaceEl(it){
+  const old=elMap.get(it.id),el=buildEl(it);
+  if(old)old.replaceWith(el);else pages[it.p].svg.appendChild(el);
+  elMap.set(it.id,el);
+}
+function rebuildAll(){
+  for(const p of pages)p.svg.innerHTML='';
+  elMap=new Map();for(const it of items)renderItem(it);
+}
+/* 選択中の部品に変更を加える(戻せる) */
+function modifySel(fn){
+  if(!sel)return;
+  const it=byId(sel.id);if(!it)return;
+  const before=JSON.stringify(it);
+  fn(it);
+  pushH({k:'edit',i:items.indexOf(it),before,after:JSON.stringify(it)});
+  replaceEl(it);drawSel();saveSoon();
+}
+const FILLABLE=it=>it.t==='rect'||it.t==='ell'||(it.t==='poly'&&it.closed);
 function buildUI(){
   const cw=$('colors');
   COLORS.forEach(([c,n])=>{
     const b=document.createElement('button');b.className='sw';b.style.background=c;b.title=n;b.dataset.c=c;
-    b.onclick=()=>{color=c;refreshUI();if(editor){editor.c=color;editor.el.style.color=color;}};
+    b.onclick=()=>{
+      color=c;refreshUI();
+      if(editor){editor.c=color;editor.el.style.color=color;}
+      modifySel(it=>{it.c=c;});
+    };
     cw.appendChild(b);
   });
-  document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{commitEditor();tool=b.dataset.tool;refreshUI();});
-  document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{sizeIdx=+b.dataset.size;refreshUI();});
-  $('bFill').onclick=()=>{fill=!fill;refreshUI();};
+  document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{commitEditor();tool=b.dataset.tool;if(tool!=='select')deselect();refreshUI();});
+  document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{
+    sizeIdx=+b.dataset.size;refreshUI();
+    modifySel(it=>{
+      const u=pages[it.p].wpt/595;
+      if(it.t==='text'){const f=SIZES.text[sizeIdx]*u/it.s;it.s=r1(SIZES.text[sizeIdx]*u);void f;}
+      else{const key=it.t==='hl'?'hl':(it.t==='rect'||it.t==='ell')?'rect':'pen';it.sw=r1(SIZES[key][sizeIdx]*u);}
+    });
+  });
+  $('bFill').onclick=()=>{fill=!fill;refreshUI();modifySel(it=>{if(FILLABLE(it))it.f=fill;});};
+  $('bDash').onclick=()=>{dash=!dash;refreshUI();modifySel(it=>{if(it.t!=='text'&&it.t!=='hl')it.d=dash;});};
+  $('bDel').onclick=()=>{
+    if(!sel)return;
+    const it=byId(sel.id);if(!it)return;
+    const i=items.indexOf(it);items.splice(i,1);
+    const el=elMap.get(it.id);if(el)el.remove();elMap.delete(it.id);
+    pushH({k:'del',i,it});deselect();saveSoon();
+  };
   $('bUndo').onclick=undo;
   $('bClear').onclick=()=>{
     commitEditor();
     if(!items.length)return;
     if(!confirm('書き込みを全部消しますか?'))return;
-    items=[];for(const p of pages)p.svg.innerHTML='';elMap=new Map();saveSoon();
+    pushH({k:'clear',items:items.slice()});
+    items=[];deselect();rebuildAll();saveSoon();
   };
   refreshUI();
 }
@@ -353,14 +404,186 @@ function refreshUI(){
   document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===tool));
   document.querySelectorAll('[data-size]').forEach(b=>b.classList.toggle('on',+b.dataset.size===sizeIdx));
   document.querySelectorAll('.sw').forEach(b=>b.classList.toggle('on',b.dataset.c===color));
-  const f=$('bFill');f.classList.toggle('show',tool==='rect');f.textContent=fill?'■ 塗りつぶし':'□ 枠のみ';f.classList.toggle('on',fill);
+  const f=$('bFill');f.textContent=fill?'■ 塗り':'□ 枠のみ';f.classList.toggle('on',fill);
+  const d=$('bDash');d.textContent=dash?'┅ 点線':'─ 実線';d.classList.toggle('on',dash);
+  $('bDel').classList.toggle('show',!!sel);
 }
 function undo(){
   commitEditor();
-  const it=items.pop();if(!it)return;
-  const el=elMap.get(it.id);if(el)el.remove();elMap.delete(it.id);saveSoon();
+  const a=hist.pop();if(!a)return;
+  deselect();
+  if(a.k==='add'){
+    const i=items.findIndex(x=>x.id===a.it.id);
+    if(i>=0){items.splice(i,1);const el=elMap.get(a.it.id);if(el)el.remove();elMap.delete(a.it.id);}
+  }else if(a.k==='edit'){
+    const o=JSON.parse(a.before);items[a.i]=o;replaceEl(o);
+  }else if(a.k==='del'){
+    items.splice(a.i,0,a.it);renderItem(a.it);
+  }else if(a.k==='clear'){
+    items=a.items;rebuildAll();
+  }
+  saveSoon();
 }
 buildUI();
+
+/* ===== 選択・移動・リサイズ ===== */
+const HX=[0,.5,1,1,1,.5,0,0],HY=[0,0,0,.5,1,1,1,.5];
+function bboxOf(it){
+  const el=elMap.get(it.id);
+  try{const b=el.getBBox();return {x:b.x,y:b.y,w:b.width,h:b.height};}catch(e){return {x:0,y:0,w:0,h:0};}
+}
+function select(id){sel={id,box:null};drawSel();refreshUI();}
+function deselect(){
+  sel=null;drag=null;
+  document.querySelectorAll('.selg').forEach(n=>n.remove());
+  refreshUI();
+}
+function drawSel(){
+  document.querySelectorAll('.selg').forEach(n=>n.remove());
+  if(!sel)return;
+  const it=byId(sel.id);if(!it){sel=null;refreshUI();return;}
+  const p=pages[it.p],ob=bboxOf(it),sc=1/(z*p.k),pad=8*sc;
+  const box={x:ob.x-pad,y:ob.y-pad,w:ob.w+pad*2,h:ob.h+pad*2};
+  sel.box=box;selZ=z;
+  const g=document.createElementNS(SVGNS,'g');g.setAttribute('class','selg');
+  const r=document.createElementNS(SVGNS,'rect');
+  setAttrs(r,{x:box.x,y:box.y,width:box.w,height:box.h,fill:'none',stroke:'#1e88e5','stroke-width':1.5*sc,'stroke-dasharray':(6*sc)+' '+(4*sc)});
+  g.appendChild(r);
+  const hs=18*sc;
+  for(let i=0;i<8;i++){
+    const h=document.createElementNS(SVGNS,'rect');
+    setAttrs(h,{x:box.x+box.w*HX[i]-hs/2,y:box.y+box.h*HY[i]-hs/2,width:hs,height:hs,rx:hs*.25,fill:'#fff',stroke:'#1e88e5','stroke-width':2*sc});
+    g.appendChild(h);
+  }
+  p.svg.appendChild(g);
+}
+function handleAt(vx,vy){
+  const it=byId(sel.id);if(!it||!sel.box)return -1;
+  const p=pages[it.p],b=sel.box;
+  for(let i=0;i<8;i++){
+    const sx=tx+(b.x+b.w*HX[i])*p.k*z,sy=ty+(p.top+(b.y+b.h*HY[i])*p.k)*z;
+    if(Math.hypot(vx-sx,vy-sy)<=24)return i;
+  }
+  return -1;
+}
+function hitSeg(x,y,a,b){
+  const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;
+  let t=l2?((x-a[0])*dx+(y-a[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(x-(a[0]+t*dx),y-(a[1]+t*dy));
+}
+function inPoly(P,x,y){
+  let c=false;
+  for(let i=0,j=P.length-1;i<P.length;j=i++){
+    if((P[i][1]>y)!==(P[j][1]>y)&&x<(P[j][0]-P[i][0])*(y-P[i][1])/(P[j][1]-P[i][1])+P[i][0])c=!c;
+  }
+  return c;
+}
+function hitItem(it,x,y,tol){
+  const t=it.t;
+  if(t==='pen'||t==='hl'||t==='poly'){
+    const P=it.pts;let d=1e9;
+    if(P.length===1)d=Math.hypot(x-P[0][0],y-P[0][1]);
+    for(let i=1;i<P.length;i++)d=Math.min(d,hitSeg(x,y,P[i-1],P[i]));
+    if(t==='poly'&&it.closed){d=Math.min(d,hitSeg(x,y,P[P.length-1],P[0]));if(it.f&&inPoly(P,x,y))return true;}
+    return d<=tol+it.sw/2;
+  }
+  if(t==='rect'){
+    const inside=x>=it.x&&x<=it.x+it.w&&y>=it.y&&y<=it.y+it.h;
+    if(it.f&&inside)return true;
+    const dx=Math.min(Math.abs(x-it.x),Math.abs(x-it.x-it.w)),dy=Math.min(Math.abs(y-it.y),Math.abs(y-it.y-it.h));
+    const nx=x>=it.x-tol&&x<=it.x+it.w+tol,ny=y>=it.y-tol&&y<=it.y+it.h+tol;
+    return (ny&&dx<=tol)||(nx&&dy<=tol);
+  }
+  if(t==='ell'){
+    const r=Math.hypot((x-it.cx)/it.rx,(y-it.cy)/it.ry);
+    if(it.f&&r<=1)return true;
+    return Math.abs(r-1)*Math.min(it.rx,it.ry)<=tol;
+  }
+  if(t==='text'){
+    const b=bboxOf(it);
+    return x>=b.x-tol&&x<=b.x+b.w+tol&&y>=b.y-tol&&y<=b.y+b.h+tol;
+  }
+  return false;
+}
+function selDown(e){
+  vrect=viewer.getBoundingClientRect();
+  const vx=e.clientX-vrect.left,vy=e.clientY-vrect.top;
+  if(sel){const hi=handleAt(vx,vy);if(hi>=0){startDrag(e,'resize',hi);return;}}
+  const pos=locate(e);if(!pos)return;
+  if(sel&&sel.box){
+    const it=byId(sel.id),b=sel.box;
+    if(it&&pages[it.p]===pos.p&&pos.x>=b.x&&pos.x<=b.x+b.w&&pos.y>=b.y&&pos.y<=b.y+b.h){startDrag(e,'move');return;}
+  }
+  const p=pos.p,tol=18/(z*p.k);
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];
+    if(it.p===p.i&&hitItem(it,pos.x,pos.y,tol)){select(it.id);startDrag(e,'move');return;}
+  }
+  deselect();
+}
+function startDrag(e,mode,hi){
+  const it=byId(sel.id);if(!it)return;
+  const p=pages[it.p],pt=toPage(e,p);
+  drag={mode,hi,pid:e.pointerId,p,idx:items.indexOf(it),orig:JSON.stringify(it),ob:bboxOf(it),sx:pt[0],sy:pt[1],moved:false,ev:null};
+  try{viewer.setPointerCapture(e.pointerId);}catch(_){}
+}
+function applyBox(o,ob,nb){
+  const sx=ob.w>0.01?nb.w/ob.w:1,sy=ob.h>0.01?nb.h/ob.h:1;
+  const fx=x=>r1(nb.x+(x-ob.x)*sx),fy=y=>r1(nb.y+(y-ob.y)*sy);
+  if(o.pts)o.pts=o.pts.map(p=>[fx(p[0]),fy(p[1])]);
+  else if(o.t==='rect'){o.x=fx(o.x);o.y=fy(o.y);o.w=r1(o.w*sx);o.h=r1(o.h*sy);}
+  else if(o.t==='ell'){o.cx=fx(o.cx);o.cy=fy(o.cy);o.rx=r1(o.rx*sx);o.ry=r1(o.ry*sy);}
+  else if(o.t==='text'){o.s=r1(Math.max(4,o.s*sx));o.x=r1(nb.x+(o.x-ob.x)*sx);o.y=r1(nb.y+(o.y-ob.y)*sx);}
+}
+let dragRaf=0;
+function moveDrag(e){
+  drag.ev={clientX:e.clientX,clientY:e.clientY};
+  if(dragRaf)return;
+  dragRaf=requestAnimationFrame(()=>{
+    dragRaf=0;if(!drag||!drag.ev)return;
+    const pt=toPage(drag.ev,drag.p),dx=pt[0]-drag.sx,dy=pt[1]-drag.sy;
+    if(!drag.moved&&Math.hypot(dx,dy)*drag.p.k*z<3)return;
+    drag.moved=true;
+    const ob=drag.ob;let nb;
+    if(drag.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
+    else{
+      const fxh=HX[drag.hi],fyh=HY[drag.hi];
+      let nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
+      if(fxh===0){nx=ob.x+dx;nw=ob.w-dx;}else if(fxh===1){nw=ob.w+dx;}
+      if(fyh===0){ny=ob.y+dy;nh=ob.h-dy;}else if(fyh===1){nh=ob.h+dy;}
+      if(nw<2){if(fxh===0)nx=ob.x+ob.w-2;nw=2;}
+      if(nh<2){if(fyh===0)ny=ob.y+ob.h-2;nh=2;}
+      nb={x:nx,y:ny,w:nw,h:nh};
+    }
+    const o=JSON.parse(drag.orig);applyBox(o,ob,nb);
+    items[drag.idx]=o;replaceEl(o);drawSel();
+  });
+}
+function endDrag(){
+  const d=drag;drag=null;
+  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;
+    if(d.ev){drag=d;moveDragNow(d);drag=null;}
+  }
+  if(d.moved){pushH({k:'edit',i:d.idx,before:d.orig,after:JSON.stringify(items[d.idx])});saveSoon();}
+  drawSel();
+}
+function moveDragNow(d){
+  /* rAF待ちの最後の動きを反映 */
+  const pt=toPage(d.ev,d.p),dx=pt[0]-d.sx,dy=pt[1]-d.sy,ob=d.ob;
+  if(!d.moved&&Math.hypot(dx,dy)*d.p.k*z<3)return;
+  d.moved=true;let nb;
+  if(d.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
+  else{
+    const fxh=HX[d.hi],fyh=HY[d.hi];
+    let nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
+    if(fxh===0){nx=ob.x+dx;nw=ob.w-dx;}else if(fxh===1){nw=ob.w+dx;}
+    if(fyh===0){ny=ob.y+dy;nh=ob.h-dy;}else if(fyh===1){nh=ob.h+dy;}
+    if(nw<2){if(fxh===0)nx=ob.x+ob.w-2;nw=2;}
+    if(nh<2){if(fyh===0)ny=ob.y+ob.h-2;nh=2;}
+    nb={x:nx,y:ny,w:nw,h:nh};
+  }
+  const o=JSON.parse(d.orig);applyBox(o,ob,nb);items[d.idx]=o;replaceEl(o);
+}
 
 /* ===== 座標変換 ===== */
 function locate(e){
@@ -379,6 +602,7 @@ function startDraw(e){
   const pos=locate(e);if(!pos)return;
   const p=pos.p,u=p.wpt/595;
   const it={id:uid(),p:p.i,t:tool,c:color,sw:r1(SIZES[tool][sizeIdx]*u)};
+  if(tool!=='hl')it.d=dash;
   if(tool==='rect'){it.x=pos.x;it.y=pos.y;it.w=0;it.h=0;it.f=fill;}
   else it.pts=[[pos.x,pos.y]];
   const el=buildEl(it);p.svg.appendChild(el);
@@ -415,9 +639,9 @@ function snapShape(){
   if(!r)return false;
   delete it.pts;
   if(r.k==='line'){it.pts=r.pts;}
-  else if(r.k==='rect'){it.t='rect';it.x=r.x;it.y=r.y;it.w=r.w;it.h=r.h;it.f=false;}
-  else if(r.k==='ell'){it.t='ell';it.cx=r.cx;it.cy=r.cy;it.rx=r.rx;it.ry=r.ry;}
-  else{it.t='poly';it.pts=r.pts;it.closed=r.closed;}
+  else if(r.k==='rect'){it.t='rect';it.x=r.x;it.y=r.y;it.w=r.w;it.h=r.h;it.f=fill;}
+  else if(r.k==='ell'){it.t='ell';it.cx=r.cx;it.cy=r.cy;it.rx=r.rx;it.ry=r.ry;it.f=fill;}
+  else{it.t='poly';it.pts=r.pts;it.closed=r.closed;it.f=fill&&r.closed;}
   const el=buildEl(it);cur.el.replaceWith(el);cur.el=el;
   return true;
 }
@@ -487,7 +711,7 @@ function endDraw(){
   if(drawRaf){cancelAnimationFrame(drawRaf);drawRaf=0;}
   if(it.t==='rect'&&(it.w<2||it.h<2)){el.remove();return;}
   refreshEl(it,el);
-  items.push(it);elMap.set(it.id,el);saveSoon();scheduleUpdate(false);
+  items.push(it);elMap.set(it.id,el);pushH({k:'add',it});saveSoon();scheduleUpdate(false);
 }
 
 /* ===== 文字入力 ===== */
@@ -523,7 +747,7 @@ function commitEditor(){
   e.el.remove();
   if(e.cancel||!text.trim())return;
   const it={id:uid(),p:e.p.i,t:'text',c:e.c,s:e.s,x:e.x,y:e.y,text};
-  items.push(it);renderItem(it);saveSoon();
+  items.push(it);renderItem(it);pushH({k:'add',it});saveSoon();
 }
 
 /* ===== ポインタ操作: ペン/マウス=書く、指=スクロール・ピンチ専用 ===== */
@@ -531,23 +755,26 @@ viewer.addEventListener('pointerdown',e=>{
   if(!pdf)return;
   if(editor&&editor.el.contains(e.target))return;
   if(e.pointerType==='touch'){
-    if(cur)return; /* 書いてる最中の手のひら等は無視 */
+    if(cur||drag)return; /* 書いてる最中の手のひら等は無視 */
     cancelAnimationFrame(inertiaRaf);
+    tapCand=touches.size===0?{id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now()}:null;
     touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
     try{viewer.setPointerCapture(e.pointerId);}catch(_){}
     beginGesture();return;
   }
   if(e.pointerType==='mouse'&&e.button!==0)return;
-  if(cur)return;
+  if(cur||drag)return;
   lastDownType=e.pointerType;downPos={x:e.clientX,y:e.clientY};skipClick=false;
   if(editor){commitEditor();skipClick=true;textDown=null;return;}
   if(tool==='text'){textDown={id:e.pointerId,x:e.clientX,y:e.clientY};return;}
+  if(tool==='select'){selDown(e);return;}
   startDraw(e);
 });
 viewer.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'){
     const t=touches.get(e.pointerId);if(!t||!g)return;
     t.x=e.clientX;t.y=e.clientY;
+    if(tapCand&&e.pointerId===tapCand.id&&Math.hypot(e.clientX-tapCand.x,e.clientY-tapCand.y)>10)tapCand=null;
     if(g.type==='pan'&&touches.size===1){
       tx=g.tx+(t.x-g.sx);ty=g.ty+(t.y-g.sy);
       g.hist.push({t:performance.now(),x:t.x,y:t.y});if(g.hist.length>6)g.hist.shift();
@@ -561,6 +788,7 @@ viewer.addEventListener('pointermove',e=>{
     requestApply();scheduleUpdate(true);return;
   }
   if(cur&&e.pointerId===cur.pid)moveDraw(e);
+  else if(drag&&e.pointerId===drag.pid)moveDrag(e);
 });
 function pointerEnd(e){
   if(e.pointerType==='touch'){
@@ -568,6 +796,16 @@ function pointerEnd(e){
     const last=g;touches.delete(e.pointerId);
     if(touches.size>0){beginGesture();return;}
     g=null;
+    const tc=tapCand;tapCand=null;
+    /* 指のタップ: 入力欄が開いていれば確定 / 文字ツールなら入力欄を開く(キーボード入力) */
+    if(tc&&tc.id===e.pointerId&&performance.now()-tc.t<600){
+      if(editor){commitEditor();return;}
+      if(tool==='text'){
+        vrect=viewer.getBoundingClientRect();
+        const pos=locate({clientX:tc.x,clientY:tc.y});if(pos)openEditor(pos.p,pos.x,pos.y);
+        return;
+      }
+    }
     if(last&&last.type==='pan'&&last.hist.length>=2){
       const h=last.hist,a=h[0],b=h[h.length-1],dt=b.t-a.t;
       if(dt>0&&performance.now()-b.t<80)startInertia((b.x-a.x)/dt,(b.y-a.y)/dt);else scheduleUpdate(false);
@@ -583,6 +821,7 @@ function pointerEnd(e){
     return;
   }
   if(cur&&e.pointerId===cur.pid)endDraw();
+  else if(drag&&e.pointerId===drag.pid)endDrag();
 }
 viewer.addEventListener('pointerup',pointerEnd);
 viewer.addEventListener('pointercancel',pointerEnd);
