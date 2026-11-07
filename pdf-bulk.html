@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-08 / pdf-bulk v3 (照合を「名前の完全一致＋【SB/SK/SU】一致を優先」に変更。失敗時は自動で最大3回やり直し) -->
+<!-- VERSION: 2026-11-08 / pdf-bulk v4 (画面にバージョン表示を追加 / 照合を「名前の完全一致＋【SB/SK/SU】一致を優先」に変更。失敗時は自動で最大3回やり直し) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -33,7 +33,7 @@ a{color:#1565c0}
 </head>
 <body>
 <div class="wrap">
-  <h1>📤 PDF一括アップロード</h1>
+  <h1>📤 PDF一括アップロード <span id="ver" style="font-size:12px;font-weight:normal;color:#888;margin-left:6px">v4 / 2026-11-08</span></h1>
   <div class="sub">
     iCloudの「goodnotesに入れる用」などのフォルダを選ぶと、フォルダ名・ファイル名の<b>手配No</b>(なければお客様名)で案件を自動で探し、
     その案件の📎添付ファイル(Firebase Storage)に入れます。入れたPDFは案件モーダルの「📝 ノート」で開けます。<br>
