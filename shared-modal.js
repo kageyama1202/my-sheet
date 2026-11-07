@@ -1,5 +1,5 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-11-06-004
+// VERSION: 2026-11-08-001
 // CREATED: 2026-10-10 07:40
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
@@ -119,7 +119,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
-  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button> <button id="modal-camera-btn" class="modal-copy-btn" style="background:#e8f5e9;border-color:#4caf50;color:#1b5e20;font-weight:bold;">📷 撮影</button></div></div>';
+  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button> <button id="modal-camera-btn" class="modal-copy-btn" style="background:#e8f5e9;border-color:#4caf50;color:#1b5e20;font-weight:bold;">📷 撮影</button> <button id="modal-note-btn" class="modal-copy-btn" style="background:#ede7f6;border-color:#5e35b1;color:#311b92;font-weight:bold;">📝 ノート</button></div></div>';
 
   var geoM = obj.geocode || null;
   var geoOkM = geoM && (geoM.confidence === 'exact' || geoM.confidence === 'high') && geoM.lat != null && geoM.lng != null;
@@ -321,6 +321,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 案件名(管理名)と住所をURLで渡す。保存前の写真を持つ既存のカメラタブを上書きしないよう、毎回新しいタブで開く。
   document.getElementById('modal-camera-btn').addEventListener('click',function(){
     var url='genba-camera.html?case='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''));
+    var w=window.open(url,'_blank');
+    if(!w){location.href=url;}
+  });
+
+  // ★2026-11-08追加★ 📝 ノート：この案件の添付PDF・写真(Firebase Storage)を仮想GoodNotes(pdf-note.html)で開く。
+  document.getElementById('modal-note-btn').addEventListener('click',function(){
+    var url='pdf-note.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText);
     var w=window.open(url,'_blank');
     if(!w){location.href=url;}
   });
@@ -740,6 +747,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
 
   // 📎 添付ファイル 初期化（Firebase Storage SDKを必要時のみ動的読込）
+  window._modalCaseTitle = ankenText;
   initCaseAttachments(key);
 
   // 📐 作図ページ(bath-diagram.html)へ飛ぶ。案件はkeyで渡す。
@@ -913,6 +921,14 @@ function initCaseAttachments(caseKey) {
               e.ref.delete().then(refreshList).catch(function (err) { alert('削除できませんでした：' + err.message); });
             });
             row.appendChild(link);
+            if (/\.pdf$/i.test(e.name)) { // ★2026-11-08追加★ PDFはノート(pdf-note.html)で直接開ける
+              var noteLink = document.createElement('a');
+              noteLink.href = 'pdf-note.html?case=' + encodeURIComponent(caseKey) + '&name=' + encodeURIComponent(window._modalCaseTitle || '') + '&file=' + encodeURIComponent(e.name);
+              noteLink.target = '_blank';
+              noteLink.textContent = '📝 ノート';
+              noteLink.style.cssText = 'margin-left:8px;font-size:11px;color:#311b92;background:#ede7f6;border:1px solid #5e35b1;border-radius:3px;padding:2px 8px;text-decoration:none;flex-shrink:0;';
+              row.appendChild(noteLink);
+            }
             row.appendChild(delBtn);
             fileListBox.appendChild(row);
           });
