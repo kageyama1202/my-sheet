@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v7 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-08 / pdf-note v8 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -52,6 +52,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
     <button class="b" data-tool="pen">✏️ ペン</button>
     <button class="b" data-tool="hl">🖍 蛍光</button>
     <button class="b" data-tool="rect">▭ 四角</button>
+    <button class="b" data-tool="ell">◯ 丸</button>
     <button class="b" data-tool="text">Ａ 文字</button>
     <button class="b" data-tool="select">⬚ 選択</button>
   </div>
@@ -93,7 +94,7 @@ const SVGNS='http://www.w3.org/2000/svg';
 const DPR=Math.min(window.devicePixelRatio||1,3);
 const COLORS=[['#e53935','赤'],['#1e88e5','青'],['#43a047','緑'],['#fb8c00','橙'],['#fdd835','黄'],['#212121','黒'],['#8e24aa','紫']];
 /* 太さ(A4幅=595pt基準。ページ幅に比例して補正) */
-const SIZES={pen:[1.2,2.4,4.5],hl:[10,18,30],rect:[1.5,3,5],text:[11,16,24]};
+const SIZES={pen:[1.2,2.4,4.5],hl:[10,18,30],rect:[1.5,3,5],ell:[1.5,3,5],text:[11,16,24]};
 const MINZ=0.4, MAXZ=8, PX_CAP=9e6;
 
 /* ===== 状態 ===== */
@@ -395,7 +396,7 @@ function polyD(pts,closed){
 }
 function refreshEl(it,el){
   if(it.t==='rect')setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h});
-  else if(it.t==='ell')return;
+  else if(it.t==='ell')setAttrs(el,{cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry});
   else if(it.t==='poly')el.setAttribute('d',polyD(it.pts,it.closed));
   else el.setAttribute('d',pathD(it.pts));
 }
@@ -703,6 +704,7 @@ function startDraw(e){
   const it={id:uid(),p:p.i,t:tool,c:color,sw:r1(SIZES[tool][sizeIdx]*u)};
   if(tool!=='hl')it.d=dash;
   if(tool==='rect'){it.x=pos.x;it.y=pos.y;it.w=0;it.h=0;it.f=fill;}
+  else if(tool==='ell'){it.cx=pos.x;it.cy=pos.y;it.rx=0;it.ry=0;it.f=fill;}
   else it.pts=[[pos.x,pos.y]];
   const el=buildEl(it);p.svg.appendChild(el);
   cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0,lm:performance.now()};armHold();
@@ -718,7 +720,10 @@ function moveDraw(e){
   const it=cur.it;
   for(const ev of list){
     const pt=toPage(ev,cur.p);
-    if(it.t==='rect'){
+    if(it.t==='ell'){
+      it.cx=r1((cur.sx+pt[0])/2);it.cy=r1((cur.sy+pt[1])/2);
+      it.rx=r1(Math.abs(pt[0]-cur.sx)/2);it.ry=r1(Math.abs(pt[1]-cur.sy)/2);
+    }else if(it.t==='rect'){
       it.x=Math.min(cur.sx,pt[0]);it.y=Math.min(cur.sy,pt[1]);
       it.w=Math.abs(pt[0]-cur.sx);it.h=Math.abs(pt[1]-cur.sy);
     }else{
@@ -809,7 +814,7 @@ function endDraw(){
   clearTimeout(cur.timer);
   const {it,el}=cur;cur=null;
   if(drawRaf){cancelAnimationFrame(drawRaf);drawRaf=0;}
-  if(it.t==='rect'&&(it.w<2||it.h<2)){el.remove();return;}
+  if((it.t==='rect'&&(it.w<2||it.h<2))||(it.t==='ell'&&(it.rx<1||it.ry<1))){el.remove();return;}
   refreshEl(it,el);
   items.push(it);elMap.set(it.id,el);pushH({k:'add',it});saveSoon();scheduleUpdate(false);
 }
