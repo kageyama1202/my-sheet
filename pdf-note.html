@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-08 / pdf-note v8 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-08 / pdf-note v9 (案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -28,6 +28,10 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 #tpanel.show{display:block}
 #xpanel{display:none;position:fixed;left:50%;top:28%;transform:translateX(-50%);width:min(440px,92%);z-index:40;background:#2b2b2b;color:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 24px rgba(0,0,0,.7);font-size:16px;line-height:1.5}
 #xpanel.show{display:block}
+#cpanel{display:none;position:fixed;left:50%;top:10%;transform:translateX(-50%);width:min(520px,94%);max-height:76%;overflow:auto;z-index:45;background:#2b2b2b;color:#fff;border-radius:12px;padding:14px;box-shadow:0 4px 24px rgba(0,0,0,.7);font-size:15px;line-height:1.5}
+#cpanel.show{display:block}
+#chead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:16px}
+.crow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #444;word-break:break-all}
 #tpText{width:100%;font-size:17px;line-height:1.3;padding:8px;border-radius:8px;border:1px solid #666;background:#fff;color:#111;font-family:inherit;resize:none;-webkit-user-select:text;user-select:text;-webkit-appearance:none}
 .trow{display:flex;align-items:center;gap:10px;margin-top:8px}
 .trow>span{width:44px;font-size:13px;color:#bbb;flex:none}
@@ -46,7 +50,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 </head>
 <body>
 <div id="bar">
-  <div class="grp"><button class="b" id="bOpen">📂 開く</button><input type="file" id="file" accept="application/pdf,.pdf,image/*" hidden></div>
+  <div class="grp"><button class="b" id="bOpen">📂 開く</button><input type="file" id="file" accept="application/pdf,.pdf,image/*" hidden><button class="b" id="bCloud" style="display:none;background:#00695c;border-color:#4db6ac">☁ 案件ファイル</button></div>
   <div class="grp"><button class="b sq" id="bPrev">◀</button><span id="pg">–</span><button class="b sq" id="bNext">▶</button></div>
   <div class="grp" id="tools">
     <button class="b" data-tool="pen">✏️ ペン</button>
@@ -75,6 +79,11 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="empty">「📂 開く」でPDFか写真を選んでください<br>ペン=書く / 指=スクロール・ピンチ</div>
 </div>
 
+<div id="cpanel">
+  <div id="chead"><b id="ctitle">☁ 案件ファイル</b><button class="b" id="cclose">閉じる</button></div>
+  <div id="clist"></div>
+  <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
+</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
@@ -91,6 +100,8 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 const PDFJS_BASE='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
 pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_BASE+'build/pdf.worker.min.js';
 const SVGNS='http://www.w3.org/2000/svg';
+const QS=new URLSearchParams(location.search);
+const CASE_KEY=QS.get('case')||'',CASE_NAME=QS.get('name')||'',CASE_FILE=QS.get('file')||'';
 const DPR=Math.min(window.devicePixelRatio||1,3);
 const COLORS=[['#e53935','赤'],['#1e88e5','青'],['#43a047','緑'],['#fb8c00','橙'],['#fdd835','黄'],['#212121','黒'],['#8e24aa','紫']];
 /* 太さ(A4幅=595pt基準。ページ幅に比例して補正) */
@@ -106,6 +117,7 @@ let pdf=null, fp=null, fileName='', pages=[], items=[], elMap=new Map();
 let baseW=0, totalH=0, z=1, tx=8, ty=8, vw=0, vh=0;
 let editor=null, cur=null, skipClick=false, textDown=null, lastDownType='', downPos={x:0,y:0};
 const touches=new Map(); let g=null, vrect=null, inertiaRaf=0;
+let cloudCtx=null; /* 案件のクラウドPDFを開いている時だけ {key,db} */
 
 /* ===== IndexedDB ===== */
 let dbp=null;
@@ -126,8 +138,15 @@ function saveSoon(){setMsg(fileName+' …');clearTimeout(saveTimer);saveTimer=se
 async function saveNow(){
   clearTimeout(saveTimer);
   if(!fp)return;
-  try{await dbPut('ann',{fp,name:fileName,items,updated:Date.now()});setMsg(fileName+' ✓保存済');}
+  const ts=Date.now();
+  try{await dbPut('ann',{fp,name:fileName,items,updated:ts});setMsg(fileName+' ✓保存済');}
   catch(e){setMsg('⚠保存できません');console.warn(e);}
+  if(cloudCtx){
+    try{
+      await cloudCtx.db.ref('case_notes/'+CASE_KEY+'/'+cloudCtx.key).set({name:fileName,items:JSON.parse(JSON.stringify(items)),updated:ts});
+      setMsg(fileName+' ✓保存済(☁)');
+    }catch(e){setMsg('⚠☁保存失敗(端末には保存済)');console.warn(e);}
+  }
 }
 async function prune(){
   try{
@@ -164,7 +183,7 @@ async function makeImageDoc(blob,name){
   };
   return {isImage:true,imgW:bw,fingerprints:['img:'+name+':'+blob.size+':'+(blob.lastModified||0)],numPages:1,getPage:async()=>page,destroy(){try{bmp.close&&bmp.close();}catch(e){}}};
 }
-async function openBlob(blob,name,isNew){
+async function openBlob(blob,name,isNew,cloud){
   try{
     await saveNow();
     commitEditor();
@@ -173,9 +192,18 @@ async function openBlob(blob,name,isNew){
     const isImg=(blob.type||'').indexOf('image/')===0||/\.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(name);
     const doc=isImg?await makeImageDoc(blob,name):await pdfjsLib.getDocument({data:buf,cMapUrl:PDFJS_BASE+'cmaps/',cMapPacked:true,standardFontDataUrl:PDFJS_BASE+'standard_fonts/'}).promise;
     resetDoc();
-    pdf=doc;fp=doc.fingerprints[0];fileName=name;
+    pdf=doc;fp=doc.fingerprints[0];fileName=name;cloudCtx=cloud||null;
     if(isNew){try{await dbPut('docs',{fp,name,blob});}catch(e){console.warn(e);}}
     let saved=null;try{saved=await dbGet('ann',fp);}catch(e){}
+    if(cloudCtx){ /* クラウドの書き込みが端末内より新しければそちらを使う */
+      try{
+        const v=(await cloudCtx.db.ref('case_notes/'+CASE_KEY+'/'+cloudCtx.key).once('value')).val();
+        if(v&&(!saved||(v.updated||0)>(saved.updated||0))){
+          const it=v.items?(Array.isArray(v.items)?v.items:Object.values(v.items)):[];
+          saved={items:it,updated:v.updated||0};
+        }
+      }catch(e){console.warn(e);}
+    }
     items=(saved&&saved.items)||[];
     pages=[];
     for(let i=1;i<=doc.numPages;i++){
@@ -1115,9 +1143,92 @@ function downloadFile(file){
   setTimeout(()=>URL.revokeObjectURL(a.href),60000);
 }
 
-/* ===== 起動: 前回のPDFを自動で開く ===== */
+/* ===== 案件クラウド連携(?case=案件キー で開いた時だけ有効) ===== */
+const FBJS='https://www.gstatic.com/firebasejs/8.10.1/';
+let cloudReady=null;
+function loadJs(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('読み込めません: '+src));document.head.appendChild(s);});}
+const safeKey=s=>String(s).replace(/[.#$\[\]\/]/g,'_');
+const isPdfName=n=>/\.pdf$/i.test(n), isImgName=n=>/\.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(n);
+const dispName=n=>n.replace(/^\d{10,}_/,'');
+function cloudInit(){
+  if(cloudReady)return cloudReady;
+  cloudReady=(async()=>{
+    if(!localStorage.getItem('userKey'))throw new Error('未ログインです。today.htmlなどでログインしてから、案件の📝ノートで開いてください');
+    for(const f of ['firebase-app.js','firebase-auth.js','firebase-database.js','firebase-storage.js'])await loadJs(FBJS+f);
+    await loadJs('user-scope.js');
+    await new Promise((res,rej)=>{
+      const t=setTimeout(()=>rej(new Error('認証が確認できません。ログインし直してください')),6000);
+      firebase.auth().onAuthStateChanged(u=>{clearTimeout(t);u?res():rej(new Error('認証切れです。ログインし直してください'));});
+    });
+    return {uk:getUserKey(),db:scopedDatabase(firebase.database()),st:firebase.storage()};
+  })();
+  cloudReady.catch(()=>{cloudReady=null;});
+  return cloudReady;
+}
+async function cloudList(){
+  const c=await cloudInit();
+  const r=await c.st.ref('users/'+c.uk+'/case_files/'+CASE_KEY+'/').listAll();
+  return r.items.filter(i=>isPdfName(i.name)||isImgName(i.name)).sort((a,b)=>a.name<b.name?1:-1);
+}
+async function cloudOpen(ref){
+  setMsg('取得中…');
+  let blob;
+  try{
+    const url=await ref.getDownloadURL();
+    const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+    blob=await r.blob();
+  }catch(e){setMsg('⚠取得失敗');alert('ファイルを取得できませんでした: '+((e&&e.message)||e)+'\n(Storageの設定(CORS)の可能性があります)');return;}
+  const c=await cloudInit();
+  await openBlob(blob,dispName(ref.name),false,{key:safeKey(ref.name),db:c.db});
+}
+async function showCloudPanel(){
+  $('ctitle').textContent='☁ '+(CASE_NAME||CASE_KEY);
+  $('cpanel').classList.add('show');
+  const box=$('clist');box.textContent='読み込み中…';
+  try{
+    const list=await cloudList();
+    box.innerHTML='';
+    if(!list.length){box.textContent='この案件のPDF・写真はまだありません。下のボタンで追加できます';return;}
+    list.forEach(ref=>{
+      const row=document.createElement('div');row.className='crow';
+      const n=document.createElement('span');n.textContent=(isPdfName(ref.name)?'📕 ':'🖼 ')+dispName(ref.name);
+      const b=document.createElement('button');b.className='b on';b.textContent='開く';
+      b.onclick=async()=>{$('cpanel').classList.remove('show');await cloudOpen(ref);};
+      row.appendChild(n);row.appendChild(b);box.appendChild(row);
+    });
+  }catch(e){box.textContent='⚠ '+((e&&e.message)||e);}
+}
+$('bCloud').onclick=showCloudPanel;
+$('cclose').onclick=()=>$('cpanel').classList.remove('show');
+$('cUp').onclick=()=>$('cfile').click();
+$('cfile').onchange=async e=>{
+  const files=Array.from(e.target.files);e.target.value='';
+  if(!files.length)return;
+  try{
+    const c=await cloudInit();
+    for(let i=0;i<files.length;i++){
+      $('cst').textContent='⏳ '+(i+1)+'/'+files.length;
+      await c.st.ref('users/'+c.uk+'/case_files/'+CASE_KEY+'/'+Date.now()+'_'+files[i].name).put(files[i]);
+    }
+    $('cst').textContent='✅ 追加しました';
+  }catch(err){$('cst').textContent='❌ '+((err&&err.message)||err);return;}
+  showCloudPanel();
+};
+
+/* ===== 起動: 案件モードなら案件ファイル、通常は前回のPDFを自動で開く ===== */
 (async()=>{
   layout();
+  if(CASE_KEY){
+    $('bCloud').style.display='';
+    try{
+      if(CASE_FILE){
+        const ref=(await cloudList()).find(r=>r.name===CASE_FILE);
+        if(ref){await cloudOpen(ref);return;}
+      }
+    }catch(e){console.warn(e);}
+    showCloudPanel();
+    return;
+  }
   try{
     if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
     const a=(await dbAll('ann')).sort((x,y)=>y.updated-x.updated)[0];
