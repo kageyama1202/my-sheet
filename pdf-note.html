@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-08 / pdf-note v9 (案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
+<!-- VERSION: 2026-11-08 / pdf-note v10 (画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -84,6 +84,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="clist"></div>
   <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
 </div>
+<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v10 / 2026-11-08</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
