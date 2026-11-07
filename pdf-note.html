@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v1 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-07 / pdf-note v2 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -28,7 +28,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 .page canvas{position:absolute;left:0;top:0;pointer-events:none}
 .page svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:18px;pointer-events:none;text-align:center;line-height:1.8}
-.ted{position:absolute;z-index:5;min-width:80px;min-height:1.2em;font-size:16px;line-height:1.2;white-space:pre;outline:1.5px dashed #1e88e5;background:rgba(255,255,255,.55);transform-origin:0 0;-webkit-user-select:text;user-select:text;padding:0;margin:0;font-weight:600;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}
+.ted{position:absolute;z-index:5;width:120px;height:20px;font-size:16px;line-height:1.2;white-space:pre;overflow:hidden;resize:none;border:0;border-radius:0;outline:1.5px dashed #1e88e5;background:rgba(255,255,255,.7);transform-origin:0 0;-webkit-user-select:text;user-select:text;-webkit-appearance:none;appearance:none;padding:0;margin:0;font-weight:600;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}
 </style>
 </head>
 <body>
@@ -75,7 +75,7 @@ const viewer=$('viewer'), content=$('content');
 let tool='pen', color='#e53935', sizeIdx=1, fill=false;
 let pdf=null, fp=null, fileName='', pages=[], items=[], elMap=new Map();
 let baseW=0, totalH=0, z=1, tx=8, ty=8, vw=0, vh=0;
-let editor=null, cur=null, skipClick=false, lastDownType='', downPos={x:0,y:0};
+let editor=null, cur=null, skipClick=false, textDown=null, lastDownType='', downPos={x:0,y:0};
 const touches=new Map(); let g=null, vrect=null, inertiaRaf=0;
 
 /* ===== IndexedDB ===== */
@@ -298,6 +298,12 @@ function buildEl(it){
   }else if(it.t==='rect'){
     el=document.createElementNS(SVGNS,'rect');
     setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h,stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round',fill:it.f?it.c:'none','fill-opacity':'0.25'});
+  }else if(it.t==='ell'){
+    el=document.createElementNS(SVGNS,'ellipse');
+    setAttrs(el,{cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry,stroke:it.c,'stroke-width':it.sw,fill:'none'});
+  }else if(it.t==='poly'){
+    el=document.createElementNS(SVGNS,'path');
+    setAttrs(el,{d:polyD(it.pts,it.closed),fill:'none',stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round','stroke-linecap':'round'});
   }else if(it.t==='text'){
     el=document.createElementNS(SVGNS,'text');
     setAttrs(el,{x:it.x,y:r1(it.y+it.s*0.97),fill:it.c,'font-size':it.s,'font-weight':'600','font-family':"'Hiragino Sans','Noto Sans JP',sans-serif",stroke:'#fff','stroke-width':r1(it.s*0.22),'paint-order':'stroke','stroke-linejoin':'round'});
@@ -309,8 +315,13 @@ function buildEl(it){
   }
   return el;
 }
+function polyD(pts,closed){
+  return 'M'+pts.map(p=>p[0]+' '+p[1]).join('L')+(closed?'Z':'');
+}
 function refreshEl(it,el){
   if(it.t==='rect')setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h});
+  else if(it.t==='ell')return;
+  else if(it.t==='poly')el.setAttribute('d',polyD(it.pts,it.closed));
   else el.setAttribute('d',pathD(it.pts));
 }
 function renderItem(it){
@@ -371,11 +382,13 @@ function startDraw(e){
   if(tool==='rect'){it.x=pos.x;it.y=pos.y;it.w=0;it.h=0;it.f=fill;}
   else it.pts=[[pos.x,pos.y]];
   const el=buildEl(it);p.svg.appendChild(el);
-  cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y};
+  cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0};armHold();
   try{viewer.setPointerCapture(e.pointerId);}catch(_){}
 }
 let drawRaf=0;
 function moveDraw(e){
+  if(cur.snapped)return;
+  if(Math.hypot(e.clientX-cur.ax,e.clientY-cur.ay)>3){cur.ax=e.clientX;cur.ay=e.clientY;armHold();}
   const evs=(e.getCoalescedEvents&&e.getCoalescedEvents())||[];
   const list=evs.length?evs:[e];
   const it=cur.it;
@@ -391,7 +404,85 @@ function moveDraw(e){
   }
   if(!drawRaf)drawRaf=requestAnimationFrame(()=>{drawRaf=0;if(cur)refreshEl(cur.it,cur.el);});
 }
+/* ===== 長押しで図形に整形(ペンのみ) ===== */
+function armHold(){
+  if(!cur||cur.it.t!=='pen')return;
+  clearTimeout(cur.timer);
+  cur.timer=setTimeout(()=>{if(cur&&!cur.snapped&&snapShape())cur.snapped=true;},550);
+}
+function snapShape(){
+  const it=cur.it,r=recognize(it.pts);
+  if(!r)return false;
+  delete it.pts;
+  if(r.k==='line'){it.pts=r.pts;}
+  else if(r.k==='rect'){it.t='rect';it.x=r.x;it.y=r.y;it.w=r.w;it.h=r.h;it.f=false;}
+  else if(r.k==='ell'){it.t='ell';it.cx=r.cx;it.cy=r.cy;it.rx=r.rx;it.ry=r.ry;}
+  else{it.t='poly';it.pts=r.pts;it.closed=r.closed;}
+  const el=buildEl(it);cur.el.replaceWith(el);cur.el=el;
+  return true;
+}
+function perp(p,a,b){
+  const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy);
+  if(l<1e-6)return Math.hypot(p[0]-a[0],p[1]-a[1]);
+  return Math.abs(dy*(p[0]-a[0])-dx*(p[1]-a[1]))/l;
+}
+function dpIdx(P,i,j,eps){
+  let m=0,idx=-1;
+  for(let k=i+1;k<j;k++){const d=perp(P[k],P[i],P[j]);if(d>m){m=d;idx=k;}}
+  if(m>eps)return dpIdx(P,i,idx,eps).concat(dpIdx(P,idx,j,eps).slice(1));
+  return [i,j];
+}
+function dpClosed(P,eps){
+  const n=P.length;let f=0,md=0;
+  for(let i=1;i<n;i++){const d=Math.hypot(P[i][0]-P[0][0],P[i][1]-P[0][1]);if(d>md){md=d;f=i;}}
+  const Q=P.concat([P[0]]);
+  const idx=dpIdx(Q,0,f,eps).concat(dpIdx(Q,f,n,eps).slice(1));
+  idx.pop();
+  return idx.map(i=>Q[i]);
+}
+function recognize(P){
+  const n=P.length;if(n<8)return null;
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const [x,y] of P){minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y);}
+  const D=Math.hypot(maxx-minx,maxy-miny);if(D<5)return null;
+  const a=P[0],b=P[n-1],e=Math.hypot(a[0]-b[0],a[1]-b[1]);
+  if(e>0.2*D){ /* 開いた線 */
+    let dev=0;for(let k=1;k<n-1;k++)dev=Math.max(dev,perp(P[k],a,b));
+    if(dev<0.06*e){
+      let [x1,y1]=a,[x2,y2]=b;const dx=Math.abs(x2-x1),dy=Math.abs(y2-y1);
+      if(dy<dx*0.1){y1=y2=r1((y1+y2)/2);}else if(dx<dy*0.1){x1=x2=r1((x1+x2)/2);}
+      return {k:'line',pts:[[r1(x1),r1(y1)],[r1(x2),r1(y2)]]};
+    }
+    const dp=dpIdx(P,0,n-1,0.05*D).map(i=>P[i]);
+    if(dp.length>=3&&dp.length<=6)return {k:'poly',pts:dp,closed:false};
+    return null;
+  }
+  /* 閉じた図形 */
+  const cx=(minx+maxx)/2,cy=(miny+maxy)/2,rx=(maxx-minx)/2,ry=(maxy-miny)/2;
+  if(rx<2||ry<2)return null;
+  let s=0;for(const [x,y] of P)s+=Math.abs(Math.hypot((x-cx)/rx,(y-cy)/ry)-1);
+  s/=n;
+  const poly=dpClosed(P,0.04*D),k=poly.length;
+  const ell={k:'ell',cx:r1(cx),cy:r1(cy),rx:r1(rx),ry:r1(ry)};
+  if(k>=6&&s<0.08)return ell;
+  if(k===4){
+    let ok=true;
+    for(let i=0;i<4;i++){
+      const p=poly[i],q=poly[(i+1)%4],dx=Math.abs(q[0]-p[0]),dy=Math.abs(q[1]-p[1]);
+      if(!(dx<dy*0.27||dy<dx*0.27))ok=false;
+    }
+    if(ok){
+      const xs=poly.map(p=>p[0]),ys=poly.map(p=>p[1]);
+      const x=Math.min(...xs),y=Math.min(...ys);
+      return {k:'rect',x:r1(x),y:r1(y),w:r1(Math.max(...xs)-x),h:r1(Math.max(...ys)-y)};
+    }
+  }
+  if(k>=3&&k<=7)return {k:'poly',pts:poly.map(p=>[r1(p[0]),r1(p[1])]),closed:true};
+  if(s<0.12)return ell;
+  return null;
+}
 function endDraw(){
+  clearTimeout(cur.timer);
   const {it,el}=cur;cur=null;
   if(drawRaf){cancelAnimationFrame(drawRaf);drawRaf=0;}
   if(it.t==='rect'&&(it.w<2||it.h<2)){el.remove();return;}
@@ -402,15 +493,20 @@ function endDraw(){
 /* ===== 文字入力 ===== */
 function openEditor(p,x,y){
   commitEditor();
-  const ed=document.createElement('div');
-  ed.contentEditable='true';ed.className='ted';ed.spellcheck=false;
+  const ed=document.createElement('textarea');
+  ed.className='ted';ed.wrap='off';ed.rows=1;ed.spellcheck=false;
   ed.setAttribute('autocapitalize','off');ed.setAttribute('autocorrect','off');
   ed.style.color=color;
-  editor={el:ed,p,x,y,s:r1(SIZES.text[sizeIdx]*p.wpt/595),c:color,cancel:false};
-  ed.addEventListener('paste',e=>{e.preventDefault();document.execCommand('insertText',false,(e.clipboardData||window.clipboardData).getData('text'));});
-  ed.addEventListener('keydown',e=>{if(e.key==='Escape'){editor&&(editor.cancel=true);ed.blur();}});
-  ed.addEventListener('blur',()=>setTimeout(commitEditor,0));
-  viewer.appendChild(ed);positionEditor();ed.focus();
+  editor={el:ed,p,x,y,s:r1(SIZES.text[sizeIdx]*p.wpt/595),c:color,cancel:false,t0:performance.now()};
+  const fit=()=>{ed.style.height='1px';ed.style.width='1px';ed.style.height=Math.max(20,ed.scrollHeight)+'px';ed.style.width=Math.max(120,ed.scrollWidth+8)+'px';};
+  ed.addEventListener('input',fit);
+  ed.addEventListener('keydown',e=>{if(e.key==='Escape'){if(editor)editor.cancel=true;ed.blur();}});
+  ed.addEventListener('blur',()=>{
+    if(!editor||editor.el!==ed)return;
+    if(performance.now()-editor.t0<500){ed.focus();return;} /* タップ直後の誤blur対策 */
+    setTimeout(commitEditor,0);
+  });
+  viewer.appendChild(ed);positionEditor();ed.focus();fit();
 }
 function positionEditor(){
   if(!editor)return;
@@ -423,7 +519,7 @@ function positionEditor(){
 function commitEditor(){
   if(!editor)return;
   const e=editor;editor=null;
-  const text=(e.el.innerText||'').replace(/ /g,' ').replace(/\n+$/,'');
+  const text=(e.el.value||'').replace(/\n+$/,'');
   e.el.remove();
   if(e.cancel||!text.trim())return;
   const it={id:uid(),p:e.p.i,t:'text',c:e.c,s:e.s,x:e.x,y:e.y,text};
@@ -443,9 +539,9 @@ viewer.addEventListener('pointerdown',e=>{
   }
   if(e.pointerType==='mouse'&&e.button!==0)return;
   if(cur)return;
-  lastDownType=e.pointerType;downPos={x:e.clientX,y:e.clientY};
-  if(editor){commitEditor();skipClick=true;return;}
-  if(tool==='text')return;
+  lastDownType=e.pointerType;downPos={x:e.clientX,y:e.clientY};skipClick=false;
+  if(editor){commitEditor();skipClick=true;textDown=null;return;}
+  if(tool==='text'){textDown={id:e.pointerId,x:e.clientX,y:e.clientY};return;}
   startDraw(e);
 });
 viewer.addEventListener('pointermove',e=>{
@@ -478,6 +574,14 @@ function pointerEnd(e){
     }else scheduleUpdate(false);
     return;
   }
+  if(textDown&&e.pointerId===textDown.id){
+    const t=textDown;textDown=null;
+    if(e.type==='pointerup'&&Math.hypot(e.clientX-t.x,e.clientY-t.y)<=8){
+      vrect=viewer.getBoundingClientRect();
+      const pos=locate(e);if(pos)openEditor(pos.p,pos.x,pos.y);
+    }
+    return;
+  }
   if(cur&&e.pointerId===cur.pid)endDraw();
 }
 viewer.addEventListener('pointerup',pointerEnd);
@@ -507,11 +611,14 @@ function startInertia(vx,vy){
 viewer.addEventListener('click',e=>{
   if(tool!=='text'||!pdf)return;
   if(skipClick){skipClick=false;return;}
-  if(lastDownType==='touch'||editor)return;
+  if(editor){if(performance.now()-editor.t0<800)editor.el.focus();return;}
+  if(lastDownType==='touch')return;
   if(Math.hypot(e.clientX-downPos.x,e.clientY-downPos.y)>8)return;
   vrect=viewer.getBoundingClientRect();
   const pos=locate(e);if(pos)openEditor(pos.p,pos.x,pos.y);
 });
+/* 入力欄のフォーカスが外れないようにする(ペンのタップ後の互換mousedown対策) */
+viewer.addEventListener('mousedown',e=>{if(!editor||!editor.el.contains(e.target))e.preventDefault();});
 /* PC確認用: ホイールでスクロール、Ctrl+ホイールで拡大縮小 */
 viewer.addEventListener('wheel',e=>{
   if(!pdf)return;e.preventDefault();
