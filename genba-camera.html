@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-06 案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始ボタン/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-08 キーボード表示時に見える範囲へ縮小・入力後にキーボードを閉じる/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -14,7 +14,7 @@
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
-#app{display:flex;flex-direction:column;height:100%;height:100dvh}
+#app{display:flex;flex-direction:column;position:fixed;left:0;right:0;top:0;height:100dvh;height:var(--vvh,100dvh);transform:translateY(var(--vvt,0px))}
 #stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center}
 #frame{position:relative;width:100%;height:100%}
 #frame video,#frame canvas{position:absolute;left:0;top:0;width:100%;height:100%}
@@ -26,7 +26,7 @@ html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-sys
 #paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);font-size:18px;line-height:1.9;z-index:4}
 #toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(40,40,42,.95);padding:8px 8px 8px 16px;border-radius:20px;font-size:14px;white-space:nowrap;z-index:5}
 #toast button{background:#0a84ff;padding:6px 14px}
-#panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;overflow-y:auto}
+#panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;max-height:calc(var(--vvh,100dvh)*.46);overflow-y:auto}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .row label{font-size:11px;color:#aaa;white-space:nowrap;min-width:44px}
 input[type=text],select{flex:1;min-width:0;font-size:16px;padding:7px 8px;border-radius:8px;border:1px solid #444;background:#2c2c2e;color:#fff}
@@ -48,10 +48,12 @@ button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:
 .ck input{width:18px;height:18px}
 
 #panel{padding-bottom:calc(34px + env(safe-area-inset-bottom))}
+body.kb #panel{padding-bottom:8px}
+body.kb #modal{padding-bottom:8px}
 #caseBtn{flex:1;min-width:0;text-align:left;font-size:15px;font-weight:bold;padding:9px 10px;background:#0a84ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #caseBtn.empty{background:#ff9f0a;color:#000}
 #tplSave{background:#30d158;color:#000;white-space:nowrap}
-#modal{position:fixed;inset:0;background:#000;z-index:30;display:none;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom))}
+#modal{position:fixed;left:0;right:0;top:0;height:100dvh;height:var(--vvh,100dvh);transform:translateY(var(--vvt,0px));background:#000;z-index:30;display:none;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom))}
 #modal h2{margin:4px 0 8px;font-size:16px}
 #mSearch{width:100%;flex:none;margin-bottom:8px}
 #mList{flex:1;min-height:0;overflow-y:auto}
@@ -175,13 +177,14 @@ function renderChips(){
   tpls.forEach(t=>{
     const b=document.createElement('button');
     b.className='chip'+(S.note===t?' on':'');b.textContent=t;
-    b.onclick=()=>{S.note=(S.note===t?'':t);$('note').value=S.note;saveS();renderChips();};
+    b.onclick=()=>{hideKb();S.note=(S.note===t?'':t);$('note').value=S.note;saveS();renderChips();};
     c.appendChild(b);
   });
 }
 $('tplSave').onclick=()=>{
   const t=$('note').value.trim();
   if(!t)return;
+  hideKb();
   if(!tpls.includes(t)){tpls.push(t);cacheTpls();pushTpls();renderChips()}
   const b=$('tplSave');b.textContent='✓';setTimeout(()=>b.textContent='保存',900);
 };
@@ -224,6 +227,7 @@ function loadCases(){
 /* ---------- 案件選択モーダル ---------- */
 const norm=t=>String(t||'').normalize('NFKC').replace(/[\s　]+/g,'').toLowerCase();
 function pickCase(name,addr){
+  hideKb();
   S.site=name;S.siteAddr=addr||'';saveS();renderCase();updateSel();
 }
 function updateSel(){
@@ -239,6 +243,7 @@ function openModal(){
   $('modal').style.display='flex';renderModal();
 }
 function closeModal(){
+  hideKb();
   $('modal').style.display='none';
   // モーダルから撮影開始: 案件を決めた(または前回のまま続ける)時点でカメラを起動する
   if(!paused&&(!stream||!stream.active))startCam();
@@ -279,9 +284,31 @@ function renderModal(){
   updateSel();
 }
 $('mSearch').oninput=renderModal;
-$('mManualOk').onclick=()=>{const t=$('mManual').value.trim();if(t)pickCase(t,'')};
+$('mManualOk').onclick=()=>{hideKb();const t=$('mManual').value.trim();if(t)pickCase(t,'')};
 $('mStart').onclick=closeModal;
 $('caseBtn').onclick=openModal;
+
+/* ---------- キーボード対策: 見える範囲に合わせて縮め、入力が終わったら閉じる ---------- */
+const vv=window.visualViewport;
+function fitVV(){
+  const zoomed=vv&&vv.scale>1.02;
+  const h=(vv&&!zoomed)?vv.height:window.innerHeight;
+  const t=(vv&&!zoomed)?vv.offsetTop:0;
+  const r=document.documentElement.style;
+  r.setProperty('--vvh',Math.round(h)+'px');
+  r.setProperty('--vvt',Math.round(t)+'px');
+  document.body.classList.toggle('kb',h<window.screen.height*0.7&&h<window.innerHeight*0.85);
+  try{layout()}catch(e){}
+}
+if(vv){vv.addEventListener('resize',fitVV);vv.addEventListener('scroll',fitVV)}
+window.addEventListener('resize',fitVV);
+function hideKb(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))a.blur()}
+['note','mSearch','mManual'].forEach(id=>{
+  const el=$(id);
+  el.setAttribute('enterkeyhint','done');
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();hideKb()}});
+  el.addEventListener('focus',()=>setTimeout(()=>{try{el.scrollIntoView({block:'nearest'})}catch(e){}},350));
+});
 
 /* ---------- camera ---------- */
 function showErr(msg,retry){
@@ -582,7 +609,7 @@ $('save').onclick=async()=>{
   setTimeout(clearTray,sending.length*400+500);
 };
 
-loadUI();updateTray();startGeo();loadTpls();loadCases();
+fitVV();loadUI();updateTray();startGeo();loadTpls();loadCases();
 // 案件モーダルの「📷 撮影」から開かれた場合は、その案件を選んだ状態で直接カメラを起動する。
 // それ以外(直接開いた場合)は、案件選択モーダルを出す。
 (function(){
