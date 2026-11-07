@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-20-001 -->
+<!-- VERSION: 2026-11-07-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -74,6 +74,8 @@
       <!-- 保存庫(files.html)もログイン後は常時利用可能なため、他メニューと違いdisabled不要 -->
       <a href="files.html" class="menu-btn" style="grid-column:1/3;background-color:#00897b;">📁 保存庫</a>
       <a href="clipboard.html" class="menu-btn" style="grid-column:1/3;background-color:#4f8ef7;">📋 クリップボード</a>
+      <!-- ★2026-11-07追加★ 仮想GoodNotes(pdf-note.html): PDF・写真への書き込みはFirebase不要で端末内に保存するため、appData読み込み待ちに依存しない。常時クリック可能。 -->
+      <a href="pdf-note.html" class="menu-btn" style="grid-column:1/3;background-color:#5e35b1;">📝 仮想GoodNotes（PDF・写真に書き込み）</a>
       <!-- 工務担当者リスト(koumu-contacts.html)は全ユーザー共通のマスタ管理画面のため、他メニューと違いdisabled不要 -->
       <a href="koumu-contacts.html" class="menu-btn" style="grid-column:1/3;background-color:#8e24aa;">☎️ 工務担当者リスト</a>
     </div>
