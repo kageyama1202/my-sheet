@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v5 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-07 / pdf-note v6 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -492,6 +492,7 @@ buildUI();
 
 /* ===== 選択・移動・リサイズ ===== */
 const HX=[0,.5,1,1,1,.5,0,0],HY=[0,0,0,.5,1,1,1,.5];
+const isVert=it=>it.t==='poly'||(it.t==='pen'&&it.pts&&it.pts.length===2);
 function bboxOf(it){
   const el=elMap.get(it.id);
   try{const b=el.getBBox();return {x:b.x,y:b.y,w:b.width,h:b.height};}catch(e){return {x:0,y:0,w:0,h:0};}
@@ -514,6 +515,14 @@ function drawSel(){
   setAttrs(r,{x:box.x,y:box.y,width:box.w,height:box.h,fill:'none',stroke:'#1e88e5','stroke-width':1.5*sc,'stroke-dasharray':(6*sc)+' '+(4*sc)});
   g.appendChild(r);
   const hs=18*sc;
+  if(isVert(it)){
+    it.pts.forEach(q=>{
+      const c=document.createElementNS(SVGNS,'circle');
+      setAttrs(c,{cx:q[0],cy:q[1],r:hs*0.6,fill:'#fff',stroke:'#1e88e5','stroke-width':2.5*sc});
+      g.appendChild(c);
+    });
+    p.svg.appendChild(g);return;
+  }
   for(let i=0;i<8;i++){
     const h=document.createElementNS(SVGNS,'rect');
     setAttrs(h,{x:box.x+box.w*HX[i]-hs/2,y:box.y+box.h*HY[i]-hs/2,width:hs,height:hs,rx:hs*.25,fill:'#fff',stroke:'#1e88e5','stroke-width':2*sc});
@@ -524,6 +533,13 @@ function drawSel(){
 function handleAt(vx,vy){
   const it=byId(sel.id);if(!it||!sel.box)return -1;
   const p=pages[it.p],b=sel.box;
+  if(isVert(it)){
+    for(let i=0;i<it.pts.length;i++){
+      const sx=tx+it.pts[i][0]*p.k*z,sy=ty+(p.top+it.pts[i][1]*p.k)*z;
+      if(Math.hypot(vx-sx,vy-sy)<=26)return 100+i;
+    }
+    return -1;
+  }
   for(let i=0;i<8;i++){
     const sx=tx+(b.x+b.w*HX[i])*p.k*z,sy=ty+(p.top+(b.y+b.h*HY[i])*p.k)*z;
     if(Math.hypot(vx-sx,vy-sy)<=24)return i;
@@ -610,7 +626,8 @@ function selectAtClient(cx,cy){
 function startDrag(e,mode,hi){
   const it=byId(sel.id);if(!it)return;
   const p=pages[it.p],pt=toPage(e,p);
-  drag={mode,hi,pid:e.pointerId,p,idx:items.indexOf(it),orig:JSON.stringify(it),ob:bboxOf(it),sx:pt[0],sy:pt[1],moved:false,ev:null};
+  let vi=-1;if(mode==='resize'&&hi>=100){mode='vertex';vi=hi-100;}
+  drag={mode,hi,vi,pid:e.pointerId,p,idx:items.indexOf(it),orig:JSON.stringify(it),ob:bboxOf(it),sx:pt[0],sy:pt[1],moved:false,ev:null};
   try{viewer.setPointerCapture(e.pointerId);}catch(_){}
 }
 function applyBox(o,ob,nb){
@@ -622,18 +639,22 @@ function applyBox(o,ob,nb){
   else if(o.t==='text'){o.s=r1(Math.max(4,o.s*sx));o.x=r1(nb.x+(o.x-ob.x)*sx);o.y=r1(nb.y+(o.y-ob.y)*sx);}
 }
 let dragRaf=0;
-function moveDrag(e){
-  drag.ev={clientX:e.clientX,clientY:e.clientY};
-  if(dragRaf)return;
-  dragRaf=requestAnimationFrame(()=>{
-    dragRaf=0;if(!drag||!drag.ev)return;
-    const pt=toPage(drag.ev,drag.p),dx=pt[0]-drag.sx,dy=pt[1]-drag.sy;
-    if(!drag.moved&&Math.hypot(dx,dy)*drag.p.k*z<3)return;
-    drag.moved=true;
-    const ob=drag.ob;let nb;
-    if(drag.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
+function applyDrag(d){
+  if(!d||!d.ev)return;
+  const pt=toPage(d.ev,d.p),dx=pt[0]-d.sx,dy=pt[1]-d.sy,ob=d.ob;
+  if(!d.moved&&Math.hypot(dx,dy)*d.p.k*z<3)return;
+  d.moved=true;
+  const o=JSON.parse(d.orig);
+  if(d.mode==='vertex'){ /* 頂点だけ動かす(他の頂点と縦横がそろう位置に吸着) */
+    const base=o.pts[d.vi];let x=base[0]+dx,y=base[1]+dy;
+    const tol=8/(z*d.p.k);
+    o.pts.forEach((q,i)=>{if(i===d.vi)return;if(Math.abs(x-q[0])<tol)x=q[0];if(Math.abs(y-q[1])<tol)y=q[1];});
+    o.pts[d.vi]=[r1(x),r1(y)];
+  }else{
+    let nb;
+    if(d.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
     else{
-      const fxh=HX[drag.hi],fyh=HY[drag.hi];
+      const fxh=HX[d.hi],fyh=HY[d.hi];
       let nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
       if(fxh===0){nx=ob.x+dx;nw=ob.w-dx;}else if(fxh===1){nw=ob.w+dx;}
       if(fyh===0){ny=ob.y+dy;nh=ob.h-dy;}else if(fyh===1){nh=ob.h+dy;}
@@ -641,35 +662,22 @@ function moveDrag(e){
       if(nh<2){if(fyh===0)ny=ob.y+ob.h-2;nh=2;}
       nb={x:nx,y:ny,w:nw,h:nh};
     }
-    const o=JSON.parse(drag.orig);applyBox(o,ob,nb);
-    items[drag.idx]=o;replaceEl(o);drawSel();
-  });
+    applyBox(o,ob,nb);
+  }
+  items[d.idx]=o;replaceEl(o);drawSel();
+}
+function moveDrag(e){
+  drag.ev={clientX:e.clientX,clientY:e.clientY};
+  if(dragRaf)return;
+  dragRaf=requestAnimationFrame(()=>{dragRaf=0;if(drag)applyDrag(drag);});
 }
 function endDrag(){
-  const d=drag;drag=null;
-  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;
-    if(d.ev){drag=d;moveDragNow(d);drag=null;}
-  }
+  const d=drag;if(!d)return;
+  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;}
+  applyDrag(d);drag=null;
   if(d.moved){pushH({k:'edit',i:d.idx,before:d.orig,after:JSON.stringify(items[d.idx])});saveSoon();}
   drawSel();
   if(!d.moved&&d.tapEdit){const it=items[d.idx];if(it&&it.t==='text')openTextPanel('edit',pages[it.p],it.x,it.y,it);}
-}
-function moveDragNow(d){
-  /* rAF待ちの最後の動きを反映 */
-  const pt=toPage(d.ev,d.p),dx=pt[0]-d.sx,dy=pt[1]-d.sy,ob=d.ob;
-  if(!d.moved&&Math.hypot(dx,dy)*d.p.k*z<3)return;
-  d.moved=true;let nb;
-  if(d.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
-  else{
-    const fxh=HX[d.hi],fyh=HY[d.hi];
-    let nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
-    if(fxh===0){nx=ob.x+dx;nw=ob.w-dx;}else if(fxh===1){nw=ob.w+dx;}
-    if(fyh===0){ny=ob.y+dy;nh=ob.h-dy;}else if(fyh===1){nh=ob.h+dy;}
-    if(nw<2){if(fxh===0)nx=ob.x+ob.w-2;nw=2;}
-    if(nh<2){if(fyh===0)ny=ob.y+ob.h-2;nh=2;}
-    nb={x:nx,y:ny,w:nw,h:nh};
-  }
-  const o=JSON.parse(d.orig);applyBox(o,ob,nb);items[d.idx]=o;replaceEl(o);
 }
 
 /* ===== 座標変換 ===== */
