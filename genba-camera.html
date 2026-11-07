@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-08 撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -108,7 +108,7 @@ body.kb #modal{padding-bottom:8px}
     <div class="row">
       <button id="setBtn">⚙ 設定 ▾</button>
       <button id="flip">カメラ切替</button>
-      <span id="gpsst" style="font-size:11px;color:#aaa"></span>
+      <span id="gpsst" style="font-size:11px;color:#aaa"></span><span id="ver" style="font-size:10px;color:#666;margin-left:auto"></span>
     </div>
     <div id="settings" style="display:none">
       <div class="row">
@@ -142,6 +142,7 @@ body.kb #modal{padding-bottom:8px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
+const VER='v1108-c';
 const video=$('video'), view=$('view'), vctx=view.getContext('2d');
 const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
 const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
@@ -625,7 +626,7 @@ $('save').onclick=async()=>{
   setTimeout(clearTray,sending.length*400+500);
 };
 
-fitVV();loadUI();updateTray();startGeo();loadTpls();loadCases();
+fitVV();$('ver').textContent=VER;loadUI();updateTray();startGeo();loadTpls();loadCases();
 // 案件モーダルの「📷 撮影」から開かれた場合は、その案件を選んだ状態で直接カメラを起動する。
 // それ以外(直接開いた場合)は、案件選択モーダルを出す。
 (function(){
