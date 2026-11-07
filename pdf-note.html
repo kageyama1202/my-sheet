@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v6 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-07 / pdf-note v7 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -26,6 +26,8 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 .sw.none{background:#fff;color:#333;font-size:11px;width:auto;min-width:44px;border-radius:15px;padding:0 8px}
 #tpanel{display:none;position:fixed;left:8px;width:min(580px,calc(100% - 16px));z-index:30;background:#2b2b2b;color:#fff;border-radius:12px;padding:10px;box-shadow:0 4px 20px rgba(0,0,0,.6);-webkit-user-select:text;user-select:text}
 #tpanel.show{display:block}
+#xpanel{display:none;position:fixed;left:50%;top:28%;transform:translateX(-50%);width:min(440px,92%);z-index:40;background:#2b2b2b;color:#fff;border-radius:12px;padding:16px;box-shadow:0 4px 24px rgba(0,0,0,.7);font-size:16px;line-height:1.5}
+#xpanel.show{display:block}
 #tpText{width:100%;font-size:17px;line-height:1.3;padding:8px;border-radius:8px;border:1px solid #666;background:#fff;color:#111;font-family:inherit;resize:none;-webkit-user-select:text;user-select:text;-webkit-appearance:none}
 .trow{display:flex;align-items:center;gap:10px;margin-top:8px}
 .trow>span{width:44px;font-size:13px;color:#bbb;flex:none}
@@ -64,6 +66,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <button class="b" id="bEdit">✎ 編集</button>
   <button class="b" id="bDel">🗑 削除</button>
   <div class="grp"><button class="b" id="bUndo">↩︎ 戻す</button><button class="b" id="bClear">🗑 全消し</button></div>
+  <button class="b" id="bExport" style="background:#2e7d32;border-color:#81c784">📤 書き出し</button>
   <span id="msg"></span>
 </div>
 <div id="viewer">
@@ -71,6 +74,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="empty">「📂 開く」でPDFか写真を選んでください<br>ペン=書く / 指=スクロール・ピンチ</div>
 </div>
 
+<div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
   <div class="trow"><span>文字色</span><div class="sws" id="tpC"></div></div>
@@ -157,7 +161,7 @@ async function makeImageDoc(blob,name){
       return {promise:Promise.resolve(),cancel(){}};
     }
   };
-  return {fingerprints:['img:'+name+':'+blob.size+':'+(blob.lastModified||0)],numPages:1,getPage:async()=>page,destroy(){try{bmp.close&&bmp.close();}catch(e){}}};
+  return {isImage:true,imgW:bw,fingerprints:['img:'+name+':'+blob.size+':'+(blob.lastModified||0)],numPages:1,getPage:async()=>page,destroy(){try{bmp.close&&bmp.close();}catch(e){}}};
 }
 async function openBlob(blob,name,isNew){
   try{
@@ -1025,6 +1029,86 @@ viewer.addEventListener('wheel',e=>{
 /* iOSのページ拡大ジェスチャ・長押しメニューを止める */
 ['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
 document.addEventListener('contextmenu',e=>{if(!e.target.closest('.ted'))e.preventDefault();});
+
+/* ===== 書き出し: 書き込み入りのPDF(写真は画像) / 元ファイルは変更しない ===== */
+function xOpen(msg,btns){
+  $('xmsg').textContent=msg;
+  const bx=$('xbtns');bx.innerHTML='';
+  btns.forEach(([label,fn,on])=>{const b=document.createElement('button');b.className='b'+(on?' on':'');b.textContent=label;b.onclick=fn;bx.appendChild(b);});
+  $('xpanel').classList.add('show');
+}
+function xClose(){$('xpanel').classList.remove('show');}
+$('bExport').onclick=()=>{
+  if(!pdf)return;
+  commitEditor();
+  if(pages.length===1){runExport([0]);return;}
+  xOpen('書き出す範囲を選んでください',[['このページだけ',()=>runExport([curPage()]),true],['全ページ',()=>runExport(pages.map(p=>p.i)),true],['やめる',xClose]]);
+};
+async function exportPage(p){
+  let sc=pdf.isImage?(pdf.imgW/1000):2.5;
+  sc=Math.min(sc,Math.sqrt(12e6/(p.wpt*p.hpt)));
+  const W=Math.round(p.wpt*sc),H=Math.round(p.hpt*sc);
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  await p.page.render({canvasContext:ctx,viewport:p.page.getViewport({scale:sc})}).promise;
+  const svg=p.svg.cloneNode(true);
+  svg.querySelectorAll('.selg').forEach(n=>n.remove());
+  svg.removeAttribute('style');svg.setAttribute('xmlns',SVGNS);svg.setAttribute('width',W);svg.setAttribute('height',H);
+  const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml;charset=utf-8'}));
+  const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('書き込みの描画に失敗しました'));im.src=url;});
+  ctx.drawImage(img,0,0,W,H);URL.revokeObjectURL(url);
+  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.92));
+  const jpg=new Uint8Array(await blob.arrayBuffer());
+  cv.width=0;
+  return {blob,jpg,pw:W,ph:H,w:r1(p.wpt),h:r1(p.hpt)};
+}
+/* JPEG画像を1ページずつ貼ったPDFを作る(外部ライブラリなし) */
+function buildPdf(list){
+  const enc=new TextEncoder(),chunks=[],offs=[];let len=0;
+  const push=x=>{const b=typeof x==='string'?enc.encode(x):x;chunks.push(b);len+=b.length;};
+  const n=list.length,total=2+3*n;
+  push('%PDF-1.4\n');
+  const obj=(id,body)=>{offs[id]=len;push(id+' 0 obj\n'+body+'\nendobj\n');};
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids ['+list.map((_,i)=>(3+3*i)+' 0 R').join(' ')+'] /Count '+n+' >>');
+  list.forEach((o,i)=>{
+    const pid=3+3*i,cid=4+3*i,iid=5+3*i;
+    obj(pid,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+o.w+' '+o.h+'] /Resources << /XObject << /Im0 '+iid+' 0 R >> >> /Contents '+cid+' 0 R >>');
+    const cs='q '+o.w+' 0 0 '+o.h+' 0 0 cm /Im0 Do Q';
+    obj(cid,'<< /Length '+cs.length+' >>\nstream\n'+cs+'\nendstream');
+    offs[iid]=len;
+    push(iid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+o.pw+' /Height '+o.ph+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+o.jpg.length+' >>\nstream\n');
+    push(o.jpg);push('\nendstream\nendobj\n');
+  });
+  const xo=len;let x='xref\n0 '+(total+1)+'\n0000000000 65535 f \n';
+  for(let id=1;id<=total;id++)x+=String(offs[id]).padStart(10,'0')+' 00000 n \n';
+  push(x+'trailer\n<< /Size '+(total+1)+' /Root 1 0 R >>\nstartxref\n'+xo+'\n%%EOF');
+  return new Blob(chunks,{type:'application/pdf'});
+}
+async function runExport(idxs){
+  const base=fileName.replace(/\.[^.]+$/,'')+'_書込';
+  const out=[];
+  try{
+    for(let k=0;k<idxs.length;k++){
+      xOpen('作成中… '+(k+1)+' / '+idxs.length,[]);
+      await new Promise(r=>setTimeout(r,30));
+      out.push(await exportPage(pages[idxs[k]]));
+    }
+    const file=pdf.isImage?new File([out[0].blob],base+'.jpg',{type:'image/jpeg'}):new File([buildPdf(out)],base+'.pdf',{type:'application/pdf'});
+    xOpen('できました: '+file.name+'（'+(file.size/1048576).toFixed(1)+'MB）',[['共有・保存',()=>shareFile(file),true],['ダウンロード',()=>downloadFile(file)],['閉じる',xClose]]);
+  }catch(e){console.error(e);xOpen('書き出しに失敗しました: '+((e&&e.message)||e),[['閉じる',xClose]]);}
+}
+async function shareFile(file){
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  downloadFile(file);
+}
+function downloadFile(file){
+  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+}
 
 /* ===== 起動: 前回のPDFを自動で開く ===== */
 (async()=>{
