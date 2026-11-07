@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-07 / pdf-note v3 (仮想GoodNotes試作) -->
+<!-- VERSION: 2026-11-07 / pdf-note v4 (仮想GoodNotes試作) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -20,8 +20,19 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 .sw.on{border-color:#fff;box-shadow:0 0 0 2px #1e88e5}
 #pg{min-width:52px;text-align:center}
 #msg{font-size:12px;color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#bDel{display:none;background:#8e2424}
-#bDel.show{display:inline-block}
+#bDel,#bEdit{visibility:hidden}
+#bDel.show,#bEdit.show{visibility:visible}
+#bDel{background:#8e2424}
+.sw.none{background:#fff;color:#333;font-size:11px;width:auto;min-width:44px;border-radius:15px;padding:0 8px}
+#tpanel{display:none;position:fixed;left:8px;width:min(580px,calc(100% - 16px));z-index:30;background:#2b2b2b;color:#fff;border-radius:12px;padding:10px;box-shadow:0 4px 20px rgba(0,0,0,.6);-webkit-user-select:text;user-select:text}
+#tpanel.show{display:block}
+#tpText{width:100%;font-size:17px;line-height:1.3;padding:8px;border-radius:8px;border:1px solid #666;background:#fff;color:#111;font-family:inherit;resize:none;-webkit-user-select:text;user-select:text;-webkit-appearance:none}
+.trow{display:flex;align-items:center;gap:10px;margin-top:8px}
+.trow>span{width:44px;font-size:13px;color:#bbb;flex:none}
+.sws{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sws .sw{width:30px;height:30px}
+#tpS{flex:1;min-width:120px}
+#tpSv{width:32px;text-align:right}
 #viewer{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;background:#555}
 #content{position:absolute;left:0;top:0;transform-origin:0 0}
 .page{position:absolute;left:0;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.5);overflow:hidden}
@@ -50,6 +61,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   </div>
   <button class="b" id="bFill">□ 枠のみ</button>
   <button class="b" id="bDash">─ 実線</button>
+  <button class="b" id="bEdit">✎ 編集</button>
   <button class="b" id="bDel">🗑 削除</button>
   <div class="grp"><button class="b" id="bUndo">↩︎ 戻す</button><button class="b" id="bClear">🗑 全消し</button></div>
   <span id="msg"></span>
@@ -59,6 +71,14 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="empty">「📂 開く」でPDFを選んでください<br>ペン=書く / 指=スクロール・ピンチ</div>
 </div>
 
+<div id="tpanel">
+  <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
+  <div class="trow"><span>文字色</span><div class="sws" id="tpC"></div></div>
+  <div class="trow"><span>大きさ</span><input type="range" id="tpS" min="8" max="72" step="1"><b id="tpSv"></b></div>
+  <div class="trow"><span>枠</span><div class="sws" id="tpF"></div></div>
+  <div class="trow"><span>背景</span><div class="sws" id="tpB"></div></div>
+  <div class="trow" style="justify-content:flex-end"><button class="b" id="tpCancel">取消</button><button class="b on" id="tpOk">確定</button></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
 'use strict';
@@ -165,7 +185,12 @@ function layout(){
   }
   totalH=y-10;content.style.width=baseW+'px';content.style.height=totalH+'px';
 }
-new ResizeObserver(()=>{layout();apply();updateVisible(false);}).observe(viewer);
+let lastVW=0;
+new ResizeObserver(()=>{
+  const w=viewer.clientWidth;
+  if(w!==lastVW){lastVW=w;layout();}else{vw=w;vh=viewer.clientHeight;} /* 高さだけ変わった時は描き直さない */
+  apply();updateVisible(false);
+}).observe(viewer);
 viewer.addEventListener('scroll',()=>{viewer.scrollTop=0;viewer.scrollLeft=0;});
 
 function clampView(){
@@ -293,6 +318,16 @@ function pathD(pts){
   }
   const l=pts[n-1];return d+'L'+l[0]+' '+l[1];
 }
+/* 文字の枠・背景: DOMに入れた後で文字の大きさを測って四角を合わせる */
+function fitBox(el,it){
+  if(!el||it.t!=='text')return;
+  const bx=el.querySelector('.tbx'),t=el.querySelector('text');
+  if(!(it.fc||it.bg)||!String(it.text).trim()){bx.setAttribute('display','none');return;}
+  let b;try{b=t.getBBox();}catch(e){return;}
+  const pad=it.s*0.3;
+  setAttrs(bx,{x:b.x-pad,y:b.y-pad,width:b.width+pad*2,height:b.height+pad*2,rx:it.s*0.15,fill:it.bg||'none',stroke:it.fc||'none','stroke-width':Math.max(1,it.s*0.08)});
+  bx.removeAttribute('display');
+}
 function setAttrs(el,o){for(const k in o)if(o[k]!=null)el.setAttribute(k,o[k]);}
 function strokeAttrs(it){
   const o={stroke:it.c,'stroke-width':it.sw,'stroke-linejoin':'round','stroke-linecap':it.d?'butt':'round'};
@@ -315,13 +350,18 @@ function buildEl(it){
     el=document.createElementNS(SVGNS,'path');
     setAttrs(el,Object.assign({d:polyD(it.pts,it.closed),fill:(it.f&&it.closed)?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
   }else if(it.t==='text'){
-    el=document.createElementNS(SVGNS,'text');
-    setAttrs(el,{x:it.x,y:r1(it.y+it.s*0.97),fill:it.c,'font-size':it.s,'font-weight':'600','font-family':"'Hiragino Sans','Noto Sans JP',sans-serif",stroke:'#fff','stroke-width':r1(it.s*0.22),'paint-order':'stroke','stroke-linejoin':'round'});
-    it.text.split('\n').forEach((ln,i)=>{
+    el=document.createElementNS(SVGNS,'g');
+    const bx=document.createElementNS(SVGNS,'rect');bx.setAttribute('class','tbx');bx.setAttribute('display','none');el.appendChild(bx);
+    const t=document.createElementNS(SVGNS,'text');
+    const boxed=!!(it.fc||it.bg);
+    setAttrs(t,{x:it.x,y:r1(it.y+it.s*0.97),fill:it.c,'font-size':it.s,'font-weight':'600','font-family':"'Hiragino Sans','Noto Sans JP',sans-serif"});
+    if(!boxed)setAttrs(t,{stroke:'#fff','stroke-width':r1(it.s*0.22),'paint-order':'stroke','stroke-linejoin':'round'});
+    String(it.text).split('\n').forEach((ln,i)=>{
       const ts=document.createElementNS(SVGNS,'tspan');
       setAttrs(ts,{x:it.x,dy:i?r1(it.s*1.2):0});
-      ts.textContent=ln===''?'\u00a0':ln;el.appendChild(ts);
+      ts.textContent=ln===''?'\u00a0':ln;t.appendChild(ts);
     });
+    el.appendChild(t);
   }
   return el;
 }
@@ -336,7 +376,7 @@ function refreshEl(it,el){
 }
 function renderItem(it){
   const p=pages[it.p];if(!p)return null;
-  const el=buildEl(it);p.svg.appendChild(el);elMap.set(it.id,el);return el;
+  const el=buildEl(it);p.svg.appendChild(el);fitBox(el,it);elMap.set(it.id,el);return el;
 }
 
 /* ===== ツール・UI ===== */
@@ -345,7 +385,7 @@ function pushH(a){hist.push(a);if(hist.length>200)hist.shift();}
 function replaceEl(it){
   const old=elMap.get(it.id),el=buildEl(it);
   if(old)old.replaceWith(el);else pages[it.p].svg.appendChild(el);
-  elMap.set(it.id,el);
+  fitBox(el,it);elMap.set(it.id,el);
 }
 function rebuildAll(){
   for(const p of pages)p.svg.innerHTML='';
@@ -390,6 +430,7 @@ function buildUI(){
     const el=elMap.get(it.id);if(el)el.remove();elMap.delete(it.id);
     pushH({k:'del',i,it});deselect();saveSoon();
   };
+  $('bEdit').onclick=()=>{const it=sel&&byId(sel.id);if(it&&it.t==='text')openTextPanel('edit',pages[it.p],it.x,it.y,it);};
   $('bUndo').onclick=undo;
   $('bClear').onclick=()=>{
     commitEditor();
@@ -407,6 +448,8 @@ function refreshUI(){
   const f=$('bFill');f.textContent=fill?'■ 塗り':'□ 枠のみ';f.classList.toggle('on',fill);
   const d=$('bDash');d.textContent=dash?'┅ 点線':'─ 実線';d.classList.toggle('on',dash);
   $('bDel').classList.toggle('show',!!sel);
+  const sit=sel&&byId(sel.id);
+  $('bEdit').classList.toggle('show',!!(sit&&sit.t==='text'));
 }
 function undo(){
   commitEditor();
@@ -512,7 +555,7 @@ function selDown(e){
   const pos=locate(e);if(!pos)return;
   if(sel&&sel.box){
     const it=byId(sel.id),b=sel.box;
-    if(it&&pages[it.p]===pos.p&&pos.x>=b.x&&pos.x<=b.x+b.w&&pos.y>=b.y&&pos.y<=b.y+b.h){startDrag(e,'move');return;}
+    if(it&&pages[it.p]===pos.p&&pos.x>=b.x&&pos.x<=b.x+b.w&&pos.y>=b.y&&pos.y<=b.y+b.h){startDrag(e,'move');if(drag)drag.tapEdit=it.t==='text';return;}
   }
   const p=pos.p,tol=18/(z*p.k);
   for(let i=items.length-1;i>=0;i--){
@@ -566,6 +609,7 @@ function endDrag(){
   }
   if(d.moved){pushH({k:'edit',i:d.idx,before:d.orig,after:JSON.stringify(items[d.idx])});saveSoon();}
   drawSel();
+  if(!d.moved&&d.tapEdit){const it=items[d.idx];if(it&&it.t==='text')openTextPanel('edit',pages[it.p],it.x,it.y,it);}
 }
 function moveDragNow(d){
   /* rAF待ちの最後の動きを反映 */
@@ -606,11 +650,12 @@ function startDraw(e){
   if(tool==='rect'){it.x=pos.x;it.y=pos.y;it.w=0;it.h=0;it.f=fill;}
   else it.pts=[[pos.x,pos.y]];
   const el=buildEl(it);p.svg.appendChild(el);
-  cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0};armHold();
+  cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0,lm:performance.now()};armHold();
   try{viewer.setPointerCapture(e.pointerId);}catch(_){}
 }
 let drawRaf=0;
 function moveDraw(e){
+  cur.lm=performance.now();
   if(cur.snapped)return;
   if(Math.hypot(e.clientX-cur.ax,e.clientY-cur.ay)>3){cur.ax=e.clientX;cur.ay=e.clientY;armHold();}
   const evs=(e.getCoalescedEvents&&e.getCoalescedEvents())||[];
@@ -714,47 +759,88 @@ function endDraw(){
   items.push(it);elMap.set(it.id,el);pushH({k:'add',it});saveSoon();scheduleUpdate(false);
 }
 
-/* ===== 文字入力 ===== */
-function openEditor(p,x,y){
-  commitEditor();
-  const ed=document.createElement('textarea');
-  ed.className='ted';ed.wrap='off';ed.rows=1;ed.spellcheck=false;
-  ed.setAttribute('autocapitalize','off');ed.setAttribute('autocorrect','off');
-  ed.style.color=color;
-  editor={el:ed,p,x,y,s:r1(SIZES.text[sizeIdx]*p.wpt/595),c:color,cancel:false,t0:performance.now()};
-  const fit=()=>{ed.style.height='1px';ed.style.width='1px';ed.style.height=Math.max(20,ed.scrollHeight)+'px';ed.style.width=Math.max(120,ed.scrollWidth+8)+'px';};
-  ed.addEventListener('input',fit);
-  ed.addEventListener('keydown',e=>{if(e.key==='Escape'){if(editor)editor.cancel=true;ed.blur();}});
-  ed.addEventListener('blur',()=>{
-    if(!editor||editor.el!==ed)return;
-    if(performance.now()-editor.t0<500){ed.focus();return;} /* タップ直後の誤blur対策 */
-    setTimeout(commitEditor,0);
+/* ===== 文字入力(パネル方式: iPadのキーボードで入力 / 大きさ・枠・背景色) ===== */
+const TPBG=['#ffffff','#fff59d','#ffcdd2','#bbdefb','#c8e6c9','#ffe0b2'];
+let tp=null;
+const TDEF=(()=>{const d={fc:null,bg:null};try{Object.assign(d,JSON.parse(localStorage.getItem('pdfnote-textdef')||'{}'));}catch(e){}return d;})();
+function mkSw(box,list,set){
+  box.innerHTML='';
+  list.forEach(c=>{
+    const b=document.createElement('button');b.className='sw'+(c===null?' none':'');
+    if(c!==null)b.style.background=c;else b.textContent='なし';
+    b.dataset.c=c===null?'':c;
+    b.onclick=()=>{set(c);paintSw();};
+    box.appendChild(b);
   });
-  viewer.appendChild(ed);positionEditor();ed.focus();fit();
 }
-function positionEditor(){
-  if(!editor)return;
-  const {el,p,x,y,s}=editor;
-  const fs=s*p.k*z;
-  el.style.left=(tx+x*p.k*z)+'px';
-  el.style.top=(ty+(p.top+y*p.k)*z)+'px';
-  el.style.transform='scale('+(fs/16)+')';
+function paintSw(){
+  if(!tp)return;
+  const m={tpC:tp.it.c,tpF:tp.it.fc||'',tpB:tp.it.bg||''};
+  for(const id in m)document.querySelectorAll('#'+id+' .sw').forEach(b=>b.classList.toggle('on',b.dataset.c===m[id]));
 }
-function commitEditor(){
-  if(!editor)return;
-  const e=editor;editor=null;
-  const text=(e.el.value||'').replace(/\n+$/,'');
-  e.el.remove();
-  if(e.cancel||!text.trim())return;
-  const it={id:uid(),p:e.p.i,t:'text',c:e.c,s:e.s,x:e.x,y:e.y,text};
-  items.push(it);renderItem(it);pushH({k:'add',it});saveSoon();
+function tpChanged(){replaceEl(tp.it);if(sel&&sel.id===tp.it.id)drawSel();}
+function initTextPanel(){
+  mkSw($('tpC'),COLORS.map(c=>c[0]),c=>{tp.it.c=c;tpChanged();});
+  mkSw($('tpF'),[null].concat(COLORS.map(c=>c[0])),c=>{tp.it.fc=c;TDEF.fc=c;tpChanged();});
+  mkSw($('tpB'),[null].concat(TPBG),c=>{tp.it.bg=c;TDEF.bg=c;tpChanged();});
+  $('tpText').addEventListener('input',e=>{tp.it.text=e.target.value;tpChanged();});
+  $('tpS').addEventListener('input',e=>{const u=pages[tp.it.p].wpt/595;tp.it.s=r1(+e.target.value*u);$('tpSv').textContent=e.target.value;tpChanged();});
+  $('tpOk').onclick=tpOk;$('tpCancel').onclick=tpCancel;
 }
+function openTextPanel(mode,p,x,y,existing){
+  commitEditor();
+  const u=p.wpt/595;let it,orig=null,idx;
+  if(mode==='edit'){orig=JSON.stringify(existing);it=JSON.parse(orig);idx=items.indexOf(existing);items[idx]=it;}
+  else{it={id:uid(),p:p.i,t:'text',c:color,s:r1(SIZES.text[sizeIdx]*u),x,y,text:'',fc:TDEF.fc,bg:TDEF.bg};items.push(it);idx=items.length-1;}
+  tp={mode,it,orig,idx};
+  const P=$('tpanel');
+  P.style.top=(viewer.getBoundingClientRect().top+4)+'px';
+  $('tpText').value=it.text;
+  const sv=Math.round(it.s/u);$('tpS').value=sv;$('tpSv').textContent=sv;
+  P.classList.add('show');paintSw();
+  replaceEl(it);
+  /* 入力中の文字がパネルとキーボードに隠れない位置までずらす */
+  const vt=viewer.getBoundingClientRect().top,pb=P.getBoundingClientRect().bottom;
+  ty+=(pb+50)-(vt+ty+(p.top+it.y*p.k)*z);
+  apply();updateVisible(false);
+  setTimeout(()=>{try{$('tpText').focus();}catch(e){}},60);
+}
+function closeTP(){$('tpanel').classList.remove('show');try{$('tpText').blur();}catch(e){}}
+function dropItemAt(idx,it){
+  items.splice(idx,1);const el=elMap.get(it.id);if(el)el.remove();elMap.delete(it.id);
+}
+function tpOk(){
+  if(!tp)return;
+  const {mode,it,orig,idx}=tp;tp=null;closeTP();
+  if(!String(it.text).trim()){
+    dropItemAt(idx,it);
+    if(mode==='edit'){pushH({k:'del',i:idx,it:JSON.parse(orig)});deselect();}
+    saveSoon();return;
+  }
+  it.text=it.text.replace(/\n+$/,'');
+  replaceEl(it);
+  if(mode==='new')pushH({k:'add',it});else pushH({k:'edit',i:idx,before:orig,after:JSON.stringify(it)});
+  try{localStorage.setItem('pdfnote-textdef',JSON.stringify({fc:TDEF.fc,bg:TDEF.bg}));}catch(e){}
+  if(sel)drawSel();
+  saveSoon();
+}
+function tpCancel(){
+  if(!tp)return;
+  const {mode,it,orig,idx}=tp;tp=null;closeTP();
+  if(mode==='new')dropItemAt(idx,it);
+  else{const o=JSON.parse(orig);items[idx]=o;replaceEl(o);if(sel)drawSel();}
+}
+function commitEditor(){if(tp)tpOk();}
+function openEditor(p,x,y){openTextPanel('new',p,x,y);}
+function positionEditor(){}
+initTextPanel();
 
 /* ===== ポインタ操作: ペン/マウス=書く、指=スクロール・ピンチ専用 ===== */
 viewer.addEventListener('pointerdown',e=>{
   if(!pdf)return;
   if(editor&&editor.el.contains(e.target))return;
   if(e.pointerType==='touch'){
+    if(cur&&performance.now()-cur.lm>4000)endDraw(); /* 止まったままの古い線は確定 */
     if(cur||drag)return; /* 書いてる最中の手のひら等は無視 */
     cancelAnimationFrame(inertiaRaf);
     tapCand=touches.size===0?{id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now()}:null;
@@ -763,7 +849,10 @@ viewer.addEventListener('pointerdown',e=>{
     beginGesture();return;
   }
   if(e.pointerType==='mouse'&&e.button!==0)return;
-  if(cur||drag)return;
+  if(tp)return;
+  if(cur)endDraw();
+  if(drag)endDrag();
+  touches.clear();g=null;tapCand=null;
   lastDownType=e.pointerType;downPos={x:e.clientX,y:e.clientY};skipClick=false;
   if(editor){commitEditor();skipClick=true;textDown=null;return;}
   if(tool==='text'){textDown={id:e.pointerId,x:e.clientX,y:e.clientY};return;}
@@ -799,7 +888,7 @@ function pointerEnd(e){
     const tc=tapCand;tapCand=null;
     /* 指のタップ: 入力欄が開いていれば確定 / 文字ツールなら入力欄を開く(キーボード入力) */
     if(tc&&tc.id===e.pointerId&&performance.now()-tc.t<600){
-      if(editor){commitEditor();return;}
+      if(tp)return;
       if(tool==='text'){
         vrect=viewer.getBoundingClientRect();
         const pos=locate({clientX:tc.x,clientY:tc.y});if(pos)openEditor(pos.p,pos.x,pos.y);
@@ -856,8 +945,17 @@ viewer.addEventListener('click',e=>{
   vrect=viewer.getBoundingClientRect();
   const pos=locate(e);if(pos)openEditor(pos.p,pos.x,pos.y);
 });
+/* 取りこぼし対策: 指・ペンが離れたのにpointerupが来なかった時の後始末 */
+viewer.addEventListener('lostpointercapture',e=>{
+  if(cur&&e.pointerId===cur.pid)endDraw();
+  if(drag&&e.pointerId===drag.pid)endDrag();
+});
+['touchend','touchcancel'].forEach(n=>viewer.addEventListener(n,e=>{
+  if(e.touches.length===0){touches.clear();g=null;tapCand=null;}
+},{passive:true}));
+addEventListener('blur',()=>{if(cur)endDraw();if(drag)endDrag();touches.clear();g=null;});
 /* 入力欄のフォーカスが外れないようにする(ペンのタップ後の互換mousedown対策) */
-viewer.addEventListener('mousedown',e=>{if(!editor||!editor.el.contains(e.target))e.preventDefault();});
+viewer.addEventListener('mousedown',e=>{e.preventDefault();});
 /* PC確認用: ホイールでスクロール、Ctrl+ホイールで拡大縮小 */
 viewer.addEventListener('wheel',e=>{
   if(!pdf)return;e.preventDefault();
