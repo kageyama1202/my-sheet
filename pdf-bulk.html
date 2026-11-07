@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-11-08 / pdf-bulk v1 (iCloudのPDFを案件ごとにFirebase Storageへ一括アップロード) -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📤 PDF一括アップロード</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="user-scope.js"></script>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,'Hiragino Sans',sans-serif;background:#f0f2f5;margin:0;padding:16px;color:#222}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}
+.sub{font-size:12px;color:#666;margin-bottom:14px;line-height:1.6}
+.card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:14px;margin-bottom:14px}
+.btn{display:inline-block;padding:12px 18px;border-radius:8px;border:none;font-size:15px;font-weight:bold;color:#fff;cursor:pointer;margin:0 8px 8px 0}
+.b1{background:#1565c0}.b2{background:#546e7a}.b3{background:#2e7d32}
+.btn:disabled{opacity:.4}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;word-break:break-all}
+th{background:#fafafa;font-size:12px;color:#666}
+.ok{color:#2e7d32;font-weight:bold}.ng{color:#c62828}.dup{color:#888}
+#msg{font-size:13px;margin:6px 0;color:#555}
+#bar{height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden;margin-top:6px;display:none}
+#bar>div{height:100%;width:0;background:#43a047}
+.small{font-size:11px;color:#888}
+a{color:#1565c0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📤 PDF一括アップロード</h1>
+  <div class="sub">
+    iCloudの「goodnotesに入れる用」などのフォルダを選ぶと、フォルダ名・ファイル名の<b>手配No</b>(なければお客様名)で案件を自動で探し、
+    その案件の📎添付ファイル(Firebase Storage)に入れます。入れたPDFは案件モーダルの「📝 ノート」で開けます。<br>
+    ・同じ名前のファイルがすでにある案件には二重で入れません。 ・Macのブラウザ推奨(フォルダごと選べます)。
+  </div>
+
+  <div class="card">
+    <button class="btn b1" id="bFolder">📁 フォルダを選ぶ</button>
+    <button class="btn b2" id="bFiles">📄 ファイルを選ぶ</button>
+    <input type="file" id="inFolder" webkitdirectory multiple hidden>
+    <input type="file" id="inFiles" accept="application/pdf,.pdf,image/*" multiple hidden>
+    <div id="msg">案件データを読み込み中…</div>
+  </div>
+
+  <div class="card" id="listCard" style="display:none">
+    <div id="summary" style="font-weight:bold;margin-bottom:8px"></div>
+    <table id="tbl"><thead><tr><th>ファイル</th><th>案件</th><th>状態</th></tr></thead><tbody></tbody></table>
+    <div style="margin-top:12px">
+      <button class="btn b3" id="bUp" disabled>⬆ 対応した分をアップロード</button>
+      <div id="bar"><div></div></div>
+      <div id="upmsg" class="small"></div>
+    </div>
+  </div>
+  <div class="small"><a href="files.html">保存庫</a> ・ <a href="index.html">ホーム</a></div>
+</div>
+
+<script>
+var firebaseConfig={apiKey:"AIzaSyDznSykpSebsejNdQtpOgfORuzZSoW3_fs",authDomain:"project-6745138395263517914.firebaseapp.com",databaseURL:"https://project-6745138395263517914-default-rtdb.firebaseio.com",projectId:"project-6745138395263517914",storageBucket:"project-6745138395263517914.firebasestorage.app",messagingSenderId:"1054295910908",appId:"1:1054295910908:web:4072df05bd90bbdc896a79"};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+var database=scopedDatabase(firebase.database());
+var storage=firebase.storage();
+var $=function(id){return document.getElementById(id);};
+var tasks=[];      // {key,id,name,nameN}
+var rows=[];       // {file,path,task,state,existing}
+var existingCache={}; // key -> Set(元のファイル名)
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function norm(s){return String(s||'').replace(/[\s　_\-]+/g,'').replace(/様邸|様$/g,'');}
+function stripPrefix(s){return String(s||'').replace(/^[【\[][^】\]]*[】\]]/,'');}
+
+// 案件データ読み込み
+database.ref('app_tasks').once('value').then(function(snap){
+  var v=snap.val()||{};
+  Object.keys(v).forEach(function(k){
+    var c=v[k]&&v[k].csvData; if(!c)return;
+    var id=String(c[0]==null?'':c[0]).trim();
+    var nm=stripPrefix(String(c[4]||'').trim());
+    tasks.push({key:k,id:id,label:String(c[4]||'').trim(),nameN:norm(nm)});
+  });
+  $('msg').textContent='案件 '+tasks.length+' 件を読み込みました。フォルダかファイルを選んでください。';
+}).catch(function(e){
+  $('msg').textContent='⚠ 案件データを読めません: '+e.message+'(ログインし直してください)';
+});
+
+// 案件を探す: ①手配No(長い数字列から一致) ②お客様名
+function findTask(path){
+  var best=null,bestLen=0;
+  tasks.forEach(function(t){
+    if(t.id&&t.id.length>=4&&path.indexOf(t.id)>=0&&t.id.length>bestLen){best=t;bestLen=t.id.length;}
+  });
+  if(best)return best;
+  var pn=norm(path);
+  tasks.forEach(function(t){
+    if(t.nameN&&t.nameN.length>=3&&pn.indexOf(t.nameN)>=0&&t.nameN.length>bestLen){best=t;bestLen=t.nameN.length;}
+  });
+  return best;
+}
+
+function isTarget(f){return /\.pdf$/i.test(f.name)||/\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);}
+
+function loadFiles(list){
+  var files=Array.prototype.slice.call(list).filter(isTarget);
+  if(!tasks.length){$('msg').textContent='案件データがまだ読み込めていません。少し待ってからもう一度選んでください。';return;}
+  rows=files.map(function(f){
+    var path=f.webkitRelativePath||f.name;
+    return {file:f,path:path,task:findTask(path),state:'wait'};
+  });
+  render();
+  checkExisting();
+}
+
+function render(){
+  var ok=rows.filter(function(r){return r.task&&r.state!=='dup';}).length;
+  var ng=rows.filter(function(r){return !r.task;}).length;
+  var dup=rows.filter(function(r){return r.state==='dup';}).length;
+  $('listCard').style.display='';
+  $('summary').textContent='対象 '+rows.length+' 件 ／ アップロードできる '+ok+' 件 ／ 案件が見つからない '+ng+' 件'+(dup?' ／ 登録済み '+dup+' 件':'');
+  var tb=$('tbl').querySelector('tbody');tb.innerHTML='';
+  rows.forEach(function(r){
+    var tr=document.createElement('tr');
+    var st=!r.task?'<span class="ng">案件なし(スキップ)</span>':r.state==='dup'?'<span class="dup">登録済み</span>':r.state==='done'?'<span class="ok">✅ 完了</span>':r.state==='err'?'<span class="ng">❌ '+esc(r.err||'失敗')+'</span>':r.state==='up'?'⏳ 送信中':'待機';
+    tr.innerHTML='<td>'+esc(r.path)+'</td><td>'+(r.task?esc(r.task.label):'—')+'</td><td>'+st+'</td>';
+    tb.appendChild(tr);
+  });
+  $('bUp').disabled=ok===0||rows.some(function(r){return r.state==='up';});
+}
+
+// すでに同じ名前が入っている案件を調べる
+function checkExisting(){
+  var keys={};rows.forEach(function(r){if(r.task)keys[r.task.key]=1;});
+  var ks=Object.keys(keys).filter(function(k){return !existingCache[k];});
+  $('upmsg').textContent='登録済みのファイルを確認中…';
+  Promise.all(ks.map(function(k){
+    return storage.ref('users/'+getUserKey()+'/case_files/'+k+'/').listAll().then(function(res){
+      var s={};res.items.forEach(function(i){s[i.name.replace(/^\d{10,}_/,'')]=1;});existingCache[k]=s;
+    }).catch(function(){existingCache[k]={};});
+  })).then(function(){
+    rows.forEach(function(r){
+      var base=r.file.name;
+      if(r.task&&existingCache[r.task.key]&&existingCache[r.task.key][base])r.state='dup';
+    });
+    $('upmsg').textContent='';
+    render();
+  });
+}
+
+// アップロード
+function upload(){
+  var todo=rows.filter(function(r){return r.task&&r.state!=='dup'&&r.state!=='done';});
+  if(!todo.length)return;
+  var i=0;
+  $('bar').style.display='block';
+  $('bUp').disabled=true;
+  function next(){
+    if(i>=todo.length){
+      $('bar').firstChild.style.width='100%';
+      $('upmsg').textContent='✅ 終わりました('+todo.filter(function(r){return r.state==='done';}).length+'/'+todo.length+' 件成功)';
+      render();return;
+    }
+    var r=todo[i];r.state='up';render();
+    $('bar').firstChild.style.width=Math.round(i/todo.length*100)+'%';
+    $('upmsg').textContent='⏳ '+(i+1)+' / '+todo.length+'  '+r.file.name;
+    var ref=storage.ref('users/'+getUserKey()+'/case_files/'+r.task.key+'/'+Date.now()+'_'+r.file.name);
+    ref.put(r.file).then(function(){
+      r.state='done';
+      if(existingCache[r.task.key])existingCache[r.task.key][r.file.name]=1;
+    }).catch(function(e){r.state='err';r.err=e.message||'失敗';}).then(function(){i++;next();});
+  }
+  next();
+}
+
+$('bFolder').onclick=function(){$('inFolder').click();};
+$('bFiles').onclick=function(){$('inFiles').click();};
+$('inFolder').onchange=function(e){loadFiles(e.target.files);e.target.value='';};
+$('inFiles').onchange=function(e){loadFiles(e.target.files);e.target.value='';};
+$('bUp').onclick=upload;
+</script>
+</body>
+</html>
