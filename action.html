@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-15-001 -->
-<!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
+<!-- VERSION: 2026-11-08-001 -->
+<!-- 【2026-11-08】マイカレンダー(personal_calendar)の予定を各タブ(今日/明日/明後日)に表示するセクションを追加／取得失敗時は端末キャッシュで代替し警告表示／画面にバージョン表示 --><!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -68,6 +68,11 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .card-sub .tag{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;background:#2d1b4e;color:#c4b5fd;margin-right:4px;}
 .card-sub .tag.done-tag{background:#1b3a2e;color:#6ee7b7;}
 
+.action-card.pcal{border-left-color:#7e8ce0;cursor:default;}
+.action-card.pcal:hover{background:#1a2232;}
+.pcal-time{font-size:11px;font-weight:bold;color:#a5b4fc;white-space:nowrap;min-width:72px;}
+.warn{margin:10px 12px 0;padding:8px 10px;border-radius:8px;background:#3b2a12;color:#fcd34d;font-size:12px;line-height:1.5;}
+.ver{margin:14px 12px;font-size:10px;color:#4b5563;text-align:center;}
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
 .err{text-align:center;padding:20px;color:#ef4444;font-size:12px;}
 .note{margin:14px 12px;font-size:11px;color:#6b7280;text-align:center;line-height:1.6;}
@@ -78,7 +83,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>⚡ アクション</h2>
+  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-08-001</span></h2>
   <button class="refresh-btn" onclick="loadAll()">🔄 更新</button>
 </div>
 
@@ -126,6 +131,9 @@ var globalHeaders=[];
 var fullData=null;
 var smsList={};
 var kariSlotsAll={};
+var personalCal={}; // {日付:{id:{title,start,end,allDay}}}
+var personalCalStatus='ok'; // ok / cache(取得失敗→端末キャッシュ) / none(取得失敗・キャッシュなし)
+function personalCalKey(){return 'personalCalendar_'+getUserKey();}
 var doneAll={}; // {日付:{セクション__キー:true}}
 
 function tabDate(i){return addDays(todayStr,i);}
@@ -180,7 +188,16 @@ function loadAll(){
     doneAll=mergeDone(loadLocalDone(),remote);
     saveLocalDone();
   });
-  Promise.all([p1,p2,p3,p4,p5]).then(function(){
+  // マイカレンダー：取得に失敗しても他セクションは止めず、端末キャッシュ(calendar.htmlが保存するもの)で代替。両方ダメなら警告を出す
+  var p6=db.ref('personal_calendar').once('value').then(function(snap){
+    personalCal=snap.val()||{};personalCalStatus='ok';
+  }).catch(function(e){
+    console.warn('personal_calendar取得失敗',e);
+    var cached=null;
+    try{cached=JSON.parse(localStorage.getItem(personalCalKey())||'null');}catch(_){}
+    if(cached){personalCal=cached;personalCalStatus='cache';}else{personalCal={};personalCalStatus='none';}
+  });
+  Promise.all([p1,p2,p3,p4,p5,p6]).then(function(){
     fullData={app_tasks:globalTasks,app_meta:{headers:globalHeaders}};
     render();
   }).catch(function(e){
@@ -216,6 +233,37 @@ function buildShitamiByDate(dateStr){
     return (a.time||'99:99').localeCompare(b.time||'99:99');
   });
   return items;
+}
+
+// ---- マイカレンダー（Googleカレンダー同期済みの個人予定。各タブの日付ぶん） ----
+// 構造: personal_calendar/{YYYY-MM-DD}/{id} = {title,start:'YYYY-MM-DDTHH:MM..',end,allDay}
+function pcalTime(ev){
+  if(ev.allDay)return'終日';
+  var s=(ev.start&&ev.start.length>=16)?ev.start.substring(11,16):'';
+  var e=(ev.end&&ev.end.length>=16)?ev.end.substring(11,16):'';
+  if(s&&e)return s+'〜'+e;
+  return s||'終日';
+}
+function buildPersonalByDate(dateStr){
+  var items=[];
+  var day=personalCal[dateStr];
+  if(!day)return items;
+  Object.keys(day).forEach(function(id){
+    var ev=day[id];
+    if(!ev||!ev.title)return;
+    var allDay=!!ev.allDay||!(ev.start&&ev.start.length>=16);
+    items.push({key:dateStr+'_'+id,title:ev.title,time:pcalTime(ev),sortKey:allDay?'00:00':ev.start.substring(11,16),allDay:allDay});
+  });
+  items.sort(function(a,b){
+    if(a.allDay!==b.allDay)return a.allDay?-1:1;
+    return a.sortKey.localeCompare(b.sortKey);
+  });
+  return items;
+}
+function pcalCardFn(item){
+  return '<div class="action-card pcal"><div class="card-main"><div class="card-top-row">'
+    +'<span class="pcal-time">'+escHtml(item.time)+'</span>'
+    +'<span class="card-title">'+escHtml(item.title)+'</span></div></div></div>';
 }
 
 // ---- 連絡必要フラグ（今日のみ） ----
@@ -365,7 +413,7 @@ function sectionHtml(id,icon,title,items,renderCardFn,emptyMsg){
   var remain=items.filter(function(x){return !x._done;}).length;
   var cls='';
   var label=total+'件';
-  if(total>0){
+  if(id==='pcal'){cls='';label=total+'件';}else if(total>0){
     if(remain>0){cls=' has';label='残'+remain+' / '+total+'件';}
     else{cls=' clear';label='✅ 全完了 '+total+'件';}
   }
@@ -455,6 +503,11 @@ function render(){
   var totalAll=0,doneAllCnt=0;
   function tally(items){items.forEach(function(x){totalAll++;if(x._done)doneAllCnt++;});}
 
+  if(personalCalStatus==='cache')html+='<div class="warn">⚠ マイカレンダーを取得できなかったため、この端末に保存済みの古い内容を表示しています。</div>';
+  else if(personalCalStatus==='none')html+='<div class="warn">⚠ マイカレンダーを取得できませんでした（予定が無いのではなく読み込み失敗です）。トップページから入り直してください。</div>';
+  var pcal=buildPersonalByDate(date);
+  html+=sectionHtml('pcal','📅',(currentTab===0?'本日':TAB_NAMES[currentTab])+'のマイカレンダー',pcal,pcalCardFn,'予定なし');
+
   var shitami=prepItems('shitami',buildShitamiByDate(date),function(it){return it.visited;});
   tally(shitami);
   var shitamiTitle=currentTab===0?'本日の下見予定':(TAB_NAMES[currentTab]+'の下見予定');
@@ -507,7 +560,7 @@ function render(){
   }
 
   var prog='<div class="progress">'+TAB_NAMES[currentTab]+'の進捗：<b>'+doneAllCnt+'</b> / '+totalAll+' 件完了</div>';
-  document.getElementById('mainContent').innerHTML=prog+html;
+  document.getElementById('mainContent').innerHTML=prog+html+'<div class="ver">action.html v2026-11-08-001</div>';
 }
 
 function kariCardFn(item){
