@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
+<!-- VERSION: 2026-11-09 / pdf-note v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -50,6 +50,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 </head>
 <body>
 <div id="bar">
+  <div class="grp"><button class="b" id="bBack" style="display:none;background:#455a64;border-color:#90a4ae">← 案件に戻る</button></div>
   <div class="grp"><button class="b" id="bOpen">📂 開く</button><input type="file" id="file" accept="application/pdf,.pdf,image/*" hidden><button class="b" id="bCloud" style="display:none;background:#00695c;border-color:#4db6ac">☁ 案件ファイル</button></div>
   <div class="grp"><button class="b sq" id="bPrev">◀</button><span id="pg">–</span><button class="b sq" id="bNext">▶</button></div>
   <div class="grp" id="tools">
@@ -84,7 +85,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="clist"></div>
   <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
 </div>
-<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v11 / 2026-11-08</div>
+<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v12 / 2026-11-09</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
@@ -1236,6 +1237,11 @@ $('cfile').onchange=async e=>{
     if(a){const d=await dbGet('docs',a.fp);if(d&&d.blob)await openBlob(d.blob,d.name,false);}
   }catch(e){console.warn(e);}
 })();
+</script>
+<script>
+(function(){var b=document.getElementById('bBack');if(!b)return;
+if(new URLSearchParams(location.search).get('case'))b.style.display='';
+b.onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};})();
 </script>
 </body>
 </html>
