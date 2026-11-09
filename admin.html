@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-01-001 -->
+<!-- VERSION: 2026-11-10-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -36,16 +36,17 @@
     <p>SalesforceからダウンロードしたCSVを選択し「クラウドへ保存」を押してください。<br>
     ・手配IDをキーとして更新（施工日等が変わっても同一案件として認識）<br>
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
-    ・CSVから消えた案件は自動削除されます<br>
-    ・<strong style="color:#ffd54f">ステータスが「完了」の案件は保存スキップされます</strong>（「下見完了」は除く）</p>
+    ・CSVから消えた案件はカレンダー等から外れます<br>
+    ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-10-001</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
 
     <hr class="divider">
 
-    <p style="color:#ff8a80;text-align:left;font-size:13px;">⚠️ Firebase上のステータス「完了」案件を一括削除します（「下見完了」は削除しません）</p>
-    <button id="cleanBtn" class="danger" disabled>🗑 Firebase上の「完了」案件を一括削除</button>
+    <p style="color:#ff8a80;text-align:left;font-size:13px;">Firebase上のステータス「完了」案件を、現役リスト(カレンダー等)から外して「過去案件」へ退避します（データは消えません）</p>
+    <button id="cleanBtn" class="danger" disabled>📦 「完了」案件を過去案件へ退避</button>
 
     <hr class="divider">
 
@@ -140,25 +141,28 @@
 
         var newMap={};
         var skipped=0,kanryoSkipped=0,idNormalized=0;
+        var kanryoMap={};
         validLines.forEach(function(cols){
           var rawId=String(cols[0]||'').trim();
           var id=normalizeSfId(rawId);
           if(id!==rawId)idNormalized++;
           if(!id){skipped++;return;}
-          if(isKanryo(cols)){kanryoSkipped++;return;}
+          if(isKanryo(cols)){kanryoSkipped++;cols[0]=id;kanryoMap[safeKey(id)]=cols;return;}
           cols[0]=id; // 以降の比較・保存も正規化後のIDで統一する
           newMap[safeKey(id)]=cols;
         });
         if(idNormalized>0)log('🔧 18桁ID→15桁に正規化: '+idNormalized+'件','info');
         if(skipped>0)log('⚠ ID空白でスキップ: '+skipped+'行','warn');
-        if(kanryoSkipped>0)log('✅ 「完了」ステータスをスキップ: '+kanryoSkipped+'件','ok');
+        if(kanryoSkipped>0)log('📦 「完了」ステータス（現役リストに入れず過去案件へ退避）: '+kanryoSkipped+'件','ok');
         var newKeys=Object.keys(newMap);
         log('有効案件（保存対象）: '+newKeys.length+'件');
 
         database.ref('app_tasks').once('value',function(sn){
+         database.ref('app_archive').once('value',function(asn){
           var existing=sn.val()||{};
+          var archiveData=asn.val()||{};
           var existingKeys=Object.keys(existing);
-          log('既存Firebase: '+existingKeys.length+'件');
+          log('既存Firebase: '+existingKeys.length+'件 / 過去案件: '+Object.keys(archiveData).length+'件');
 
           var migrated=0;
           var localDataByNewKey={};
@@ -196,14 +200,69 @@
             if(existing[nk])updateCount++;else addCount++;
           });
 
+          // ★2026-11-10追加★ 過去案件(app_archive)への退避
+          // 以前は「完了」スキップ＋「CSVから消えた案件は削除」で、報告書作成などで後から見返したい案件が
+          // 取込のたびに失われていた。app_tasksから外す(=カレンダー等から消える動きは従来どおり)が、
+          // データ自体はapp_archive/{キー}に残す。app_archiveはCloud Runのトリガー対象外なのでカレンダー等には影響しない。
+          var ARCH_STRIP={evSekoId:1,evShiId:1,sheetClaimed:1,csvData:1};
+          var archIdx={}; // 正規化ID -> app_archive上のキー
+          Object.keys(archiveData).forEach(function(ak){
+            var ao=archiveData[ak];
+            if(ao&&ao.csvData&&ao.csvData[0])archIdx[safeKey(normalizeSfId(String(ao.csvData[0]).trim()))]=ak;
+            else archIdx[ak]=ak;
+          });
+          var archivedCount=0,archivedIds={};
+          function archiveWrite(aKey,cols,oldObj){
+            updates['app_archive/'+aKey+'/csvData']=cols;
+            if(oldObj){
+              Object.keys(oldObj).forEach(function(f){
+                if(ARCH_STRIP[f])return;
+                if(oldObj[f]===undefined||oldObj[f]===null)return;
+                updates['app_archive/'+aKey+'/'+f]=oldObj[f];
+              });
+            }
+            archivedCount++;
+          }
           var delCount=0;
           existingKeys.forEach(function(oldKey){
             if(newMap[oldKey])return;
+            var oldObj=existing[oldKey];
+            var oldId='';
+            if(oldObj&&oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(normalizeSfId(String(oldObj.csvData[0]).trim()));
+            // 旧キー形式から現役の新キーへ移行するだけのもの(同じ案件が現役に残る)は退避せず従来どおり消す
+            if(oldId&&newMap[oldId]){updates['app_tasks/'+oldKey]=null;delCount++;return;}
+            if(oldObj&&oldObj.csvData){
+              var aKey=archIdx[oldId]||oldKey;
+              var cols=(oldId&&kanryoMap[oldId])?kanryoMap[oldId]:oldObj.csvData;
+              archiveWrite(aKey,cols,oldObj);
+              if(oldId)archivedIds[oldId]=true;
+            }
             updates['app_tasks/'+oldKey]=null;
             delCount++;
           });
+          // 現役に無く、CSVで「完了」になっている案件（初めて見るもの／既に過去案件にあるもの）も過去案件へ
+          Object.keys(kanryoMap).forEach(function(kk){
+            if(archivedIds[kk])return;
+            archiveWrite(archIdx[kk]||kk,kanryoMap[kk],null);
+          });
+          // 過去案件に退避済みの案件が、CSV上で再び現役ステータスで現れた場合は現役へ戻す（メモ等も復元）
+          var restoredCount=0;
+          newKeys.forEach(function(nk){
+            if(existing[nk])return;
+            var ak=archIdx[nk];
+            if(!ak||!archiveData[ak])return;
+            var ao=archiveData[ak];
+            Object.keys(ao).forEach(function(f){
+              if(ARCH_STRIP[f])return;
+              if(ao[f]===undefined||ao[f]===null)return;
+              if(updates['app_tasks/'+nk+'/'+f]!==undefined)return;
+              updates['app_tasks/'+nk+'/'+f]=ao[f];
+            });
+            updates['app_archive/'+ak]=null;
+            restoredCount++;
+          });
 
-          log('➕ 新規: '+addCount+' / 🔄 更新: '+updateCount+' / 🗑 削除: '+delCount);
+          log('➕ 新規: '+addCount+' / 🔄 更新: '+updateCount+' / 🗑 現役から外す: '+delCount+' / 📦 過去案件へ: '+archivedCount+(restoredCount>0?' / ↩ 現役へ復帰: '+restoredCount:''));
 
           var oldToNewKeyMap={};
           existingKeys.forEach(function(oldKey){
@@ -235,7 +294,7 @@
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
-                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 削除: '+delCount+'\n「完了」スキップ: '+kanryoSkipped+'件'+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 現役から外す: '+delCount+'\n過去案件へ退避: '+archivedCount+'件（「完了」'+kanryoSkipped+'件を含む）'+(restoredCount>0?'\n現役へ復帰: '+restoredCount+'件':'')+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
@@ -244,14 +303,15 @@
               });
             });
           });
+         });
         });
       };
       fr.readAsText(file,'UTF-8');
     });
 
     document.getElementById('cleanBtn').addEventListener('click',function(){
-      if(!confirm('Firebase上のステータス「完了」案件を削除します。\n（「下見完了」は削除しません）\n\nよろしいですか？'))return;
-      var btn=this;btn.disabled=true;btn.textContent='削除中...';
+      if(!confirm('Firebase上のステータス「完了」案件を、現役リストから外して「過去案件」へ退避します。\n（データは消えず、archive.htmlで見られます。「下見完了」は対象外）\n\nよろしいですか？'))return;
+      var btn=this;btn.disabled=true;btn.textContent='退避中...';
       logEl.innerHTML='';logEl.style.display='block';
       log('🔍 Firebase全案件をスキャン中...');
       database.ref('app_tasks').once('value',function(sn){
@@ -259,23 +319,31 @@
         var keys=Object.keys(existing);
         log('取得: '+keys.length+'件');
         var updates={};
-        var delCount=0;
+        var cnt=0;
+        var STRIP={evSekoId:1,evShiId:1,sheetClaimed:1,csvData:1};
         keys.forEach(function(k){
           var obj=existing[k];
           if(!obj||!obj.csvData)return;
           var status=String(obj.csvData[1]||'').trim();
-          if(status==='完了'){updates['app_tasks/'+k]=null;delCount++;}
+          if(status!=='完了')return;
+          updates['app_archive/'+k+'/csvData']=obj.csvData;
+          Object.keys(obj).forEach(function(f){
+            if(STRIP[f]||obj[f]===undefined||obj[f]===null)return;
+            updates['app_archive/'+k+'/'+f]=obj[f];
+          });
+          updates['app_tasks/'+k]=null;
+          cnt++;
         });
-        if(delCount===0){log('「完了」案件は見つかりませんでした','warn');btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';return;}
-        log('🗑 削除対象: '+delCount+'件');
+        if(cnt===0){log('「完了」案件は見つかりませんでした','warn');btn.disabled=false;btn.textContent='📦 「完了」案件を過去案件へ退避';return;}
+        log('📦 退避対象: '+cnt+'件');
         database.ref().update(updates).then(function(){
-          log('✅ 削除完了！ '+delCount+'件を削除しました','ok');
-          alert('✅ 削除完了！\n\n「完了」案件 '+delCount+'件を削除しました');
-          btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
+          log('✅ 退避完了！ '+cnt+'件を過去案件へ移しました','ok');
+          alert('✅ 退避完了！\n\n「完了」案件 '+cnt+'件を過去案件へ移しました（archive.htmlで閲覧できます）');
+          btn.disabled=false;btn.textContent='📦 「完了」案件を過去案件へ退避';
         }).catch(function(err){
           log('❌ エラー: '+err,'err');
           alert('エラー: '+err);
-          btn.disabled=false;btn.textContent='🗑 Firebase上の「完了」案件を一括削除';
+          btn.disabled=false;btn.textContent='📦 「完了」案件を過去案件へ退避';
         });
       });
     });
