@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-09 (v1109-a) 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -35,10 +35,10 @@ input[type=range]{flex:1}
 .chip{font-size:13px;padding:5px 10px;border-radius:14px;background:#3a3a3c;border:none;color:#fff}
 .chip.on{background:#0a84ff}
 button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff}
-#bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;background:#000}
-#shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:5px solid #888;padding:0}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 14px;background:#000}
+#shutter{flex:none;width:100px;height:100px;border-radius:50%;background:#fff;border:7px solid #888;padding:0;margin:0 6px}
 #shutter:active{background:#ddd}
-#save{background:#0a84ff;min-width:92px}
+#save{background:#0a84ff;min-width:92px;min-height:56px;font-size:15px}
 #save:disabled{background:#3a3a3c;color:#777}
 #tray{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;height:56px}
 .th{position:relative;flex:0 0 auto;height:56px}
@@ -80,6 +80,14 @@ body.kb #modal{padding-bottom:8px}
   #panel{grid-column:2;grid-row:2;max-height:none;border-top:none;border-left:1px solid #333}
   .chips{max-height:none;overflow:visible}
 }
+#cinfo{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:6;max-width:92%;padding:4px 12px;border-radius:14px;background:rgba(0,0,0,.4);color:rgba(255,255,255,.88);font-size:12px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none}
+#cinfoP{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:7;width:min(94%,560px);max-height:75%;overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(22,22,22,.94);color:#eee;border-radius:12px;padding:10px 12px;font-size:14px;display:none}
+#cinfoP .ih{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+#cinfoP .ih b{flex:1;font-size:15px}
+#cinfoP table{width:100%;border-collapse:collapse}
+#cinfoP th{width:28%;text-align:left;vertical-align:top;color:#aaa;font-weight:normal;padding:4px 6px;border-top:1px solid #333;font-size:12px}
+#cinfoP td{padding:4px 6px;border-top:1px solid #333;white-space:pre-wrap;word-break:break-all}
+#cinfoP tr.hl td,#cinfoP tr.hl th{background:#2a3a1f;color:#fff}
 </style>
 </head>
 <body>
@@ -91,12 +99,12 @@ body.kb #modal{padding-bottom:8px}
     </div>
     <div id="flash"></div>
     <div id="toast"></div>
+    <div id="cinfo"></div><div id="cinfoP"></div>
     <div id="paused">カメラを一時停止中<br>タップで再開</div>
     <div id="err"></div>
   </div>
 
   <div id="bar">
-    <button id="backBtn" style="background:#3a3a3c;padding:8px 10px;font-size:13px;flex:none">← 案件に戻る</button>
     <div id="tray"></div>
     <button id="shutter" aria-label="撮影"></button>
     <button id="save" disabled>保存 (0)</button>
@@ -108,7 +116,7 @@ body.kb #modal{padding-bottom:8px}
     <div class="chips" id="chips"></div>
     <div class="row">
       <button id="setBtn">⚙ 設定 ▾</button>
-      <button id="flip">カメラ切替</button>
+      <button id="flip">カメラ切替</button><button id="backBtn" style="background:#3a3a3c;padding:8px 10px;font-size:13px;flex:none;margin-left:6px">← 案件に戻る</button>
       <span id="gpsst" style="font-size:11px;color:#aaa"></span><span id="ver" style="font-size:10px;color:#666;margin-left:auto"></span>
     </div>
     <div id="settings" style="display:none">
@@ -143,7 +151,7 @@ body.kb #modal{padding-bottom:8px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const VER='v1109-a';
+const VER='v1109-c';
 const video=$('video'), view=$('view'), vctx=view.getContext('2d');
 const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
 const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
@@ -167,7 +175,32 @@ function renderCase(){
   const b=$('caseBtn');
   if(S.site){b.textContent=S.site;b.classList.remove('empty')}
   else{b.textContent='案件を選ぶ';b.classList.add('empty')}
+  renderInfo();
 }
+/* 撮影画面の案件情報バー: 施工日・施工指示を薄く表示、タップで詳細 */
+function curCaseInfo(){return S.site?cases.find(c=>c.name===S.site):null}
+function renderInfo(){
+  const bar=$('cinfo'),c=curCaseInfo();
+  if(!c){bar.style.display='none';$('cinfoP').style.display='none';return}
+  bar.textContent='🔨 '+(c.sekou||'未定')+(c.shiji?'  |  '+String(c.shiji).replace(/\s+/g,' '):'');
+  bar.style.display='block';
+}
+function openInfoP(){
+  const c=curCaseInfo();if(!c)return;
+  const P=$('cinfoP');P.textContent='';
+  const h=document.createElement('div');h.className='ih';
+  const t=document.createElement('b');t.textContent=c.name;h.appendChild(t);
+  const x=document.createElement('button');x.textContent='✕';x.onclick=()=>{P.style.display='none';lastActive=Date.now()};h.appendChild(x);
+  P.appendChild(h);
+  const tb=document.createElement('table');
+  [['💬 メモ',c.memo,1],['住所',c.addr],['施工日',c.sekou,1],['下見日',c.shitami],['予定日',c.yotei],['施工指示',c.shiji,1]].forEach(r=>{
+    if(!r[1])return;const tr=document.createElement('tr');if(r[2])tr.className='hl';
+    const th=document.createElement('th');th.textContent=r[0];const td=document.createElement('td');td.textContent=r[1];
+    tr.appendChild(th);tr.appendChild(td);tb.appendChild(tr);
+  });
+  P.appendChild(tb);P.style.display='block';
+}
+$('cinfo').onclick=openInfoP;
 
 /* ---------- テンプレ文言(Firebase保存 + 端末キャッシュ) ---------- */
 let tpls=TPL_DEFAULT.slice();
@@ -225,19 +258,23 @@ function ymd(ds){
 function todayStr(){const t=new Date();return t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate())}
 function loadCases(){
   const d=getDb();if(!d)return;
-  d.ref('app_tasks').once('value').then(sn=>{
+  Promise.all([d.ref('app_tasks').once('value'),d.ref('app_meta/headers').once('value').catch(()=>null)]).then(rs=>{
+    const sn=rs[0],hs=(rs[1]&&rs[1].val())||[];
+    let si=-1;hs.forEach((x,i)=>{if(si<0&&String(x).includes('施工指示'))si=i});
+    if(si<0)hs.forEach((x,i)=>{if(si<0&&String(x).includes('指示'))si=i});
     const t=sn.val()||{},arr=[];
     Object.keys(t).forEach(k=>{
       const o=t[k],c=o&&o.csvData;if(!c)return;
       const name=sv(c,4).trim();if(!name)return;
       const status=sv(c,1).replace(/\s+/g,'');
       if(status==='完了')return;
-      arr.push({name,addr:sv(c,11).replace(/\s+/g,''),sekou:ymd(sv(c,2)),shitami:ymd(sv(c,12)),yotei:ymd(o.date||'')});
+      arr.push({name,addr:sv(c,11).replace(/\s+/g,''),sekou:ymd(sv(c,2)),shitami:ymd(sv(c,12)),yotei:ymd(o.date||''),shiji:si>=0?sv(c,si):'',memo:o.memo||''});
     });
     if(arr.length){
       cases=arr;
       try{localStorage.setItem(CASEKEY,JSON.stringify(arr))}catch(e){}
       if($('modal').style.display==='flex')renderModal();
+      renderInfo();
     }
   }).catch(()=>{});
 }
