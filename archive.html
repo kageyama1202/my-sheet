@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<!-- VERSION: 2026-11-10-001 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>過去案件</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
+<link rel="stylesheet" href="shared-modal.css">
+<style>
+*{box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;margin:0;background:#f0f2f5;color:#333;}
+.header-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:#5d4037;color:#fff;}
+.header-bar h3{margin:0;font-size:17px;}
+.top-link{color:#fff;text-decoration:none;font-size:13px;border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:4px 10px;}
+.ver{font-size:11px;opacity:.8;margin-left:auto;}
+.panel{padding:10px 12px;background:#fff;border-bottom:1px solid #ddd;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.panel input[type=text]{flex:1 1 220px;min-width:160px;font-size:16px;padding:8px 10px;border:1px solid #bbb;border-radius:6px;}
+.panel input[type=date]{font-size:14px;padding:6px;border:1px solid #bbb;border-radius:6px;}
+.panel select{font-size:14px;padding:7px;border:1px solid #bbb;border-radius:6px;}
+.tg{font-size:13px;padding:7px 12px;border:1px solid #999;border-radius:16px;background:#fff;cursor:pointer;}
+.tg.on{background:#5d4037;color:#fff;border-color:#5d4037;}
+.count{padding:6px 12px;font-size:13px;color:#555;}
+.wrap{padding:0 8px 40px;overflow-x:auto;}
+table{border-collapse:collapse;background:#fff;width:100%;min-width:900px;font-size:13px;}
+th{background:#eee;position:sticky;top:0;padding:6px 8px;text-align:left;white-space:nowrap;border-bottom:2px solid #ccc;}
+td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top;}
+tr.row{cursor:pointer;}
+tr.row:active,tr.row:hover{background:#fff8e1;}
+.b{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;white-space:nowrap;}
+.b.arc{background:#d7ccc8;color:#4e342e;}
+.b.live{background:#c8e6c9;color:#1b5e20;}
+.b.ns{background:#e1bee7;color:#4a148c;margin-left:4px;}
+.memo{color:#666;max-width:260px;white-space:pre-wrap;word-break:break-all;}
+.more{display:block;margin:14px auto;padding:10px 26px;font-size:14px;border:1px solid #5d4037;border-radius:8px;background:#fff;color:#5d4037;cursor:pointer;}
+#msg{padding:30px;text-align:center;color:#666;}
+</style>
+</head>
+<body>
+<div id="modal-overlay"><div id="modal-content"><button id="modal-close">✖ 閉じる</button><div id="modal-body"></div></div></div>
+<div class="header-bar">
+  <a href="index.html" class="top-link">◀ トップ</a>
+  <h3>📦 過去案件</h3>
+  <span class="ver">archive.html 2026-11-10-001</span>
+</div>
+<div class="panel">
+  <input type="text" id="q" placeholder="🔍 住所・お客様名・管理名・備考など（空白区切りでAND）">
+  <span>下見日</span><input type="date" id="dFrom"><span>〜</span><input type="date" id="dTo">
+  <select id="kubun"><option value="">区分:すべて</option></select>
+  <button class="tg" id="tgNs">施工なし（下見のみ）</button>
+  <button class="tg" id="tgArc">📦 過去案件のみ</button>
+  <button class="tg" id="tgMemo">📝 メモあり</button>
+</div>
+<div class="count" id="count">-</div>
+<div class="wrap">
+  <div id="msg">⏳ Firebaseから読込中...</div>
+  <table id="tbl" style="display:none"><thead><tr>
+    <th>種別</th><th>状態</th><th>区分</th><th>管理名</th><th>住所</th><th>下見日</th><th>施工日</th><th>メモ・備考</th>
+  </tr></thead><tbody id="tb"></tbody></table>
+  <button class="more" id="more" style="display:none">もっと表示</button>
+</div>
+<script src="shared-modal.js"></script>
+<script>
+var database=scopedDatabase(firebase.database());
+var headers=[],tasks={},arcKeys={},list=[];
+var PAGE=150,shown=PAGE;
+var onlyNs=false,onlyArc=false,onlyMemo=false;
+
+function gv(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
+function ymd(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+// 過去案件(app_archive)のキーに対する保存・削除は app_archive 側へ向ける。
+// 現役側(app_tasks)に書くとカレンダー同期のトリガーが動いてしまうため。
+function dbFor(key){
+  if(!arcKeys[key])return database;
+  return {ref:function(p){return database.ref(String(p).replace(/^app_tasks\//,'app_archive/'));}};
+}
+
+Promise.all([
+  database.ref('app_tasks').once('value'),
+  database.ref('app_archive').once('value'),
+  database.ref('app_meta').once('value')
+]).then(function(r){
+  var live=r[0].val()||{},arc=r[1].val()||{},meta=r[2].val()||{};
+  headers=meta.headers||[];
+  Object.keys(arc).forEach(function(k){if(arc[k]&&arc[k].csvData){tasks[k]=arc[k];arcKeys[k]=true;}});
+  Object.keys(live).forEach(function(k){if(live[k]&&live[k].csvData){tasks[k]=live[k];delete arcKeys[k];}});
+  list=Object.keys(tasks).map(function(k){
+    var c=tasks[k].csvData;
+    var sd=ymd(gv(c,2)),hd=ymd(gv(c,12));
+    var text=[gv(c,0),gv(c,1),gv(c,3),gv(c,4),gv(c,5),gv(c,10),gv(c,11),tasks[k].memo||''].join(' ').replace(/\s+/g,' ').toLowerCase();
+    return {key:k,sd:sd,hd:hd,sort:hd||sd||'',text:text,arc:!!arcKeys[k]};
+  });
+  list.sort(function(a,b){return a.sort<b.sort?1:a.sort>b.sort?-1:0;});
+  var kb={};list.forEach(function(x){var v=gv(tasks[x.key].csvData,3).replace(/\s+/g,'');if(v)kb[v]=1;});
+  var sel=document.getElementById('kubun');
+  Object.keys(kb).sort().forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+  document.getElementById('msg').style.display='none';
+  document.getElementById('tbl').style.display='';
+  render();
+}).catch(function(e){
+  document.getElementById('msg').innerHTML='❌ 読込エラー：'+esc(e.message||e)+'<br><span style="font-size:12px;">電波の良い所で再読込してください。</span>';
+});
+
+function filtered(){
+  var q=document.getElementById('q').value.trim().toLowerCase().split(/[\s　]+/).filter(Boolean);
+  var df=document.getElementById('dFrom').value,dt=document.getElementById('dTo').value,kb=document.getElementById('kubun').value;
+  return list.filter(function(x){
+    var o=tasks[x.key],c=o.csvData;
+    for(var i=0;i<q.length;i++){if(x.text.indexOf(q[i])<0)return false;}
+    if(df&&(!x.hd||x.hd<df))return false;
+    if(dt&&(!x.hd||x.hd>dt))return false;
+    if(kb&&gv(c,3).replace(/\s+/g,'')!==kb)return false;
+    if(onlyNs&&x.sd!=='')return false;
+    if(onlyArc&&!x.arc)return false;
+    if(onlyMemo&&!(o.memo&&String(o.memo).trim()))return false;
+    return true;
+  });
+}
+
+function render(){
+  var f=filtered();
+  document.getElementById('count').textContent='該当 '+f.length+' 件 / 全 '+list.length+' 件（下見日の新しい順）';
+  var tb=document.getElementById('tb');
+  var h='';
+  f.slice(0,shown).forEach(function(x){
+    var o=tasks[x.key],c=o.csvData;
+    var memo=[(o.memo||'').trim(),gv(c,10).trim()].filter(Boolean).join(' / ');
+    h+='<tr class="row" data-k="'+esc(x.key)+'">'
+      +'<td><span class="b '+(x.arc?'arc':'live')+'">'+(x.arc?'📦過去':'現役')+'</span>'+(x.sd===''?'<span class="b ns">施工なし</span>':'')+'</td>'
+      +'<td>'+esc(gv(c,1))+'</td><td>'+esc(gv(c,3))+'</td><td>'+esc(gv(c,4))+'</td><td>'+esc(gv(c,11))+'</td>'
+      +'<td>'+esc(x.hd)+'</td><td>'+esc(x.sd)+'</td><td class="memo">'+esc(memo.slice(0,120))+'</td></tr>';
+  });
+  tb.innerHTML=h;
+  document.getElementById('more').style.display=f.length>shown?'block':'none';
+}
+
+document.getElementById('tb').addEventListener('click',function(e){
+  var tr=e.target.closest('tr.row');if(!tr)return;
+  var k=tr.getAttribute('data-k');
+  if(!tasks[k])return;
+  // fullData=null: 過去案件を現役一覧のlocalStorageキャッシュに混ぜない
+  openCaseModal(k,tasks[k],headers,tasks,null,dbFor(k),function(){
+    if(!tasks[k]){list=list.filter(function(x){return x.key!==k;});}
+    render();
+  });
+});
+['q','dFrom','dTo','kubun'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){shown=PAGE;render();});});
+function tog(id,get,set){document.getElementById(id).addEventListener('click',function(){set(!get());this.classList.toggle('on',get());shown=PAGE;render();});}
+tog('tgNs',function(){return onlyNs;},function(v){onlyNs=v;});
+tog('tgArc',function(){return onlyArc;},function(v){onlyArc=v;});
+tog('tgMemo',function(){return onlyMemo;},function(v){onlyMemo=v;});
+document.getElementById('more').addEventListener('click',function(){shown+=PAGE;render();});
+</script>
+</body>
+</html>
