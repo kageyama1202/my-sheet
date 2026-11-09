@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-07-001 -->
+<!-- VERSION: 2026-11-10-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -12,15 +12,15 @@
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; margin: 0; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     h1 { color: #333; font-size: 22px; margin-bottom: 10px; text-align: center; }
     .status { font-size: 14px; font-weight: bold; margin-bottom: 16px; padding: 12px; border-radius: 4px; text-align: center; }
     .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
     .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .error   { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .cal-status { font-size: 12px; padding: 6px 10px; border-radius: 4px; margin-bottom: 14px; text-align: center; background: #e8eaf6; color: #3949ab; border: 1px solid #c5cae9; }
-    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-    .menu-btn { display: block; text-decoration: none; padding: 18px; background-color: #007bff; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+    .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+    .menu-btn { display: block; text-decoration: none; padding: 14px 8px; background-color: #007bff; color: white; border-radius: 6px; font-size: 15px; line-height: 1.3; font-weight: bold; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
     .menu-btn:hover { opacity: 0.85; }
     .menu-btn.disabled { background-color: #ccc !important; color: #888; pointer-events: none; box-shadow: none; }
     /* ★2026-10-12追加★ 今日のアクションのボタン内に出す件数バッジ（注目／連絡必要） */
@@ -39,12 +39,13 @@
     .gas-url-section button { padding: 6px 14px; background: #1a237e; color: #fff; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; margin-right: 6px; }
     .gas-url-section button:hover { background: #283593; }
     #gasUrlStatus { font-size: 11px; color: #555; margin-top: 4px; }
-    @media (max-width: 480px) { .menu-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .menu-grid { grid-template-columns: 1fr 1fr; } .container { padding: 14px; } body { padding: 10px; } }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🏠 案件管理システム</h1>
+    <div style="text-align:center;font-size:11px;color:#999;margin-top:-6px;">index.html 2026-11-10-002</div>
 
     <div id="statusMsg" class="status loading">
       ⏳ 読込中...<br>
@@ -54,8 +55,8 @@
     <div id="calSyncStatus" class="cal-status" style="display:none;"></div>
 
     <div class="menu-grid">
-      <a href="action.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#d32f2f;">🔔 今日のアクション<div id="actionBadges" class="action-badges"></div></a>
-      <a href="agenda.html"   class="menu-btn disabled" style="grid-column:1/3;background-color:#1a237e;">🎯 Today's Agenda</a>
+      <a href="action.html"   class="menu-btn disabled" style="grid-column:1/-1;background-color:#d32f2f;">🔔 今日のアクション<div id="actionBadges" class="action-badges"></div></a>
+      <a href="agenda.html"   class="menu-btn disabled" style="grid-column:1/-1;background-color:#1a237e;">🎯 Today's Agenda</a>
       <a href="today.html"    class="menu-btn disabled">📋 案件リスト</a>
       <a href="calendar.html" class="menu-btn disabled">📅 カレンダー</a>
       <a href="sogo.html"     class="menu-btn disabled" style="background-color:#ff6b00;">🤖 AIスケジューラー</a>
@@ -64,20 +65,22 @@
       <a href="kitchen-diagram.html" class="menu-btn" style="background-color:#8d6e3f;">🍳 キッチン作図</a>
       <a href="bath-diagram.html" class="menu-btn" style="background-color:#00695c;">🛁 浴室作図</a>
       <!-- ★修正: CSV取込は初回データ投入に必要なため、データ有無に関わらず常時クリック可能にする -->
-      <a href="admin.html"    class="menu-btn" style="grid-column:1/3;background-color:#6c757d;">👑 CSV取込（管理者）</a>
+      <a href="admin.html"    class="menu-btn" style="background-color:#6c757d;">👑 CSV取込（管理者）</a>
       <!-- ★2026-10-20追加★ スケジュールチェック(schedule-check.html)は、仮予約と同じ認証方式でFirebaseから
            直接データを読むため、appData読み込み待ちに依存しない。常時クリック可能。 -->
-      <a href="schedule-check.html" class="menu-btn" style="grid-column:1/3;background-color:#2e7d32;">🗓 スケジュールチェック</a>
+      <a href="schedule-check.html" class="menu-btn" style="background-color:#2e7d32;">🗓 スケジュールチェック</a>
       <!-- 仮予約(kari-yoyaku.html)は専用ログイン(kari-login.html)で権限管理しているため、
            他のメニューと違いappData読み込み待ちに依存しない。常時クリック可能。 -->
-      <a href="kari-yoyaku.html" class="menu-btn" style="grid-column:1/3;background-color:#e65100;">🟠 仮予約</a>
+      <a href="kari-yoyaku.html" class="menu-btn" style="background-color:#e65100;">🟠 仮予約</a>
       <!-- 保存庫(files.html)もログイン後は常時利用可能なため、他メニューと違いdisabled不要 -->
-      <a href="files.html" class="menu-btn" style="grid-column:1/3;background-color:#00897b;">📁 保存庫</a>
-      <a href="clipboard.html" class="menu-btn" style="grid-column:1/3;background-color:#4f8ef7;">📋 クリップボード</a>
+      <a href="files.html" class="menu-btn" style="background-color:#00897b;">📁 保存庫</a>
+      <!-- ★2026-11-10追加★ 過去案件(archive.html)。Firebaseから直接読むためappData読み込み待ちに依存しない。 -->
+      <a href="archive.html" class="menu-btn" style="background-color:#5d4037;">📦 過去案件（報告書用）</a>
+      <a href="clipboard.html" class="menu-btn" style="background-color:#4f8ef7;">📋 クリップボード</a>
       <!-- ★2026-11-07追加★ 仮想GoodNotes(pdf-note.html): PDF・写真への書き込みはFirebase不要で端末内に保存するため、appData読み込み待ちに依存しない。常時クリック可能。 -->
-      <a href="pdf-note.html" class="menu-btn" style="grid-column:1/3;background-color:#5e35b1;">📝 仮想GoodNotes（PDF・写真に書き込み）</a>
+      <a href="pdf-note.html" class="menu-btn" style="background-color:#5e35b1;">📝 仮想GoodNotes（PDF・写真に書き込み）</a>
       <!-- 工務担当者リスト(koumu-contacts.html)は全ユーザー共通のマスタ管理画面のため、他メニューと違いdisabled不要 -->
-      <a href="koumu-contacts.html" class="menu-btn" style="grid-column:1/3;background-color:#8e24aa;">☎️ 工務担当者リスト</a>
+      <a href="koumu-contacts.html" class="menu-btn" style="background-color:#8e24aa;">☎️ 工務担当者リスト</a>
     </div>
 
     <div style="text-align:center;margin-top:14px;">
