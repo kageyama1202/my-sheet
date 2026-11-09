@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-09 / pdf-note v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
+<!-- VERSION: 2026-11-09 / pdf-note v15 (案件PDFを端末に保存して2回目から通信なしで開く/更新確認/オフライン対応/保存領域の永続化要求) | 前: v14 (案件情報バー: 施工日・施工指示を常時薄く表示/タップで全項目+メモ) | 前: v13 (🖼 写真をPDFに貼り付け: 移動/拡大縮小/上に書き込み、写真と一緒に動く/書き出しに反映) | 前: v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -47,6 +47,21 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:18px;pointer-events:none;text-align:center;line-height:1.8}
 .ted{position:absolute;z-index:5;width:120px;height:20px;font-size:16px;line-height:1.2;white-space:pre;overflow:hidden;resize:none;border:0;border-radius:0;outline:1.5px dashed #1e88e5;background:rgba(255,255,255,.7);transform-origin:0 0;-webkit-user-select:text;user-select:text;-webkit-appearance:none;appearance:none;padding:0;margin:0;font-weight:600;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}
 </style>
+<style>
+#infoBar{position:fixed;left:50%;transform:translateX(-50%);z-index:18;max-width:min(92vw,900px);padding:4px 12px;border-radius:14px;background:rgba(0,0,0,.38);color:rgba(255,255,255,.85);font-size:12px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;-webkit-user-select:none}
+#infoBar.pos-t{top:max(96px,calc(env(safe-area-inset-top) + 96px))}
+#infoBar.pos-b{bottom:max(22px,calc(env(safe-area-inset-bottom) + 22px))}
+#infoPanel{position:fixed;left:50%;transform:translateX(-50%);z-index:19;width:min(94vw,640px);max-height:62vh;overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(22,22,22,.94);color:#eee;border-radius:12px;padding:10px 12px;font-size:14px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#infoPanel.pos-t{top:max(96px,calc(env(safe-area-inset-top) + 96px))}
+#infoPanel.pos-b{bottom:max(22px,calc(env(safe-area-inset-bottom) + 22px))}
+#infoPanel .ih{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+#infoPanel .ih b{flex:1;font-size:15px}
+#infoPanel button{background:#444;color:#fff;border:1px solid #666;border-radius:8px;padding:6px 10px;font-size:13px}
+#infoPanel table{width:100%;border-collapse:collapse}
+#infoPanel th{width:34%;text-align:left;vertical-align:top;color:#aaa;font-weight:normal;padding:4px 6px;border-top:1px solid #333;font-size:12px}
+#infoPanel td{padding:4px 6px;border-top:1px solid #333;white-space:pre-wrap;word-break:break-all}
+#infoPanel tr.hl td,#infoPanel tr.hl th{background:#2a3a1f;color:#fff}
+</style>
 </head>
 <body>
 <div id="bar">
@@ -60,6 +75,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
     <button class="b" data-tool="ell">◯ 丸</button>
     <button class="b" data-tool="text">Ａ 文字</button>
     <button class="b" data-tool="select">⬚ 選択</button>
+    <button class="b" id="bPhoto" style="background:#6a1b9a;border-color:#ba68c8">🖼 写真</button><input type="file" id="pfile" accept="image/*" hidden>
   </div>
   <div class="grp" id="colors"></div>
   <div class="grp" id="sizes">
@@ -85,7 +101,8 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div id="clist"></div>
   <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
 </div>
-<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v12 / 2026-11-09</div>
+<div id="infoBar"></div><div id="infoPanel"></div>
+<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v15 / 2026-11-09</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
@@ -199,7 +216,7 @@ async function openBlob(blob,name,isNew,cloud){
     let saved=null;try{saved=await dbGet('ann',fp);}catch(e){}
     if(cloudCtx){ /* クラウドの書き込みが端末内より新しければそちらを使う */
       try{
-        const v=(await cloudCtx.db.ref('case_notes/'+CASE_KEY+'/'+cloudCtx.key).once('value')).val();
+        const v=(await wt(cloudCtx.db.ref('case_notes/'+CASE_KEY+'/'+cloudCtx.key).once('value'),4000)).val();
         if(v&&(!saved||(v.updated||0)>(saved.updated||0))){
           const it=v.items?(Array.isArray(v.items)?v.items:Object.values(v.items)):[];
           saved={items:it,updated:v.updated||0};
@@ -402,6 +419,10 @@ function buildEl(it){
   }else if(it.t==='ell'){
     el=document.createElementNS(SVGNS,'ellipse');
     setAttrs(el,Object.assign({cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry,fill:it.f?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
+  }else if(it.t==='img'){
+    el=document.createElementNS(SVGNS,'image');
+    setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h,preserveAspectRatio:'none',href:it.src});
+    el.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href',it.src);
   }else if(it.t==='poly'){
     el=document.createElementNS(SVGNS,'path');
     setAttrs(el,Object.assign({d:polyD(it.pts,it.closed),fill:(it.f&&it.closed)?it.c:'none','fill-opacity':'0.3'},strokeAttrs(it)));
@@ -425,7 +446,7 @@ function polyD(pts,closed){
   return 'M'+pts.map(p=>p[0]+' '+p[1]).join('L')+(closed?'Z':'');
 }
 function refreshEl(it,el){
-  if(it.t==='rect')setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h});
+  if(it.t==='rect'||it.t==='img')setAttrs(el,{x:it.x,y:it.y,width:it.w,height:it.h});
   else if(it.t==='ell')setAttrs(el,{cx:it.cx,cy:it.cy,rx:it.rx,ry:it.ry});
   else if(it.t==='poly')el.setAttribute('d',polyD(it.pts,it.closed));
   else el.setAttribute('d',pathD(it.pts));
@@ -450,7 +471,7 @@ function rebuildAll(){
 /* 選択中の部品に変更を加える(戻せる) */
 function modifySel(fn){
   if(!sel)return;
-  const it=byId(sel.id);if(!it)return;
+  const it=byId(sel.id);if(!it||it.t==='img')return;
   const before=JSON.stringify(it);
   fn(it);
   pushH({k:'edit',i:items.indexOf(it),before,after:JSON.stringify(it)});
@@ -516,6 +537,8 @@ function undo(){
     if(i>=0){items.splice(i,1);const el=elMap.get(a.it.id);if(el)el.remove();elMap.delete(a.it.id);}
   }else if(a.k==='edit'){
     const o=JSON.parse(a.before);items[a.i]=o;replaceEl(o);
+  }else if(a.k==='multi'){
+    a.list.forEach(x=>{const o=JSON.parse(x.before);items[x.i]=o;replaceEl(o);});
   }else if(a.k==='del'){
     items.splice(a.i,0,a.it);renderItem(a.it);
   }else if(a.k==='clear'){
@@ -602,6 +625,7 @@ function hitItem(it,x,y,tol){
     if(t==='poly'&&it.closed){d=Math.min(d,hitSeg(x,y,P[P.length-1],P[0]));if(it.f&&inPoly(P,x,y))return true;}
     return d<=tol+it.sw/2;
   }
+  if(t==='img')return x>=it.x&&x<=it.x+it.w&&y>=it.y&&y<=it.y+it.h;
   if(t==='rect'){
     const inside=x>=it.x&&x<=it.x+it.w&&y>=it.y&&y<=it.y+it.h;
     if(it.f&&inside)return true;
@@ -662,14 +686,18 @@ function startDrag(e,mode,hi){
   const it=byId(sel.id);if(!it)return;
   const p=pages[it.p],pt=toPage(e,p);
   let vi=-1;if(mode==='resize'&&hi>=100){mode='vertex';vi=hi-100;}
-  drag={mode,hi,vi,pid:e.pointerId,p,idx:items.indexOf(it),orig:JSON.stringify(it),ob:bboxOf(it),sx:pt[0],sy:pt[1],moved:false,ev:null};
+  drag={mode,hi,vi,pid:e.pointerId,p,idx:items.indexOf(it),orig:JSON.stringify(it),ob:bboxOf(it),sx:pt[0],sy:pt[1],moved:false,ev:null,kids:[]};
+  if(it.t==='img'&&mode!=='vertex'){ /* 写真の上に書いたものは写真と一緒に動かす */
+    const b0=drag.ob;
+    items.forEach((k,i)=>{if(i<=drag.idx||k.p!==it.p)return;const kb=bboxOf(k),cx=kb.x+kb.w/2,cy=kb.y+kb.h/2;if(cx>=b0.x&&cx<=b0.x+b0.w&&cy>=b0.y&&cy<=b0.y+b0.h)drag.kids.push({idx:i,orig:JSON.stringify(k)});});
+  }
   try{viewer.setPointerCapture(e.pointerId);}catch(_){}
 }
 function applyBox(o,ob,nb){
   const sx=ob.w>0.01?nb.w/ob.w:1,sy=ob.h>0.01?nb.h/ob.h:1;
   const fx=x=>r1(nb.x+(x-ob.x)*sx),fy=y=>r1(nb.y+(y-ob.y)*sy);
   if(o.pts)o.pts=o.pts.map(p=>[fx(p[0]),fy(p[1])]);
-  else if(o.t==='rect'){o.x=fx(o.x);o.y=fy(o.y);o.w=r1(o.w*sx);o.h=r1(o.h*sy);}
+  else if(o.t==='rect'||o.t==='img'){o.x=fx(o.x);o.y=fy(o.y);o.w=r1(o.w*sx);o.h=r1(o.h*sy);}
   else if(o.t==='ell'){o.cx=fx(o.cx);o.cy=fy(o.cy);o.rx=r1(o.rx*sx);o.ry=r1(o.ry*sy);}
   else if(o.t==='text'){o.s=r1(Math.max(4,o.s*sx));o.x=r1(nb.x+(o.x-ob.x)*sx);o.y=r1(nb.y+(o.y-ob.y)*sx);}
 }
@@ -696,8 +724,14 @@ function applyDrag(d){
       if(nw<2){if(fxh===0)nx=ob.x+ob.w-2;nw=2;}
       if(nh<2){if(fyh===0)ny=ob.y+ob.h-2;nh=2;}
       nb={x:nx,y:ny,w:nw,h:nh};
+      if(o.t==='img'){
+        const sc=fxh===.5?nh/ob.h:fyh===.5?nw/ob.w:Math.max(nw/ob.w,nh/ob.h);
+        const w2=Math.max(10,ob.w*sc),h2=Math.max(10,ob.h*sc);
+        nb={x:fxh===0?ob.x+ob.w-w2:fxh===1?ob.x:ob.x+(ob.w-w2)/2,y:fyh===0?ob.y+ob.h-h2:fyh===1?ob.y:ob.y+(ob.h-h2)/2,w:w2,h:h2};
+      }
     }
     applyBox(o,ob,nb);
+    if(d.kids&&d.kids.length)d.kids.forEach(k=>{const o2=JSON.parse(k.orig);applyBox(o2,ob,nb);items[k.idx]=o2;replaceEl(o2);});
   }
   items[d.idx]=o;replaceEl(o);drawSel();
 }
@@ -710,7 +744,7 @@ function endDrag(){
   const d=drag;if(!d)return;
   if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;}
   applyDrag(d);drag=null;
-  if(d.moved){pushH({k:'edit',i:d.idx,before:d.orig,after:JSON.stringify(items[d.idx])});saveSoon();}
+  if(d.moved){if(d.kids&&d.kids.length)pushH({k:'multi',list:[{i:d.idx,before:d.orig}].concat(d.kids.map(k=>({i:k.idx,before:k.orig})))});else pushH({k:'edit',i:d.idx,before:d.orig,after:JSON.stringify(items[d.idx])});saveSoon();}
   drawSel();
   if(!d.moved&&d.tapEdit){const it=items[d.idx];if(it&&it.t==='text')openTextPanel('edit',pages[it.p],it.x,it.y,it);}
 }
@@ -727,6 +761,39 @@ function toPage(e,p){
 }
 
 /* ===== 手書き ===== */
+/* ===== 写真を貼る ===== */
+async function shrinkPhoto(file){
+  let bmp;
+  try{bmp=await createImageBitmap(file);}
+  catch(e){bmp=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('この写真は読み込めませんでした'));im.src=URL.createObjectURL(file);});}
+  const bw=bmp.width||bmp.naturalWidth,bh=bmp.height||bmp.naturalHeight;
+  const s=Math.min(1,1600/Math.max(bw,bh));
+  const cv=document.createElement('canvas');cv.width=Math.round(bw*s);cv.height=Math.round(bh*s);
+  const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,cv.width,cv.height);
+  cx.imageSmoothingQuality='high';cx.drawImage(bmp,0,0,cv.width,cv.height);
+  try{bmp.close&&bmp.close();}catch(e){}
+  return {src:cv.toDataURL('image/jpeg',0.8),w:cv.width,h:cv.height};
+}
+async function addPhoto(file){
+  if(!pages.length){setMsg('先にPDFか写真を開いてください');return;}
+  commitEditor();
+  try{
+    setMsg('写真を処理中…');
+    const ph=await shrinkPhoto(file);
+    const p=pages[curPage()];
+    vrect=viewer.getBoundingClientRect();
+    const pos=locate({clientX:vrect.left+vrect.width/2,clientY:vrect.top+vrect.height/2});
+    const w=r1(p.wpt*0.4),h=r1(w*ph.h/ph.w);
+    let x=pos&&pos.p===p?pos.x-w/2:p.wpt*0.05,y=pos&&pos.p===p?pos.y-h/2:p.hpt*0.05;
+    x=r1(Math.min(Math.max(0,x),Math.max(0,p.wpt-w)));y=r1(Math.min(Math.max(0,y),Math.max(0,p.hpt-h)));
+    const it={id:uid(),p:p.i,t:'img',x,y,w,h,src:ph.src};
+    items.push(it);renderItem(it);pushH({k:'add',it});
+    tool='select';select(it.id);saveSoon();setMsg('🖼 写真を貼りました(動かす・大きさ変更・上に書き込みできます)');
+  }catch(e){setMsg('⚠'+(e.message||'写真を貼れませんでした'));console.warn(e);}
+}
+$('bPhoto').onclick=()=>$('pfile').click();
+$('pfile').onchange=async e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(f)await addPhoto(f);};
+
 function startDraw(e){
   vrect=viewer.getBoundingClientRect();
   const pos=locate(e);if(!pos)return;
@@ -1149,6 +1216,43 @@ function downloadFile(file){
 const FBJS='https://www.gstatic.com/firebasejs/8.10.1/';
 let cloudReady=null;
 function loadJs(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('読み込めません: '+src));document.head.appendChild(s);});}
+const wt=(pr,ms)=>Promise.race([pr,new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
+const CK=n=>'cloud:'+CASE_KEY+':'+n;
+async function cacheGet(n){try{return await dbGet('docs',CK(n));}catch(e){return null;}}
+async function cachePrune(){
+  try{
+    const all=(await dbAll('docs')).filter(d=>d.cloud).sort((a,b)=>(b.cachedAt||0)-(a.cachedAt||0));
+    let tot=0;
+    for(let i=0;i<all.length;i++){tot+=all[i].blob?all[i].blob.size:0;if(i>=12||tot>200*1048576)await dbDel('docs',all[i].fp);}
+  }catch(e){console.warn(e);}
+}
+async function cachePut(n,blob,meta){
+  try{await dbPut('docs',{fp:CK(n),name:dispName(n),blob,meta:meta||{},cachedAt:Date.now(),cloud:true});await cachePrune();}catch(e){console.warn(e);}
+}
+async function cachedNames(){
+  try{const pre='cloud:'+CASE_KEY+':';return (await dbAll('docs')).filter(d=>d.cloud&&String(d.fp).startsWith(pre)).sort((a,b)=>(b.cachedAt||0)-(a.cachedAt||0)).map(d=>d.fp.slice(pre.length));}catch(e){return [];}
+}
+async function fetchCloud(ref){
+  const url=await ref.getDownloadURL();
+  const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+  const blob=await r.blob();
+  let meta={};try{const m=await wt(ref.getMetadata(),5000);meta={size:m.size,updated:m.updated};}catch(e){}
+  return {blob,meta};
+}
+async function realRef(name){const c=await cloudInit();return c.st.ref('users/'+c.uk+'/case_files/'+CASE_KEY+'/'+name);}
+/* 端末のコピーを先に開き、裏でクラウド側の更新だけ確認する */
+async function checkUpdate(name,cached){
+  try{
+    const ref=await realRef(name);
+    const m=await wt(ref.getMetadata(),6000);
+    if(!cached.meta||cached.meta.size==null)return;
+    if(m.size===cached.meta.size&&m.updated===cached.meta.updated){setMsg('✓最新(端末に保存済) '+fileName);return;}
+    if(!confirm('クラウドに新しい版があります。開き直しますか？\n(いまの版の書き込みは、この版に残ります)'))return;
+    setMsg('更新を取得中…');
+    const f=await fetchCloud(ref);await cachePut(name,f.blob,f.meta);
+    const c=await cloudInit();await openBlob(f.blob,dispName(name),false,{key:safeKey(name),db:c.db});
+  }catch(e){console.warn('更新確認',e);}
+}
 const safeKey=s=>String(s).replace(/[.#$\[\]\/]/g,'_');
 const isPdfName=n=>/\.pdf$/i.test(n), isImgName=n=>/\.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(n);
 const dispName=n=>n.replace(/^\d{10,}_/,'');
@@ -1173,32 +1277,51 @@ async function cloudList(){
   return r.items.filter(i=>isPdfName(i.name)||isImgName(i.name)).sort((a,b)=>a.name<b.name?1:-1);
 }
 async function cloudOpen(ref){
+  const cached=await cacheGet(ref.name);
+  if(cached&&cached.blob){
+    setMsg('📦端末のコピーを開いています…');
+    let cc=null;try{cc=await cloudInit();}catch(e){console.warn(e);}
+    await openBlob(cached.blob,dispName(ref.name),false,cc?{key:safeKey(ref.name),db:cc.db}:null);
+    if(!cc)setMsg('📴オフライン: 端末にのみ保存 '+fileName);
+    else checkUpdate(ref.name,cached);
+    return;
+  }
   setMsg('取得中…');
-  let blob;
-  try{
-    const url=await ref.getDownloadURL();
-    const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
-    blob=await r.blob();
-  }catch(e){setMsg('⚠取得失敗');alert('ファイルを取得できませんでした: '+((e&&e.message)||e)+'\n(Storageの設定(CORS)の可能性があります)');return;}
+  let f;
+  try{f=await fetchCloud(ref);}
+  catch(e){setMsg('⚠取得失敗');alert('ファイルを取得できませんでした: '+((e&&e.message)||e)+'\n(Storageの設定(CORS)の可能性があります)');return;}
+  await cachePut(ref.name,f.blob,f.meta);
   const c=await cloudInit();
-  await openBlob(blob,dispName(ref.name),false,{key:safeKey(ref.name),db:c.db});
+  await openBlob(f.blob,dispName(ref.name),false,{key:safeKey(ref.name),db:c.db});
 }
 async function showCloudPanel(){
   $('ctitle').textContent='☁ '+(CASE_NAME||CASE_KEY);
   $('cpanel').classList.add('show');
   const box=$('clist');box.textContent='読み込み中…';
   try{
-    const list=await cloudList();
+    const list=await wt(cloudList(),12000);
+    const cs=new Set(await cachedNames());
     box.innerHTML='';
     if(!list.length){box.textContent='この案件のPDF・写真はまだありません。下のボタンで追加できます';return;}
     list.forEach(ref=>{
       const row=document.createElement('div');row.className='crow';
-      const n=document.createElement('span');n.textContent=(isPdfName(ref.name)?'📕 ':'🖼 ')+dispName(ref.name);
+      const n=document.createElement('span');n.textContent=(isPdfName(ref.name)?'📕 ':'🖼 ')+dispName(ref.name)+(cs.has(ref.name)?' 📦':'');
       const b=document.createElement('button');b.className='b on';b.textContent='開く';
       b.onclick=async()=>{$('cpanel').classList.remove('show');await cloudOpen(ref);};
       row.appendChild(n);row.appendChild(b);box.appendChild(row);
     });
-  }catch(e){box.textContent='⚠ '+((e&&e.message)||e);}
+  }catch(e){
+    const names=await cachedNames();
+    if(!names.length){box.textContent='⚠ '+((e&&e.message)||e);return;}
+    box.innerHTML='<div style="color:#ffb74d;margin-bottom:6px">📴 通信できません。端末に保存済みのファイルを表示しています</div>';
+    names.forEach(nm=>{
+      const row=document.createElement('div');row.className='crow';
+      const n=document.createElement('span');n.textContent=(isPdfName(nm)?'📕 ':'🖼 ')+dispName(nm)+' 📦';
+      const b=document.createElement('button');b.className='b on';b.textContent='開く';
+      b.onclick=async()=>{$('cpanel').classList.remove('show');await cloudOpen({name:nm});};
+      row.appendChild(n);row.appendChild(b);box.appendChild(row);
+    });
+  }
 }
 $('bCloud').onclick=showCloudPanel;
 $('cclose').onclick=()=>$('cpanel').classList.remove('show');
@@ -1220,10 +1343,12 @@ $('cfile').onchange=async e=>{
 /* ===== 起動: 案件モードなら案件ファイル、通常は前回のPDFを自動で開く ===== */
 (async()=>{
   layout();
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
   if(CASE_KEY){
     $('bCloud').style.display='';
     try{
       if(CASE_FILE){
+        if(await cacheGet(CASE_FILE)){await cloudOpen({name:CASE_FILE});return;}
         const ref=(await cloudList()).find(r=>r.name===CASE_FILE);
         if(ref){await cloudOpen(ref);return;}
       }
@@ -1239,6 +1364,56 @@ $('cfile').onchange=async e=>{
 })();
 </script>
 <script>
+
+/* ===== 案件情報バー(案件から開いた時だけ): 施工日・施工指示を薄く常時表示、タップで全項目+メモ ===== */
+(function(){
+  if(!CASE_KEY)return;
+  const bar=document.getElementById('infoBar'),panel=document.getElementById('infoPanel');
+  let pos='t';try{pos=localStorage.getItem('pdfnote-infopos')||'t';}catch(e){}
+  let info=null;
+  const gv=(c,i)=>{if(!c)return '';const v=Array.isArray(c)?c[i]:c[i];return v==null?'':String(v);};
+  function applyPos(){[bar,panel].forEach(n=>{n.classList.remove('pos-t','pos-b');n.classList.add('pos-'+pos);});}
+  function render(){
+    if(!info)return;
+    bar.style.display='block';
+    bar.textContent='🔨 '+(info.sekou||'未定')+(info.shiji?'  |  '+info.shiji.replace(/\s+/g,' '):'');
+    applyPos();
+  }
+  function openPanel(){
+    if(!info)return;
+    panel.innerHTML='';
+    const h=document.createElement('div');h.className='ih';
+    const t=document.createElement('b');t.textContent=info.title||CASE_NAME||'案件情報';h.appendChild(t);
+    const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;h.appendChild(b);};
+    mk('🔄',async()=>{await load();openPanel();});
+    mk(pos==='t'?'⬇下へ':'⬆上へ',()=>{pos=pos==='t'?'b':'t';try{localStorage.setItem('pdfnote-infopos',pos);}catch(e){}applyPos();openPanel();});
+    mk('✕',()=>{panel.style.display='none';});
+    panel.appendChild(h);
+    const tb=document.createElement('table');
+    info.rows.forEach(r=>{const tr=document.createElement('tr');if(r.hl)tr.className='hl';const th=document.createElement('th');th.textContent=r.k;const td=document.createElement('td');td.textContent=r.v;tr.appendChild(th);tr.appendChild(td);tb.appendChild(tr);});
+    panel.appendChild(tb);
+    applyPos();panel.style.display='block';
+  }
+  async function load(){
+    try{
+      const c=await cloudInit();
+      const [ts,ms]=await Promise.all([c.db.ref('app_tasks/'+CASE_KEY).once('value'),c.db.ref('app_meta/headers').once('value')]);
+      const o=ts.val();if(!o)return;
+      const cols=o.csvData||[],hs=ms.val()||[];
+      let si=-1;hs.forEach((x,i)=>{if(si<0&&String(x).includes('施工指示'))si=i;});
+      if(si<0)hs.forEach((x,i)=>{if(si<0&&String(x).includes('指示'))si=i;});
+      const rows=[];
+      if(o.memo)rows.push({k:'💬 メモ',v:String(o.memo),hl:true});
+      for(let i=0;i<Math.max(hs.length,cols.length||0);i++){const v=gv(cols,i);if(v==='')continue;rows.push({k:String(hs[i]||'列'+(i+1)),v,hl:i===si||i===2});}
+      info={title:gv(cols,4).trim()||CASE_NAME,sekou:gv(cols,2).replace(/\s+/g,''),shiji:si>=0?gv(cols,si):'',rows};
+      render();
+    }catch(e){console.warn('案件情報',e);}
+  }
+  bar.onclick=openPanel;
+  ['pointerdown','touchstart'].forEach(ev=>{bar.addEventListener(ev,e=>e.stopPropagation());panel.addEventListener(ev,e=>e.stopPropagation());});
+  window.loadCaseInfo=load;
+  load();
+})();
 (function(){var b=document.getElementById('bBack');if(!b)return;
 if(new URLSearchParams(location.search).get('case'))b.style.display='';
 b.onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};})();
