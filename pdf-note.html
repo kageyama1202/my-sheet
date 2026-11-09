@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-09 / pdf-note v15 (案件PDFを端末に保存して2回目から通信なしで開く/更新確認/オフライン対応/保存領域の永続化要求) | 前: v14 (案件情報バー: 施工日・施工指示を常時薄く表示/タップで全項目+メモ) | 前: v13 (🖼 写真をPDFに貼り付け: 移動/拡大縮小/上に書き込み、写真と一緒に動く/書き出しに反映) | 前: v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
+<!-- VERSION: 2026-11-10 / pdf-note v15 (案件PDFを端末に保存して2回目から通信なしで開く/更新確認/オフライン対応/保存領域の永続化要求) | 前: v14 (案件情報バー: 施工日・施工指示を常時薄く表示/タップで全項目+メモ) | 前: v13 (🖼 写真をPDFに貼り付け: 移動/拡大縮小/上に書き込み、写真と一緒に動く/書き出しに反映) | 前: v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -102,7 +102,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
 </div>
 <div id="infoBar"></div><div id="infoPanel"></div>
-<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v15 / 2026-11-09</div>
+<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v15 / 2026-11-10</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
@@ -1398,7 +1398,10 @@ $('cfile').onchange=async e=>{
     try{
       const c=await cloudInit();
       const [ts,ms]=await Promise.all([c.db.ref('app_tasks/'+CASE_KEY).once('value'),c.db.ref('app_meta/headers').once('value')]);
-      const o=ts.val();if(!o)return;
+      let o=ts.val();
+      // ★2026-11-10追加★ 過去案件(app_archive)に退避済みの案件も案件情報を出す
+      if(!o){const as=await c.db.ref('app_archive/'+CASE_KEY).once('value');o=as.val();}
+      if(!o)return;
       const cols=o.csvData||[],hs=ms.val()||[];
       let si=-1;hs.forEach((x,i)=>{if(si<0&&String(x).includes('施工指示'))si=i;});
       if(si<0)hs.forEach((x,i)=>{if(si<0&&String(x).includes('指示'))si=i;});
