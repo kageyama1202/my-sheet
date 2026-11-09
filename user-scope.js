@@ -113,16 +113,12 @@
   function watchAuthSession() {
     if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length || !firebase.auth) return;
     var settled = false;
-    var timer = setTimeout(function () {
-      if (settled) return;
-      settled = true;
-      forceRelogin();
-    }, 4000); // 4秒以内に認証状態が確定しなければセッション切れとみなす
-
+    // 2026-11-09: 以前は4秒で確定しなければ強制ログアウトしていたが、通信が重いだけで
+    // userKeyが消えログインを何度も求められた。タイムアウトでは何もしない。
+    // 認証が「ユーザーなし」と確定した時だけ再ログインへ。
     firebase.auth().onAuthStateChanged(function (user) {
       if (settled) return; // 初回判定のみ使う（以後のトークン自動更新等は無視）
       settled = true;
-      clearTimeout(timer);
       if (!user) forceRelogin();
     });
   }
