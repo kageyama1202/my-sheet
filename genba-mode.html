@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>現場モード</title>
+<!-- VERSION: 2026-11-10 (v1110-a) 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
+#top{position:fixed;left:0;right:0;top:0;height:calc(46px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 8px 0;display:flex;align-items:center;gap:6px;background:#1c1c1e;border-bottom:1px solid #333;z-index:10}
+#top button,#top a{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff;text-decoration:none;white-space:nowrap;flex:none}
+#top button.on{background:#0a84ff;font-weight:bold}
+#title{flex:1;min-width:0;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+#ver{font-size:10px;color:#777;flex:none}
+#body{position:fixed;left:0;right:0;bottom:0;top:calc(46px + env(safe-area-inset-top))}
+.pane{position:absolute;top:0;bottom:0;border:0;background:#000;visibility:hidden;pointer-events:none;left:0;width:100%}
+/* 単独表示: 選んだ側だけ全面に出す。隠す側も同じ大きさのまま残す(映像・PDFの状態を保つ) */
+body[data-mode=file] #pf{visibility:visible;pointer-events:auto;z-index:2}
+body[data-mode=cam] #pc{visibility:visible;pointer-events:auto;z-index:2}
+/* 分割表示: 左ファイル/右カメラ */
+body[data-mode=split] #pf{visibility:visible;pointer-events:auto;width:58%;left:0}
+body[data-mode=split] #pc{visibility:visible;pointer-events:auto;width:42%;left:58%;border-left:2px solid #333}
+#empty{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;line-height:2;font-size:16px;padding:20px}
+#empty a{color:#0a84ff}
+</style>
+</head>
+<body data-mode="file">
+<div id="top">
+  <button id="bBack">←</button>
+  <div id="title">現場モード</div>
+  <button id="tFile">📝 ファイル</button>
+  <button id="tCam">📷 カメラ</button>
+  <button id="tSplit">◫ 分割</button>
+  <span id="ver"></span>
+</div>
+<div id="body">
+  <iframe id="pf" class="pane" allow="camera *; microphone *; geolocation *; web-share *; fullscreen *"></iframe>
+  <iframe id="pc" class="pane" allow="camera *; microphone *; geolocation *; web-share *; fullscreen *"></iframe>
+</div>
+<div id="empty">案件が指定されていません。<br>案件モーダルの「🏗 現場モード」から開いてください。<br><a href="today.html">Todayへ</a></div>
+<script>
+(function(){
+'use strict';
+var VER='v1110-a';
+var $=function(id){return document.getElementById(id)};
+var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
+var q=new URLSearchParams(location.search);
+var cur={key:q.get('case')||'',name:q.get('name')||'',addr:q.get('addr')||'',file:q.get('file')||''};
+if(cur.key){
+  try{localStorage.setItem(LASTKEY,JSON.stringify({key:cur.key,name:cur.name,addr:cur.addr}))}catch(e){}
+}else{
+  try{var l=JSON.parse(localStorage.getItem(LASTKEY)||'null');if(l&&l.key){cur.key=l.key;cur.name=l.name||'';cur.addr=l.addr||''}}catch(e){}
+}
+$('ver').textContent=VER;
+if(!cur.key){
+  $('empty').style.display='flex';$('body').style.display='none';
+  $('bBack').onclick=function(){location.href='today.html'};
+  return;
+}
+$('title').textContent=cur.name||'(案件名なし)';
+
+/* ---------- 画面モード ---------- */
+function canSplit(){return window.innerWidth>=900&&window.innerWidth/window.innerHeight>1.2}
+var mode='file';
+try{mode=localStorage.getItem(MODEKEY)||''}catch(e){}
+if(mode!=='file'&&mode!=='cam'&&mode!=='split')mode=canSplit()?'split':'file';
+if(mode==='split'&&!canSplit())mode='file';
+function setMode(m,save){
+  if(m==='split'&&!canSplit())m='cam'; // 縦向きなど狭い画面では分割できない
+  mode=m;document.body.dataset.mode=m;
+  ['File','Cam','Split'].forEach(function(n){$('t'+n).classList.toggle('on',m===n.toLowerCase())});
+  if(save){try{localStorage.setItem(MODEKEY,m)}catch(e){}}
+  if(m==='cam'||m==='split')wakeCam();
+}
+$('tFile').onclick=function(){setMode('file',true)};
+$('tCam').onclick=function(){setMode('cam',true)};
+$('tSplit').onclick=function(){setMode('split',true)};
+window.addEventListener('resize',function(){if(mode==='split'&&!canSplit())setMode('cam',false)});
+
+/* ---------- 子ページ ---------- */
+var pf=$('pf'),pc=$('pc');
+var fileUrl='pdf-note.html?case='+encodeURIComponent(cur.key)+'&name='+encodeURIComponent(cur.name)+(cur.file?'&file='+encodeURIComponent(cur.file):'');
+var camUrl='genba-camera.html?case='+encodeURIComponent(cur.name||cur.key)+'&addr='+encodeURIComponent(cur.addr);
+// 子ページ側の「案件に戻る」は枠内では意味がないので隠す(上部の←を使う)
+function hideIn(frame,id){
+  frame.addEventListener('load',function(){
+    try{var b=frame.contentDocument.getElementById(id);if(b)b.style.display='none'}catch(e){}
+  });
+}
+hideIn(pf,'bBack');   // pdf-note.html
+hideIn(pc,'backBtn'); // genba-camera.html
+pf.src=fileUrl;
+pc.src=camUrl;
+
+/* カメラは1分放置で自動停止する作りなので、表示に切り替えた時に止まっていれば再開する */
+function wakeCam(){
+  setTimeout(function(){
+    try{
+      var d=pc.contentDocument;if(!d)return;
+      var p=d.getElementById('paused');
+      if(p&&p.style.display==='flex')p.click();
+      var s=d.getElementById('shutter'); // 操作したことにして放置タイマーを延ばす
+      if(s)d.dispatchEvent(new Event('pointerdown',{bubbles:true}));
+    }catch(e){}
+  },150);
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&(mode==='cam'||mode==='split'))wakeCam()});
+
+/* ---------- 戻る ---------- */
+$('bBack').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
+
+setMode(mode,false);
+})();
+</script>
+</body>
+</html>
