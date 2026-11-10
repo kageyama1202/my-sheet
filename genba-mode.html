@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場モード</title>
-<!-- VERSION: 2026-11-10 (v1110-a) 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<!-- VERSION: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -16,7 +16,7 @@ html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-sys
 #title{flex:1;min-width:0;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
 #ver{font-size:10px;color:#777;flex:none}
 #body{position:fixed;left:0;right:0;bottom:0;top:calc(46px + env(safe-area-inset-top))}
-.pane{position:absolute;top:0;bottom:0;border:0;background:#000;visibility:hidden;pointer-events:none;left:0;width:100%}
+.pane{position:absolute;top:0;height:100%;border:0;background:#000;visibility:hidden;pointer-events:none;left:0;width:100%}
 /* 単独表示: 選んだ側だけ全面に出す。隠す側も同じ大きさのまま残す(映像・PDFの状態を保つ) */
 body[data-mode=file] #pf{visibility:visible;pointer-events:auto;z-index:2}
 body[data-mode=cam] #pc{visibility:visible;pointer-events:auto;z-index:2}
@@ -44,7 +44,7 @@ body[data-mode=split] #pc{visibility:visible;pointer-events:auto;width:42%;left:
 <script>
 (function(){
 'use strict';
-var VER='v1110-a';
+var VER='v1110-b';
 var $=function(id){return document.getElementById(id)};
 var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
 var q=new URLSearchParams(location.search);
