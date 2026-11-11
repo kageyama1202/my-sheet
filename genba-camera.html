@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -150,7 +150,7 @@ body.kb #modal{padding-bottom:8px}
   </div>
 </div>
 
-<div id="hist"><h2>📦 撮影履歴(端末内に7日間保管)</h2><div id="histNote">赤=未保存 / 緑=送信済み。タップで「保存」待ちの一覧に戻せます。</div><div id="histGrid"></div><button id="histClose">閉じる</button></div>
+<div id="hist"><h2>📦 撮影履歴(端末内に7日間保管)</h2><div id="histNote">赤=未保存 / 緑=送信済み。タップで「保存」待ちの一覧に戻せます。</div><div id="histGrid"></div><button id="histCloud" style="margin-top:8px;padding:14px;font-size:15px;background:#0a84ff">☁ クラウドの写真一覧(今日)を開く</button><button id="histClose">閉じる</button></div>
 
 <div id="modal">
   <h2>今日撮る案件を選んでください</h2>
@@ -164,7 +164,7 @@ body.kb #modal{padding-bottom:8px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const VER='v1111-c';
+const VER='v1111-d';
 const video=$('video'), view=$('view'), vctx=view.getContext('2d');
 const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
 const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
@@ -218,7 +218,7 @@ async function restoreTray(){
   const all=await idbAll();
   const now=Date.now();
   // 送信済みで7日を過ぎたものは掃除
-  all.filter(r=>r.status==='sent'&&now-(r.sentTs||r.ts||0)>KEEP_MS).forEach(r=>idbDel(r.id));
+  all.filter(r=>r.status==='sent'&&r.uploaded&&r.indexed&&now-(r.sentTs||r.ts||0)>KEEP_MS).forEach(r=>idbDel(r.id)); // クラウドに上がって索引にも載った送信済みだけを7日後に掃除。未アップロードは絶対に消さない
   const pend=all.filter(r=>r.status==='pending'&&r.blob).sort((a,b)=>a.ts-b.ts);
   all.forEach(r=>{if(r.blob&&!r.uploaded)unsent.add(r.id)});
   pend.forEach(r=>{if(!tray.some(t=>t.id===r.id))tray.push({id:r.id,blob:r.blob,name:r.name,up:!!r.uploaded,url:URL.createObjectURL(r.blob)})});
@@ -250,7 +250,7 @@ async function openHist(){
     g.appendChild(c);
   });
 }
-$('histBtn').onclick=openHist;$('histClose').onclick=closeHist;
+$('histBtn').onclick=openHist;$('histClose').onclick=closeHist;$('histCloud').onclick=()=>{window.open('genba-photos.html','genbaPhotos')};
 // 未保存の写真があるまま閉じようとしたら警告(写真自体は端末内に退避済みなので、次回開けば復元される)
 window.addEventListener('beforeunload',e=>{if(tray.length){e.preventDefault();e.returnValue=''}});
 
@@ -292,22 +292,38 @@ function idbMark(id,patch){
   })).catch(()=>false);
 }
 let upBusy=false;
+function ymdOf(ts){const d=new Date(ts);return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
+// アップロードした写真を日付別の索引に記録(genba-photos.html が「今日の写真」を案件別に出すため)
+async function indexPhoto(r,key){
+  const d=getDb();if(!d)return false;
+  try{
+    await Promise.race([
+      d.ref('genba_photo_index/'+ymdOf(r.ts)+'/'+r.id).set({key:key,site:r.site||'',name:r.name,ts:r.ts}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))
+    ]);
+    return true;
+  }catch(e){return false}
+}
 async function uploadPending(){
   if(upBusy||!navigator.onLine||typeof getUserKey!=='function'||!getUserKey())return;
   upBusy=true;
   try{
     if(!(await ensureStorage()))return;
-    const all=(await idbAll()).filter(r=>r.blob&&!r.uploaded).sort((a,b)=>a.ts-b.ts);
+    const all=(await idbAll()).filter(r=>r.blob&&(!r.uploaded||!r.indexed)).sort((a,b)=>a.ts-b.ts);
     for(const r of all){
       const key=r.key||caseKeyFor(r.site);
       if(!key)continue; // 案件が特定できない写真は、案件が分かった時点で送る
-      try{
-        await firebase.storage().ref('users/'+getUserKey()+'/case_files/'+key+'/'+r.name).put(r.blob,{contentType:'image/jpeg'});
-        await idbMark(r.id,{uploaded:true,upTs:Date.now(),key:key});
-        unsent.delete(r.id);
-        const t=tray.find(x=>x.id===r.id);if(t)t.up=true;
-        updateTray();showCloud();
-      }catch(e){break} // 通信不良: 残りは次回に回す
+      if(!r.uploaded){
+        try{
+          await firebase.storage().ref('users/'+getUserKey()+'/case_files/'+key+'/'+r.name).put(r.blob,{contentType:'image/jpeg'});
+          await idbMark(r.id,{uploaded:true,upTs:Date.now(),key:key});
+          r.uploaded=true;
+          unsent.delete(r.id);
+          const t=tray.find(x=>x.id===r.id);if(t)t.up=true;
+          updateTray();showCloud();
+        }catch(e){break} // 通信不良: 残りは次回に回す
+      }
+      if(r.uploaded&&!r.indexed&&await indexPhoto(r,key))await idbMark(r.id,{indexed:true});
     }
   }catch(e){}
   finally{upBusy=false;showCloud()}
