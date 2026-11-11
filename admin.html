@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-10-001 -->
+<!-- VERSION: 2026-11-12-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,7 +38,7 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-10-001</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-12-001</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -139,6 +139,33 @@
         var headers=validLines.shift();
         log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
 
+        // ★2026-11-12追加★ SFレポートの「最終更新日」列の取り出し
+        // 目的: 取得済みPDFより後にSF側が更新された案件を、朝のレポートで検知するため。
+        // 「最終更新日」列はCSVから抜き取って app_meta/sfModified/{キー} に別保存し、
+        // csvData(=app_tasks)にもヘッダーにも入れない。
+        // 理由: Cloud Runの onTaskChanged は app_tasks/{id} の中身が少しでも変わると
+        // 5分後にカレンダー・すぷ氏へ再同期する。csvDataに列が増えると取込のたびに全案件が
+        // 再同期されてしまうため、csvDataは従来どおり(列の増減なし)に保つ。
+        // 列が見つからないCSV(従来のレポート)では何もせず、従来どおりの動きになる。
+        var sfModIdx=-1;
+        for(var hi=0;hi<headers.length;hi++){
+          var hn=String(headers[hi]||'').replace(/^\s*手配\s*[:：]\s*/,'').trim();
+          if(hn==='最終更新日'){sfModIdx=hi;break;}
+        }
+        var sfModMap={};
+        if(sfModIdx>0){
+          validLines.forEach(function(cols){
+            var sid=normalizeSfId(String(cols[0]||'').trim());
+            var v=String(cols[sfModIdx]==null?'':cols[sfModIdx]).trim();
+            if(sid&&v)sfModMap[safeKey(sid)]=v;
+            cols.splice(sfModIdx,1);
+          });
+          headers.splice(sfModIdx,1);
+          log('🕒 最終更新日の列を検出（'+Object.keys(sfModMap).length+'件）。案件データには入れず別保存します。','info');
+        }else{
+          log('ℹ 「最終更新日」列なし（従来どおり取込）','info');
+        }
+
         var newMap={};
         var skipped=0,kanryoSkipped=0,idNormalized=0;
         var kanryoMap={};
@@ -188,6 +215,12 @@
 
           var updates={};
           updates['app_meta/headers']=headers;
+          // ★2026-11-12追加★ 最終更新日は現役案件のぶんだけを丸ごと置き換え（列が無いCSVのときは触らない）
+          if(sfModIdx>0){
+            var sfModSave={};
+            newKeys.forEach(function(nk){if(sfModMap[nk])sfModSave[nk]=sfModMap[nk];});
+            updates['app_meta/sfModified']=Object.keys(sfModSave).length>0?sfModSave:null;
+          }
 
           var addCount=0,updateCount=0;
           newKeys.forEach(function(nk){
