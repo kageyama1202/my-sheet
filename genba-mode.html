@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場モード</title>
-<!-- VERSION: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<!-- VERSION: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -44,7 +44,7 @@ body[data-mode=split] #pc{visibility:visible;pointer-events:auto;width:42%;left:
 <script>
 (function(){
 'use strict';
-var VER='v1111-a';
+var VER='v1111-b';
 var $=function(id){return document.getElementById(id)};
 var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
 var q=new URLSearchParams(location.search);
@@ -110,7 +110,13 @@ function wakeCam(){
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&(mode==='cam'||mode==='split'))wakeCam()});
 
 /* ---------- 戻る ---------- */
-$('bBack').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
+function unsavedN(){try{return pc.contentWindow.genbaUnsaved()||0}catch(e){return 0}}
+setInterval(function(){
+  var n=unsavedN();
+  $('tCam').textContent=n?'📷 カメラ ('+n+')':'📷 カメラ';
+  $('tCam').style.background=n?'#c62828':'';
+},1500);
+$('bBack').onclick=function(){var n=unsavedN();if(n&&!confirm('まだ写真アプリに保存していない写真が '+n+' 枚あります。\n保存せずに戻りますか?\n(写真は端末内に残ります)'))return;window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
 
 setMode(mode,false);
 })();
