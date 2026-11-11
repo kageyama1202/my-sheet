@@ -2,125 +2,882 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>現場モード</title>
-<!-- VERSION: 2026-11-11 (v1111-d) ←で戻る時の未保存確認を廃止(未保存は「カメラ」タブの赤い枚数で常に表示) | 前: 2026-11-11 (v1111-c) 上部に「☁ 写真一覧」(クラウドの今日の写真を案件別に表示・写真アプリへ保存)を追加 | 前: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<title>現場カメラ</title>
+<!-- VERSION: 2026-11-12 (v1111-g) クラウド退避先を案件フォルダから退避専用の箱(users/{userKey}/camera_backup/{yyyymmdd}/)に変更/案件が未特定でも送る(案件モーダルの添付やpdf-noteの案件ファイルには混ざらない) | 前: 2026-11-12 (v1111-f) 共有シートが「完了」を返さない操作(ショートカット等)で保存した時、「保存は終わりましたか?」と確認して、OKなら一覧から外す | 前: 2026-11-11 (v1111-e) 保存は「ここまでの未保存を全案件まとめて」いつでも押せる運用に: 案件切替/戻るの確認を廃止/一度に40枚ずつ共有(多い時は続けて押す)/電波が戻ったら未保存枚数を通知 | 前: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="user-scope.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
-#top{position:fixed;left:0;right:0;top:0;height:calc(46px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 8px 0;display:flex;align-items:center;gap:6px;background:#1c1c1e;border-bottom:1px solid #333;z-index:10}
-#top button,#top a{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff;text-decoration:none;white-space:nowrap;flex:none}
-#top button.on{background:#0a84ff;font-weight:bold}
-#title{flex:1;min-width:0;font-size:14px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
-#ver{font-size:10px;color:#777;flex:none}
-#body{position:fixed;left:0;right:0;bottom:0;top:calc(46px + env(safe-area-inset-top))}
-.pane{position:absolute;top:0;height:100%;border:0;background:#000;visibility:hidden;pointer-events:none;left:0;width:100%}
-/* 単独表示: 選んだ側だけ全面に出す。隠す側も同じ大きさのまま残す(映像・PDFの状態を保つ) */
-body[data-mode=file] #pf{visibility:visible;pointer-events:auto;z-index:2}
-body[data-mode=cam] #pc{visibility:visible;pointer-events:auto;z-index:2}
-/* 分割表示: 左ファイル/右カメラ */
-body[data-mode=split] #pf{visibility:visible;pointer-events:auto;width:58%;left:0}
-body[data-mode=split] #pc{visibility:visible;pointer-events:auto;width:42%;left:58%;border-left:2px solid #333}
-#empty{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;line-height:2;font-size:16px;padding:20px}
-#empty a{color:#0a84ff}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;position:fixed;left:0;right:0;top:0;height:100dvh;height:var(--vvh,100dvh);transform:translateY(var(--vvt,0px))}
+#stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center}
+#frame{position:relative;width:100%;height:100%}
+#frame video,#frame canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+#frame video{object-fit:fill}
+#view{pointer-events:none}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+#err{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;line-height:1.6;display:none;background:rgba(0,0,0,.7);padding:12px;border-radius:10px}
+#err button{margin-top:8px}
+#paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);font-size:18px;line-height:1.9;z-index:4}
+#toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(40,40,42,.95);padding:8px 8px 8px 16px;border-radius:20px;font-size:14px;white-space:nowrap;z-index:5}
+#toast button{background:#0a84ff;padding:6px 14px}
+#panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;max-height:calc(var(--vvh,100dvh)*.5);overflow-y:auto}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.row label{font-size:11px;color:#aaa;white-space:nowrap;min-width:44px}
+input[type=text],select{flex:1;min-width:0;font-size:16px;padding:7px 8px;border-radius:8px;border:1px solid #444;background:#2c2c2e;color:#fff}
+input[type=range]{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;max-height:80px;overflow-y:auto}
+.chip{font-size:13px;padding:5px 10px;border-radius:14px;background:#3a3a3c;border:none;color:#fff}
+.chip.on{background:#0a84ff}
+button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 14px;background:#000}
+#shutter{flex:none;width:100px;height:100px;border-radius:50%;background:#fff;border:7px solid #888;padding:0;margin:0 6px}
+#shutter:active{background:#ddd}
+#save{background:#0a84ff;min-width:92px;min-height:56px;font-size:15px}
+#save:disabled{background:#3a3a3c;color:#777}
+#tray{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;height:56px}
+.th{position:relative;flex:0 0 auto;height:56px}
+.th img{height:56px;border-radius:6px;display:block}
+.th b{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:#ff453a;font-size:12px;line-height:20px;text-align:center}
+.ck{display:flex;align-items:center;gap:4px;font-size:13px}
+.ck input{width:18px;height:18px}
+
+#panel{padding-bottom:calc(34px + env(safe-area-inset-bottom))}
+body.kb #panel{padding-bottom:8px}
+body.kb #modal{padding-bottom:8px}
+#caseBtn{flex:1;min-width:0;text-align:left;font-size:15px;font-weight:bold;padding:9px 10px;background:#0a84ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#caseBtn.empty{background:#ff9f0a;color:#000}
+#tplSave{background:#30d158;color:#000;white-space:nowrap}
+#modal{position:fixed;left:0;right:0;top:0;height:100dvh;height:var(--vvh,100dvh);transform:translateY(var(--vvt,0px));background:#000;z-index:30;display:none;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom))}
+#modal h2{margin:4px 0 8px;font-size:16px}
+#mSearch{width:100%;flex:none;margin-bottom:8px}
+#mList{flex:1;min-height:0;overflow-y:auto}
+.mi{display:block;width:100%;text-align:left;margin-bottom:6px;padding:10px 12px;background:#2c2c2e;border-radius:10px;font-size:15px}
+.mi b{display:block;font-size:16px}
+.mi small{display:block;color:#aaa;font-size:12px;margin-top:2px;white-space:normal}
+.mi .tg{display:inline-block;font-size:11px;background:#ff9f0a;color:#000;border-radius:8px;padding:1px 7px;margin-right:6px;font-weight:bold}
+.mi.keep{background:#0a84ff}
+.msec{font-size:12px;color:#aaa;margin:8px 0 4px}
+#mFoot{flex:none;display:flex;gap:8px;margin-top:8px}
+.mi.sel{outline:3px solid #30d158;background:#1f3a29}
+#mSel{flex:none;font-size:14px;color:#aaa;margin-bottom:8px;line-height:1.4}
+#mSel b{color:#fff;font-size:16px}
+#mStart{flex:none;width:100%;padding:16px;font-size:18px;font-weight:bold;background:#30d158;color:#000;margin-top:10px}
+#mStart:disabled{background:#3a3a3c;color:#777}
+#mManual{flex:1;min-width:0}
+
+#setBtn{background:#3a3a3c}
+#hist{position:fixed;left:0;right:0;top:0;height:100dvh;background:#000;z-index:40;display:none;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom))}
+#hist h2{margin:4px 0 4px;font-size:16px}
+#histNote{font-size:12px;color:#aaa;margin-bottom:8px;line-height:1.5}
+#histGrid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;align-content:start}
+.hc{position:relative;background:#2c2c2e;border-radius:8px;overflow:hidden;padding:0}
+.hc img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.hc span{display:block;font-size:11px;padding:3px 6px;color:#ccc}
+.hc b{position:absolute;left:4px;top:4px;font-size:11px;padding:1px 7px;border-radius:8px;background:#ff453a;color:#fff}
+.th i{position:absolute;left:2px;bottom:2px;font-style:normal;font-size:11px;background:rgba(48,209,88,.92);color:#000;border-radius:6px;padding:0 4px;line-height:16px}
+.hc.sent b{background:#30d158;color:#000}
+#histClose{flex:none;margin-top:8px;padding:14px;font-size:16px}
+/* 横長の画面(iPad横・Mac): 映像を左いっぱいに、操作(シャッター・案件・文言)を右の列にまとめる */
+@media (min-aspect-ratio:13/10) and (min-width:900px){
+  #app{display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto 1fr}
+  #stage{grid-column:1;grid-row:1/3}
+  #bar{grid-column:2;grid-row:1}
+  #panel{grid-column:2;grid-row:2;max-height:none;border-top:none;border-left:1px solid #333}
+  .chips{max-height:none;overflow:visible}
+}
+#cinfo{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:6;max-width:92%;padding:4px 12px;border-radius:14px;background:rgba(0,0,0,.4);color:rgba(255,255,255,.88);font-size:12px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none}
+#cinfoP{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:7;width:min(94%,560px);max-height:75%;overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(22,22,22,.94);color:#eee;border-radius:12px;padding:10px 12px;font-size:14px;display:none}
+#cinfoP .ih{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+#cinfoP .ih b{flex:1;font-size:15px}
+#cinfoP table{width:100%;border-collapse:collapse}
+#cinfoP th{width:28%;text-align:left;vertical-align:top;color:#aaa;font-weight:normal;padding:4px 6px;border-top:1px solid #333;font-size:12px}
+#cinfoP td{padding:4px 6px;border-top:1px solid #333;white-space:pre-wrap;word-break:break-all}
+#cinfoP tr.hl td,#cinfoP tr.hl th{background:#2a3a1f;color:#fff}
 </style>
 </head>
-<body data-mode="file">
-<div id="top">
-  <button id="bBack">←</button>
-  <div id="title">現場モード</div>
-  <button id="tFile">📝 ファイル</button>
-  <button id="tCam">📷 カメラ</button>
-  <button id="tSplit">◫ 分割</button>
-  <button id="tPhotos">☁ 写真一覧</button>
-  <span id="ver"></span>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="frame">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="view"></canvas>
+    </div>
+    <div id="flash"></div>
+    <div id="toast"></div>
+    <div id="cinfo"></div><div id="cinfoP"></div>
+    <div id="paused">カメラを一時停止中<br>タップで再開</div>
+    <div id="err"></div>
+  </div>
+
+  <div id="bar">
+    <div id="tray"></div>
+    <button id="shutter" aria-label="撮影"></button>
+    <button id="save" disabled>保存 (0)</button>
+  </div>
+
+  <div id="panel">
+    <div class="row"><label>案件</label><button id="caseBtn" class="empty">案件を選ぶ</button></div>
+    <div class="row"><label>文言</label><input type="text" id="note" placeholder="テンプレを選ぶ/打って保存" autocomplete="off"><button id="tplSave">保存</button></div>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <button id="setBtn">⚙ 設定 ▾</button>
+      <button id="flip">カメラ切替</button><button id="histBtn" style="margin-left:6px;flex:none">📦 履歴</button><button id="backBtn" style="background:#3a3a3c;padding:8px 10px;font-size:13px;flex:none;margin-left:6px">← 案件に戻る</button>
+      <span id="gpsst" style="font-size:11px;color:#aaa"></span><span id="cloud" style="font-size:11px;color:#aaa;margin-left:6px"></span><span id="ver" style="font-size:10px;color:#666;margin-left:auto"></span>
+    </div>
+    <div id="settings" style="display:none">
+      <div class="row">
+        <label>位置</label>
+        <select id="pos">
+          <option value="bl">左下</option><option value="br">右下</option>
+          <option value="tl">左上</option><option value="tr">右上</option>
+        </select>
+        <label class="ck"><input type="checkbox" id="dt" checked>日時</label>
+      </div>
+      <div class="row">
+        <label>GPS</label>
+        <label class="ck"><input type="checkbox" id="gps" checked>GPS付与</label>
+        <label class="ck"><input type="checkbox" id="addr" checked>住所表示</label>
+      </div>
+      <div class="row"><label>文字サイズ</label><input type="range" id="size" min="50" max="220" value="100"></div>
+      <div class="row"><label>背景濃さ</label><input type="range" id="bg" min="0" max="90" value="55"></div>
+    </div>
+  </div>
 </div>
-<div id="body">
-  <iframe id="pf" class="pane" allow="camera *; microphone *; geolocation *; web-share *; fullscreen *"></iframe>
-  <iframe id="pc" class="pane" allow="camera *; microphone *; geolocation *; web-share *; fullscreen *"></iframe>
+
+<div id="hist"><h2>📦 撮影履歴(端末内に7日間保管)</h2><div id="histNote">赤=未保存 / 緑=送信済み。タップで「保存」待ちの一覧に戻せます。</div><div id="histGrid"></div><button id="histCloud" style="margin-top:8px;padding:14px;font-size:15px;background:#0a84ff">☁ クラウドの写真一覧(今日)を開く</button><button id="histClose">閉じる</button></div>
+
+<div id="modal">
+  <h2>今日撮る案件を選んでください</h2>
+  <div id="mSel"></div>
+  <input type="text" id="mSearch" placeholder="名前・住所で検索(全案件から)" autocomplete="off">
+  <div id="mList"></div>
+  <div id="mFoot"><input type="text" id="mManual" placeholder="手入力(案件にない現場)"><button id="mManualOk">決定</button></div>
+  <button id="mStart" disabled>撮影開始</button>
 </div>
-<div id="empty">案件が指定されていません。<br>案件モーダルの「🏗 現場モード」から開いてください。<br><a href="today.html">Todayへ</a></div>
 <script>
 (function(){
 'use strict';
-var VER='v1111-d';
-var $=function(id){return document.getElementById(id)};
-var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
-var q=new URLSearchParams(location.search);
-var cur={key:q.get('case')||'',name:q.get('name')||'',addr:q.get('addr')||'',file:q.get('file')||''};
-if(cur.key){
-  try{localStorage.setItem(LASTKEY,JSON.stringify({key:cur.key,name:cur.name,addr:cur.addr}))}catch(e){}
-}else{
-  try{var l=JSON.parse(localStorage.getItem(LASTKEY)||'null');if(l&&l.key){cur.key=l.key;cur.name=l.name||'';cur.addr=l.addr||''}}catch(e){}
-}
-$('ver').textContent=VER;
-if(!cur.key){
-  $('empty').style.display='flex';$('body').style.display='none';
-  $('bBack').onclick=function(){location.href='today.html'};
-  return;
-}
-$('title').textContent=cur.name||'(案件名なし)';
+const $=id=>document.getElementById(id);
+const VER='v1111-g';
+const video=$('video'), view=$('view'), vctx=view.getContext('2d');
+const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
+const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
+let facing='environment', stream=null;
+let tray=[]; // {id,blob,name,url}
 
-/* ---------- 画面モード ---------- */
-function canSplit(){return window.innerWidth>=900&&window.innerWidth/window.innerHeight>1.2}
-var mode='file';
-try{mode=localStorage.getItem(MODEKEY)||''}catch(e){}
-if(mode!=='file'&&mode!=='cam'&&mode!=='split')mode=canSplit()?'split':'file';
-if(mode==='split'&&!canSplit())mode='file';
-function setMode(m,save){
-  if(m==='split'&&!canSplit())m='cam'; // 縦向きなど狭い画面では分割できない
-  mode=m;document.body.dataset.mode=m;
-  ['File','Cam','Split'].forEach(function(n){$('t'+n).classList.toggle('on',m===n.toLowerCase())});
-  if(save){try{localStorage.setItem(MODEKEY,m)}catch(e){}}
-  if(m==='cam'||m==='split')wakeCam();
+/* ---------- 撮影データの退避(IndexedDB) ----------
+   撮った瞬間に端末内へ保存する。保存操作の失敗・キャンセル・再読込・タブの強制終了があっても写真は残る。
+   status: pending(未保存) / sent(共有シートで送信済み。7日間は履歴に残す) */
+const DB_NAME='genbaCameraPhotos',DB_STORE='photos',KEEP_MS=7*24*3600*1000;
+let idbP=null;
+function idbOpen(){
+  if(idbP)return idbP;
+  idbP=new Promise((res,rej)=>{
+    try{
+      const r=indexedDB.open(DB_NAME,1);
+      r.onupgradeneeded=()=>{r.result.createObjectStore(DB_STORE,{keyPath:'id'})};
+      r.onsuccess=()=>res(r.result);
+      r.onerror=()=>rej(r.error);
+    }catch(e){rej(e)}
+  });
+  return idbP;
 }
-$('tFile').onclick=function(){setMode('file',true)};
-$('tCam').onclick=function(){setMode('cam',true)};
-$('tSplit').onclick=function(){setMode('split',true)};
-$('tPhotos').onclick=function(){window.open('genba-photos.html','genbaPhotos')};
-window.addEventListener('resize',function(){if(mode==='split'&&!canSplit())setMode('cam',false)});
-
-/* ---------- 子ページ ---------- */
-var pf=$('pf'),pc=$('pc');
-var fileUrl='pdf-note.html?case='+encodeURIComponent(cur.key)+'&name='+encodeURIComponent(cur.name)+(cur.file?'&file='+encodeURIComponent(cur.file):'');
-var camUrl='genba-camera.html?case='+encodeURIComponent(cur.name||cur.key)+'&key='+encodeURIComponent(cur.key)+'&addr='+encodeURIComponent(cur.addr);
-// 子ページ側の「案件に戻る」は枠内では意味がないので隠す(上部の←を使う)
-function hideIn(frame,id){
-  frame.addEventListener('load',function(){
-    try{var b=frame.contentDocument.getElementById(id);if(b)b.style.display='none'}catch(e){}
+function idbTx(mode,fn){
+  return idbOpen().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,mode),st=tx.objectStore(DB_STORE);
+    const out=fn(st);
+    tx.oncomplete=()=>res(out&&out.result!==undefined?out.result:true);
+    tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+  }));
+}
+function idbPut(rec){return idbTx('readwrite',st=>st.put(rec)).then(()=>true).catch(()=>false)}
+function idbDel(id){return idbTx('readwrite',st=>st.delete(id)).catch(()=>false)}
+function idbAll(){return idbTx('readonly',st=>st.getAll()).then(a=>Array.isArray(a)?a:[]).catch(()=>[])}
+function idbSetStatus(ids,status){
+  return idbOpen().then(db=>new Promise(res=>{
+    const tx=db.transaction(DB_STORE,'readwrite'),st=tx.objectStore(DB_STORE);
+    ids.forEach(id=>{const g=st.get(id);g.onsuccess=()=>{const r=g.result;if(r){r.status=status;if(status==='sent')r.sentTs=Date.now();st.put(r)}}});
+    tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false);
+  })).catch(()=>false);
+}
+function newId(){return Date.now()+'_'+Math.random().toString(36).slice(2,8)}
+function flashMsg(t,ms){
+  const e=$('toast');e.textContent='';
+  const sp=document.createElement('span');sp.textContent=t;e.appendChild(sp);
+  e.style.display='flex';e.style.whiteSpace='normal';e.style.maxWidth='92%';
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>{e.style.display='none'},ms||7000);
+}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+async function restoreTray(){
+  const all=await idbAll();
+  const now=Date.now();
+  // 送信済みで7日を過ぎたものは掃除
+  all.filter(r=>r.status==='sent'&&r.uploaded&&r.indexed&&now-(r.sentTs||r.ts||0)>KEEP_MS).forEach(r=>idbDel(r.id)); // クラウドに上がって索引にも載った送信済みだけを7日後に掃除。未アップロードは絶対に消さない
+  const pend=all.filter(r=>r.status==='pending'&&r.blob).sort((a,b)=>a.ts-b.ts);
+  all.forEach(r=>{if(r.blob&&!r.uploaded)unsent.add(r.id)});
+  pend.forEach(r=>{if(!tray.some(t=>t.id===r.id))tray.push({id:r.id,blob:r.blob,name:r.name,up:!!r.uploaded,url:URL.createObjectURL(r.blob)})});
+  if(pend.length){updateTray();flashMsg('前回の未保存 '+pend.length+' 枚を復元しました。「保存」を押してください',9000)}
+  showCloud();uploadPending();
+}
+/* 📦 履歴: 端末内に残っている写真(未保存+送信済み7日分)を見て、一覧に戻して再保存できる */
+let histUrls=[];
+function closeHist(){histUrls.forEach(u=>URL.revokeObjectURL(u));histUrls=[];$('hist').style.display='none'}
+async function openHist(){
+  const g=$('histGrid');g.textContent='読込中…';$('hist').style.display='flex';
+  const all=(await idbAll()).filter(r=>r.blob).sort((a,b)=>b.ts-a.ts);
+  g.textContent='';
+  if(!all.length){g.textContent='履歴はありません';return}
+  all.forEach(r=>{
+    const c=document.createElement('button');c.className='hc'+(r.status==='sent'?' sent':'');
+    const u=URL.createObjectURL(r.blob);histUrls.push(u);
+    const im=document.createElement('img');im.src=u;
+    const b=document.createElement('b');b.textContent=r.status==='sent'?'送信済み':'未保存';
+    const d=new Date(r.ts);
+    const sp=document.createElement('span');sp.textContent=(d.getMonth()+1)+'/'+d.getDate()+' '+p2(d.getHours())+':'+p2(d.getMinutes())+(r.uploaded?' ☁':'')+' '+(r.site||'');
+    c.appendChild(im);c.appendChild(b);c.appendChild(sp);
+    c.onclick=async()=>{
+      if(tray.some(t=>t.id===r.id)){flashMsg('すでに保存待ちの一覧にあります',3000);return}
+      await idbSetStatus([r.id],'pending');
+      tray.push({id:r.id,blob:r.blob,name:r.name,url:URL.createObjectURL(r.blob)});
+      updateTray();closeHist();flashMsg('一覧に戻しました。「保存」を押してください',5000);
+    };
+    g.appendChild(c);
   });
 }
-hideIn(pf,'bBack');   // pdf-note.html
-hideIn(pc,'backBtn'); // genba-camera.html
-pf.src=fileUrl;
-pc.src=camUrl;
+$('histBtn').onclick=openHist;$('histClose').onclick=closeHist;$('histCloud').onclick=()=>{window.open('genba-photos.html','genbaPhotos')};
+// 未保存の写真があるまま閉じようとしたら警告(写真自体は端末内に退避済みなので、次回開けば復元される)
+window.addEventListener('beforeunload',e=>{if(tray.length){e.preventDefault();e.returnValue=''}});
 
-/* カメラは1分放置で自動停止する作りなので、表示に切り替えた時に止まっていれば再開する */
-function wakeCam(){
-  setTimeout(function(){
-    try{
-      var d=pc.contentDocument;if(!d)return;
-      var p=d.getElementById('paused');
-      if(p&&p.style.display==='flex')p.click();
-      var s=d.getElementById('shutter'); // 操作したことにして放置タイマーを延ばす
-      if(s)d.dispatchEvent(new Event('pointerdown',{bubbles:true}));
-    }catch(e){}
-  },150);
+/* ---------- クラウド自動退避 ----------
+   撮った写真は、端末内に保存したうえで Firebase Storage の案件フォルダ(users/{userKey}/case_files/{案件キー}/)へ自動アップロードする。
+   案件モーダルの📎添付・pdf-noteの案件ファイルと同じ場所なので、そこからそのまま見える。圏外なら溜めておき、電波が戻ったら再送する。
+   「保存」(共有シート→写真アプリ)は従来どおり別操作。アップロード済みでも一覧から勝手には消さない。 */
+window.genbaUnsaved=function(){return tray.length}; // 現場モード(親ページ)が未保存枚数を表示するために参照する
+let urlKey='',urlName='';
+const unsent=new Set();
+function caseKeyFor(site){
+  if(urlKey&&site===urlName)return urlKey;
+  const c=cases.find(x=>x.name===site);
+  return (c&&c.key)||'';
 }
-document.addEventListener('visibilitychange',function(){if(!document.hidden&&(mode==='cam'||mode==='split'))wakeCam()});
+function showCloud(){
+  const e=$('cloud');if(!e)return;
+  if(!unsent.size){e.textContent='☁ 退避済み';e.style.color='#30d158'}
+  else{e.textContent=(navigator.onLine?'☁ 送信待ち ':'☁ 圏外・送信待ち ')+unsent.size;e.style.color='#ff9f0a'}
+}
+let stReady=null;
+function ensureStorage(){
+  if(window.firebase&&firebase.storage)return Promise.resolve(true);
+  if(stReady)return stReady;
+  stReady=new Promise(res=>{
+    const sc=document.createElement('script');
+    sc.src='https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js';
+    sc.onload=()=>res(!!(window.firebase&&firebase.storage));
+    sc.onerror=()=>{stReady=null;res(false)};
+    document.head.appendChild(sc);
+  });
+  return stReady;
+}
+function idbMark(id,patch){
+  return idbOpen().then(db=>new Promise(res=>{
+    const tx=db.transaction(DB_STORE,'readwrite'),st=tx.objectStore(DB_STORE);
+    const g=st.get(id);g.onsuccess=()=>{const r=g.result;if(r){Object.assign(r,patch);st.put(r)}};
+    tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false);
+  })).catch(()=>false);
+}
+let upBusy=false;
+function ymdOf(ts){const d=new Date(ts);return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
+// アップロードした写真を日付別の索引に記録(genba-photos.html が「今日の写真」を案件別に出すため)
+async function indexPhoto(r,key){
+  const d=getDb();if(!d)return false;
+  try{
+    await Promise.race([
+      d.ref('genba_photo_index/'+ymdOf(r.ts)+'/'+r.id).set({key:key||'',site:r.site||'',name:r.name,ts:r.ts,path:r.path||('case_files/'+key+'/'+r.name)}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))
+    ]);
+    return true;
+  }catch(e){return false}
+}
+async function uploadPending(){
+  if(upBusy||!navigator.onLine||typeof getUserKey!=='function'||!getUserKey())return;
+  upBusy=true;
+  try{
+    if(!(await ensureStorage()))return;
+    const all=(await idbAll()).filter(r=>r.blob&&(!r.uploaded||!r.indexed)).sort((a,b)=>a.ts-b.ts);
+    for(const r of all){
+      const key=r.key||caseKeyFor(r.site)||'';
+      const rel='camera_backup/'+ymdOf(r.ts)+'/'+r.name; // 案件に関係なく日付ごとの1つの箱へ
+      if(!r.uploaded){
+        try{
+          await firebase.storage().ref('users/'+getUserKey()+'/'+rel).put(r.blob,{contentType:'image/jpeg'});
+          await idbMark(r.id,{uploaded:true,upTs:Date.now(),key:key,path:rel});
+          r.uploaded=true;r.path=rel;
+          unsent.delete(r.id);
+          const t=tray.find(x=>x.id===r.id);if(t)t.up=true;
+          updateTray();showCloud();
+        }catch(e){break} // 通信不良: 残りは次回に回す
+      }
+      if(r.uploaded&&!r.indexed&&(r.path||key)&&await indexPhoto(r,key))await idbMark(r.id,{indexed:true});
+    }
+  }catch(e){}
+  finally{upBusy=false;showCloud()}
+}
+window.addEventListener('online',()=>{showCloud();uploadPending();if(tray.length)flashMsg('電波が戻りました。写真アプリに未保存の写真が '+tray.length+' 枚あります。「保存」を押してください',9000)});
+window.addEventListener('offline',showCloud);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)uploadPending()});
+setInterval(uploadPending,45000);
 
-/* ---------- 戻る ---------- */
-function unsavedN(){try{return pc.contentWindow.genbaUnsaved()||0}catch(e){return 0}}
-setInterval(function(){
-  var n=unsavedN();
-  $('tCam').textContent=n?'📷 カメラ ('+n+')':'📷 カメラ';
-  $('tCam').style.background=n?'#c62828':'';
-},1500);
-$('bBack').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
+/* ---------- settings ---------- */
+function readLS(k){try{return JSON.parse(localStorage.getItem(k))||null}catch(e){return null}}
+const old=readLS(LS_OLD)||{};
+const carry={};['size','bg','dt','gps','addr'].forEach(k=>{if(old[k]!==undefined)carry[k]=old[k]});
+// 位置の初期値は右下(旧バージョンの左下設定は引き継がない)
+const S=Object.assign({site:'',siteAddr:'',note:'',pos:'br',dt:true,gps:true,addr:true,size:100,bg:55},carry,readLS(LS)||{});
+function saveS(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}redraw()}
+function loadUI(){
+  $('note').value=S.note;$('pos').value=S.pos;
+  $('dt').checked=S.dt;$('gps').checked=S.gps;$('addr').checked=S.addr;
+  $('size').value=S.size;$('bg').value=S.bg;
+  renderCase();renderChips();
+}
+function renderCase(){
+  const b=$('caseBtn');
+  if(S.site){b.textContent=S.site;b.classList.remove('empty')}
+  else{b.textContent='案件を選ぶ';b.classList.add('empty')}
+  renderInfo();
+}
+/* 撮影画面の案件情報バー: 施工日・施工指示を薄く表示、タップで詳細 */
+function curCaseInfo(){return S.site?cases.find(c=>c.name===S.site):null}
+function renderInfo(){
+  const bar=$('cinfo'),c=curCaseInfo();
+  if(!c){bar.style.display='none';$('cinfoP').style.display='none';return}
+  bar.textContent='🔨 '+(c.sekou||'未定')+(c.shiji?'  |  '+String(c.shiji).replace(/\s+/g,' '):'');
+  bar.style.display='block';
+}
+function openInfoP(){
+  const c=curCaseInfo();if(!c)return;
+  const P=$('cinfoP');P.textContent='';
+  const h=document.createElement('div');h.className='ih';
+  const t=document.createElement('b');t.textContent=c.name;h.appendChild(t);
+  const x=document.createElement('button');x.textContent='✕';x.onclick=()=>{P.style.display='none';lastActive=Date.now()};h.appendChild(x);
+  P.appendChild(h);
+  const tb=document.createElement('table');
+  [['💬 メモ',c.memo,1],['住所',c.addr],['施工日',c.sekou,1],['下見日',c.shitami],['予定日',c.yotei],['施工指示',c.shiji,1]].forEach(r=>{
+    if(!r[1])return;const tr=document.createElement('tr');if(r[2])tr.className='hl';
+    const th=document.createElement('th');th.textContent=r[0];const td=document.createElement('td');td.textContent=r[1];
+    tr.appendChild(th);tr.appendChild(td);tb.appendChild(tr);
+  });
+  P.appendChild(tb);P.style.display='block';
+}
+$('cinfo').onclick=openInfoP;
 
-setMode(mode,false);
+/* ---------- テンプレ文言(Firebase保存 + 端末キャッシュ) ---------- */
+let tpls=TPL_DEFAULT.slice();
+(function(){const c=readLS(TPLKEY);if(Array.isArray(c)&&c.length)tpls=c})();
+let fdb=null;
+function getDb(){
+  if(fdb)return fdb;
+  try{if(window.scopedDatabase&&window.firebase)fdb=scopedDatabase(firebase.database())}catch(e){}
+  return fdb;
+}
+function cacheTpls(){try{localStorage.setItem(TPLKEY,JSON.stringify(tpls))}catch(e){}}
+function pushTpls(){const d=getDb();if(d)d.ref('genba_camera_templates').set(tpls).catch(()=>{})}
+function loadTpls(){
+  const d=getDb();if(!d)return;
+  d.ref('genba_camera_templates').once('value').then(sn=>{
+    let v=sn.val();
+    if(v&&!Array.isArray(v))v=Object.keys(v).map(k=>v[k]);
+    if(Array.isArray(v)&&v.length){tpls=v.filter(x=>typeof x==='string'&&x);cacheTpls();renderChips()}
+    else{pushTpls()} // 初回: 初期17件をFirebaseへ書き込む
+  }).catch(()=>{});
+}
+function renderChips(){
+  const c=$('chips');c.innerHTML='';
+  tpls.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='chip'+(S.note===t?' on':'');b.textContent=t;
+    b.onclick=()=>{hideKb();S.note=(S.note===t?'':t);$('note').value=S.note;saveS();renderChips();};
+    c.appendChild(b);
+  });
+}
+$('tplSave').onclick=()=>{
+  const t=$('note').value.trim();
+  if(!t)return;
+  hideKb();
+  if(!tpls.includes(t)){tpls.push(t);cacheTpls();pushTpls();renderChips()}
+  const b=$('tplSave');b.textContent='✓';setTimeout(()=>b.textContent='保存',900);
+};
+$('setBtn').onclick=()=>{const o=$('settings').style.display==='none';$('settings').style.display=o?'block':'none';$('setBtn').textContent=o?'⚙ 設定 ▴':'⚙ 設定 ▾';setTimeout(()=>{try{layout()}catch(e){}},50)};
+$('note').oninput=e=>{S.note=e.target.value;saveS();renderChips()};
+$('pos').onchange=e=>{S.pos=e.target.value;saveS()};
+$('dt').onchange=e=>{S.dt=e.target.checked;saveS()};
+$('gps').onchange=e=>{S.gps=e.target.checked;saveS()};
+$('addr').onchange=e=>{S.addr=e.target.checked;saveS()};
+$('size').oninput=e=>{S.size=+e.target.value;saveS()};
+$('bg').oninput=e=>{S.bg=+e.target.value;saveS()};
+
+/* ---------- 案件(Firebase app_tasks → 端末キャッシュ) ---------- */
+let cases=readLS(CASEKEY)||[];
+const sv=(c,i)=>{if(!c)return'';if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):'';if(typeof c==='object')return c[i]!=null?String(c[i]):'';return''};
+function ymd(ds){
+  if(!ds)return'';
+  const d=String(ds).replace(/\s+/g,'').replace(/\//g,'-').replace(/\./g,'-').split('-');
+  return d.length===3?d[0]+'-'+p2(+d[1])+'-'+p2(+d[2]):'';
+}
+function todayStr(){const t=new Date();return t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate())}
+function loadCases(){
+  const d=getDb();if(!d)return;
+  Promise.all([d.ref('app_tasks').once('value'),d.ref('app_meta/headers').once('value').catch(()=>null)]).then(rs=>{
+    const sn=rs[0],hs=(rs[1]&&rs[1].val())||[];
+    let si=-1;hs.forEach((x,i)=>{if(si<0&&String(x).includes('施工指示'))si=i});
+    if(si<0)hs.forEach((x,i)=>{if(si<0&&String(x).includes('指示'))si=i});
+    const t=sn.val()||{},arr=[];
+    Object.keys(t).forEach(k=>{
+      const o=t[k],c=o&&o.csvData;if(!c)return;
+      const name=sv(c,4).trim();if(!name)return;
+      const status=sv(c,1).replace(/\s+/g,'');
+      if(status==='完了')return;
+      arr.push({key:k,name,addr:sv(c,11).replace(/\s+/g,''),sekou:ymd(sv(c,2)),shitami:ymd(sv(c,12)),yotei:ymd(o.date||''),shiji:si>=0?sv(c,si):'',memo:o.memo||''});
+    });
+    if(arr.length){
+      cases=arr;
+      try{localStorage.setItem(CASEKEY,JSON.stringify(arr))}catch(e){}
+      if($('modal').style.display==='flex')renderModal();
+      renderInfo();
+    }
+  }).catch(()=>{});
+}
+
+/* ---------- 案件選択モーダル ---------- */
+const norm=t=>String(t||'').normalize('NFKC').replace(/[\s　]+/g,'').toLowerCase();
+function pickCase(name,addr){
+  hideKb();
+  S.site=name;S.siteAddr=addr||'';saveS();renderCase();updateSel();
+}
+function updateSel(){
+  const m=$('mSel');m.textContent='';
+  if(S.site){m.appendChild(document.createTextNode('選択中: '));const b=document.createElement('b');b.textContent=S.site;m.appendChild(b)}
+  else m.textContent='案件が未選択です。下から選んで「撮影開始」を押してください';
+  $('mStart').disabled=!S.site;
+  $('mStart').textContent=(stream&&stream.active)?'この案件で撮影を続ける':'撮影開始';
+  document.querySelectorAll('#mList .mi').forEach(b=>b.classList.toggle('sel',!!S.site&&b.dataset.name===S.site));
+}
+function openModal(){
+  $('mSearch').value='';$('mManual').value='';
+  $('modal').style.display='flex';renderModal();
+}
+function closeModal(){
+  hideKb();
+  $('modal').style.display='none';
+  // モーダルから撮影開始: 案件を決めた(または前回のまま続ける)時点でカメラを起動する
+  if(!paused&&(!stream||!stream.active))startCam();
+}
+function caseTags(c){
+  const td=todayStr(),a=[];
+  if(c.shitami===td)a.push('今日 下見');
+  else if(c.yotei===td)a.push('今日 下見予定');
+  if(c.sekou===td)a.push('今日 施工');
+  return a;
+}
+function renderModal(){
+  const q=norm($('mSearch').value),L=$('mList');L.innerHTML='';
+  let list,head;
+  if(q){
+    list=cases.filter(c=>norm(c.name).includes(q)||norm(c.addr).includes(q)).slice(0,40);
+    head='検索結果('+list.length+'件)';
+  }else{
+    list=cases.filter(c=>caseTags(c).length);
+    head='今日の案件('+list.length+'件)  ※他の案件は検索で選べます';
+  }
+  const h=document.createElement('div');h.className='msec';h.textContent=head;L.appendChild(h);
+  if(!cases.length){
+    const m=document.createElement('div');m.className='msec';
+    m.textContent='案件データがありません。電波の良い所で一度開き直してください。手入力はできます。';
+    L.appendChild(m);
+  }
+  list.forEach(c=>{
+    const b=document.createElement('button');b.className='mi';b.dataset.name=c.name;
+    const n=document.createElement('b');
+    caseTags(c).forEach(t=>{const g=document.createElement('span');g.className='tg';g.textContent=t;n.appendChild(g)});
+    n.appendChild(document.createTextNode(c.name));
+    const a=document.createElement('small');a.textContent=c.addr;
+    b.appendChild(n);b.appendChild(a);
+    b.onclick=()=>pickCase(c.name,c.addr);
+    L.appendChild(b);
+  });
+  updateSel();
+}
+$('mSearch').oninput=renderModal;
+$('mManualOk').onclick=()=>{hideKb();const t=$('mManual').value.trim();if(t)pickCase(t,'')};
+$('mStart').onclick=closeModal;
+$('caseBtn').onclick=openModal;
+
+/* ---------- キーボード対策: 見える範囲に合わせて縮め、入力が終わったら閉じる ---------- */
+const vv=window.visualViewport;
+function fitVV(){
+  const zoomed=vv&&vv.scale>1.02;
+  const h=(vv&&!zoomed)?vv.height:window.innerHeight;
+  const t=(vv&&!zoomed)?vv.offsetTop:0;
+  const r=document.documentElement.style;
+  r.setProperty('--vvh',Math.round(h)+'px');
+  r.setProperty('--vvt',Math.round(t)+'px');
+  document.body.classList.toggle('kb',h<window.screen.height*0.7&&h<window.innerHeight*0.85);
+  try{layout()}catch(e){}
+}
+if(vv){vv.addEventListener('resize',fitVV);vv.addEventListener('scroll',fitVV)}
+window.addEventListener('resize',fitVV);
+function hideKb(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))a.blur()}
+['note','mSearch','mManual'].forEach(id=>{
+  const el=$(id);
+  el.setAttribute('enterkeyhint','done');
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();hideKb()}});
+  el.addEventListener('focus',()=>setTimeout(()=>{try{el.scrollIntoView({block:'nearest'})}catch(e){}},350));
+});
+
+/* ---------- camera ---------- */
+function showErr(msg,retry){
+  const e=$('err');e.style.display='block';
+  e.innerHTML=msg+(retry?'<br><button id="retry">再試行</button>':'');
+  if(retry)$('retry').onclick=startCam;
+}
+async function startCam(){
+  $('err').style.display='none';
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showErr('このブラウザはカメラに対応していません。HTTPS(GitHub Pages等)で開いてください。');return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:facing},width:{ideal:4032},height:{ideal:3024},aspectRatio:{ideal:4/3}},audio:false});
+    video.srcObject=stream;
+    await video.play().catch(()=>{});
+  }catch(err){
+    showErr('カメラを起動できません。<br>設定でカメラの許可を確認してください。<br>('+(err.name||err)+')',true);
+  }
+}
+$('flip').onclick=()=>{facing=(facing==='environment'?'user':'environment');startCam()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!paused&&$('modal').style.display!=='flex'&&(!stream||!stream.active))startCam()});
+
+/* ---------- 放置で自動停止(省電力) ---------- */
+let paused=false,lastActive=Date.now();
+const IDLE_MS=60000; // 1分
+function touch(){lastActive=Date.now()}
+['pointerdown','keydown','input'].forEach(ev=>document.addEventListener(ev,touch,true));
+function pauseCam(){
+  paused=true;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  video.srcObject=null;
+  $('paused').style.display='flex';
+}
+function resumeCam(){
+  paused=false;touch();
+  $('paused').style.display='none';
+  startCam();refreshGeo();
+}
+$('paused').onclick=resumeCam;
+setInterval(()=>{if(!paused&&!document.hidden&&Date.now()-lastActive>IDLE_MS)pauseCam()},15000);
+
+/* ---------- location ---------- */
+const geo={pos:null,addr:'',lastQ:null};
+let muni=null;
+function gst(t){$('gpsst').textContent=t}
+function loadMuni(){
+  const s=document.createElement('script');
+  s.src='https://maps.gsi.go.jp/js/muni.js';
+  s.onload=()=>{try{muni=window.GSI&&window.GSI.MUNI_ARRAY}catch(e){}};
+  document.head.appendChild(s);
+}
+function dist(a,b){
+  const R=6371000,r=Math.PI/180;
+  const dx=(b.lon-a.lon)*r*Math.cos(a.lat*r),dy=(b.lat-a.lat)*r;
+  return R*Math.sqrt(dx*dx+dy*dy);
+}
+async function revGeo(lat,lon){
+  try{
+    const r=await fetch('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat='+lat+'&lon='+lon);
+    const j=await r.json();const res=j&&j.results;
+    if(!res){geo.lastQ=null;return}
+    let pre='';
+    if(muni&&res.muniCd){
+      const m=muni[String(parseInt(res.muniCd,10))];
+      if(m){const a=String(m).split(',');if(a.length>=4)pre=a[1]+a[3]}
+    }
+    geo.addr=pre+(res.lv01Nm||'');
+    redraw();
+  }catch(e){geo.lastQ=null}
+}
+// 位置情報は常時取得せず、起動時・前面復帰時・60秒ごとに1回だけ取得(省電力)
+function refreshGeo(){
+  if(!S.gps&&!S.addr)return;
+  if(!navigator.geolocation){gst('不可');return}
+  navigator.geolocation.getCurrentPosition(p=>{
+    geo.pos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
+    gst('OK ±'+Math.round(p.coords.accuracy)+'m');
+    if(!geo.lastQ||dist(geo.lastQ,geo.pos)>30){
+      geo.lastQ={lat:geo.pos.lat,lon:geo.pos.lon};
+      revGeo(geo.pos.lat,geo.pos.lon);
+    }
+  },e=>gst(e.code===1?'許可なし':'取得失敗'),
+  {enableHighAccuracy:true,maximumAge:30000,timeout:20000});
+}
+function startGeo(){
+  loadMuni();gst('取得中…');refreshGeo();
+  setInterval(()=>{if(!document.hidden&&!paused)refreshGeo()},60000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshGeo()});
+}
+
+/* ---------- EXIF (日時 + GPS) ---------- */
+function buildExif(date,pos){
+  const gps=!!pos;
+  const dtS=date.getFullYear()+':'+p2(date.getMonth()+1)+':'+p2(date.getDate())+' '+
+    p2(date.getHours())+':'+p2(date.getMinutes())+':'+p2(date.getSeconds());
+  const nIfd0=gps?2:1;
+  const exifOff=8+2+nIfd0*12+4;
+  const dtOff=exifOff+2+12+4;
+  const gpsOff=dtOff+20;
+  const latOff=gpsOff+2+5*12+4;
+  const lonOff=latOff+24;
+  const total=gps?lonOff+24:gpsOff;
+  const b=new Uint8Array(total),v=new DataView(b.buffer);
+  b[0]=0x4D;b[1]=0x4D;v.setUint16(2,0x2A);v.setUint32(4,8);
+  let p=8;
+  const e=(tag,type,cnt,val)=>{v.setUint16(p,tag);v.setUint16(p+2,type);v.setUint32(p+4,cnt);v.setUint32(p+8,val>>>0);p+=12};
+  // IFD0
+  v.setUint16(p,nIfd0);p+=2;
+  e(0x8769,4,1,exifOff);
+  if(gps)e(0x8825,4,1,gpsOff);
+  p+=4;
+  // Exif IFD
+  p=exifOff;v.setUint16(p,1);p+=2;
+  e(0x9003,2,20,dtOff);p+=4;
+  for(let i=0;i<19;i++)b[dtOff+i]=dtS.charCodeAt(i);
+  if(gps){
+    const put=(off,val)=>{
+      const a=Math.abs(val);const d=Math.floor(a);const mf=(a-d)*60;const m=Math.floor(mf);const s=(mf-m)*60;
+      v.setUint32(off,d);v.setUint32(off+4,1);
+      v.setUint32(off+8,m);v.setUint32(off+12,1);
+      v.setUint32(off+16,Math.round(s*10000));v.setUint32(off+20,10000);
+    };
+    p=gpsOff;v.setUint16(p,5);p+=2;
+    e(0,1,4,0x02030000);
+    e(1,2,2,(pos.lat>=0?0x4E:0x53)<<24);
+    e(2,5,3,latOff);
+    e(3,2,2,(pos.lon>=0?0x45:0x57)<<24);
+    e(4,5,3,lonOff);
+    put(latOff,pos.lat);put(lonOff,pos.lon);
+  }
+  const len=2+6+total;
+  const app1=new Uint8Array(2+len);
+  app1[0]=0xFF;app1[1]=0xE1;app1[2]=len>>8;app1[3]=len&255;
+  app1.set([0x45,0x78,0x69,0x66,0,0],4);
+  app1.set(b,10);
+  return app1;
+}
+async function addExif(blob,date,pos){
+  const buf=new Uint8Array(await blob.arrayBuffer());
+  if(buf[0]!==0xFF||buf[1]!==0xD8)return blob;
+  return new Blob([buf.subarray(0,2),buildExif(date,pos),buf.subarray(2)],{type:'image/jpeg'});
+}
+
+/* ---------- overlay ---------- */
+const p2=n=>String(n).padStart(2,'0');
+function dtStr(d){return d.getFullYear()+'/'+p2(d.getMonth()+1)+'/'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes())}
+function fileStamp(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'_'+p2(d.getHours())+p2(d.getMinutes())+p2(d.getSeconds())}
+const FONT='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
+function rrect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function drawOverlay(c,w,h,date){
+  // 上から: 案件名(最大) / テンプレ・入力文言 / 住所(小・折返し) / 日時(小)
+  const rows=[];
+  if(S.site.trim())rows.push({t:S.site.trim(),k:1.45,b:true});
+  if(S.note.trim())rows.push({t:S.note.trim(),k:1,b:true});
+  if(S.addr&&geo.addr)rows.push({t:geo.addr,k:.7,b:false,wrap:true});
+  if(S.dt)rows.push({t:dtStr(date),k:.7,b:false});
+  if(!rows.length)return;
+  let fs=Math.min(w,h)*0.045*(S.size/100);
+  const fnt=(l,f)=>(l.b?'bold ':'')+(f*l.k)+'px '+FONT;
+  const maxW=w*0.94-fs*1.1;
+  const widest=f=>{let m=0;rows.forEach(l=>{if(l.wrap)return;c.font=fnt(l,f);m=Math.max(m,c.measureText(l.t).width)});return m};
+  let mw=widest(fs);
+  if(mw>maxW){fs*=maxW/mw;mw=widest(fs)}
+  const wrapW=Math.min(maxW,Math.max(mw,w*0.5));
+  const lines=[];
+  rows.forEach(l=>{
+    if(!l.wrap){lines.push(l);return}
+    c.font=fnt(l,fs);
+    let cur='';
+    for(const ch of l.t){
+      if(cur&&c.measureText(cur+ch).width>wrapW){lines.push({t:cur,k:l.k,b:l.b});cur=ch}
+      else cur+=ch;
+    }
+    if(cur)lines.push({t:cur,k:l.k,b:l.b});
+  });
+  let tw=0;lines.forEach(l=>{c.font=fnt(l,fs);tw=Math.max(tw,c.measureText(l.t).width)});
+  const pad=fs*0.55,gap=fs*0.18,mg=fs*0.6;
+  const lh=lines.map(l=>fs*l.k*1.15);
+  const bw=tw+pad*2,bh=lh.reduce((a,b)=>a+b,0)+gap*(lines.length-1)+pad*2;
+  const x=S.pos.endsWith('r')?w-mg-bw:mg;
+  const y=S.pos.startsWith('b')?h-mg-bh:mg;
+  if(S.bg>0){c.fillStyle='rgba(0,0,0,'+(S.bg/100)+')';rrect(c,x,y,bw,bh,fs*0.35);c.fill()}
+  c.textBaseline='top';c.textAlign='left';
+  let ty=y+pad;
+  lines.forEach((l,i)=>{
+    c.font=fnt(l,fs);
+    if(S.bg<25){c.lineWidth=fs*l.k*0.14;c.strokeStyle='rgba(0,0,0,.85)';c.lineJoin='round';c.strokeText(l.t,x+pad,ty)}
+    c.fillStyle='#fff';c.fillText(l.t,x+pad,ty);
+    ty+=lh[i]+gap;
+  });
+}
+function render(c,w,h,date){
+  c.drawImage(video,0,0,w,h);
+  drawOverlay(c,w,h,date);
+}
+
+/* ---------- preview (映像はそのまま表示、文字は必要時のみ再描画) ---------- */
+const stage=$('stage'), frame=$('frame');
+function layout(){
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw||!vh)return;
+  const r=stage.getBoundingClientRect();
+  const sc=Math.min(r.width/vw,r.height/vh);
+  frame.style.width=Math.floor(vw*sc)+'px';
+  frame.style.height=Math.floor(vh*sc)+'px';
+}
+function sizeOverlay(){
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw||!vh)return;
+  const sc=Math.min(1,1280/Math.max(vw,vh));
+  const cw=Math.round(vw*sc),ch=Math.round(vh*sc);
+  if(view.width!==cw||view.height!==ch){view.width=cw;view.height=ch}
+  layout();redraw();
+}
+function redraw(){
+  if(!view.width)return;
+  vctx.clearRect(0,0,view.width,view.height);
+  drawOverlay(vctx,view.width,view.height,new Date());
+}
+video.addEventListener('loadedmetadata',sizeOverlay);
+video.addEventListener('resize',sizeOverlay);
+window.addEventListener('resize',layout);
+if(window.ResizeObserver)new ResizeObserver(layout).observe(stage);
+setInterval(redraw,10000); // 日時表示の更新用
+
+/* ---------- capture ---------- */
+function updateTray(){
+  const t=$('tray');t.innerHTML='';
+  tray.forEach((p,i)=>{
+    const d=document.createElement('div');d.className='th';
+    const im=document.createElement('img');im.src=p.url;
+    const x=document.createElement('b');x.textContent='×';
+    x.onclick=()=>{URL.revokeObjectURL(p.url);idbDel(p.id);tray.splice(i,1);updateTray()};
+    d.appendChild(im);d.appendChild(x);
+    if(p.up){const cl=document.createElement('i');cl.textContent='☁';d.appendChild(cl)}
+    t.appendChild(d);
+  });
+  t.scrollLeft=t.scrollWidth;
+  $('save').textContent='保存 ('+tray.length+')';
+  $('save').disabled=!tray.length;
+}
+$('shutter').onclick=()=>{
+  if(paused){resumeCam();return}
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw)return;
+  const date=new Date();
+  const cv=document.createElement('canvas');cv.width=vw;cv.height=vh;
+  render(cv.getContext('2d'),vw,vh,date);
+  const f=$('flash');f.style.opacity=.8;setTimeout(()=>f.style.opacity=0,80);
+  const pos=(S.gps&&geo.pos)?{lat:geo.pos.lat,lon:geo.pos.lon}:null;
+  cv.toBlob(async blob0=>{
+    if(!blob0)return;
+    let blob=blob0;
+    try{blob=await addExif(blob0,date,pos)}catch(err){blob=blob0}
+    const base=(S.site.trim()||'photo').replace(/[\\\/:*?"<>|\s]+/g,'_').slice(0,40);
+    const name=base+'_'+fileStamp(date)+'_'+String(date.getMilliseconds()).padStart(3,'0')+'.jpg';
+    const id=newId();
+    tray.push({id,blob,name,url:URL.createObjectURL(blob)});
+    updateTray();
+    unsent.add(id);showCloud();
+    idbPut({id,name,blob,ts:date.getTime(),site:S.site,key:caseKeyFor(S.site),uploaded:false,status:'pending'}).then(ok=>{
+      if(!ok)flashMsg('⚠ 端末内への退避に失敗しました。こまめに「保存」を押してください',9000);
+      else uploadPending();
+    });
+  },'image/jpeg',0.92);
+};
+
+/* ---------- save ---------- */
+function clearTray(){tray.forEach(p=>URL.revokeObjectURL(p.url));tray=[];updateTray()}
+let lastSent=null, toastTimer=null;
+const SHARE_MAX=40;
+function releaseSent(){
+  if(lastSent){lastSent.forEach(p=>URL.revokeObjectURL(p.url));lastSent=null}
+}
+function showToast(n){
+  const t=$('toast');
+  t.innerHTML='<span>'+n+'枚 送信済み</span><button id="undo">戻す</button>';
+  t.style.display='flex';t.style.whiteSpace='nowrap';
+  $('undo').onclick=()=>{
+    if(lastSent){idbSetStatus(lastSent.map(p=>p.id),'pending');tray=lastSent.concat(tray);lastSent=null;updateTray()}
+    t.style.display='none';clearTimeout(toastTimer);
+  };
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.style.display='none';releaseSent()},20000);
+}
+$('save').onclick=async()=>{
+  if(!tray.length)return;
+  const sending=tray.slice(0,SHARE_MAX); // 多い時は古い順に40枚ずつ(一度に大量だと共有シートが失敗しやすい)
+  const files=sending.map(p=>new File([p.blob],p.name,{type:'image/jpeg'}));
+  if(navigator.canShare&&navigator.canShare({files})){
+    let err=null;
+    try{await navigator.share({files})}catch(e){err=e||{}}
+    if(!err||(err.name==='AbortError'&&confirm('写真アプリへの保存は終わりましたか?\n\nOK = 終わった(一覧から外す)\nキャンセル = まだ(写真は残す)'))){
+      // 共有シートの操作が完了した場合だけ「送信済み」にする(端末内には7日間残る)
+      idbSetStatus(sending.map(p=>p.id),'sent');
+      releaseSent();
+      tray=tray.filter(p=>!sending.includes(p));
+      lastSent=sending;
+      updateTray();
+      if(tray.length)flashMsg(sending.length+'枚を保存しました。残り '+tray.length+' 枚: もう一度「保存」を押してください',9000);
+      else showToast(sending.length);
+    }else{
+      // キャンセル・失敗: 写真は一覧に残したまま。消さない
+      flashMsg(err.name==='AbortError'?'保存は完了していません(キャンセル)。写真は残っています。もう一度「保存」を押してください':'保存に失敗しました。写真は残っています: '+(err.message||err.name||''),9000);
+    }
+    return;
+  }
+  // fallback: download
+  sending.forEach((p,i)=>setTimeout(()=>{
+    const a=document.createElement('a');a.href=p.url;a.download=p.name;
+    document.body.appendChild(a);a.click();a.remove();
+  },i*400));
+  setTimeout(()=>{
+    idbSetStatus(sending.map(p=>p.id),'sent');
+    tray=tray.filter(p=>!sending.includes(p));
+    sending.forEach(p=>URL.revokeObjectURL(p.url));
+    updateTray();
+  },sending.length*400+500);
+};
+
+$('backBtn').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};fitVV();$('ver').textContent=VER;loadUI();updateTray();restoreTray();startGeo();loadTpls();loadCases();
+// 案件モーダルの「📷 撮影」から開かれた場合は、その案件を選んだ状態で直接カメラを起動する。
+// それ以外(直接開いた場合)は、案件選択モーダルを出す。
+(function(){
+  let q=null;
+  try{q=new URLSearchParams(location.search)}catch(e){}
+  const c=q&&q.get('case');
+  if(c){
+    urlKey=q.get('key')||'';urlName=c;
+    S.site=c;S.siteAddr=q.get('addr')||'';saveS();renderCase();
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    startCam();
+  }else{
+    openModal();
+  }
+})();
 })();
 </script>
 </body>
