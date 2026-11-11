@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-10-002 -->
+<!-- VERSION: 2026-11-12-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -79,6 +79,8 @@
       <a href="clipboard.html" class="menu-btn" style="background-color:#4f8ef7;">📋 クリップボード</a>
       <!-- ★2026-11-07追加★ 仮想GoodNotes(pdf-note.html): PDF・写真への書き込みはFirebase不要で端末内に保存するため、appData読み込み待ちに依存しない。常時クリック可能。 -->
       <a href="pdf-note.html" class="menu-btn" style="background-color:#5e35b1;">📝 仮想GoodNotes（PDF・写真に書き込み）</a>
+      <!-- ★2026-11-12追加★ 写真DL(photo-dl.html): 現場カメラが退避した写真を案件別に写真アプリへ保存する。Firebaseから直接読むためappData読み込み待ちに依存しない。 -->
+      <a href="photo-dl.html" class="menu-btn" style="background-color:#00838f;">📥 写真DL</a>
       <!-- 工務担当者リスト(koumu-contacts.html)は全ユーザー共通のマスタ管理画面のため、他メニューと違いdisabled不要 -->
       <a href="koumu-contacts.html" class="menu-btn" style="background-color:#8e24aa;">☎️ 工務担当者リスト</a>
     </div>
@@ -90,6 +92,7 @@
     <div style="text-align:center;margin-top:10px;">
       <button id="clearCacheBtn" style="font-size:12px;color:#c62828;background:#fff;border:1px solid #c62828;border-radius:6px;padding:6px 14px;cursor:pointer;">🗑 キャッシュをクリア</button>
       <div id="clearCacheMsg" style="font-size:11px;color:#888;margin-top:6px;"></div>
+      <div style="font-size:10px;color:#aaa;margin-top:8px;">index 2026-11-12-001</div>
     </div>
 
   </div>
