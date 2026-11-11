@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>写真ダウンロード</title>
+<!-- VERSION: 2026-11-12 (v1112-a) 新規: アルバイト用の写真ダウンロードページ。現場カメラが退避した写真を日付・案件別に並べ、案件ごとにボタン1つで写真アプリへ保存する。開くと自動で準備を始める。genba_photo_index/{yyyymmdd}/ と camera_backup/ を読む -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="user-scope.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#f2f2f7;color:#111;font-family:-apple-system,"Hiragino Sans",sans-serif;padding:calc(12px + env(safe-area-inset-top)) 14px calc(30px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+h1{font-size:20px;margin:6px 0 2px}
+#ver{font-size:10px;color:#999}
+#bar{display:flex;align-items:center;gap:8px;margin:12px 0}
+#bar button{font-size:16px;border:none;border-radius:10px;padding:10px 16px;background:#fff;color:#007aff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#day{flex:1;text-align:center;font-size:18px;font-weight:bold}
+.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.card b{display:block;font-size:17px;line-height:1.4}
+.card small{display:block;color:#777;margin:2px 0 10px}
+.btn{width:100%;font-size:19px;font-weight:bold;border:none;border-radius:12px;padding:18px;background:#8e8e93;color:#fff}
+.btn.ready{background:#007aff}
+.btn.done{background:#34c759}
+.btn:disabled{opacity:.9}
+#msg{color:#555;text-align:center;padding:30px 10px;line-height:1.8;white-space:pre-wrap}
+#help{font-size:12px;color:#777;line-height:1.7;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>📥 写真ダウンロード</h1><div id="ver"></div>
+<div id="bar"><button id="bPrev">◀</button><div id="day"></div><button id="bNext">▶</button></div>
+<div id="list"><div id="msg">読み込み中…</div></div>
+<div id="help">案件ごとのボタンが青くなったら押してください。共有シートで「画像を保存」を選ぶと、写真アプリに入ります。<br>灰色の間は、写真を準備しています(そのまま少し待ってください)。</div>
+<script>
+(function(){
+'use strict';
+var VER='v1112-a',CHUNK=40;
+var $=function(id){return document.getElementById(id)};
+var p2=function(n){return String(n).padStart(2,'0')};
+function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
+var WD=['日','月','火','水','木','金','土'];
+var cur=new Date();cur.setHours(0,0,0,0);
+$('ver').textContent=VER;
+var DK='photoDl.done',done={};
+try{done=JSON.parse(localStorage.getItem(DK)||'{}')}catch(e){}
+function saveDone(){try{localStorage.setItem(DK,JSON.stringify(done))}catch(e){}}
+function dayLabel(){var t=new Date();t.setHours(0,0,0,0);var s=(cur.getMonth()+1)+'/'+cur.getDate()+'('+WD[cur.getDay()]+')';return cur.getTime()===t.getTime()?'今日 '+s:s}
+function say(t){var b=$('list');b.textContent='';var d=document.createElement('div');d.id='msg';d.textContent=t;b.appendChild(d)}
+function authReady(){
+  return new Promise(function(res,rej){
+    var t=setTimeout(function(){rej(new Error('ログインが確認できません。アプリを開いてログインし直してください'))},8000);
+    firebase.auth().onAuthStateChanged(function(u){clearTimeout(t);u?res(u):rej(new Error('ログインが切れています。アプリを開いてログインし直してください'))});
+  });
+}
+var token=0; // 日付を切り替えたら前の準備を止める
+async function load(){
+  var my=++token;
+  $('day').textContent=dayLabel();
+  say('読み込み中…');
+  try{
+    await authReady();
+    var db=scopedDatabase(firebase.database()),st=firebase.storage(),uk=getUserKey();
+    var data=(await db.ref('genba_photo_index/'+ymd(cur)).once('value')).val()||{};
+    if(my!==token)return;
+    var arr=Object.keys(data).map(function(k){return Object.assign({id:k},data[k])}).sort(function(a,b){return a.ts-b.ts});
+    if(!arr.length){say('この日の写真はありません');return}
+    var map={},order=[];
+    arr.forEach(function(p){var k=p.key||p.site||'?';if(!map[k]){map[k]={site:p.site||'(案件名なし)',items:[],files:null,state:'wait',idx:0,btn:null};order.push(k)}map[k].items.push(p)});
+    var box=$('list');box.textContent='';
+    var groups=order.map(function(k){return map[k]});
+    groups.forEach(function(g){
+      var n=g.items.length;
+      var c=document.createElement('div');c.className='card';
+      var t=document.createElement('b');t.textContent=g.site;
+      var s=document.createElement('small');s.textContent=n+'枚';
+      var btn=document.createElement('button');btn.className='btn';
+      c.appendChild(t);c.appendChild(s);c.appendChild(btn);box.appendChild(c);
+      g.btn=btn;
+      g.allDone=g.items.every(function(p){return done[p.id]});
+      paint(g);
+      btn.onclick=function(){onTap(g,st,uk,my)};
+    });
+    // 準備は上から順に1案件ずつ(同時に大量に読み込まない)
+    for(var i=0;i<groups.length;i++){
+      if(my!==token)return;
+      if(groups[i].allDone)continue;
+      await prepare(groups[i],st,uk,my);
+    }
+  }catch(e){say('⚠ '+(e&&e.message||e))}
+}
+function paint(g){
+  var b=g.btn,n=g.items.length;
+  b.className='btn';b.disabled=false;
+  if(g.state==='loading'){b.disabled=true;b.textContent='準備中 '+g.prog+'/'+n+'…';return}
+  if(g.state==='ready'){
+    var parts=Math.ceil(n/CHUNK);
+    b.classList.add('ready');
+    b.textContent='📥 写真アプリに保存'+(parts>1?'('+(g.idx+1)+'/'+parts+'回目)':'')+'  '+n+'枚';
+    return;
+  }
+  if(g.state==='saved'||g.allDone){b.classList.add('done');b.textContent='✓ 保存済み(もう一度保存する)';return}
+  if(g.state==='error'){b.textContent='準備できませんでした。もう一度押す';return}
+  b.textContent='待機中…';
+}
+async function prepare(g,st,uk,my){
+  if(g.state==='loading'||g.state==='ready')return;
+  g.state='loading';g.prog=0;g.files=null;g.idx=0;paint(g);
+  var got=[];
+  try{
+    for(var i=0;i<g.items.length;i++){
+      if(my!==token)return;
+      var p=g.items[i];
+      var u=await st.ref('users/'+uk+'/'+(p.path||('case_files/'+p.key+'/'+p.name))).getDownloadURL();
+      var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
+      var b=await r.blob();
+      got.push(new File([b],p.name,{type:'image/jpeg'}));
+      g.prog=i+1;paint(g);
+    }
+    g.files=got;g.state='ready';
+  }catch(e){g.state='error';g.err=e}
+  paint(g);
+}
+async function onTap(g,st,uk,my){
+  if(g.state==='ready'){
+    var from=g.idx*CHUNK,files=g.files.slice(from,from+CHUNK);
+    try{
+      if(navigator.canShare&&!navigator.canShare({files:files})){alert('この端末では保存できません');return}
+      await navigator.share({files:files});
+    }catch(e){
+      if(e&&e.name!=='AbortError')alert('保存できませんでした: '+(e.message||e));
+      return; // キャンセルしたら何も変えない(もう一度押せる)
+    }
+    g.items.slice(from,from+CHUNK).forEach(function(p){done[p.id]=Date.now()});saveDone();
+    g.idx++;
+    if(g.idx*CHUNK>=g.files.length){g.state='saved';g.allDone=true;g.files=null}
+    paint(g);return;
+  }
+  if(g.state==='error'||g.state==='saved'||g.allDone||g.state==='wait'){await prepare(g,st,uk,my)}
+}
+$('bPrev').onclick=function(){cur.setDate(cur.getDate()-1);load()};
+$('bNext').onclick=function(){cur.setDate(cur.getDate()+1);load()};
+load();
+})();
+</script>
+</body>
+</html>
