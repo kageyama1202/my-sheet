@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>今日の写真(クラウド)</title>
+<!-- VERSION: 2026-11-11 (v1111-a) 新規: クラウドに退避された撮影写真を日付・案件別に一覧し、案件ごとにまとめて写真アプリへ保存できる。現場カメラ(genba-camera.html v1111-d)が書く索引 genba_photo_index/{yyyymmdd}/ を読む -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="user-scope.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;padding:calc(10px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom))}
+#top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:18px;margin:0;flex:1}
+#ver{font-size:10px;color:#777}
+button,input{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background:#3a3a3c;color:#fff;font-family:inherit}
+input[type=date]{background:#2c2c2e;min-width:150px}
+#note{font-size:12px;color:#aaa;line-height:1.6;margin-bottom:12px}
+.g{background:#1c1c1e;border-radius:12px;padding:10px;margin-bottom:14px}
+.gh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.gh b{flex:1;min-width:200px;font-size:15px}
+.gh .tag{font-size:11px;background:#30d158;color:#000;border-radius:8px;padding:1px 8px}
+.act{background:#0a84ff;font-weight:bold;white-space:nowrap}
+.act.ready{background:#30d158;color:#000}
+.act:disabled{background:#3a3a3c;color:#999}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
+.grid a{display:block;position:relative;background:#2c2c2e;border-radius:6px;overflow:hidden;aspect-ratio:4/3}
+.grid img{width:100%;height:100%;object-fit:cover;display:block}
+.grid span{position:absolute;left:3px;bottom:3px;font-size:10px;background:rgba(0,0,0,.6);padding:0 5px;border-radius:5px}
+#msg{color:#ccc;padding:20px;text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<div id="top">
+  <button id="bBack">←</button>
+  <h1>☁ 今日の写真</h1>
+  <input type="date" id="dt">
+  <button id="bReload">更新</button>
+  <span id="ver"></span>
+</div>
+<div id="note">現場カメラで撮った写真が、案件ごとに並びます。「ダウンロード」→「写真アプリへ保存」の順に押すと、その案件の写真をまとめて写真アプリに入れられます(共有シートで「画像を保存」を選んでください)。</div>
+<div id="list"><div id="msg">読み込み中…</div></div>
+<script>
+(function(){
+'use strict';
+var VER='v1111-a';
+var $=function(id){return document.getElementById(id)};
+var p2=function(n){return String(n).padStart(2,'0')};
+function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
+function toInput(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
+$('dt').value=toInput(new Date());
+$('ver').textContent=VER;
+$('bBack').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
+var SK='genbaPhotos.shared';
+var shared={};try{shared=JSON.parse(localStorage.getItem(SK)||'{}')}catch(e){}
+function saveShared(){try{localStorage.setItem(SK,JSON.stringify(shared))}catch(e){}}
+
+function authReady(){
+  return new Promise(function(res,rej){
+    var t=setTimeout(function(){rej(new Error('認証が確認できません。ログインし直してください'))},8000);
+    firebase.auth().onAuthStateChanged(function(u){clearTimeout(t);u?res(u):rej(new Error('認証切れです。ログインし直してください'))});
+  });
+}
+function say(t){var b=$('list');b.textContent='';var d=document.createElement('div');d.id='msg';d.textContent=t;b.appendChild(d)}
+
+async function load(){
+  var v=$('dt').value;if(!v)return;
+  say('読み込み中…');
+  try{
+    await authReady();
+    var db=scopedDatabase(firebase.database()),st=firebase.storage(),uk=getUserKey();
+    var d=new Date(v+'T00:00:00');
+    var data=(await db.ref('genba_photo_index/'+ymd(d)).once('value')).val()||{};
+    var arr=Object.keys(data).map(function(k){return Object.assign({id:k},data[k])}).sort(function(a,b){return a.ts-b.ts});
+    if(!arr.length){say('この日のクラウド写真はありません。\n(現場カメラ v1111-d 以降で撮った写真が対象です)');return}
+    var groups={},order=[];
+    arr.forEach(function(p){var k=p.key||'?';if(!groups[k]){groups[k]={site:p.site||'(案件名なし)',items:[]};order.push(k)}groups[k].items.push(p)});
+    var box=$('list');box.textContent='';
+    order.forEach(function(k){
+      var g=groups[k],n=g.items.length;
+      var card=document.createElement('div');card.className='g';
+      var gh=document.createElement('div');gh.className='gh';
+      var t=document.createElement('b');t.textContent=g.site+'  ('+n+'枚)';gh.appendChild(t);
+      var allShared=g.items.every(function(p){return shared[p.id]});
+      var tag=document.createElement('span');tag.className='tag';tag.textContent='共有済み';tag.style.display=allShared?'':'none';gh.appendChild(tag);
+      var btn=document.createElement('button');btn.className='act';btn.textContent='⬇ ダウンロード('+n+'枚)';gh.appendChild(btn);
+      card.appendChild(gh);
+      var grid=document.createElement('div');grid.className='grid';card.appendChild(grid);
+      box.appendChild(card);
+      g.items.forEach(function(p){
+        var a=document.createElement('a');a.target='_blank';a.rel='noopener';
+        var im=document.createElement('img');im.loading='lazy';a.appendChild(im);
+        var tm=new Date(p.ts);var sp=document.createElement('span');sp.textContent=p2(tm.getHours())+':'+p2(tm.getMinutes());a.appendChild(sp);
+        grid.appendChild(a);
+        p.urlP=st.ref('users/'+uk+'/case_files/'+p.key+'/'+p.name).getDownloadURL();
+        p.urlP.then(function(u){im.src=u;a.href=u}).catch(function(){sp.textContent+=' (未アップロード?)'});
+      });
+      var files=null;
+      btn.onclick=async function(){
+        if(files){ // 準備済み: ここで共有シートを開く(ダウンロード後すぐ押す必要がある操作のため2段階)
+          try{
+            if(navigator.canShare&&!navigator.canShare({files:files})){alert('この端末では一括共有できません。写真を長押しして保存してください。');return}
+            await navigator.share({files:files});
+            g.items.forEach(function(p){shared[p.id]=Date.now()});saveShared();
+            tag.style.display='';
+          }catch(e){if(e&&e.name!=='AbortError')alert('共有できませんでした: '+(e.message||e))}
+          return;
+        }
+        btn.disabled=true;
+        var got=[];
+        try{
+          for(var i=0;i<g.items.length;i++){
+            btn.textContent='ダウンロード中 '+(i+1)+'/'+n;
+            var u=await g.items[i].urlP;
+            var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
+            var b=await r.blob();
+            got.push(new File([b],g.items[i].name,{type:'image/jpeg'}));
+          }
+          files=got;btn.disabled=false;btn.classList.add('ready');btn.textContent='📥 写真アプリへ保存('+n+'枚)';
+        }catch(e){
+          btn.disabled=false;btn.textContent='⬇ ダウンロード('+n+'枚)';
+          alert('取得できませんでした: '+(e.message||e)+'\n(写真を1枚ずつ開いて長押しで保存もできます)');
+        }
+      };
+    });
+  }catch(e){say('⚠ '+(e&&e.message||e))}
+}
+$('bReload').onclick=load;$('dt').onchange=load;
+load();
+})();
+</script>
+</body>
+</html>
