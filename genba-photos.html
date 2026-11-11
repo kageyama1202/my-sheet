@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>今日の写真(クラウド)</title>
-<!-- VERSION: 2026-11-11 (v1111-a) 新規: クラウドに退避された撮影写真を日付・案件別に一覧し、案件ごとにまとめて写真アプリへ保存できる。現場カメラ(genba-camera.html v1111-d)が書く索引 genba_photo_index/{yyyymmdd}/ を読む -->
+<!-- VERSION: 2026-11-12 (v1111-b) 退避先の変更(camera_backup)に対応: 索引のpathを使って取得(旧形式case_filesも読める)/案件キー未特定の写真も案件名でまとめて表示 | 前: 2026-11-11 (v1111-a) 新規: クラウドに退避された撮影写真を日付・案件別に一覧し、案件ごとにまとめて写真アプリへ保存できる。現場カメラ(genba-camera.html v1111-d)が書く索引 genba_photo_index/{yyyymmdd}/ を読む -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -47,7 +47,7 @@ input[type=date]{background:#2c2c2e;min-width:150px}
 <script>
 (function(){
 'use strict';
-var VER='v1111-a';
+var VER='v1111-b';
 var $=function(id){return document.getElementById(id)};
 var p2=function(n){return String(n).padStart(2,'0')};
 function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
@@ -78,7 +78,7 @@ async function load(){
     var arr=Object.keys(data).map(function(k){return Object.assign({id:k},data[k])}).sort(function(a,b){return a.ts-b.ts});
     if(!arr.length){say('この日のクラウド写真はありません。\n(現場カメラ v1111-d 以降で撮った写真が対象です)');return}
     var groups={},order=[];
-    arr.forEach(function(p){var k=p.key||'?';if(!groups[k]){groups[k]={site:p.site||'(案件名なし)',items:[]};order.push(k)}groups[k].items.push(p)});
+    arr.forEach(function(p){var k=p.key||p.site||'?';if(!groups[k]){groups[k]={site:p.site||'(案件名なし)',items:[]};order.push(k)}groups[k].items.push(p)});
     var box=$('list');box.textContent='';
     order.forEach(function(k){
       var g=groups[k],n=g.items.length;
@@ -96,7 +96,7 @@ async function load(){
         var im=document.createElement('img');im.loading='lazy';a.appendChild(im);
         var tm=new Date(p.ts);var sp=document.createElement('span');sp.textContent=p2(tm.getHours())+':'+p2(tm.getMinutes());a.appendChild(sp);
         grid.appendChild(a);
-        p.urlP=st.ref('users/'+uk+'/case_files/'+p.key+'/'+p.name).getDownloadURL();
+        p.urlP=st.ref('users/'+uk+'/'+(p.path||('case_files/'+p.key+'/'+p.name))).getDownloadURL();
         p.urlP.then(function(u){im.src=u;a.href=u}).catch(function(){sp.textContent+=' (未アップロード?)'});
       });
       var files=null;
