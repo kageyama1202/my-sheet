@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場モード</title>
-<!-- VERSION: 2026-11-12 (v1112-a) 軽量化: ファイルを見ている間はカメラ映像を止め、カメラ/分割に切り替えると再開/未保存枚数は1.5秒ごとの確認をやめ、カメラからの通知で更新 | 前: 2026-11-11 (v1111-d) ←で戻る時の未保存確認を廃止(未保存は「カメラ」タブの赤い枚数で常に表示) | 前: 2026-11-11 (v1111-c) 上部に「☁ 写真一覧」(クラウドの今日の写真を案件別に表示・写真アプリへ保存)を追加 | 前: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<!-- VERSION: 2026-11-13 (v1113-e) 分割表示中は、図面側を触っていてもカメラが1分で止まらないようにした(20秒ごとにカメラへ「使用中」を知らせる)。カメラだけ/ファイルだけの時は従来どおり | 前: 2026-11-12 (v1112-a) 軽量化: ファイルを見ている間はカメラ映像を止め、カメラ/分割に切り替えると再開/未保存枚数は1.5秒ごとの確認をやめ、カメラからの通知で更新 | 前: 2026-11-11 (v1111-d) ←で戻る時の未保存確認を廃止(未保存は「カメラ」タブの赤い枚数で常に表示) | 前: 2026-11-11 (v1111-c) 上部に「☁ 写真一覧」(クラウドの今日の写真を案件別に表示・写真アプリへ保存)を追加 | 前: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -45,7 +45,7 @@ body[data-mode=split] #pc{visibility:visible;pointer-events:auto;width:42%;left:
 <script>
 (function(){
 'use strict';
-var VER='v1112-a';
+var VER='v1113-e';
 var $=function(id){return document.getElementById(id)};
 var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
 var q=new URLSearchParams(location.search);
@@ -100,6 +100,7 @@ pc.src=camUrl;
 
 /* カメラの映像は、見ていない間は止め、表示した時に再開する(カメラ側の窓口 genbaCam を使う) */
 function camApi(){try{return pc.contentWindow.genbaCam||null}catch(e){return null}}
+setInterval(function(){if(mode==='split'&&!document.hidden){var a=camApi();if(a&&a.touch)a.touch()}},20000);
 function sleepCam(){var a=camApi();if(a)a.pause()}
 function wakeCam(){
   setTimeout(function(){
