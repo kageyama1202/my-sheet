@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-12 (v1112-a) 現場での重さ対策: 一覧/履歴は小さな見本画像(長辺480px)を使う+タップで1枚だけ原寸表示/撮影直後に巨大canvasを解放/アップロードはシャッターが15秒止まってから1枚ずつ・全件読み込みをやめる/見ていない時は親(現場モード)からカメラ映像を止める/未保存枚数は変化時のみ親へ通知 | 前: 2026-11-12 (v1111-g) クラウド退避先を案件フォルダから退避専用の箱(users/{userKey}/camera_backup/{yyyymmdd}/)に変更/案件が未特定でも送る(案件モーダルの添付やpdf-noteの案件ファイルには混ざらない) | 前: 2026-11-12 (v1111-f) 共有シートが「完了」を返さない操作(ショートカット等)で保存した時、「保存は終わりましたか?」と確認して、OKなら一覧から外す | 前: 2026-11-11 (v1111-e) 保存は「ここまでの未保存を全案件まとめて」いつでも押せる運用に: 案件切替/戻るの確認を廃止/一度に40枚ずつ共有(多い時は続けて押す)/電波が戻ったら未保存枚数を通知 | 前: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-13 (v1113-e) 現場モードとの相性: 親から touch() を呼べるようにし(分割表示中は図面側を触っていても1分で止めない)/停止画面に「案件に戻る」(単独で開いた時のみ表示) | 前: 2026-11-13 (v1113-d) カメラが動いていない間(一時停止・起動待ち・映像なし)は撮影画面そのものを隠し、専用の停止画面(大きな「カメラを起動」ボタン/未保存の保存ボタン/📦履歴)だけを表示。映像が出るとすぐ撮影画面に戻る(シャッターは映像が出ている時にしか存在しない) | 前: 2026-11-13 (v1113-c) カメラが動いていない間(一時停止・起動待ち・映像なし)はシャッターを灰色の点線にして「撮影不可」と表示/停止中の画面を大きな赤い「📷 カメラ停止中 タップで起動(撮影できません)」に/停止中にシャッターを押しても撮影せず起動だけ行い「映像が出てから押してください」と警告 | 前: 2026-11-13 (v1113-b) 撮影の確認表示: シャッター後、端末内への記録が成功した時だけ画面上部に「✓ 本日N枚目 記録済み」と撮った写真を表示(失敗・映像未準備は赤い警告)/一覧は「写真アプリに保存済み(灰色✓)」と「未保存」を区切って並べ、最後に保存した分が分かる | 前: 2026-11-13 (v1113-a) シャッターで保存を促す: 未保存が溜まるほどシャッターの縁が灰→橙(4枚〜)→赤(8枚〜)に変わる/8枚以上でシャッターを押すと同時に共有シートが自動で開く(写真アプリへ保存)/キャンセルしたらそのあと4枚は出さない/撮影自体は止めない | 前: 2026-11-12 (v1112-a) 現場での重さ対策: 一覧/履歴は小さな見本画像(長辺480px)を使う+タップで1枚だけ原寸表示/撮影直後に巨大canvasを解放/アップロードはシャッターが15秒止まってから1枚ずつ・全件読み込みをやめる/見ていない時は親(現場モード)からカメラ映像を止める/未保存枚数は変化時のみ親へ通知 | 前: 2026-11-12 (v1111-g) クラウド退避先を案件フォルダから退避専用の箱(users/{userKey}/camera_backup/{yyyymmdd}/)に変更/案件が未特定でも送る(案件モーダルの添付やpdf-noteの案件ファイルには混ざらない) | 前: 2026-11-12 (v1111-f) 共有シートが「完了」を返さない操作(ショートカット等)で保存した時、「保存は終わりましたか?」と確認して、OKなら一覧から外す | 前: 2026-11-11 (v1111-e) 保存は「ここまでの未保存を全案件まとめて」いつでも押せる運用に: 案件切替/戻るの確認を廃止/一度に40枚ずつ共有(多い時は続けて押す)/電波が戻ったら未保存枚数を通知 | 前: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -23,8 +23,13 @@ html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-sys
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 #err{position:absolute;left:12px;right:12px;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;line-height:1.6;display:none;background:rgba(0,0,0,.7);padding:12px;border-radius:10px}
 #err button{margin-top:8px}
-#paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.88);font-size:18px;line-height:1.9;z-index:4}
+#paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;background:rgba(120,0,0,.92);font-size:26px;font-weight:700;line-height:2;z-index:4}
 #toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(40,40,42,.95);padding:8px 8px 8px 16px;border-radius:20px;font-size:14px;white-space:nowrap;z-index:5}
+#shotOk{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:none;align-items:center;gap:10px;background:rgba(0,120,40,.95);padding:6px 16px 6px 6px;border-radius:14px;font-size:16px;font-weight:700;z-index:6;pointer-events:none;white-space:nowrap}
+#shotOk.bad{background:rgba(200,0,0,.96)}
+#shotOk img{height:52px;border-radius:8px}
+.th.sv{opacity:.45}.th.sv i{background:rgba(160,160,160,.95)}
+.dv{flex:0 0 auto;align-self:center;font-size:11px;color:#aaa;padding:0 6px;border-left:2px solid #666;line-height:14px}
 #toast button{background:#0a84ff;padding:6px 14px}
 #panel{background:#1c1c1e;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #333;max-height:46vh;max-height:calc(var(--vvh,100dvh)*.5);overflow-y:auto}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
@@ -37,6 +42,14 @@ input[type=range]{flex:1}
 button{font-size:14px;border:none;border-radius:8px;padding:8px 12px;background:#3a3a3c;color:#fff}
 #bar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 14px;background:#000}
 #shutter{flex:none;width:100px;height:100px;border-radius:50%;background:#fff;border:7px solid #888;padding:0;margin:0 6px}
+#sleep{position:fixed;inset:0;background:#4a0000;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:20px}
+#sleep h1{font-size:34px;margin:0}
+#sleep button{font-size:24px;padding:20px 40px;border-radius:16px;min-width:340px}
+#sleepGo{background:#30d158;color:#000;font-weight:700;font-size:30px!important;padding:28px 50px!important}
+#sleepSave{background:#0a84ff}
+#sleepE{font-size:15px;color:#ffb4ab;max-width:600px}
+#paused{display:none!important}
+#shutter.off{background:#222;border:7px dashed #ff3b30!important;color:#ff6b60;font-size:15px;font-weight:700}
 #shutter:active{background:#ddd}
 #save{background:#0a84ff;min-width:92px;min-height:56px;font-size:15px}
 #save:disabled{background:#3a3a3c;color:#777}
@@ -114,9 +127,10 @@ body.kb #modal{padding-bottom:8px}
       <canvas id="view"></canvas>
     </div>
     <div id="flash"></div>
+    <div id="shotOk"></div>
     <div id="toast"></div>
     <div id="cinfo"></div><div id="cinfoP"></div>
-    <div id="paused">カメラを一時停止中<br>タップで再開</div>
+    <div id="paused">📷 カメラ停止中<br>ここをタップで起動<br><span style="font-size:18px">(起動して映像が出るまで撮影できません)</span></div>
     <div id="err"></div>
   </div>
 
@@ -155,6 +169,7 @@ body.kb #modal{padding-bottom:8px}
   </div>
 </div>
 
+<div id="sleep"><h1 id="sleepT"></h1><div id="sleepE"></div><button id="sleepGo">▶ カメラを起動</button><button id="sleepSave" style="display:none"></button><button id="sleepHist" style="background:#3a3a3c">📦 履歴</button><button id="sleepBack" style="background:#3a3a3c;font-size:18px">← 案件に戻る</button></div>
 <div id="viewer"><div id="vwrap"><img id="vimg" alt=""></div><button id="vclose">✕</button><button id="vact"></button></div>
 <div id="hist"><h2>📦 撮影履歴(端末内に7日間保管)</h2><div id="histNote">赤=未保存 / 緑=送信済み。タップで「保存」待ちの一覧に戻せます。</div><div id="histGrid"></div><button id="histCloud" style="margin-top:8px;padding:14px;font-size:15px;background:#0a84ff">☁ クラウドの写真一覧(今日)を開く</button><button id="histClose">閉じる</button></div>
 
@@ -170,7 +185,34 @@ body.kb #modal{padding-bottom:8px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const VER='v1112-a';
+const VER='v1113-e';
+function camReady(){return !paused&&!!stream&&stream.active&&video.videoWidth>0&&!video.paused}
+let notReadySince=0;
+function refreshShutter(){
+  const ok=camReady(),sh=$('shutter');
+  sh.classList.toggle('off',!ok);
+  sh.textContent=ok?'':'撮影不可';
+  // カメラが動いていない間は、撮影画面ごと隠して専用の停止画面だけを出す
+  if(ok)notReadySince=0;else if(!notReadySince)notReadySince=Date.now();
+  const show=!ok&&$('modal').style.display!=='flex'&&(paused||Date.now()-notReadySince>1500);
+  const sl=$('sleep');
+  if(show){
+    const eh=$('err').style.display==='block'?$('err').innerText:'';
+    $('sleepT').textContent=paused?'📷 カメラ停止中':'📷 カメラ起動中…(映像が出ません)';
+    $('sleepE').textContent=eh.replace('再試行','').trim();
+    const n=tray.length;$('sleepSave').style.display=n?'block':'none';$('sleepSave').textContent='💾 未保存 '+n+' 枚を保存';
+    sl.style.display='flex';
+  }else sl.style.display='none';
+}
+setInterval(refreshShutter,400);
+let todayN=0,okTimer=null;
+function showShotOk(thumbUrl,n,bad){
+  const e=$('shotOk');e.className=bad?'bad':'';e.textContent='';
+  if(thumbUrl){const im=document.createElement('img');im.src=thumbUrl;e.appendChild(im)}
+  const sp=document.createElement('span');sp.textContent=bad?bad:'✓ 本日'+n+'枚目 記録済み(未保存 '+tray.length+')';e.appendChild(sp);
+  e.style.display='flex';clearTimeout(okTimer);okTimer=setTimeout(()=>{e.style.display='none'},bad?6000:2500);
+}
+const AUTO_N=8,AUTO_GAP=4;let autoNext=0,saving=false;
 const video=$('video'), view=$('view'), vctx=view.getContext('2d');
 const TPL_DEFAULT=['外観','キーボックス','玄関から','遠景','正面から','横から','打ち合わせ内容','施工日お知らせ','天井の様子','排気ダクト','キッチン側','居間から','右側','左側','上から','下部','吊元の下部'];
 const LS='genbaCamera.v2', LS_OLD='genbaCamera.v1', TPLKEY='genbaCamera.tpl', CASEKEY='genbaCamera.cases';
@@ -287,6 +329,7 @@ async function restoreTray(){
   all.filter(r=>r.status==='sent'&&r.uploaded&&r.indexed&&now-(r.sentTs||r.ts||0)>KEEP_MS).forEach(r=>idbDel(r.id)); // クラウドに上がって索引にも載った送信済みだけを7日後に掃除。未アップロードは絶対に消さない
   const pend=all.filter(r=>r.status==='pending'&&r.blob).sort((a,b)=>a.ts-b.ts);
   all.forEach(r=>{if(r.blob&&!r.uploaded)unsent.add(r.id)});
+  const d0=new Date().toDateString();todayN=all.filter(r=>new Date(r.ts||0).toDateString()===d0).length;
   pend.forEach(r=>{if(!tray.some(t=>t.id===r.id))tray.push(trayFromRec(r))});
   if(pend.length){updateTray();flashMsg('前回の未保存 '+pend.length+' 枚を復元しました。「保存」を押してください',9000)}
   showCloud();uploadPending();
@@ -655,8 +698,13 @@ function resumeCam(){
   startCam();refreshGeo();
 }
 $('paused').onclick=resumeCam;
+$('sleepGo').onclick=()=>{if(paused)resumeCam();else startCam();touch()};
+$('sleepSave').onclick=()=>$('save').click();
+$('sleepHist').onclick=()=>openHist();
+if(window.parent&&window.parent!==window)$('sleepBack').style.display='none';else $('sleepBack').onclick=()=>$('backBtn').onclick();
 // 親(現場モード)から、見ていない間は映像を止め、表示した時に再開するための窓口
 window.genbaCam={
+  touch:function(){touch()},
   pause:function(){if(!paused)pauseCam()},
   resume:function(){if($('modal').style.display==='flex')return;if(paused)resumeCam();else if(!stream||!stream.active)startCam()}
 };
@@ -849,6 +897,12 @@ setInterval(redraw,10000); // 日時表示の更新用
 /* ---------- capture ---------- */
 function updateTray(){
   const t=$('tray');t.innerHTML='';
+  if(lastSent&&lastSent.length){
+    lastSent.slice(-8).forEach(p=>{const d=document.createElement('div');d.className='th sv';
+      const im=document.createElement('img');im.src=p.thumbUrl;im.onclick=()=>openViewer(p.blob);
+      const cl=document.createElement('i');cl.textContent='保存済';d.appendChild(im);d.appendChild(cl);t.appendChild(d)});
+    const dv=document.createElement('div');dv.className='dv';dv.innerHTML='ここから<br>未保存';t.appendChild(dv);
+  }
   tray.forEach((p,i)=>{
     const d=document.createElement('div');d.className='th';
     const im=document.createElement('img');im.src=p.thumbUrl;im.onclick=()=>openViewer(p.blob);
@@ -860,22 +914,28 @@ function updateTray(){
   });
   t.scrollLeft=t.scrollWidth;
   $('save').textContent='保存 ('+tray.length+')';
+  const n=tray.length,sh=$('shutter');
+  sh.style.borderColor=n>=AUTO_N?'#ff3b30':n>=4?'#ff9f0a':'#888';
+  $('save').style.background=n>=AUTO_N?'#ff3b30':n>=4?'#ff9f0a':'';
   $('save').disabled=!tray.length;
   // 未保存の枚数は、変わった時だけ親(現場モード)へ知らせる
   try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'genbaUnsaved',n:tray.length},location.origin)}catch(e){}
 }
 $('shutter').onclick=()=>{
-  if(paused){resumeCam();return}
+  if(paused){resumeCam();showShotOk(null,0,'⚠ 撮影していません。カメラを起動しました。映像が出てからもう一度押してください');return}
+  if(!camReady()){showShotOk(null,0,'⚠ 撮影していません。映像が出てからもう一度押してください');return}
   lastShot=Date.now();
+  // 未保存が溜まっていたら、シャッターを押したこの操作の中で共有シートを開く(iOSは操作の直後でないと開けない)
+  if(!saving&&tray.length>=Math.max(AUTO_N,autoNext)){try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}$('save').click()}
   const vw=video.videoWidth,vh=video.videoHeight;
-  if(!vw)return;
+  if(!vw){showShotOk(null,0,'⚠ 撮影できていません(映像が未準備)。もう一度押してください');return}
   const date=new Date();
   const cv=document.createElement('canvas');cv.width=vw;cv.height=vh;
   render(cv.getContext('2d'),vw,vh,date);
   const f=$('flash');f.style.opacity=.8;setTimeout(()=>f.style.opacity=0,80);
   const pos=(S.gps&&geo.pos)?{lat:geo.pos.lat,lon:geo.pos.lon}:null;
   cv.toBlob(async blob0=>{
-    if(!blob0)return;
+    if(!blob0){showShotOk(null,0,'⚠ 撮影に失敗しました。もう一度押してください');return}
     let blob=blob0;
     try{blob=await addExif(blob0,date,pos)}catch(err){blob=blob0}
     const base=(S.site.trim()||'photo').replace(/[\\\/:*?"<>|\s]+/g,'_').slice(0,40);
@@ -888,8 +948,8 @@ $('shutter').onclick=()=>{
     unsent.add(id);showCloud();
     lastShot=Date.now();
     idbPut({id,name,blob,thumb,ts:date.getTime(),site:S.site,key:caseKeyFor(S.site),uploaded:false,status:'pending'}).then(ok=>{
-      if(!ok)flashMsg('⚠ 端末内への退避に失敗しました。こまめに「保存」を押してください',9000);
-      else{clearTimeout(upTimer);upTimer=setTimeout(uploadPending,UP_IDLE_MS+1000)} // 撮影が止まってから送る
+      if(!ok){showShotOk(null,0,'⚠ 記録に失敗。すぐ「保存」を押してください');flashMsg('⚠ 端末内への退避に失敗しました。こまめに「保存」を押してください',9000)}
+      else{todayN++;showShotOk(tray[tray.length-1]&&tray[tray.length-1].thumbUrl,todayN);clearTimeout(upTimer);upTimer=setTimeout(uploadPending,UP_IDLE_MS+1000)} // 撮影が止まってから送る
     });
   },'image/jpeg',0.92);
 };
@@ -910,10 +970,13 @@ function showToast(n){
     t.style.display='none';clearTimeout(toastTimer);
   };
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{t.style.display='none';releaseSent()},20000);
+  toastTimer=setTimeout(()=>{t.style.display='none'},20000);
 }
 $('save').onclick=async()=>{
-  if(!tray.length)return;
+  if(!tray.length||saving)return;
+  saving=true;try{await doSave()}finally{saving=false}
+};
+async function doSave(){
   const sending=tray.slice(0,SHARE_MAX); // 多い時は古い順に40枚ずつ(一度に大量だと共有シートが失敗しやすい)
   const files=sending.map(p=>new File([p.blob],p.name,{type:'image/jpeg'}));
   if(navigator.canShare&&navigator.canShare({files})){
@@ -924,11 +987,12 @@ $('save').onclick=async()=>{
       idbSetStatus(sending.map(p=>p.id),'sent');
       releaseSent();
       tray=tray.filter(p=>!sending.includes(p));
-      lastSent=sending;
+      lastSent=sending;autoNext=0;
       updateTray();
       if(tray.length)flashMsg(sending.length+'枚を保存しました。残り '+tray.length+' 枚: もう一度「保存」を押してください',9000);
       else showToast(sending.length);
     }else{
+      autoNext=tray.length+AUTO_GAP; // 自動表示は、あと4枚撮るまで止める
       // キャンセル・失敗: 写真は一覧に残したまま。消さない
       flashMsg(err.name==='AbortError'?'保存は完了していません(キャンセル)。写真は残っています。もう一度「保存」を押してください':'保存に失敗しました。写真は残っています: '+(err.message||err.name||''),9000);
     }
@@ -946,7 +1010,7 @@ $('save').onclick=async()=>{
     sending.forEach(p=>URL.revokeObjectURL(p.thumbUrl));
     updateTray();
   },sending.length*400+500);
-};
+}
 
 $('backBtn').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};fitVV();$('ver').textContent=VER;loadUI();updateTray();restoreTray();startGeo();loadTpls();loadCases();
 // 案件モーダルの「📷 撮影」から開かれた場合は、その案件を選んだ状態で直接カメラを起動する。
