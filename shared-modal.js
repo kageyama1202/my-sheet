@@ -1,6 +1,7 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加】*/
-// VERSION: 2026-11-10-001
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
+// VERSION: 2026-11-12-001
 // CREATED: 2026-10-10 07:40
+var MODAL_JS_VERSION = "2026-11-12-001";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -176,13 +177,18 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<button type="button" id="modal-schedule-clear" style="margin-left:8px;font-size:11px;color:#888;background:none;border:1px solid #ccc;border-radius:3px;padding:2px 8px;cursor:pointer;">✕ 解除</button>';
   html += '</div>';
 
+  // ★2026-11-12変更★ 左=入力欄、右=その日の下見予定一覧(modal-day-list)の2カラム。狭い画面では右が下に折り返す。
+  html += '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;"><div style="flex:1 1 340px;min-width:0;">';
   html += '<div class="modal-input-row"><label>📅 予定日:</label><input type="date" id="modal-date" value="'+(obj.date||'')+'" /></div>';
   html += '<div class="modal-input-row"><label>⏰ 時間:</label><select id="modal-time">'+timeOpts+'</select></div>';
   html += '<div class="modal-input-row"><label>📝 時間メモ:</label><input type="text" id="modal-timenote" maxlength="60" placeholder="例：11時の○○邸終了後すぐ" value="'+escHtmlModal(obj.timeNote||'')+'" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:14px;" /></div>';
   html += '<div id="modal-time-warn" style="display:none;background:#fff3cd;color:#7a5b00;font-size:11px;padding:5px 8px;border-radius:4px;margin:2px 0 6px;white-space:pre-line;"></div>';
   var orderValInt = parseInt(obj.order, 10);
   var orderValSafe = (!isNaN(orderValInt) && orderValInt >= 1) ? orderValInt : '';
-  html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div></div>';
+  html += '<div class="modal-input-row"><label>🔢 順:</label><input type="number" id="modal-order" min="1" step="1" placeholder="番号" value="'+orderValSafe+'" /></div>';
+  html += '</div>';
+  html += '<div id="modal-day-list" style="flex:1 1 230px;min-width:200px;max-height:280px;overflow:auto;box-sizing:border-box;border:1px solid #a5d6a7;border-radius:6px;background:#f1f8e9;padding:8px;font-size:12px;"></div>';
+  html += '</div></div>';
 
   // 🚗 下見実施チェック（2026-09-01追加）：agenda.htmlの「毎朝の未確認チェック」と同じロジックの
   // モーダル側ミラー。GPS等での自動判定は不可能なため、本人が手動でチェックする一手間を前提にする。
@@ -266,6 +272,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   html += '<button class="modal-contact-btn'+(isNeedsContact?' active':'')+'" id="modal-contact-btn" style="margin:4px 6px;padding:5px 14px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;border:1px solid #00838f;background:'+(isNeedsContact?'#00bcd4':'#e0f7fa')+';color:'+(isNeedsContact?'#fff':'#006064')+';">'+(isNeedsContact?'📞 連絡必要中':'📞 連絡必要')+'</button>';
   html += '<button id="modal-delete-btn" style="margin:4px 6px;padding:5px 14px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;border:1px solid #c62828;background:#fff;color:#c62828;">🗑 この案件を削除</button>';
   html += '<span class="modal-save-msg" id="modal-save-msg">✔ 保存しました</span>';
+  html += '<div style="width:100%;text-align:right;font-size:10px;color:#aaa;margin-top:6px;">shared-modal.js v' + MODAL_JS_VERSION + '</div>';
   html += '<a id="modal-mailer-link" href="mailer-test.html?key='+encodeURIComponent(key)+'" class="modal-mailer-btn">✉️ メール送信</a>';
   var _smsTel = normalizePhoneModal(getSafeValModal(cols,6));
   var _smsLabel = encodeURIComponent(getSafeValModal(cols,5).trim()||key);
@@ -487,7 +494,79 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // 日付・時間・順番
   // checkTimeConflict()：現在保存されている日時について、前後72分（1.2時間）以内の予定を
   // 警告ボックスに表示する（ブロックはしない。既に保存済みの状態を後から知らせるだけ）。
+  // ★2026-11-12追加★ 選択中の予定日の下見予定を「順→時間」の順に一覧表示する(この案件は黄色でハイライト)。
+  // 他案件はglobalTasks、仮予約/確定はkariSlots(あれば)から。この案件は入力欄の現在値(未保存の選択直後も反映)を使う。
+  function renderDayList() {
+    var box = document.getElementById('modal-day-list');
+    if (!box) return;
+    var d = document.getElementById('modal-date').value;
+    if (!d) {
+      box.innerHTML = '<div style="color:#888;">📅 予定日を入れると、その日の下見予定がここに表示されます</div>';
+      return;
+    }
+    var selfOrderRaw = parseInt(document.getElementById('modal-order').value, 10);
+    var items = [{
+      self: true,
+      order: (!isNaN(selfOrderRaw) && selfOrderRaw >= 1) ? selfOrderRaw : null,
+      time: document.getElementById('modal-time').value || '',
+      name: ankenText,
+      area: extractAreaModal(getSafeValModal(cols, 11)),
+      note: (document.getElementById('modal-timenote') || {}).value || '',
+      mark: ''
+    }];
+    Object.keys(globalTasks || {}).forEach(function (k) {
+      if (k === key) return;
+      var o = globalTasks[k];
+      if (!o || o.date !== d) return;
+      var ov = parseInt(o.order, 10);
+      items.push({
+        self: false,
+        order: (!isNaN(ov) && ov >= 1) ? ov : null,
+        time: o.time || '',
+        name: getSafeValModal(o.csvData, 4).trim() || k,
+        area: extractAreaModal(getSafeValModal(o.csvData, 11)),
+        note: o.timeNote || '',
+        mark: o.shitamiVisited ? '✅' : ''
+      });
+    });
+    var kariData = (typeof kariSlots !== 'undefined') ? kariSlots
+                  : (typeof kariSlotsCache !== 'undefined') ? kariSlotsCache
+                  : null;
+    if (kariData && kariData[d]) {
+      Object.keys(kariData[d]).forEach(function (kid) {
+        var e = kariData[d][kid];
+        if (!e) return;
+        items.push({
+          self: false, order: null, time: e.start || '',
+          name: (e.case_name || '(名称なし)') + (e.tantou ? '（' + e.tantou + '）' : ''),
+          area: e.area || '', note: '',
+          mark: e.status === '確定' ? '✅確定' : '🟠仮'
+        });
+      });
+    }
+    items.sort(function (a, b) {
+      var ao = a.order == null ? 1e6 : a.order, bo = b.order == null ? 1e6 : b.order;
+      if (ao !== bo) return ao - bo;
+      var at = timeToMinutesModal(a.time), bt = timeToMinutesModal(b.time);
+      at = at == null ? 1e6 : at; bt = bt == null ? 1e6 : bt;
+      if (at !== bt) return at - bt;
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
+    var h = '<div style="font-weight:bold;color:#2e7d32;margin-bottom:4px;">📋 ' + escHtmlModal(d) + ' の下見予定（' + items.length + '件）</div>';
+    items.forEach(function (it) {
+      h += '<div style="padding:4px 4px;border-bottom:1px solid #dcedc8;' + (it.self ? 'background:#fff59d;font-weight:bold;border-radius:3px;' : '') + '">';
+      h += '<span style="display:inline-block;min-width:34px;color:#1565c0;font-weight:bold;">' + (it.order != null ? '順' + it.order : '－') + '</span>';
+      h += '<span style="display:inline-block;min-width:42px;color:#555;">' + (it.time ? escHtmlModal(it.time) : '--:--') + '</span> ';
+      h += (it.mark ? escHtmlModal(it.mark) + ' ' : '') + escHtmlModal(it.name) + (it.area ? '<span style="color:#888;font-weight:normal;">【' + escHtmlModal(it.area) + '】</span>' : '');
+      if (it.self) h += ' <span style="color:#e65100;">◀この案件</span>';
+      if (it.note) h += '<div style="color:#8d6e63;font-size:11px;font-weight:normal;">📝 ' + escHtmlModal(it.note) + '</div>';
+      h += '</div>';
+    });
+    if (items.length === 1) h += '<div style="color:#888;margin-top:4px;">この日は他の予定はありません</div>';
+    box.innerHTML = h;
+  }
   function checkTimeConflict() {
+    renderDayList();
     var warnBox = document.getElementById('modal-time-warn');
     if (!warnBox) return;
     var d = document.getElementById('modal-date').value;
@@ -562,7 +641,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var safeVal = (!isNaN(noRaw) && noRaw >= 1) ? noRaw : '';
     this.value = safeVal;
     saveField({order: safeVal});
+    renderDayList();
   });
+  // 時間メモの入力中も一覧のメモ表示を追従させる(保存は別処理)
+  (function(){
+    var tnEl2 = document.getElementById('modal-timenote');
+    if (tnEl2) tnEl2.addEventListener('input', renderDayList);
+  })();
 
   // メモ（blurで即時）
   var memoDebounce;
