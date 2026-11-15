@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>写真ダウンロード</title>
-<!-- VERSION: 2026-11-15 (v1115-a) 高速化+半自動化: 写真を6枚同時に取得(従来は1枚ずつ)/大きな1つのボタンだけで「次の40枚」を順に保存(案件をまたいで自動で次へ)/次の分を裏で先に準備しておくので待ち時間が出にくい/メモリ節約のため保存後は破棄/案件カードをタップするとその案件を先頭に | 前: 2026-11-12 (v1112-a) 新規: アルバイト用の写真ダウンロードページ。genba_photo_index/{yyyymmdd}/ と camera_backup/ を読む -->
+<!-- VERSION: 2026-11-15 (v1115-b) 「この日を全部保存」ボタン1つに簡略化: 案件に関係なくその日の未保存の写真を1回の共有シートでまとめて保存(200枚を超える日だけ、続けてもう一度押す)/案件カードは進み具合の表示のみ | 前: 2026-11-15 (v1115-a) 高速化+半自動化: 写真を6枚同時に取得(従来は1枚ずつ)/大きな1つのボタンだけで「次の40枚」を順に保存(案件をまたいで自動で次へ)/次の分を裏で先に準備しておくので待ち時間が出にくい/メモリ節約のため保存後は破棄/案件カードをタップするとその案件を先頭に | 前: 2026-11-12 (v1112-a) 新規: アルバイト用の写真ダウンロードページ。genba_photo_index/{yyyymmdd}/ と camera_backup/ を読む -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -42,11 +42,11 @@ h1{font-size:20px;margin:6px 0 2px}
 <button id="go" disabled>読み込み中…</button>
 <div id="sub"></div>
 <div id="list"><div id="msg">読み込み中…</div></div>
-<div id="help">青いボタンを押す → 共有シートで「画像を保存」を押す、をくり返すだけです。<br>保存が終わると、自動で次の分が青くなります。灰色の間は準備中です(少し待ってください)。<br>案件の名前をタップすると、その案件を先に保存できます。</div>
+<div id="help">日付を合わせて、青いボタンを押す → 共有シートで「画像を保存」を押すだけです。<br>灰色の間は準備中です(少し待ってください)。<br>200枚を超える日だけ、続けてもう一度押します。</div>
 <script>
 (function(){
 'use strict';
-var VER='v1115-a',CHUNK=40,PAR=6;
+var VER='v1115-b',CHUNK=200,PAR=6;
 var $=function(id){return document.getElementById(id)};
 var p2=function(n){return String(n).padStart(2,'0')};
 function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
@@ -67,25 +67,18 @@ function authReady(){
 
 var token=0,groups=[],st=null,uk='',cache={},busy=false;
 
-/* 未保存の写真を、案件の並び順のまま CHUNK 枚ずつに切った n 番目 */
+/* 未保存の写真を、その日ぶんまとめて CHUNK 枚ずつに切った n 番目(案件はまたいで1つにまとめる) */
+function allPending(){
+  var a=[];groups.forEach(function(g){g.items.forEach(function(p){if(!done[p.id])a.push(p)})});return a;
+}
 function chunkAt(n){
-  var k=0;
-  for(var gi=0;gi<groups.length;gi++){
-    var g=groups[gi];
-    var pend=g.items.filter(function(p){return !done[p.id]});
-    for(var i=0;i<pend.length;i+=CHUNK){
-      if(k===n)return {g:g,items:pend.slice(i,i+CHUNK)};
-      k++;
-    }
-  }
-  return null;
+  var a=allPending();
+  var from=n*CHUNK;
+  if(from>=a.length)return null;
+  return {items:a.slice(from,from+CHUNK)};
 }
-function pendingCount(){
-  var c=0;groups.forEach(function(g){c+=g.items.filter(function(p){return !done[p.id]}).length});return c;
-}
-function chunksLeft(){
-  var c=0;groups.forEach(function(g){var n=g.items.filter(function(p){return !done[p.id]}).length;c+=Math.ceil(n/CHUNK)});return c;
-}
+function pendingCount(){return allPending().length}
+function chunksLeft(){return Math.ceil(allPending().length/CHUNK)}
 function keyOf(ch){return ch.items.map(function(p){return p.id}).join(',')}
 
 /* 1つのかたまりを、PAR枚ずつ同時に取得して File にする */
@@ -133,15 +126,15 @@ function paintGo(){
   if(left===0){b.classList.add('done');b.innerHTML='✓ この日の写真は全部保存しました';sub.textContent='';b.disabled=false;paintCards();return}
   var ch=chunkAt(0),e=ch&&cache[keyOf(ch)];
   var n=ch?ch.items.length:0;
-  sub.textContent='残り '+left+'枚(あと'+chunksLeft()+'回)';
+  sub.textContent=chunksLeft()>1?'残り '+left+'枚(あと'+chunksLeft()+'回、続けて押してください)':'';
   if(!e||e.state==='loading'){
     b.disabled=true;
-    b.innerHTML='準備中 '+(e?e.prog:0)+'/'+n+'…<small>'+esc(ch?ch.g.site:'')+'</small>';
+    b.innerHTML='準備中 '+(e?e.prog:0)+'/'+n+'…<small>そのまま少し待ってください</small>';
   }else if(e.state==='error'){
     b.innerHTML='準備できませんでした。もう一度押す<small>'+esc((e.err&&e.err.message)||'')+'</small>';
   }else{
     b.classList.add('ready');
-    b.innerHTML='📥 写真アプリに保存('+n+'枚)<small>'+esc(ch.g.site)+'</small>';
+    b.innerHTML='📥 この日を全部保存('+n+'枚)<small>押したら、共有シートで「画像を保存」</small>';
   }
   paintCards();
 }
@@ -149,7 +142,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 
 function paintCards(){
   var box=$('list');box.textContent='';
-  var first=chunkAt(0),nowG=first?first.g:null;
+  var nowG=null;
   groups.forEach(function(g){
     var tot=g.items.length,got=g.items.filter(function(p){return done[p.id]}).length;
     var c=document.createElement('div');c.className='card'+(got===tot?' ok':'')+(g===nowG?' now':'');
@@ -159,11 +152,6 @@ function paintCards(){
     t.appendChild(b);t.appendChild(s);
     var m=document.createElement('div');m.className='st';m.textContent=got===tot?'✓':(g===nowG?'▶':'');
     c.appendChild(t);c.appendChild(m);
-    c.onclick=function(){
-      if(got===tot||busy)return;
-      groups.splice(groups.indexOf(g),1);groups.unshift(g);
-      keepWarm(token);paintGo();
-    };
     box.appendChild(c);
   });
 }
