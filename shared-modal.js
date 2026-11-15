@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
-// VERSION: 2026-11-12-001
+// VERSION: 2026-11-16-001
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-12-001";
+var MODAL_JS_VERSION = "2026-11-16-001";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -134,6 +134,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         ? 'https://www.google.com/maps/search/?api=1&query='+geoM.lat+','+geoM.lng
         : 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(ct);
       dh='<a href="'+mapUrlM+'" target="_blank" style="color:#0056b3;font-weight:bold;">🗺️ '+val+'</a>';
+      dh += ' <button type="button" class="modal-copy-btn modal-addr-copy-btn" data-addr="'+val.replace(/\s+/g,' ').trim().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')+'">📋 住所コピー</button>';
       if (geoNeedsReviewM) dh += ' <span style="color:#c9721f;font-size:11px;font-weight:600;" title="住所照合ツールで座標を特定できませんでした">📍要確認</span>';
     }
     else if (idx===6&&ct!=="") dh='<a href="tel:'+ct+'" style="color:#0056b3;font-weight:bold;">📞 '+val+'</a>';
@@ -322,6 +323,21 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   });
   document.getElementById('kanban-sf-note').textContent='SF: '+sfStatus+' → ローカル: '+currentStatus;
 
+  // 住所コピー（iPad単体運用向け：clipboard API失敗時はexecCommandにフォールバック）
+  Array.prototype.forEach.call(document.querySelectorAll('.modal-addr-copy-btn'), function(btn){
+    btn.addEventListener('click', function(){
+      var self = this, text = self.getAttribute('data-addr') || '';
+      function done(){ self.textContent = '✔ コピー済'; self.classList.add('copied'); setTimeout(function(){ self.textContent = '📋 住所コピー'; self.classList.remove('copied'); }, 2000); }
+      function fallback(){
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly',''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+        try { document.execCommand('copy'); done(); } catch(e) {}
+        document.body.removeChild(ta);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+    });
+  });
   document.getElementById('modal-copy-btn').addEventListener('click',function(){var self=this;navigator.clipboard.writeText(ankenText).then(function(){self.textContent="✔";self.classList.add('copied');setTimeout(function(){self.textContent="コピー";self.classList.remove('copied');},2000);});});
 
   // ★2026-11-06追加★ 📷 撮影：この案件を選んだ状態で現場カメラ(genba-camera.html)を新しいタブで開く。
