@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>写真ダウンロード</title>
-<!-- VERSION: 2026-11-12 (v1112-a) 新規: アルバイト用の写真ダウンロードページ。現場カメラが退避した写真を日付・案件別に並べ、案件ごとにボタン1つで写真アプリへ保存する。開くと自動で準備を始める。genba_photo_index/{yyyymmdd}/ と camera_backup/ を読む -->
+<!-- VERSION: 2026-11-15 (v1115-a) 高速化+半自動化: 写真を6枚同時に取得(従来は1枚ずつ)/大きな1つのボタンだけで「次の40枚」を順に保存(案件をまたいで自動で次へ)/次の分を裏で先に準備しておくので待ち時間が出にくい/メモリ節約のため保存後は破棄/案件カードをタップするとその案件を先頭に | 前: 2026-11-12 (v1112-a) 新規: アルバイト用の写真ダウンロードページ。genba_photo_index/{yyyymmdd}/ と camera_backup/ を読む -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -15,17 +15,23 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:#f2f2f7;color:#111;font-family:-apple-system,"Hiragino Sans",sans-serif;padding:calc(12px + env(safe-area-inset-top)) 14px calc(30px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
 h1{font-size:20px;margin:6px 0 2px}
-#ver{font-size:10px;color:#999}
+#ver{font-size:11px;color:#999}
 #bar{display:flex;align-items:center;gap:8px;margin:12px 0}
 #bar button{font-size:16px;border:none;border-radius:10px;padding:10px 16px;background:#fff;color:#007aff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 #day{flex:1;text-align:center;font-size:18px;font-weight:bold}
-.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
-.card b{display:block;font-size:17px;line-height:1.4}
-.card small{display:block;color:#777;margin:2px 0 10px}
-.btn{width:100%;font-size:19px;font-weight:bold;border:none;border-radius:12px;padding:18px;background:#8e8e93;color:#fff}
-.btn.ready{background:#007aff}
-.btn.done{background:#34c759}
-.btn:disabled{opacity:.9}
+#go{width:100%;border:none;border-radius:16px;padding:22px 14px;font-size:21px;font-weight:bold;background:#8e8e93;color:#fff;line-height:1.5;margin-bottom:6px}
+#go small{display:block;font-size:14px;font-weight:normal;opacity:.95}
+#go.ready{background:#007aff}
+#go.done{background:#34c759}
+#go:disabled{opacity:.9}
+#sub{font-size:13px;color:#666;text-align:center;margin:0 0 14px;min-height:18px}
+.card{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;align-items:center;gap:10px}
+.card .t{flex:1;min-width:0}
+.card b{display:block;font-size:16px;line-height:1.4}
+.card small{display:block;color:#777;margin-top:2px}
+.card .st{font-size:22px}
+.card.now{outline:3px solid #007aff}
+.card.ok{background:#eaf8ee}
 #msg{color:#555;text-align:center;padding:30px 10px;line-height:1.8;white-space:pre-wrap}
 #help{font-size:12px;color:#777;line-height:1.7;margin-top:14px}
 </style>
@@ -33,12 +39,14 @@ h1{font-size:20px;margin:6px 0 2px}
 <body>
 <h1>📥 写真ダウンロード</h1><div id="ver"></div>
 <div id="bar"><button id="bPrev">◀</button><div id="day"></div><button id="bNext">▶</button></div>
+<button id="go" disabled>読み込み中…</button>
+<div id="sub"></div>
 <div id="list"><div id="msg">読み込み中…</div></div>
-<div id="help">案件ごとのボタンが青くなったら押してください。共有シートで「画像を保存」を選ぶと、写真アプリに入ります。<br>灰色の間は、写真を準備しています(そのまま少し待ってください)。</div>
+<div id="help">青いボタンを押す → 共有シートで「画像を保存」を押す、をくり返すだけです。<br>保存が終わると、自動で次の分が青くなります。灰色の間は準備中です(少し待ってください)。<br>案件の名前をタップすると、その案件を先に保存できます。</div>
 <script>
 (function(){
 'use strict';
-var VER='v1112-a',CHUNK=40;
+var VER='v1115-a',CHUNK=40,PAR=6;
 var $=function(id){return document.getElementById(id)};
 var p2=function(n){return String(n).padStart(2,'0')};
 function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
@@ -56,91 +64,152 @@ function authReady(){
     firebase.auth().onAuthStateChanged(function(u){clearTimeout(t);u?res(u):rej(new Error('ログインが切れています。アプリを開いてログインし直してください'))});
   });
 }
-var token=0; // 日付を切り替えたら前の準備を止める
+
+var token=0,groups=[],st=null,uk='',cache={},busy=false;
+
+/* 未保存の写真を、案件の並び順のまま CHUNK 枚ずつに切った n 番目 */
+function chunkAt(n){
+  var k=0;
+  for(var gi=0;gi<groups.length;gi++){
+    var g=groups[gi];
+    var pend=g.items.filter(function(p){return !done[p.id]});
+    for(var i=0;i<pend.length;i+=CHUNK){
+      if(k===n)return {g:g,items:pend.slice(i,i+CHUNK)};
+      k++;
+    }
+  }
+  return null;
+}
+function pendingCount(){
+  var c=0;groups.forEach(function(g){c+=g.items.filter(function(p){return !done[p.id]}).length});return c;
+}
+function chunksLeft(){
+  var c=0;groups.forEach(function(g){var n=g.items.filter(function(p){return !done[p.id]}).length;c+=Math.ceil(n/CHUNK)});return c;
+}
+function keyOf(ch){return ch.items.map(function(p){return p.id}).join(',')}
+
+/* 1つのかたまりを、PAR枚ずつ同時に取得して File にする */
+function prepare(ch,my){
+  var key=keyOf(ch);
+  if(cache[key])return cache[key];
+  var e={state:'loading',prog:0,files:new Array(ch.items.length),err:null,n:ch.items.length};
+  cache[key]=e;
+  var next=0;
+  function worker(){
+    return (async function(){
+      while(true){
+        if(my!==token)return;
+        var i=next++;if(i>=ch.items.length)return;
+        var p=ch.items[i];
+        var u=await st.ref('users/'+uk+'/'+(p.path||('case_files/'+p.key+'/'+p.name))).getDownloadURL();
+        var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
+        var b=await r.blob();
+        e.files[i]=new File([b],p.name,{type:'image/jpeg'});
+        e.prog++;
+        if(my===token)paintGo();
+      }
+    })();
+  }
+  var ws=[];for(var w=0;w<PAR;w++)ws.push(worker());
+  e.promise=Promise.all(ws).then(function(){if(my===token)e.state='ready'}).catch(function(err){e.state='error';e.err=err}).then(function(){if(my===token)paintGo()});
+  return e;
+}
+/* 先頭と、その次のかたまりだけ準備しておく。それ以外は破棄してメモリを空ける */
+function keepWarm(my){
+  var c0=chunkAt(0),c1=chunkAt(1),keep={};
+  if(c0){keep[keyOf(c0)]=1}
+  if(c1){keep[keyOf(c1)]=1}
+  Object.keys(cache).forEach(function(k){if(!keep[k])delete cache[k]});
+  if(c0){var e0=prepare(c0,my);
+    if(c1){e0.promise.then(function(){if(my===token&&cache[keyOf(c0)]&&cache[keyOf(c0)].state==='ready')prepare(c1,my)})}
+  }
+}
+
+function paintGo(){
+  var b=$('go'),sub=$('sub');
+  b.className='';b.disabled=false;
+  var left=pendingCount();
+  if(!groups.length){return}
+  if(left===0){b.classList.add('done');b.innerHTML='✓ この日の写真は全部保存しました';sub.textContent='';b.disabled=false;paintCards();return}
+  var ch=chunkAt(0),e=ch&&cache[keyOf(ch)];
+  var n=ch?ch.items.length:0;
+  sub.textContent='残り '+left+'枚(あと'+chunksLeft()+'回)';
+  if(!e||e.state==='loading'){
+    b.disabled=true;
+    b.innerHTML='準備中 '+(e?e.prog:0)+'/'+n+'…<small>'+esc(ch?ch.g.site:'')+'</small>';
+  }else if(e.state==='error'){
+    b.innerHTML='準備できませんでした。もう一度押す<small>'+esc((e.err&&e.err.message)||'')+'</small>';
+  }else{
+    b.classList.add('ready');
+    b.innerHTML='📥 写真アプリに保存('+n+'枚)<small>'+esc(ch.g.site)+'</small>';
+  }
+  paintCards();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+function paintCards(){
+  var box=$('list');box.textContent='';
+  var first=chunkAt(0),nowG=first?first.g:null;
+  groups.forEach(function(g){
+    var tot=g.items.length,got=g.items.filter(function(p){return done[p.id]}).length;
+    var c=document.createElement('div');c.className='card'+(got===tot?' ok':'')+(g===nowG?' now':'');
+    var t=document.createElement('div');t.className='t';
+    var b=document.createElement('b');b.textContent=g.site;
+    var s=document.createElement('small');s.textContent=got===tot?tot+'枚 保存済み':tot+'枚(保存済み '+got+'枚)';
+    t.appendChild(b);t.appendChild(s);
+    var m=document.createElement('div');m.className='st';m.textContent=got===tot?'✓':(g===nowG?'▶':'');
+    c.appendChild(t);c.appendChild(m);
+    c.onclick=function(){
+      if(got===tot||busy)return;
+      groups.splice(groups.indexOf(g),1);groups.unshift(g);
+      keepWarm(token);paintGo();
+    };
+    box.appendChild(c);
+  });
+}
+
+async function onGo(){
+  if(busy)return;
+  var ch=chunkAt(0);if(!ch)return;
+  var key=keyOf(ch),e=cache[key];
+  if(!e||e.state==='error'){delete cache[key];keepWarm(token);paintGo();return}
+  if(e.state!=='ready')return;
+  var files=e.files;
+  busy=true;
+  try{
+    if(navigator.canShare&&!navigator.canShare({files:files})){alert('この端末では保存できません');busy=false;return}
+    await navigator.share({files:files});
+  }catch(err){
+    busy=false;
+    if(err&&err.name!=='AbortError')alert('保存できませんでした: '+(err.message||err));
+    return; // キャンセルしたら何も変えない(もう一度押せる)
+  }
+  ch.items.forEach(function(p){done[p.id]=Date.now()});saveDone();
+  delete cache[key];e.files=null;
+  busy=false;
+  keepWarm(token);paintGo();
+}
+
 async function load(){
   var my=++token;
+  cache={};groups=[];busy=false;
   $('day').textContent=dayLabel();
+  var go=$('go');go.className='';go.disabled=true;go.textContent='読み込み中…';$('sub').textContent='';
   say('読み込み中…');
   try{
     await authReady();
-    var db=scopedDatabase(firebase.database()),st=firebase.storage(),uk=getUserKey();
+    var db=scopedDatabase(firebase.database());st=firebase.storage();uk=getUserKey();
     var data=(await db.ref('genba_photo_index/'+ymd(cur)).once('value')).val()||{};
     if(my!==token)return;
     var arr=Object.keys(data).map(function(k){return Object.assign({id:k},data[k])}).sort(function(a,b){return a.ts-b.ts});
-    if(!arr.length){say('この日の写真はありません');return}
+    if(!arr.length){say('この日の写真はありません');go.textContent='この日の写真はありません';return}
     var map={},order=[];
-    arr.forEach(function(p){var k=p.key||p.site||'?';if(!map[k]){map[k]={site:p.site||'(案件名なし)',items:[],files:null,state:'wait',idx:0,btn:null};order.push(k)}map[k].items.push(p)});
-    var box=$('list');box.textContent='';
-    var groups=order.map(function(k){return map[k]});
-    groups.forEach(function(g){
-      var n=g.items.length;
-      var c=document.createElement('div');c.className='card';
-      var t=document.createElement('b');t.textContent=g.site;
-      var s=document.createElement('small');s.textContent=n+'枚';
-      var btn=document.createElement('button');btn.className='btn';
-      c.appendChild(t);c.appendChild(s);c.appendChild(btn);box.appendChild(c);
-      g.btn=btn;
-      g.allDone=g.items.every(function(p){return done[p.id]});
-      paint(g);
-      btn.onclick=function(){onTap(g,st,uk,my)};
-    });
-    // 準備は上から順に1案件ずつ(同時に大量に読み込まない)
-    for(var i=0;i<groups.length;i++){
-      if(my!==token)return;
-      if(groups[i].allDone)continue;
-      await prepare(groups[i],st,uk,my);
-    }
-  }catch(e){say('⚠ '+(e&&e.message||e))}
+    arr.forEach(function(p){var k=p.key||p.site||'?';if(!map[k]){map[k]={site:p.site||'(案件名なし)',items:[]};order.push(k)}map[k].items.push(p)});
+    groups=order.map(function(k){return map[k]});
+    keepWarm(my);paintGo();
+  }catch(e){say('⚠ '+(e&&e.message||e));go.textContent='⚠ 読み込めませんでした'}
 }
-function paint(g){
-  var b=g.btn,n=g.items.length;
-  b.className='btn';b.disabled=false;
-  if(g.state==='loading'){b.disabled=true;b.textContent='準備中 '+g.prog+'/'+n+'…';return}
-  if(g.state==='ready'){
-    var parts=Math.ceil(n/CHUNK);
-    b.classList.add('ready');
-    b.textContent='📥 写真アプリに保存'+(parts>1?'('+(g.idx+1)+'/'+parts+'回目)':'')+'  '+n+'枚';
-    return;
-  }
-  if(g.state==='saved'||g.allDone){b.classList.add('done');b.textContent='✓ 保存済み(もう一度保存する)';return}
-  if(g.state==='error'){b.textContent='準備できませんでした。もう一度押す';return}
-  b.textContent='待機中…';
-}
-async function prepare(g,st,uk,my){
-  if(g.state==='loading'||g.state==='ready')return;
-  g.state='loading';g.prog=0;g.files=null;g.idx=0;paint(g);
-  var got=[];
-  try{
-    for(var i=0;i<g.items.length;i++){
-      if(my!==token)return;
-      var p=g.items[i];
-      var u=await st.ref('users/'+uk+'/'+(p.path||('case_files/'+p.key+'/'+p.name))).getDownloadURL();
-      var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
-      var b=await r.blob();
-      got.push(new File([b],p.name,{type:'image/jpeg'}));
-      g.prog=i+1;paint(g);
-    }
-    g.files=got;g.state='ready';
-  }catch(e){g.state='error';g.err=e}
-  paint(g);
-}
-async function onTap(g,st,uk,my){
-  if(g.state==='ready'){
-    var from=g.idx*CHUNK,files=g.files.slice(from,from+CHUNK);
-    try{
-      if(navigator.canShare&&!navigator.canShare({files:files})){alert('この端末では保存できません');return}
-      await navigator.share({files:files});
-    }catch(e){
-      if(e&&e.name!=='AbortError')alert('保存できませんでした: '+(e.message||e));
-      return; // キャンセルしたら何も変えない(もう一度押せる)
-    }
-    g.items.slice(from,from+CHUNK).forEach(function(p){done[p.id]=Date.now()});saveDone();
-    g.idx++;
-    if(g.idx*CHUNK>=g.files.length){g.state='saved';g.allDone=true;g.files=null}
-    paint(g);return;
-  }
-  if(g.state==='error'||g.state==='saved'||g.allDone||g.state==='wait'){await prepare(g,st,uk,my)}
-}
+$('go').onclick=onGo;
 $('bPrev').onclick=function(){cur.setDate(cur.getDate()-1);load()};
 $('bNext').onclick=function(){cur.setDate(cur.getDate()+1);load()};
 load();
