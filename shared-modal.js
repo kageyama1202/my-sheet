@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
-// VERSION: 2026-11-16-001
+// VERSION: 2026-11-16-002
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-16-001";
+var MODAL_JS_VERSION = "2026-11-16-002";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -201,6 +201,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     + (isVisited ? ('✅ 実施済み' + (obj.shitamiVisitedAt ? '（' + String(obj.shitamiVisitedAt).slice(0,16).replace('T',' ') + '）' : '')) : '未確認')
     + '</div>';
   html += '<button type="button" id="modal-visited-yes" style="font-size:12px;padding:6px 12px;border:1px solid #2e7d32;border-radius:4px;background:#e8f5e9;color:#1b5e20;font-weight:bold;cursor:pointer;margin-right:6px;margin-bottom:4px;">✅ 現地下見完了</button>';
+  html += '<button type="button" id="modal-visited-undo" style="'+(isVisited?'':'display:none;')+'font-size:12px;padding:6px 12px;border:1px solid #757575;border-radius:4px;background:#f5f5f5;color:#424242;font-weight:bold;cursor:pointer;margin-right:6px;margin-bottom:4px;">↩ 完了を取り消す</button>';
   html += '<button type="button" id="modal-visited-revisit" style="font-size:12px;padding:6px 12px;border:1px solid #ef6c00;border-radius:4px;background:#fff3e0;color:#e65100;font-weight:bold;cursor:pointer;margin-right:6px;margin-bottom:4px;">🔁 再訪問が必要</button>';
   html += '<button type="button" id="modal-visited-no" style="font-size:12px;padding:6px 12px;border:1px solid #c62828;border-radius:4px;background:#ffebee;color:#b71c1c;font-weight:bold;cursor:pointer;margin-bottom:4px;">❌ 行けなかった</button>';
   html += '</div>';
@@ -423,6 +424,16 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     saveField({ shitamiVisited: true, shitamiVisitedAt: nowIso });
     var st = document.getElementById('modal-visited-status');
     if (st) st.textContent = '✅ 実施済み（' + nowIso.slice(0,16).replace('T',' ') + '）';
+    var undoBtnY = document.getElementById('modal-visited-undo'); if (undoBtnY) undoBtnY.style.display = '';
+  });
+  // ↩ 誤って「現地下見完了」にした場合の取り消し（フラグ・日時・自動判定の由来を消して「未確認」に戻す）
+  document.getElementById('modal-visited-undo').addEventListener('click', function(){
+    if (!confirm('「現地下見完了」を取り消して「未確認」に戻します。よろしいですか？')) return;
+    isVisited = false;
+    saveField({ shitamiVisited: null, shitamiVisitedAt: null, shitamiVisitedSource: null });
+    var st = document.getElementById('modal-visited-status');
+    if (st) st.textContent = '未確認（完了を取り消しました）';
+    this.style.display = 'none';
   });
   function buildStamp() {
     var d = new Date();
