@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
-// VERSION: 2026-11-16-002
+// VERSION: 2026-11-17-001
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-16-002";
+var MODAL_JS_VERSION = "2026-11-17-001";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -120,7 +120,7 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   var html = '<div class="modal-header-info">';
   html += '<div class="modal-date-row">🔨 '+sekouStr+' | 📋 '+shitamiStr+' | 📅 '+yoteiStr+'</div>';
-  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button> <button id="modal-camera-btn" class="modal-copy-btn" style="background:#e8f5e9;border-color:#4caf50;color:#1b5e20;font-weight:bold;">📷 撮影</button> <button id="modal-note-btn" class="modal-copy-btn" style="background:#ede7f6;border-color:#5e35b1;color:#311b92;font-weight:bold;">📝 ノート</button> <button id="modal-genba-btn" class="modal-copy-btn" style="background:#fff3e0;border-color:#ef6c00;color:#e65100;font-weight:bold;">🏗 現場モード</button></div></div>';
+  html += '<div class="modal-title-row">🏷️ '+ankenText+' <button id="modal-copy-btn" class="modal-copy-btn">コピー</button> <button id="modal-copy-name-btn" class="modal-copy-btn">名前のみコピー</button> <button id="modal-camera-btn" class="modal-copy-btn" style="background:#e8f5e9;border-color:#4caf50;color:#1b5e20;font-weight:bold;">📷 撮影</button> <button id="modal-note-btn" class="modal-copy-btn" style="background:#ede7f6;border-color:#5e35b1;color:#311b92;font-weight:bold;">📝 ノート</button> <button id="modal-genba-btn" class="modal-copy-btn" style="background:#fff3e0;border-color:#ef6c00;color:#e65100;font-weight:bold;">🏗 現場モード</button> <button id="modal-photos-btn" class="modal-copy-btn" style="background:#e3f2fd;border-color:#1976d2;color:#0d47a1;font-weight:bold;">🖼 写真</button></div></div>';
 
   var geoM = obj.geocode || null;
   var geoOkM = geoM && (geoM.confidence === 'exact' || geoM.confidence === 'high') && geoM.lat != null && geoM.lng != null;
@@ -361,6 +361,13 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   document.getElementById('modal-genba-btn').addEventListener('click',function(){
     var url='genba-mode.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''));
     var w=window.open(url,'genbaMode');
+    if(!w){location.href=url;}
+  });
+
+  // ★2026-11-17追加★ 🖼 写真：この案件に結びついた写真(現場カメラで撮影→Firebaseへ送信済み)を見るページ(case-photos.html)を開く。
+  document.getElementById('modal-photos-btn').addEventListener('click',function(){
+    var url='case-photos.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText);
+    var w=window.open(url,'casePhotos');
     if(!w){location.href=url;}
   });
 
