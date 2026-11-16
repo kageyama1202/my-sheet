@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
-// VERSION: 2026-11-17-001
+// VERSION: 2026-11-17-002
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-17-001";
+var MODAL_JS_VERSION = "2026-11-17-002";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -344,15 +344,17 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   // ★2026-11-06追加★ 📷 撮影：この案件を選んだ状態で現場カメラ(genba-camera.html)を新しいタブで開く。
   // 案件名(管理名)と住所をURLで渡す。保存前の写真を持つ既存のカメラタブを上書きしないよう、毎回新しいタブで開く。
   document.getElementById('modal-camera-btn').addEventListener('click',function(){
-    var url='genba-camera.html?case='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''));
-    var w=window.open(url,'_blank');
+    // ★2026-11-17変更★ 現場モード(genba-mode.html)のカメラ画面で開く(ノート・写真と1つのタブで切り替えられる)
+    var url='genba-mode.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''))+'&mode=cam';
+    var w=window.open(url,'genbaMode');
     if(!w){location.href=url;}
   });
 
   // ★2026-11-08追加★ 📝 ノート：この案件の添付PDF・写真(Firebase Storage)を仮想GoodNotes(pdf-note.html)で開く。
   document.getElementById('modal-note-btn').addEventListener('click',function(){
-    var url='pdf-note.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText);
-    var w=window.open(url,'_blank');
+    // ★2026-11-17変更★ 現場モードのノート画面で開く
+    var url='genba-mode.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''))+'&mode=file';
+    var w=window.open(url,'genbaMode');
     if(!w){location.href=url;}
   });
 
@@ -366,8 +368,8 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
 
   // ★2026-11-17追加★ 🖼 写真：この案件に結びついた写真(現場カメラで撮影→Firebaseへ送信済み)を見るページ(case-photos.html)を開く。
   document.getElementById('modal-photos-btn').addEventListener('click',function(){
-    var url='case-photos.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText);
-    var w=window.open(url,'casePhotos');
+    var url='genba-mode.html?case='+encodeURIComponent(key)+'&name='+encodeURIComponent(ankenText)+'&addr='+encodeURIComponent(getSafeValModal(cols,11).replace(/\s+/g,''))+'&mode=photos';
+    var w=window.open(url,'genbaMode');
     if(!w){location.href=url;}
   });
 
