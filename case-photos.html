@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>案件の写真</title>
+<!-- VERSION: 2026-11-17 (v1117-a) 新規: 案件モーダルの「🖼 写真」から開く、その案件に結びついた写真の閲覧ページ。日付ごとの索引(genba_photo_index)を新しい日から順にさかのぼって、案件キー(または案件名)が一致する写真を集めて表示。縮小版(thumbPath)があればそれを、なければ原寸を使う。タップで原寸表示(◀▶で前後) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="user-scope.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;padding:calc(10px + env(safe-area-inset-top)) 12px calc(30px + env(safe-area-inset-bottom))}
+#top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+h1{font-size:16px;margin:0;flex:1;line-height:1.4;word-break:break-all}
+#ver{font-size:10px;color:#777}
+button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background:#3a3a3c;color:#fff;font-family:inherit}
+#st{font-size:12px;color:#aaa;line-height:1.6;margin-bottom:10px;min-height:19px}
+.day{margin-bottom:16px}
+.day h2{font-size:14px;margin:0 0 6px;color:#ddd}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.grid a{display:block;position:relative;background:#2c2c2e;border-radius:6px;overflow:hidden;aspect-ratio:4/3}
+.grid img{width:100%;height:100%;object-fit:cover;display:block}
+.grid span{position:absolute;left:3px;bottom:3px;font-size:10px;background:rgba(0,0,0,.6);padding:0 5px;border-radius:5px}
+#more{display:none;width:100%;margin-top:8px;background:#0a84ff}
+#msg{color:#ccc;padding:30px 10px;text-align:center;line-height:1.8;white-space:pre-wrap}
+#viewer{position:fixed;inset:0;background:#000;z-index:50;display:none}
+#vwrap{width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+#vimg{display:block;width:100%;height:auto}
+#vclose{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:51;background:rgba(60,60,62,.9);font-size:22px;padding:8px 16px}
+#vprev,#vnext{position:fixed;top:50%;z-index:51;background:rgba(60,60,62,.8);font-size:24px;padding:14px 12px}
+#vprev{left:6px}#vnext{right:6px}
+#vinfo{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:51;background:rgba(0,0,0,.65);font-size:13px;padding:4px 12px;border-radius:12px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="top"><button id="bBack">←</button><h1 id="title">🖼 案件の写真</h1><button id="bReload">更新</button></div>
+<div id="st"></div>
+<div id="list"><div id="msg">読み込み中…</div></div>
+<button id="more">さらに前の写真を探す</button>
+<div id="ver" style="text-align:right;margin-top:14px"></div>
+<div id="viewer"><div id="vwrap"><img id="vimg" alt=""></div><button id="vclose">✕</button><button id="vprev">◀</button><button id="vnext">▶</button><div id="vinfo"></div></div>
+<script>
+(function(){
+'use strict';
+var VER='v1117-a';
+var DAYS_STEP=90;   // 1回で何日分さかのぼるか
+var PAR=8;          // 同時に読む日数
+var $=function(id){return document.getElementById(id)};
+var p2=function(n){return String(n).padStart(2,'0')};
+function ymd(d){return d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())}
+var WD=['日','月','火','水','木','金','土'];
+$('ver').textContent=VER;
+var q=new URLSearchParams(location.search);
+var caseKey=q.get('case')||'',caseName=q.get('name')||'';
+$('title').textContent='🖼 '+(caseName||'案件の写真');
+$('bBack').onclick=function(){window.close();setTimeout(function(){if(history.length>1)history.back();else location.href='today.html'},400)};
+
+function authReady(){
+  return new Promise(function(res,rej){
+    var t=setTimeout(function(){rej(new Error('認証が確認できません。ログインし直してください'))},8000);
+    firebase.auth().onAuthStateChanged(function(u){clearTimeout(t);u?res(u):rej(new Error('認証切れです。ログインし直してください'))});
+  });
+}
+function say(t){var b=$('list');b.textContent='';var d=document.createElement('div');d.id='msg';d.textContent=t;b.appendChild(d)}
+
+var db=null,st=null,uk='';
+var photos=[];          // 見つかった写真(新しい順に表示するため日ごとに追加)
+var scanned=0;          // さかのぼった日数
+var token=0,busy=false;
+var dayBoxes={};        // ymd -> {grid}
+var urlCache={};        // storage path -> Promise<url>
+function urlOf(path){
+  if(!urlCache[path])urlCache[path]=st.ref('users/'+uk+'/'+path).getDownloadURL();
+  return urlCache[path];
+}
+function mine(p){
+  if(caseKey&&p.key===caseKey)return true;
+  if(caseName&&p.site===caseName)return true;
+  return false;
+}
+// 画面に近づいたタイルだけ画像の取得を始める(一度に何十枚も取りに行かない)
+var io=('IntersectionObserver' in window)?new IntersectionObserver(function(es){
+  es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);e.target._load&&e.target._load()}});
+},{rootMargin:'300px'}):null;
+
+function tile(p,box){
+  var a=document.createElement('a');a.href='#';
+  var im=document.createElement('img');a.appendChild(im);
+  var tm=new Date(p.ts);
+  var sp=document.createElement('span');sp.textContent=p2(tm.getHours())+':'+p2(tm.getMinutes());a.appendChild(sp);
+  a.onclick=function(ev){ev.preventDefault();openViewer(photos.indexOf(p))};
+  a._load=function(){
+    // 縮小版があればそれ、なければ原寸(重いので、枚数が多い場合は縮小版つきの版のカメラで撮った写真から速くなる)
+    var path=p.thumbPath||p.path||('case_files/'+p.key+'/'+p.name);
+    urlOf(path).then(function(u){im.src=u}).catch(function(){
+      if(p.thumbPath){urlOf(p.path||('case_files/'+p.key+'/'+p.name)).then(function(u){im.src=u}).catch(function(){sp.textContent+=' (取得不可)'})}
+      else sp.textContent+=' (取得不可)';
+    });
+  };
+  box.appendChild(a);
+  if(io)io.observe(a);else a._load();
+}
+function dayBox(key,date){
+  if(dayBoxes[key])return dayBoxes[key];
+  var wrap=document.createElement('div');wrap.className='day';
+  var h=document.createElement('h2');wrap.appendChild(h);
+  var grid=document.createElement('div');grid.className='grid';wrap.appendChild(grid);
+  var o={wrap:wrap,grid:grid,h:h,n:0,date:date,key:key};
+  dayBoxes[key]=o;
+  // 新しい日が上に来るように、日付の降順で挿入
+  var list=$('list'),placed=false;
+  var kids=list.querySelectorAll('.day');
+  for(var i=0;i<kids.length;i++){if(kids[i]._key<key){list.insertBefore(wrap,kids[i]);placed=true;break}}
+  wrap._key=key;
+  if(!placed)list.appendChild(wrap);
+  return o;
+}
+function addPhotos(date,arr){
+  var key=ymd(date),o=dayBox(key,date);
+  arr.sort(function(a,b){return a.ts-b.ts});
+  arr.forEach(function(p){photos.push(p);tile(p,o.grid);o.n++});
+  o.h.textContent=(date.getMonth()+1)+'/'+date.getDate()+'('+WD[date.getDay()]+')  '+o.n+'枚';
+  // 表示順(日付の新しい順→時刻順)に並べ替えて、前後移動の順序をそろえる
+  photos.sort(function(a,b){var da=ymd(new Date(a.ts)),dbk=ymd(new Date(b.ts));return da===dbk?a.ts-b.ts:(da<dbk?1:-1)});
+}
+
+async function scan(from,days,my){
+  // from: 一番新しい日。そこから days 日さかのぼる
+  var dates=[];
+  for(var i=0;i<days;i++){var d=new Date(from);d.setDate(d.getDate()-i);d.setHours(0,0,0,0);dates.push(d)}
+  var idx=0,found=0;
+  async function worker(){
+    while(true){
+      if(my!==token)return;
+      var i=idx++;if(i>=dates.length)return;
+      var d=dates[i];
+      try{
+        var data=(await db.ref('genba_photo_index/'+ymd(d)).once('value')).val()||{};
+        if(my!==token)return;
+        var arr=Object.keys(data).map(function(k){return Object.assign({id:k},data[k])}).filter(mine);
+        if(arr.length){if($('msg'))$('list').textContent='';addPhotos(d,arr);found+=arr.length}
+      }catch(e){}
+      scanned++;
+      if(my===token)$('st').textContent='探しています… '+scanned+'日分を確認('+photos.length+'枚見つかりました)';
+    }
+  }
+  var ws=[];for(var w=0;w<PAR;w++)ws.push(worker());
+  await Promise.all(ws);
+  return found;
+}
+
+var oldest=null;
+async function start(){
+  var my=++token;busy=true;
+  photos=[];dayBoxes={};scanned=0;urlCache={};
+  $('more').style.display='none';
+  say('読み込み中…');$('st').textContent='';
+  try{
+    await authReady();
+    db=scopedDatabase(firebase.database());st=firebase.storage();uk=getUserKey();
+    if(!caseKey&&!caseName){say('案件の指定がありません。案件モーダルの「🖼 写真」から開いてください');return}
+    var today=new Date();today.setHours(0,0,0,0);
+    await scan(today,DAYS_STEP,my);
+    if(my!==token)return;
+    oldest=new Date(today);oldest.setDate(oldest.getDate()-(DAYS_STEP-1));
+    finish();
+  }catch(e){say('⚠ '+(e&&e.message||e));$('st').textContent=''}
+  finally{busy=false}
+}
+function finish(){
+  var tail='(直近'+scanned+'日を確認)';
+  $('st').textContent=photos.length?(photos.length+'枚 '+tail):'';
+  if(!photos.length)say('この案件の写真は、直近'+scanned+'日の間にありません。\n(現場カメラで案件を選んで撮った写真だけが対象です。「さらに前」で、もっと前を探せます)');
+  $('more').style.display='block';
+}
+$('more').onclick=async function(){
+  if(busy||!oldest)return;
+  busy=true;var my=token;
+  this.textContent='探しています…';
+  var from=new Date(oldest);from.setDate(from.getDate()-1);
+  var before=photos.length;
+  try{
+    await scan(from,DAYS_STEP,my);
+    oldest=new Date(from);oldest.setDate(oldest.getDate()-(DAYS_STEP-1));
+    finish();
+  }finally{busy=false;this.textContent='さらに前の写真を探す'}
+};
+$('bReload').onclick=start;
+
+/* ---- 原寸表示(タップで拡大/縮小、◀▶で前後) ---- */
+var cur=-1;
+function showAt(i){
+  if(i<0||i>=photos.length)return;
+  cur=i;var p=photos[i];
+  var im=$('vimg');im.style.width='100%';im.removeAttribute('src');
+  var tm=new Date(p.ts);
+  $('vinfo').textContent=(i+1)+' / '+photos.length+'   '+(tm.getMonth()+1)+'/'+tm.getDate()+' '+p2(tm.getHours())+':'+p2(tm.getMinutes());
+  var path=p.path||('case_files/'+p.key+'/'+p.name);
+  urlOf(path).then(function(u){if(cur===i)im.src=u}).catch(function(){$('vinfo').textContent+='  (取得できません)'});
+  $('vwrap').scrollTop=0;$('vwrap').scrollLeft=0;
+}
+function openViewer(i){$('viewer').style.display='block';showAt(i)}
+$('vimg').onclick=function(){this.style.width=(this.style.width==='100%'?'250%':'100%')};
+$('vclose').onclick=function(){$('viewer').style.display='none';$('vimg').removeAttribute('src');cur=-1};
+$('vprev').onclick=function(){showAt(cur-1)};
+$('vnext').onclick=function(){showAt(cur+1)};
+
+start();
+})();
+</script>
+</body>
+</html>
