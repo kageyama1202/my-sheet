@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-10-20-001 -->
+<!-- VERSION: 2026-11-17-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -12,21 +12,21 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0f0f0f;
-    --surface: #1a1a1a;
-    --surface2: #242424;
-    --border: #2e2e2e;
-    --accent: #4f8ef7;
-    --accent-dim: rgba(79,142,247,0.15);
-    --kari: #f0a500;
-    --kari-dim: rgba(240,165,0,0.18);
-    --ok: #2e9e5b;
-    --ok-dim: rgba(46,158,91,0.18);
-    --ng: #e05c5c;
-    --ng-dim: rgba(224,92,92,0.18);
-    --purple: #b07cf0;
-    --text: #e8e8e8;
-    --text-dim: #888;
+    --bg: #f4f6f4;
+    --surface: #ffffff;
+    --surface2: #f1f8e9;
+    --border: #dcedc8;
+    --accent: #1565c0;
+    --accent-dim: rgba(21,101,192,0.10);
+    --kari: #e65100;
+    --kari-dim: rgba(230,81,0,0.12);
+    --ok: #2e7d32;
+    --ok-dim: rgba(46,125,50,0.12);
+    --ng: #c62828;
+    --ng-dim: rgba(198,40,40,0.10);
+    --purple: #7b1fa2;
+    --text: #222;
+    --text-dim: #777;
     --radius: 10px;
     --font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   }
@@ -37,7 +37,7 @@
   .sub { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
   #adminBadge { font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 5px; font-weight: 700; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-  .card h2 { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 10px; }
+  .card h2 { font-size: 13px; font-weight: 700; color: #2e7d32; margin-bottom: 10px; }
   label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
   label:first-of-type { margin-top: 0; }
   input[type=date], input[type=text], select {
@@ -59,7 +59,7 @@
   .verdict.warn { border-color: var(--kari); background: var(--kari-dim); }
   .verdict.ng { border-color: var(--ng); background: var(--ng-dim); }
   .verdict .vt { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-  .verdict .vl { font-size: 12.5px; color: #ddd; line-height: 1.6; }
+  .verdict .vl { font-size: 12.5px; color: #333; line-height: 1.6; }
   .go-kari { display: block; text-align: center; text-decoration: none; margin-top: 12px; background: var(--accent); color: #fff; border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700; }
 
   .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
@@ -67,7 +67,7 @@
   .chip.ok { background: var(--ok-dim); color: var(--ok); }
   .chip.warn { background: var(--kari-dim); color: var(--kari); }
   .chip.ng { background: var(--ng-dim); color: var(--ng); }
-  .chip.sel { border-color: #fff; }
+  .chip.sel { border-color: #222; }
   .legend { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.6; }
 
   .item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface2); margin-bottom: 6px; font-size: 13px; }
@@ -78,11 +78,18 @@
   .item .st { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--kari-dim); color: var(--kari); font-weight: 700; white-space: nowrap; }
   .item .st.ok { background: var(--ok-dim); color: var(--ok); }
   .item .same { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .item.row { display: block; padding: 6px 8px; margin-bottom: 0; border-radius: 0; background: transparent; border-bottom: 1px solid var(--border); line-height: 1.5; }
+  .item.row .ord { display: inline-block; min-width: 34px; color: var(--accent); font-weight: 700; }
+  .item.row .tm { display: inline-block; min-width: 46px; font-weight: 400; color: #555; }
+  .item.row .tm.none { font-size: 12px; color: var(--text-dim); }
+  .item.row .ar { color: var(--text-dim); }
+  .item.row .nt { color: #8d6e63; font-size: 11px; margin: 2px 0 0 34px; }
+  .item.row .st, .item.row .same { margin-left: 4px; }
   .item.declined { opacity: 0.5; }
   .item.declined .tx { text-decoration: line-through; }
   .item.info { opacity: 0.8; }
   .empty { color: var(--text-dim); font-size: 13px; padding: 4px 2px; }
-  .dh { font-size: 12px; font-weight: 700; color: #ccc; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .dh { font-size: 12px; font-weight: 700; color: #444; margin: 10px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
   .dh:first-child { margin-top: 0; }
 
   .week-nav { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
@@ -106,6 +113,7 @@
   <a href="index.html" class="back">◀ トップ</a>
   <h1>🗓 スケジュールチェック</h1>
   <span id="adminBadge" style="display:none;">管理者</span>
+  <span style="font-size:10px;color:#666;margin-left:auto;">ver 2026-11-17-002</span>
 </div>
 <div id="authNote" class="sub">読み込み中...</div>
 
@@ -173,7 +181,7 @@
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <button class="week-nav" onclick="shiftMonth(-1)">◀</button>
-          <div id="monthLabel" style="font-size:13px;color:#aaa;font-weight:700;"></div>
+          <div id="monthLabel" style="font-size:13px;color:#555;font-weight:700;"></div>
           <button class="week-nav" onclick="shiftMonth(1)">▶</button>
         </div>
         <div id="monthGrid" class="month-grid"></div>
@@ -384,10 +392,10 @@ function buildDayItems(date) {
     var yotei = formatToYMD(obj.date);
     var seko = formatToYMD(cols[2]);
     if (shitami === date) {
-      items.push({ kind: 'shitami', badge: '🔵', label: '下見', title: title, area: area, time: cols[13] || obj.time || '', blocking: true });
+      items.push({ kind: 'shitami', badge: obj.shitamiVisited ? '✅' : '🔵', label: '下見', title: title, area: area, time: cols[13] || obj.time || '', order: obj.order, note: obj.timeNote || '', blocking: true });
     }
     if (yotei === date && yotei !== shitami) {
-      items.push({ kind: 'yotei', badge: '🟣', label: '下見予定', title: title, area: area, time: obj.time || '', blocking: true });
+      items.push({ kind: 'yotei', badge: obj.shitamiVisited ? '✅' : '🟣', label: '下見予定', title: title, area: area, time: obj.time || '', order: obj.order, note: obj.timeNote || '', blocking: true });
     }
     if (seko === date) {
       // 施工日は時間を持たないため、判定には使わず参考表示のみ
@@ -420,9 +428,13 @@ function buildDayItems(date) {
     });
   });
   items.sort(function (a, b) {
+    var ao = parseInt(a.order, 10), bo = parseInt(b.order, 10);
+    ao = (isNaN(ao) || ao < 1) ? 1e6 : ao; bo = (isNaN(bo) || bo < 1) ? 1e6 : bo;
+    if (ao !== bo) return ao - bo;
     var ma = parseHM(a.time), mb = parseHM(b.time);
     var ka = ma === null ? 9999 : ma, kb2 = mb === null ? 9999 : mb;
-    return ka - kb2;
+    if (ka !== kb2) return ka - kb2;
+    return (a.title || '') < (b.title || '') ? -1 : 1;
   });
   return items;
 }
@@ -457,15 +469,20 @@ function itemText(it, qArea) {
   return s;
 }
 function itemRowHtml(it, qArea, dateAttr) {
+  // モーダルの「その日の下見予定」と同じ1行表示: 順 → 時間 → マーク 案件名【エリア】
+  var ov = parseInt(it.order, 10);
+  var ord = '<span class="ord">' + ((!isNaN(ov) && ov >= 1) ? '順' + ov : '－') + '</span>';
   var tm = it.time ? '<span class="tm">' + escapeHtml(it.time) + '</span>'
-    : '<span class="tm none">' + (it.kind === 'personal' && it.allDay ? '終日' : (it.kind === 'seko' ? '施工日' : '時間未定')) + '</span>';
+    : '<span class="tm none">' + (it.kind === 'personal' && it.allDay ? '終日' : (it.kind === 'seko' ? '施工日' : '--:--')) + '</span>';
   var tag = '';
-  if (it.kind === 'kari') tag = '<span class="st' + (it.statusOk ? ' ok' : '') + '">' + escapeHtml(it.label) + '</span>';
+  if (it.kind === 'kari') tag = '<span class="st' + (it.statusOk ? ' ok' : '') + '">' + escapeHtml(it.status === '仮' ? '打診中' : it.status === '断り' ? '断り' : '確保') + '</span>';
   var same = (qArea && sameArea(it.area, qArea)) ? '<span class="same">同エリア</span>' : '';
-  var cls = 'item' + (dateAttr ? ' click' : '') + (it.declined ? ' declined' : '') + (it.kind === 'seko' ? ' info' : '');
-  var text = it.badge + ' ' + (it.kind === 'kari' ? '' : escapeHtml(it.label) + (it.title ? '：' : '')) + escapeHtml(it.title || '')
-    + (it.area ? '【' + escapeHtml(it.area) + '】' : '') + (it.who ? '（' + escapeHtml(it.who) + '）' : '');
-  return '<div class="' + cls + '"' + (dateAttr ? ' data-date="' + dateAttr + '"' : '') + '>' + tm + '<span class="tx">' + text + '</span>' + tag + same + '</div>';
+  var cls = 'item row' + (dateAttr ? ' click' : '') + (it.declined ? ' declined' : '') + (it.kind === 'seko' ? ' info' : '');
+  var prefix = (it.kind === 'seko' ? '施工：' : '');
+  var text = it.badge + ' ' + prefix + '<span class="tx">' + escapeHtml(it.title || '') + '</span>'
+    + (it.area ? '<span class="ar">【' + escapeHtml(it.area) + '】</span>' : '') + (it.who ? '<span class="ar">（' + escapeHtml(it.who) + '）</span>' : '');
+  var note = it.note ? '<div class="nt">📝 ' + escapeHtml(it.note) + '</div>' : '';
+  return '<div class="' + cls + '"' + (dateAttr ? ' data-date="' + dateAttr + '"' : '') + '>' + ord + tm + text + tag + same + note + '</div>';
 }
 
 function renderVerdict(items) {
