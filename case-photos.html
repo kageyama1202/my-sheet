@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>案件の写真</title>
-<!-- VERSION: 2026-11-17 (v1117-b) 現場モードの中から使えるように: 親が呼べる窓口 casePhotos.refresh(直近2日だけ再確認して新しい写真を追加)/同じ写真を二重に出さない | 前: 2026-11-17 (v1117-a) 新規: 案件モーダルの「🖼 写真」から開く、その案件に結びついた写真の閲覧ページ。日付ごとの索引(genba_photo_index)を新しい日から順にさかのぼって、案件キー(または案件名)が一致する写真を集めて表示。縮小版(thumbPath)があればそれを、なければ原寸を使う。タップで原寸表示(◀▶で前後) -->
+<!-- VERSION: 2026-11-17 (v1117-c) ダウンロード機能を追加: 画面上の「⬇ 全部ダウンロード」と日ごとの「⬇ この日」→ 取得が終わったら「📥 写真アプリへ保存」で共有シートへ(2段階/40枚ずつ)。保存した写真には✓(genba-photos.htmlと同じ記録を共有) | 前: 2026-11-17 (v1117-b) 現場モードの中から使えるように: 親が呼べる窓口 casePhotos.refresh(直近2日だけ再確認して新しい写真を追加)/同じ写真を二重に出さない | 前: 2026-11-17 (v1117-a) 新規: 案件モーダルの「🖼 写真」から開く、その案件に結びついた写真の閲覧ページ。日付ごとの索引(genba_photo_index)を新しい日から順にさかのぼって、案件キー(または案件名)が一致する写真を集めて表示。縮小版(thumbPath)があればそれを、なければ原寸を使う。タップで原寸表示(◀▶で前後) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -25,6 +25,13 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 .grid a{display:block;position:relative;background:#2c2c2e;border-radius:6px;overflow:hidden;aspect-ratio:4/3}
 .grid img{width:100%;height:100%;object-fit:cover;display:block}
 .grid span{position:absolute;left:3px;bottom:3px;font-size:10px;background:rgba(0,0,0,.6);padding:0 5px;border-radius:5px}
+#bar{margin-bottom:10px}
+.dl{font-size:13px;padding:6px 12px;background:#0a84ff;font-weight:bold;white-space:nowrap}
+.dl.big{font-size:15px;padding:10px 16px}
+.dl.ready{background:#30d158;color:#000}
+.dl:disabled{background:#3a3a3c;color:#999}
+.day h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.grid a.sv::after{content:'✓';position:absolute;right:4px;top:3px;font-size:12px;font-weight:bold;background:#30d158;color:#000;border-radius:8px;padding:0 6px}
 #more{display:none;width:100%;margin-top:8px;background:#0a84ff}
 #msg{color:#ccc;padding:30px 10px;text-align:center;line-height:1.8;white-space:pre-wrap}
 #viewer{position:fixed;inset:0;background:#000;z-index:50;display:none}
@@ -39,6 +46,7 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 <body>
 <div id="top"><button id="bBack">←</button><h1 id="title">🖼 案件の写真</h1><button id="bReload">更新</button></div>
 <div id="st"></div>
+<div id="bar"><button id="dlAll" class="dl big" style="display:none"></button></div>
 <div id="list"><div id="msg">読み込み中…</div></div>
 <button id="more">さらに前の写真を探す</button>
 <div id="ver" style="text-align:right;margin-top:14px"></div>
@@ -46,7 +54,7 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 <script>
 (function(){
 'use strict';
-var VER='v1117-b';
+var VER='v1117-c';
 var DAYS_STEP=90;   // 1回で何日分さかのぼるか
 var PAR=8;          // 同時に読む日数
 var $=function(id){return document.getElementById(id)};
@@ -89,7 +97,7 @@ var io=('IntersectionObserver' in window)?new IntersectionObserver(function(es){
 },{rootMargin:'300px'}):null;
 
 function tile(p,box){
-  var a=document.createElement('a');a.href='#';
+  var a=document.createElement('a');a.href='#';a.dataset.id=p.id;if(shared[p.id])a.className='sv';
   var im=document.createElement('img');a.appendChild(im);
   var tm=new Date(p.ts);
   var sp=document.createElement('span');sp.textContent=p2(tm.getHours())+':'+p2(tm.getMinutes());a.appendChild(sp);
@@ -109,8 +117,11 @@ function dayBox(key,date){
   if(dayBoxes[key])return dayBoxes[key];
   var wrap=document.createElement('div');wrap.className='day';
   var h=document.createElement('h2');wrap.appendChild(h);
+  var ht=document.createElement('span');h.appendChild(ht);
+  var hb=document.createElement('button');hb.className='dl';h.appendChild(hb);
   var grid=document.createElement('div');grid.className='grid';wrap.appendChild(grid);
-  var o={wrap:wrap,grid:grid,h:h,n:0,date:date,key:key};
+  var o={wrap:wrap,grid:grid,h:ht,n:0,date:date,key:key};
+  o.dl=bindDl(hb,function(){return photos.filter(function(p){return p._day===key}).sort(function(a,b){return a.ts-b.ts})},function(n){return '⬇ この日 '+n+'枚'});
   dayBoxes[key]=o;
   // 新しい日が上に来るように、日付の降順で挿入
   var list=$('list'),placed=false;
@@ -125,8 +136,9 @@ function addPhotos(date,arr){
   if(!arr.length)return;
   var key=ymd(date),o=dayBox(key,date);
   arr.sort(function(a,b){return a.ts-b.ts});
-  arr.forEach(function(p){photos.push(p);tile(p,o.grid);o.n++});
+  arr.forEach(function(p){p._day=key;photos.push(p);tile(p,o.grid);o.n++});
   o.h.textContent=(date.getMonth()+1)+'/'+date.getDate()+'('+WD[date.getDay()]+')  '+o.n+'枚';
+  o.dl.update();updateAll();
   // 表示順(日付の新しい順→時刻順)に並べ替えて、前後移動の順序をそろえる
   photos.sort(function(a,b){var da=ymd(new Date(a.ts)),dbk=ymd(new Date(b.ts));return da===dbk?a.ts-b.ts:(da<dbk?1:-1)});
 }
@@ -210,6 +222,61 @@ async function refreshRecent(){
   if(photos.length)$('st').textContent=photos.length+'枚 (直近'+scanned+'日を確認)';
 }
 window.casePhotos={refresh:refreshRecent,reload:start};
+
+/* ---- ダウンロード(写真アプリへ保存) ----
+   iOSは「取得」と「共有シートを開く」を別々の操作にしないと開けないので2段階: ⬇で取得 → 📥で共有シート(「画像を保存」)。
+   1回に扱うのは40枚まで。多いときは「続きをダウンロード」で次の40枚へ。保存した写真は✓(genba-photos.htmlと同じ記録を共有) */
+var SK='genbaPhotos.shared';
+var shared={};try{shared=JSON.parse(localStorage.getItem(SK)||'{}')}catch(e){}
+function saveShared(){try{localStorage.setItem(SK,JSON.stringify(shared))}catch(e){}}
+function markShared(){
+  var as=document.querySelectorAll('.grid a');
+  for(var i=0;i<as.length;i++)as[i].classList.toggle('sv',!!shared[as[i].dataset.id]);
+}
+var CHUNK=40;
+function bindDl(btn,getItems,baseLabel){
+  var s={files:null,ids:null,items:null,pos:0};
+  function label(){
+    if(s.files){btn.textContent='📥 写真アプリへ保存('+s.files.length+'枚)';btn.classList.add('ready');return}
+    btn.classList.remove('ready');
+    if(s.items&&s.pos>0&&s.pos<s.items.length){btn.textContent='⬇ 続きをダウンロード(残り'+(s.items.length-s.pos)+'枚)';return}
+    btn.textContent=baseLabel(getItems().length);
+  }
+  btn.onclick=async function(){
+    if(s.files){ // 2段階目: 共有シートを開く
+      try{
+        if(navigator.canShare&&!navigator.canShare({files:s.files})){alert('この端末では一括共有できません。写真を開いて長押しで保存してください。');return}
+        await navigator.share({files:s.files});
+        s.ids.forEach(function(id){shared[id]=Date.now()});saveShared();markShared();
+        s.files=null;s.ids=null;
+        if(s.items&&s.pos>=s.items.length){s.items=null;s.pos=0;btn.classList.remove('ready');btn.textContent='✓ 保存しました';setTimeout(label,2500);return}
+      }catch(e){if(e&&e.name!=='AbortError')alert('共有できませんでした: '+(e.message||e))}
+      label();return;
+    }
+    if(!s.items||s.pos>=s.items.length){s.items=getItems();s.pos=0}
+    if(!s.items.length)return;
+    btn.disabled=true;
+    var chunk=s.items.slice(s.pos,s.pos+CHUNK),got=[],ids=[];
+    try{
+      for(var i=0;i<chunk.length;i++){
+        btn.textContent='ダウンロード中 '+(s.pos+i+1)+'/'+s.items.length;
+        var p=chunk[i];
+        var u=await urlOf(p.path||('case_files/'+p.key+'/'+p.name));
+        var r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
+        got.push(new File([await r.blob()],p.name,{type:'image/jpeg'}));ids.push(p.id);
+      }
+      s.files=got;s.ids=ids;s.pos+=chunk.length;
+    }catch(e){
+      s.files=null;s.ids=null;
+      alert('取得できませんでした: '+(e&&e.message||e)+'\n(写真を1枚ずつ開いて長押しで保存もできます)');
+    }
+    btn.disabled=false;label();
+  };
+  label();
+  return {update:function(){if(!s.files&&!btn.disabled)label()}};
+}
+var allDl=bindDl($('dlAll'),function(){return photos.slice().sort(function(a,b){return a.ts-b.ts})},function(n){return '⬇ 全部ダウンロード('+n+'枚)'});
+function updateAll(){$('dlAll').style.display=photos.length?'':'none';allDl.update()}
 
 /* ---- 原寸表示(タップで拡大/縮小、◀▶で前後) ---- */
 var cur=-1;
