@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場カメラ</title>
-<!-- VERSION: 2026-11-17 (v1117-a) 撮った写真の縮小版(長辺480px)も一緒にFirebaseへ送り、索引にthumbPathを記録(案件モーダルの「🖼 写真」ページ case-photos.html が速く表示できるように) | 前: 2026-11-16 (v1116-a) 撮ったらすぐFirebaseへ自動送信(15秒待ちを廃止/開いた時・電波復帰時に溜まりを再送/20秒ごとに再試行)・「保存」(写真アプリ共有)を廃止し「☁ 送信待ちN/送信済み」表示に(押すと今すぐ再送)・音声入力🎤(AIなし: 喋った言葉を登録テンプレに一番近いものへ寄せて文言欄へ/違う時は候補をタップで直す→次回から覚える/数字は半角に) | 前: 2026-11-13 (v1113-f) 焼き込み文字を横1行に変更: 案件名|文言|住所|日時を1行に並べ、写真の横幅に収まるよう自動で文字を縮小/写真の端(余白小)に寄せる(位置設定は従来どおり) | 前: 2026-11-13 (v1113-e) 現場モードとの相性: 親から touch() を呼べるようにし(分割表示中は図面側を触っていても1分で止めない)/停止画面に「案件に戻る」(単独で開いた時のみ表示) | 前: 2026-11-13 (v1113-d) カメラが動いていない間(一時停止・起動待ち・映像なし)は撮影画面そのものを隠し、専用の停止画面(大きな「カメラを起動」ボタン/未保存の保存ボタン/📦履歴)だけを表示。映像が出るとすぐ撮影画面に戻る(シャッターは映像が出ている時にしか存在しない) | 前: 2026-11-13 (v1113-c) カメラが動いていない間(一時停止・起動待ち・映像なし)はシャッターを灰色の点線にして「撮影不可」と表示/停止中の画面を大きな赤い「📷 カメラ停止中 タップで起動(撮影できません)」に/停止中にシャッターを押しても撮影せず起動だけ行い「映像が出てから押してください」と警告 | 前: 2026-11-13 (v1113-b) 撮影の確認表示: シャッター後、端末内への記録が成功した時だけ画面上部に「✓ 本日N枚目 記録済み」と撮った写真を表示(失敗・映像未準備は赤い警告)/一覧は「写真アプリに保存済み(灰色✓)」と「未保存」を区切って並べ、最後に保存した分が分かる | 前: 2026-11-13 (v1113-a) シャッターで保存を促す: 未保存が溜まるほどシャッターの縁が灰→橙(4枚〜)→赤(8枚〜)に変わる/8枚以上でシャッターを押すと同時に共有シートが自動で開く(写真アプリへ保存)/キャンセルしたらそのあと4枚は出さない/撮影自体は止めない | 前: 2026-11-12 (v1112-a) 現場での重さ対策: 一覧/履歴は小さな見本画像(長辺480px)を使う+タップで1枚だけ原寸表示/撮影直後に巨大canvasを解放/アップロードはシャッターが15秒止まってから1枚ずつ・全件読み込みをやめる/見ていない時は親(現場モード)からカメラ映像を止める/未保存枚数は変化時のみ親へ通知 | 前: 2026-11-12 (v1111-g) クラウド退避先を案件フォルダから退避専用の箱(users/{userKey}/camera_backup/{yyyymmdd}/)に変更/案件が未特定でも送る(案件モーダルの添付やpdf-noteの案件ファイルには混ざらない) | 前: 2026-11-12 (v1111-f) 共有シートが「完了」を返さない操作(ショートカット等)で保存した時、「保存は終わりましたか?」と確認して、OKなら一覧から外す | 前: 2026-11-11 (v1111-e) 保存は「ここまでの未保存を全案件まとめて」いつでも押せる運用に: 案件切替/戻るの確認を廃止/一度に40枚ずつ共有(多い時は続けて押す)/電波が戻ったら未保存枚数を通知 | 前: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
+<!-- VERSION: 2026-11-18 (v1118-a) 撮影直後に、撮れた写真を画面に大きく約2.5秒出す(ピント確認用/触ると止まる/「🔍 等倍で確認」で1:1/「🗑 撮り直し」で削除=端末内・Firebase・一覧の記録まで消す)。何も触らなければそのまま保存・送信 | 前: 2026-11-17 (v1117-a) 撮った写真の縮小版(長辺480px)も一緒にFirebaseへ送り、索引にthumbPathを記録(案件モーダルの「🖼 写真」ページ case-photos.html が速く表示できるように) | 前: 2026-11-16 (v1116-a) 撮ったらすぐFirebaseへ自動送信(15秒待ちを廃止/開いた時・電波復帰時に溜まりを再送/20秒ごとに再試行)・「保存」(写真アプリ共有)を廃止し「☁ 送信待ちN/送信済み」表示に(押すと今すぐ再送)・音声入力🎤(AIなし: 喋った言葉を登録テンプレに一番近いものへ寄せて文言欄へ/違う時は候補をタップで直す→次回から覚える/数字は半角に) | 前: 2026-11-13 (v1113-f) 焼き込み文字を横1行に変更: 案件名|文言|住所|日時を1行に並べ、写真の横幅に収まるよう自動で文字を縮小/写真の端(余白小)に寄せる(位置設定は従来どおり) | 前: 2026-11-13 (v1113-e) 現場モードとの相性: 親から touch() を呼べるようにし(分割表示中は図面側を触っていても1分で止めない)/停止画面に「案件に戻る」(単独で開いた時のみ表示) | 前: 2026-11-13 (v1113-d) カメラが動いていない間(一時停止・起動待ち・映像なし)は撮影画面そのものを隠し、専用の停止画面(大きな「カメラを起動」ボタン/未保存の保存ボタン/📦履歴)だけを表示。映像が出るとすぐ撮影画面に戻る(シャッターは映像が出ている時にしか存在しない) | 前: 2026-11-13 (v1113-c) カメラが動いていない間(一時停止・起動待ち・映像なし)はシャッターを灰色の点線にして「撮影不可」と表示/停止中の画面を大きな赤い「📷 カメラ停止中 タップで起動(撮影できません)」に/停止中にシャッターを押しても撮影せず起動だけ行い「映像が出てから押してください」と警告 | 前: 2026-11-13 (v1113-b) 撮影の確認表示: シャッター後、端末内への記録が成功した時だけ画面上部に「✓ 本日N枚目 記録済み」と撮った写真を表示(失敗・映像未準備は赤い警告)/一覧は「写真アプリに保存済み(灰色✓)」と「未保存」を区切って並べ、最後に保存した分が分かる | 前: 2026-11-13 (v1113-a) シャッターで保存を促す: 未保存が溜まるほどシャッターの縁が灰→橙(4枚〜)→赤(8枚〜)に変わる/8枚以上でシャッターを押すと同時に共有シートが自動で開く(写真アプリへ保存)/キャンセルしたらそのあと4枚は出さない/撮影自体は止めない | 前: 2026-11-12 (v1112-a) 現場での重さ対策: 一覧/履歴は小さな見本画像(長辺480px)を使う+タップで1枚だけ原寸表示/撮影直後に巨大canvasを解放/アップロードはシャッターが15秒止まってから1枚ずつ・全件読み込みをやめる/見ていない時は親(現場モード)からカメラ映像を止める/未保存枚数は変化時のみ親へ通知 | 前: 2026-11-12 (v1111-g) クラウド退避先を案件フォルダから退避専用の箱(users/{userKey}/camera_backup/{yyyymmdd}/)に変更/案件が未特定でも送る(案件モーダルの添付やpdf-noteの案件ファイルには混ざらない) | 前: 2026-11-12 (v1111-f) 共有シートが「完了」を返さない操作(ショートカット等)で保存した時、「保存は終わりましたか?」と確認して、OKなら一覧から外す | 前: 2026-11-11 (v1111-e) 保存は「ここまでの未保存を全案件まとめて」いつでも押せる運用に: 案件切替/戻るの確認を廃止/一度に40枚ずつ共有(多い時は続けて押す)/電波が戻ったら未保存枚数を通知 | 前: 2026-11-11 (v1111-d) 絶対に残す対策: アップロード済み+共有済みになるまで端末内の写真は消さない/アップロードした写真を日付別の索引(genba_photo_index)に記録→genba-photos.html(今日の写真)から案件別に写真アプリへ保存できる/履歴画面にクラウド一覧への入口 | 前: 2026-11-11 (v1111-c) 写真アプリに未保存の写真があるまま「案件に戻る」「案件の切替」をすると確認を出す/未保存枚数を現場モードのタブに表示 | 前: 2026-11-11 (v1111-b) 撮影と同時にFirebase Storage(users/{userKey}/case_files/{案件キー}/)へ自動アップロード(圏外なら後で再送)/送信状況を画面に表示/ファイル名にミリ秒を追加(連写で上書きされない) | 前: 2026-11-11 (v1111-a) 写真の紛失対策: 撮った瞬間に端末内(IndexedDB)へ退避/再読込しても未保存分を自動復元/共有シートのキャンセル・失敗では写真を消さない/📦履歴(7日間)から再保存/未保存のまま閉じると警告 | 前: 2026-11-09 (v1109-c) 撮影画面に案件情報バー(施工日・施工指示/タップで詳細)追加 | 前: v1109-b シャッターを大きく(100px)・周りと間隔を空けて押し間違い防止 | 前: v1109-a 案件に戻るボタン/無操作1分で自動停止 | 前: 2026-11-08 (v1108-c) 画面に版表示/撮影画面を大きく(設定を折りたたみ・横長は映像左/操作右)/キーボード対策/案件モーダルの📷撮影から起動(?case=)/案件選択モーダル+撮影開始/右下に案件名/テンプレ文言(Firebase保存) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -27,6 +27,14 @@ html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-sys
 #toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(40,40,42,.95);padding:8px 8px 8px 16px;border-radius:20px;font-size:14px;white-space:nowrap;z-index:5}
 #shotOk{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:none;align-items:center;gap:10px;background:rgba(0,120,40,.95);padding:6px 16px 6px 6px;border-radius:14px;font-size:16px;font-weight:700;z-index:6;pointer-events:none;white-space:nowrap}
 #shotOk.bad{background:rgba(200,0,0,.96)}
+#review{position:absolute;left:5%;right:5%;top:62px;bottom:10px;display:none;flex-direction:column;background:rgba(20,20,22,.95);border-radius:12px;z-index:7;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+#rvBox{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+#rvImg{display:block;width:100%;height:100%;object-fit:contain}
+#rvImg.z{width:auto;height:auto;max-width:none;object-fit:none}
+#rvBar{display:flex;gap:8px;padding:6px;justify-content:space-between;align-items:center;background:rgba(0,0,0,.5)}
+#rvBar button{font-size:15px;padding:10px 14px;border-radius:10px}
+#rvDel{background:#c62828}
+#rvZoom{background:#3a3a3c;flex:1}
 #shotOk img{height:52px;border-radius:8px}
 .th.sv{opacity:.45}.th.sv i{background:rgba(160,160,160,.95)}
 .dv{flex:0 0 auto;align-self:center;font-size:11px;color:#aaa;padding:0 6px;border-left:2px solid #666;line-height:14px}
@@ -133,6 +141,7 @@ body.kb #modal{padding-bottom:8px}
     </div>
     <div id="flash"></div>
     <div id="shotOk"></div>
+    <div id="review"><div id="rvBox"><img id="rvImg" alt=""></div><div id="rvBar"><button id="rvDel">🗑 撮り直し</button><button id="rvZoom">🔍 等倍で確認</button><button id="rvClose">✕</button></div></div>
     <div id="toast"></div>
     <div id="cinfo"></div><div id="cinfoP"></div>
     <div id="paused">📷 カメラ停止中<br>ここをタップで起動<br><span style="font-size:18px">(起動して映像が出るまで撮影できません)</span></div>
@@ -191,7 +200,7 @@ body.kb #modal{padding-bottom:8px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const VER='v1117-a';
+const VER='v1118-a';
 function camReady(){return !paused&&!!stream&&stream.active&&video.videoWidth>0&&!video.paused}
 let notReadySince=0;
 function refreshShutter(){
@@ -450,6 +459,7 @@ async function uploadPending(force){
     if(!(await ensureStorage())){allOk=false;return}
     const all=(await idbScan(r=>r.blob&&(!r.uploaded||!r.indexed))).sort((a,b)=>a.ts-b.ts);
     for(const r of all){
+      if(deleted.has(r.id))continue; // 撮り直しで削除された写真は送らない
       const key=r.key||caseKeyFor(r.site)||'';
       const rel='camera_backup/'+ymdOf(r.ts)+'/'+r.name; // 案件に関係なく日付ごとの1つの箱へ
       if(!r.uploaded){
@@ -463,6 +473,7 @@ async function uploadPending(force){
               tpath=tp;
             }catch(e){}
           }
+          if(deleted.has(r.id)){await cleanupCloud({id:r.id,ts:r.ts,path:rel,thumbPath:tpath});continue} // 送信中に撮り直しで削除された
           await idbMark(r.id,{uploaded:true,upTs:Date.now(),key:key,path:rel,thumbPath:tpath});
           r.uploaded=true;r.path=rel;r.thumbPath=tpath;
           unsent.delete(r.id);
@@ -472,6 +483,7 @@ async function uploadPending(force){
       }
       if(r.uploaded&&!r.indexed&&(r.path||key)){
         if(await indexPhoto(r,key)){
+          if(deleted.has(r.id)){await cleanupCloud({id:r.id,ts:r.ts,path:r.path,thumbPath:r.thumbPath});continue}
           await idbMark(r.id,{indexed:true,status:'sent',sentTs:Date.now()});
           markSentUI(r.id);updateTray();
         }else allOk=false;
@@ -725,6 +737,7 @@ function touch(){lastActive=Date.now()}
 function pauseCam(){
   paused=true;
   if(typeof micStop==='function')micStop();
+  if(typeof hideReview==='function')hideReview();
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
   video.srcObject=null;
   $('paused').style.display='flex';
@@ -992,10 +1005,74 @@ $('shutter').onclick=()=>{
           else flashMsg('⚠ 端末内への記録も送信もできていません。電波のある所でこの写真を撮り直してください(画面下の一覧に残っている間は消さないでください)',12000);
         });
       }
-      else{todayN++;showShotOk(tray[tray.length-1]&&tray[tray.length-1].thumbUrl,todayN);needIdx=true;clearTimeout(upTimer);upTimer=setTimeout(()=>uploadPending(),UP_IDLE_MS+200)} // 撮ったらすぐ送る
+      else{todayN++;showShotOk(null,todayN);showReview(id,blob);needIdx=true;clearTimeout(upTimer);upTimer=setTimeout(()=>uploadPending(),UP_IDLE_MS+200)} // 撮ったらすぐ送る
     });
   },'image/jpeg',0.92);
 };
+
+/* ---------- 撮影直後のプレビュー(ピント確認)と撮り直し ----------
+   撮れた写真を画面に大きく約2.5秒出す。触ると止まる(✕で閉じる/次を撮ると新しい写真に替わる)。
+   何も触らなければ、そのまま保存・送信が進む。「🗑 撮り直し」を押した時だけ、その写真を消す。 */
+const REVIEW_MS=2500;
+let rvId=null,rvUrl=null,rvTimer=null,rvHeld=false;
+const deleted=new Set(); // 撮り直しで消した写真のid(送信中だったものを後始末するため)
+function hideReview(){
+  clearTimeout(rvTimer);
+  $('review').style.display='none';
+  const im=$('rvImg');im.removeAttribute('src');im.classList.remove('z');
+  $('rvZoom').textContent='🔍 等倍で確認';
+  if(rvUrl){URL.revokeObjectURL(rvUrl);rvUrl=null}
+  rvId=null;rvHeld=false;
+}
+function showReview(id,blob){
+  hideReview();
+  rvId=id;rvUrl=URL.createObjectURL(blob);
+  $('rvImg').src=rvUrl;
+  $('review').style.display='flex';
+  $('rvBox').scrollTop=0;$('rvBox').scrollLeft=0;
+  rvTimer=setTimeout(()=>{if(!rvHeld)hideReview()},REVIEW_MS);
+}
+$('review').addEventListener('pointerdown',()=>{rvHeld=true;clearTimeout(rvTimer)});
+function rvToggleZoom(){
+  const im=$('rvImg'),box=$('rvBox');
+  const z=im.classList.toggle('z');
+  $('rvZoom').textContent=z?'🔍 全体に戻す':'🔍 等倍で確認';
+  box.scrollTop=0;box.scrollLeft=0;
+  if(z)requestAnimationFrame(()=>{box.scrollLeft=(im.offsetWidth-box.clientWidth)/2;box.scrollTop=(im.offsetHeight-box.clientHeight)/2});
+}
+$('rvZoom').onclick=rvToggleZoom;
+$('rvImg').onclick=rvToggleZoom;
+$('rvClose').onclick=hideReview;
+$('rvDel').onclick=()=>{const id=rvId;hideReview();if(id)discardShot(id)};
+// クラウドに上がっていた写真を消す: 一覧の記録(索引)を先に消して見えなくし、その後にファイルを消す
+async function cleanupCloud(r){
+  const d=getDb();
+  if(d){try{await Promise.race([d.ref('genba_photo_index/'+ymdOf(r.ts)+'/'+r.id).remove(),new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))])}catch(e){}}
+  let ok=true;
+  for(const pth of [r.path,r.thumbPath]){
+    if(!pth)continue;
+    try{await firebase.storage().ref('users/'+getUserKey()+'/'+pth).delete()}
+    catch(e){if(!(e&&e.code==='storage/object-not-found'))ok=false}
+  }
+  return ok;
+}
+async function discardShot(id){
+  deleted.add(id);
+  let i=tray.findIndex(t=>t.id===id);
+  if(i>=0){URL.revokeObjectURL(tray[i].thumbUrl);tray.splice(i,1)}
+  i=lastSent.findIndex(t=>t.id===id);
+  if(i>=0){URL.revokeObjectURL(lastSent[i].thumbUrl);lastSent.splice(i,1)}
+  unsent.delete(id);
+  let r=null;
+  try{r=(await idbScan(x=>x.id===id))[0]||null}catch(e){}
+  await idbDel(id);
+  if(todayN>0)todayN--;
+  updateTray();showCloud();
+  if(r&&(r.uploaded||r.path)){
+    const ok=await cleanupCloud(r);
+    flashMsg(ok?'🗑 撮り直し: この写真を削除しました':'🗑 端末内の写真は削除し、一覧からも外しました(クラウド側のファイルは消せませんでした)',5000);
+  }else flashMsg('🗑 撮り直し: この写真を削除しました',3000);
+}
 
 /* ---------- 送信状況(旧「保存」=写真アプリへの共有シートは廃止。撮った写真は自動でFirebaseへ送る) ---------- */
 let lastSent=[], toastTimer=null;
