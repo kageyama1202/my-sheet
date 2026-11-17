@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>現場モード</title>
-<!-- VERSION: 2026-11-17 (v1117-b) 写真の画面でダウンロード(共有シート)が使えるよう、写真の枠に web-share を許可 | 前: 2026-11-17 (v1117-a) ノート・写真・カメラの3画面を相互に切り替え(単独3通り+横向きの左右分割3通り: ノート|カメラ・ノート|写真・写真|カメラ)/URLのmode(file/photos/cam)で最初に出す画面を指定できる(案件モーダルの📷📝🖼から開く用)/写真(case-photos.html)は最初に開いた時に読み込み、開くたび・30秒ごとに新しい写真を追加/「☁ 写真一覧」は「📅 日別」に改名(従来どおり日付ごとの一覧を別タブで開く) | 前: 2026-11-13 (v1113-e) 分割表示中は、図面側を触っていてもカメラが1分で止まらないようにした(20秒ごとにカメラへ「使用中」を知らせる)。カメラだけ/ファイルだけの時は従来どおり | 前: 2026-11-12 (v1112-a) 軽量化: ファイルを見ている間はカメラ映像を止め、カメラ/分割に切り替えると再開/未保存枚数は1.5秒ごとの確認をやめ、カメラからの通知で更新 | 前: 2026-11-11 (v1111-d) ←で戻る時の未保存確認を廃止(未保存は「カメラ」タブの赤い枚数で常に表示) | 前: 2026-11-11 (v1111-c) 上部に「☁ 写真一覧」(クラウドの今日の写真を案件別に表示・写真アプリへ保存)を追加 | 前: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
+<!-- VERSION: 2026-11-18 (v1118-b) 撮り直しで消した写真を写真画面からも外す | 前: 2026-11-17 (v1117-b) 写真の画面でダウンロード(共有シート)が使えるよう、写真の枠に web-share を許可 | 前: 2026-11-17 (v1117-a) ノート・写真・カメラの3画面を相互に切り替え(単独3通り+横向きの左右分割3通り: ノート|カメラ・ノート|写真・写真|カメラ)/URLのmode(file/photos/cam)で最初に出す画面を指定できる(案件モーダルの📷📝🖼から開く用)/写真(case-photos.html)は最初に開いた時に読み込み、開くたび・30秒ごとに新しい写真を追加/「☁ 写真一覧」は「📅 日別」に改名(従来どおり日付ごとの一覧を別タブで開く) | 前: 2026-11-13 (v1113-e) 分割表示中は、図面側を触っていてもカメラが1分で止まらないようにした(20秒ごとにカメラへ「使用中」を知らせる)。カメラだけ/ファイルだけの時は従来どおり | 前: 2026-11-12 (v1112-a) 軽量化: ファイルを見ている間はカメラ映像を止め、カメラ/分割に切り替えると再開/未保存枚数は1.5秒ごとの確認をやめ、カメラからの通知で更新 | 前: 2026-11-11 (v1111-d) ←で戻る時の未保存確認を廃止(未保存は「カメラ」タブの赤い枚数で常に表示) | 前: 2026-11-11 (v1111-c) 上部に「☁ 写真一覧」(クラウドの今日の写真を案件別に表示・写真アプリへ保存)を追加 | 前: 2026-11-11 (v1111-b) 未保存の写真があれば「カメラ」タブに枚数を赤で表示/←で戻るとき確認 | 前: 2026-11-11 (v1111-a) カメラへ案件キーも渡す(撮影写真の自動アップロード先を確定するため) | 前: 2026-11-10 (v1110-b) 修正: 子ページ枠の高さが150pxで止まり画面が出ない不具合(height:100%を指定) | 前: v1110-a 新規: 現場モード。ファイル(pdf-note.html)とカメラ(genba-camera.html)を1画面に常駐させ、タブ切替/横向き分割で行き来できる。案件はURL(?case=案件キー&name=案件名&addr=住所)で受け取り、最後の案件を端末に記憶 -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#111;color:#fff;font-family:-apple-system,"Hiragino Sans",sans-serif;overflow:hidden}
@@ -46,7 +46,7 @@ body[data-mode=fc] #pc,body[data-mode=pc] #pc,body[data-mode=fp] #pp{visibility:
 <script>
 (function(){
 'use strict';
-var VER='v1117-b';
+var VER='v1118-b';
 var $=function(id){return document.getElementById(id)};
 var LASTKEY='genbaMode.last', MODEKEY='genbaMode.mode';
 var q=new URLSearchParams(location.search);
@@ -162,8 +162,14 @@ document.addEventListener('visibilitychange',function(){
 
 /* ---------- 戻る ---------- */
 // 未保存の枚数: カメラ側が変わった時だけ知らせてくる(定期確認はしない)
+var delTimer=null;
 window.addEventListener('message',function(e){
-  if(e.origin!==location.origin||!e.data||e.data.type!=='genbaUnsaved')return;
+  if(e.origin!==location.origin||!e.data)return;
+  if(e.data.type==='genbaDeleted'){ // 撮り直しで消した写真を、写真画面からも外す
+    clearTimeout(delTimer);delTimer=setTimeout(function(){var a=photosApi();if(photosLoaded&&a&&a.reload)a.reload()},1500);
+    return;
+  }
+  if(e.data.type!=='genbaUnsaved')return;
   var n=e.data.n|0;
   $('tCam').textContent=n?'📷 カメラ ('+n+')':'📷 カメラ';
   $('tCam').style.background=n?'#c62828':'';
