@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-18-001 -->
+<!-- VERSION: 2026-11-18-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -296,9 +296,13 @@
 <body>
 
 <div id="topBar">
+  <div id="navLinks" style="display:none;margin-bottom:4px;font-size:14px;font-weight:700;">
+    <a href="index.html" style="color:var(--accent);text-decoration:none;margin-right:14px;">◀ トップ</a>
+    <a href="schedule-check.html" style="color:var(--accent);text-decoration:none;">🗓 スケジュールチェック</a>
+  </div>
   <span id="adminBadge" style="display:none;">管理者</span>
   <div id="authNote" class="sub" style="margin-bottom:0;">読み込み中...</div>
-  <div style="font-size:10px;color:#666;">ver 2026-11-18-001</div>
+  <div style="font-size:10px;color:#666;">ver 2026-11-18-002</div>
   <div id="pendingBadge" style="display:none;font-size:12px;font-weight:700;color:var(--kari);margin-top:4px;"></div>
 </div>
 
@@ -573,6 +577,8 @@ function afterAuth(user) {
       return;
     }
 
+    // 仮予約用アカウント(外部)にはトップ等への導線を出さない。管理者・スタッフのみ表示
+    document.getElementById('navLinks').style.display = isKari ? 'none' : 'block';
     document.getElementById('adminBadge').style.display = isAdmin ? 'inline-block' : 'none';
     document.getElementById('authNote').textContent = isAdmin
       ? '管理者としてアクセス中です。'
