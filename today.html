@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-06-003 -->
+<!-- VERSION: 2026-11-18-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -168,6 +168,7 @@ td.alt-big-td .alt-big-in{display:block;width:0;min-width:100%;overflow:hidden;w
 <a href="index.html" class="top-link">◀ トップ</a>
 <h3>📋 案件管理リスト</h3>
 <span id="pendingBadge" style="display:none;font-size:12px;font-weight:700;color:#e65100;"></span>
+<span style="font-size:10px;color:#aaa;">v2026-11-18-001</span>
 <div class="search-box"><span style="font-weight:bold;color:#555;">🔍</span><input type="text" id="searchInput" placeholder="テキスト検索..." /></div>
 </div>
 <div class="filter-panel">
@@ -646,7 +647,7 @@ merged.forEach(function(item,idx){
     // アプリ入力日(obj.date)のどちらかが今日より前で、かつshitamiVisitedが未確認なら対象。
     var csvShitamiDateChk=formatToYMD(getSafeVal(cols,12));
     var appDateChk=formatToYMD(obj.date||'');
-    var isVisitUnconfirmed=!obj.shitamiVisited&&((csvShitamiDateChk&&csvShitamiDateChk<todayStr)||(appDateChk&&appDateChk<todayStr));
+    var isShitamiCountDone=!!(shitamiCount&&shitamiCount.yotei>0&&shitamiCount.jissi>=shitamiCount.yotei);var isVisitUnconfirmed=!obj.shitamiVisited&&!isShitamiCountDone&&((csvShitamiDateChk&&csvShitamiDateChk<todayStr)||(appDateChk&&appDateChk<todayStr));
     if(obj.flagged){tr.classList.add('flagged-row');}else if(obj.needsContact){tr.classList.add('needs-contact-row');}else if(isSmsPending){tr.classList.add('sms-pending-row');}else if(isVisitUnconfirmed){tr.classList.add('visit-check-row');}else if(isNoSekou){tr.className='nosekou-row';}else if(shitamiCount&&shitamiCount.yotei>0&&shitamiCount.jissi>=shitamiCount.yotei){tr.className='shitami-done-row';}else if(shitamiCount&&shitamiCount.jissi>0&&shitamiCount.jissi<shitamiCount.yotei){tr.className='shitami-jisshi-row';}
     var today2=getTodayStr();var shitamiDateStr=formatToYMD(getSafeVal(cols,12));var statusStr=getSafeVal(cols,1).replace(/\s+/g,'');var isKubunWarn=(getSafeVal(cols,3).replace(/\s+/g,'')==='ﾘ'&&shitamiDateStr==='');var isReportMissing=(shitamiDateStr!==''&&shitamiDateStr<today2&&(statusStr==='依頼'||statusStr==='下見日程確定'));var yoteiStr=formatToYMD(obj.date||'');var isYoteiPastNoShitami=(yoteiStr!==''&&yoteiStr<today2&&shitamiDateStr==='');
     var tdNo=document.createElement('td');tdNo.className='col-no';
