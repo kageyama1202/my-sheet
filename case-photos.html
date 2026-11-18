@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>案件の写真</title>
-<!-- VERSION: 2026-11-17 (v1117-c) ダウンロード機能を追加: 画面上の「⬇ 全部ダウンロード」と日ごとの「⬇ この日」→ 取得が終わったら「📥 写真アプリへ保存」で共有シートへ(2段階/40枚ずつ)。保存した写真には✓(genba-photos.htmlと同じ記録を共有) | 前: 2026-11-17 (v1117-b) 現場モードの中から使えるように: 親が呼べる窓口 casePhotos.refresh(直近2日だけ再確認して新しい写真を追加)/同じ写真を二重に出さない | 前: 2026-11-17 (v1117-a) 新規: 案件モーダルの「🖼 写真」から開く、その案件に結びついた写真の閲覧ページ。日付ごとの索引(genba_photo_index)を新しい日から順にさかのぼって、案件キー(または案件名)が一致する写真を集めて表示。縮小版(thumbPath)があればそれを、なければ原寸を使う。タップで原寸表示(◀▶で前後) -->
+<!-- VERSION: 2026-11-17 (v1118-d) ダウンロード機能を追加: 画面上の「⬇ 全部ダウンロード」と日ごとの「⬇ この日」→ 取得が終わったら「📥 写真アプリへ保存」で共有シートへ(2段階/40枚ずつ)。保存した写真には✓(genba-photos.htmlと同じ記録を共有) | 前: 2026-11-17 (v1117-b) 現場モードの中から使えるように: 親が呼べる窓口 casePhotos.refresh(直近2日だけ再確認して新しい写真を追加)/同じ写真を二重に出さない | 前: 2026-11-17 (v1117-a) 新規: 案件モーダルの「🖼 写真」から開く、その案件に結びついた写真の閲覧ページ。日付ごとの索引(genba_photo_index)を新しい日から順にさかのぼって、案件キー(または案件名)が一致する写真を集めて表示。縮小版(thumbPath)があればそれを、なければ原寸を使う。タップで原寸表示(◀▶で前後) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -31,6 +31,7 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 .dl.ready{background:#30d158;color:#000}
 .dl:disabled{background:#3a3a3c;color:#999}
 .day h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.grid a.mm::before{content:'📝';position:absolute;left:4px;top:3px;font-size:13px;background:rgba(0,0,0,.6);border-radius:8px;padding:0 5px}
 .grid a.sv::after{content:'✓';position:absolute;right:4px;top:3px;font-size:12px;font-weight:bold;background:#30d158;color:#000;border-radius:8px;padding:0 6px}
 #more{display:none;width:100%;margin-top:8px;background:#0a84ff}
 #msg{color:#ccc;padding:30px 10px;text-align:center;line-height:1.8;white-space:pre-wrap}
@@ -40,6 +41,9 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 #vclose{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:51;background:rgba(60,60,62,.9);font-size:22px;padding:8px 16px}
 #vprev,#vnext{position:fixed;top:50%;z-index:51;background:rgba(60,60,62,.8);font-size:24px;padding:14px 12px}
 #vprev{left:6px}#vnext{right:6px}
+#vmemo{position:fixed;left:8px;right:8px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:51;background:rgba(0,0,0,.8);border-radius:12px;padding:8px;display:flex;gap:8px}
+#vmemo textarea{flex:1;min-height:44px;font-size:16px;background:#1c1c1e;color:#fff;border:1px solid #555;border-radius:8px;padding:6px}
+#vmemo button{padding:8px 14px}
 #vinfo{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:51;background:rgba(0,0,0,.65);font-size:13px;padding:4px 12px;border-radius:12px;white-space:nowrap}
 </style>
 </head>
@@ -50,11 +54,11 @@ button{font-size:15px;border:none;border-radius:8px;padding:10px 14px;background
 <div id="list"><div id="msg">読み込み中…</div></div>
 <button id="more">さらに前の写真を探す</button>
 <div id="ver" style="text-align:right;margin-top:14px"></div>
-<div id="viewer"><div id="vwrap"><img id="vimg" alt=""></div><button id="vclose">✕</button><button id="vprev">◀</button><button id="vnext">▶</button><div id="vinfo"></div></div>
+<div id="viewer"><div id="vwrap"><img id="vimg" alt=""></div><button id="vclose">✕</button><button id="vprev">◀</button><button id="vnext">▶</button><div id="vmemo"><textarea id="vmemoT" placeholder="メモ(この写真の説明)"></textarea><button id="vmemoS">保存</button></div><div id="vinfo"></div></div>
 <script>
 (function(){
 'use strict';
-var VER='v1117-c';
+var VER='v1118-d';
 var DAYS_STEP=90;   // 1回で何日分さかのぼるか
 var PAR=8;          // 同時に読む日数
 var $=function(id){return document.getElementById(id)};
@@ -97,7 +101,7 @@ var io=('IntersectionObserver' in window)?new IntersectionObserver(function(es){
 },{rootMargin:'300px'}):null;
 
 function tile(p,box){
-  var a=document.createElement('a');a.href='#';a.dataset.id=p.id;if(shared[p.id])a.className='sv';
+  var a=document.createElement('a');a.href='#';a.dataset.id=p.id;a.className=(shared[p.id]?'sv':'')+(p.memo?' mm':'');p._a=a;
   var im=document.createElement('img');a.appendChild(im);
   var tm=new Date(p.ts);
   var sp=document.createElement('span');sp.textContent=p2(tm.getHours())+':'+p2(tm.getMinutes());a.appendChild(sp);
@@ -286,6 +290,7 @@ function showAt(i){
   var im=$('vimg');im.style.width='100%';im.removeAttribute('src');
   var tm=new Date(p.ts);
   $('vinfo').textContent=(i+1)+' / '+photos.length+'   '+(tm.getMonth()+1)+'/'+tm.getDate()+' '+p2(tm.getHours())+':'+p2(tm.getMinutes());
+  $('vmemoT').value=p.memo||'';
   var path=p.path||('case_files/'+p.key+'/'+p.name);
   urlOf(path).then(function(u){if(cur===i)im.src=u}).catch(function(){$('vinfo').textContent+='  (取得できません)'});
   $('vwrap').scrollTop=0;$('vwrap').scrollLeft=0;
@@ -293,6 +298,15 @@ function showAt(i){
 function openViewer(i){$('viewer').style.display='block';showAt(i)}
 $('vimg').onclick=function(){this.style.width=(this.style.width==='100%'?'250%':'100%')};
 $('vclose').onclick=function(){$('viewer').style.display='none';$('vimg').removeAttribute('src');cur=-1};
+$('vmemoS').onclick=function(){
+  var p=photos[cur];if(!p||!db)return;
+  var t=$('vmemoT').value.trim(),btn=$('vmemoS');
+  btn.textContent='…';
+  db.ref('genba_photo_index/'+ymd(new Date(p.ts))+'/'+p.id+'/memo').set(t).then(function(){
+    p.memo=t;if(p._a){if(t)p._a.classList.add('mm');else p._a.classList.remove('mm')}
+    btn.textContent='保存済み ✓';setTimeout(function(){btn.textContent='保存'},1500);
+  }).catch(function(){btn.textContent='失敗';setTimeout(function(){btn.textContent='保存'},2000)});
+};
 $('vprev').onclick=function(){showAt(cur-1)};
 $('vnext').onclick=function(){showAt(cur+1)};
 
