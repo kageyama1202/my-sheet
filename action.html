@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-08-001 -->
-<!-- 【2026-11-08】マイカレンダー(personal_calendar)の予定を各タブ(今日/明日/明後日)に表示するセクションを追加／取得失敗時は端末キャッシュで代替し警告表示／画面にバージョン表示 --><!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
+<!-- VERSION: 2026-11-27-003 -->
+<!-- 【2026-11-27】「移動」「連絡」の2タブに再構成。移動＝マイカレンダー・下見予定・仮予約（今日/明日/明後日の切替つき）／連絡＝連絡必要・注目（日付に関係なく全件）・仮予約の回答/送信待ち・SMS未送信・報告書未提出。各タブに残件数バッジ。SMSの電話番号はタップで発信。右上に「全予定」(today.html)リンク --> <!-- 【2026-11-08】マイカレンダー(personal_calendar)の予定を各タブ(今日/明日/明後日)に表示するセクションを追加／取得失敗時は端末キャッシュで代替し警告表示／画面にバージョン表示 --><!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -76,6 +76,20 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 .loading{text-align:center;padding:40px;color:#52b788;font-size:14px;}
 .err{text-align:center;padding:20px;color:#ef4444;font-size:12px;}
 .note{margin:14px 12px;font-size:11px;color:#6b7280;text-align:center;line-height:1.6;}
+
+/* 2タブ（移動／連絡） */
+.mtabs{display:flex;gap:8px;margin:12px 12px 0;}
+.mtab{flex:1;background:#151a24;border:1px solid #232938;border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;color:#9ca3af;font-size:15px;font-weight:bold;}
+.mtab .badge{display:inline-block;margin-left:6px;min-width:22px;padding:1px 7px;border-radius:12px;font-size:12px;background:#1f2937;color:#9ca3af;}
+.mtab .badge.has{background:#7c2d12;color:#fed7aa;}
+.mtab .badge.clear{background:#1b3a2e;color:#6ee7b7;}
+.mtab.active{background:#1b3a2e;border-color:#52b788;color:#d8f3dc;}
+.mtab.alert:not(.active){border-color:#c2410c;}
+.dates{display:flex;gap:6px;margin:8px 12px 0;}
+.dates .tab{padding:6px 4px;}
+#mainContent{max-width:900px;margin:0 auto;}
+.hdr-link{color:#93c5fd !important;font-size:12px !important;}
+.card-sub a.tel{color:#6ee7b7;text-decoration:none;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -83,7 +97,8 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-08-001</span></h2>
+  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-27-003</span></h2>
+  <a class="hdr-link" href="today.html">📅 全予定</a>
   <button class="refresh-btn" onclick="loadAll()">🔄 更新</button>
 </div>
 
@@ -126,6 +141,8 @@ function escHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replac
 var todayStr=getTodayStr();
 var TAB_NAMES=['今日','明日','明後日'];
 var currentTab=0;
+var mode='move'; // 'move'=移動 / 'contact'=連絡
+function actDate(){return mode==='contact'?todayStr:tabDate(currentTab);}
 var globalTasks={};
 var globalHeaders=[];
 var fullData=null;
@@ -162,7 +179,7 @@ function isManualDone(date,sec,key){
 function toggleDone(ev,sec,key,locked){
   if(ev){ev.stopPropagation();}
   if(locked)return;
-  var date=tabDate(currentTab);
+  var date=actDate();
   var id=mkId(sec,key);
   doneAll[date]=doneAll[date]||{};
   var ref=db.ref('action_done/'+date+'/'+id);
@@ -351,11 +368,11 @@ function kariKind(e){
   return st;
 }
 
-// ---- 仮予約：今日タブ＝明日以降の未回答／未送信（今日分は「本日の仮予約」に出す） ----
+// ---- 仮予約：今日以降の未回答／未送信（連絡タブ用） ----
 function buildKariPending(){
   var items=[];
   Object.keys(kariSlotsAll).forEach(function(date){
-    if(date<=todayStr)return;
+    if(date<todayStr)return;
     var day=kariSlotsAll[date]||{};
     Object.keys(day).forEach(function(id){
       var e=day[id];
@@ -387,7 +404,7 @@ function buildKariByDate(dateStr){
 
 // ---- 完了状態の付与・並び替え ----
 function prepItems(sec,items,autoFn){
-  var date=tabDate(currentTab);
+  var date=actDate();
   items.forEach(function(it,i){
     it._idx=i;
     it._auto=autoFn?!!autoFn(it):false;
@@ -442,8 +459,8 @@ function switchTab(i){
   render();
 }
 
-// 各タブの件数・完了数を集計（タブ見出し用）
-function tabStats(i){
+// 移動タブ：日付ごとの件数・完了数（日付チップ用）
+function moveStats(i){
   var date=tabDate(i);
   var total=0,done=0;
   function count(sec,items,autoFn){
@@ -453,33 +470,51 @@ function tabStats(i){
     });
   }
   count('shitami',buildShitamiByDate(date),function(it){return it.visited;});
-  if(i===0){
-    count('flag',buildFlagged());
-    count('contact',buildNeedsContact());
-    count('sms',buildSmsUnsent());
-    count('report',buildReportMissing());
-    count('karitoday',buildKariByDate(date));
-    count('kari',buildKariPending());
-  }else{
-    count('kari',buildKariByDate(date));
-  }
+  if(i===0)count('karitoday',buildKariByDate(date));else count('kari',buildKariByDate(date));
   return {total:total,done:done};
 }
+// 連絡タブ：件数・完了数（常に今日の日付で保存）
+function contactStats(){
+  var total=0,done=0;
+  function count(sec,items){items.forEach(function(it){total++;if(isManualDone(todayStr,sec,it.key))done++;});}
+  count('contact',buildNeedsContact());
+  count('flag',buildFlagged());
+  count('kari',buildKariPending());
+  count('sms',buildSmsUnsent());
+  count('report',buildReportMissing());
+  return {total:total,done:done};
+}
+function badgeHtml(st){
+  var remain=st.total-st.done;
+  if(st.total===0)return '<span class="badge">0</span>';
+  if(remain===0)return '<span class="badge clear">✓</span>';
+  return '<span class="badge has">'+remain+'</span>';
+}
+function switchMode(m){mode=m;render();}
 
 function renderTabs(){
-  var html='<div class="tabs">';
-  for(var i=0;i<3;i++){
-    var d=tabDate(i);
-    var st=tabStats(i);
-    var remain=st.total-st.done;
-    var prog=st.total===0?'予定なし':(remain===0?'✅ 完了':'残'+remain+'件');
-    html+='<div class="tab'+(i===currentTab?' active':'')+'" onclick="switchTab('+i+')">'
-      +'<div class="tab-name">'+TAB_NAMES[i]+'</div>'
-      +'<div class="tab-date">'+parseInt(d.slice(5,7),10)+'/'+parseInt(d.slice(8,10),10)+'('+dowLabel(d)+')</div>'
-      +'<div class="tab-prog'+(st.total>0&&remain===0?' all':'')+'">'+prog+'</div>'
-      +'</div>';
+  var mv=moveStats(currentTab);
+  var ct=contactStats();
+  var ctAlert=(ct.total-ct.done)>0;
+  var html='<div class="mtabs">'
+    +'<div class="mtab'+(mode==='move'?' active':'')+'" onclick="switchMode(\'move\')">🚗 移動'+badgeHtml(mv)+'</div>'
+    +'<div class="mtab'+(mode==='contact'?' active':'')+(ctAlert?' alert':'')+'" onclick="switchMode(\'contact\')">📞 連絡'+badgeHtml(ct)+'</div>'
+    +'</div>';
+  if(mode==='move'){
+    html+='<div class="dates">';
+    for(var i=0;i<3;i++){
+      var d=tabDate(i);
+      var st=moveStats(i);
+      var remain=st.total-st.done;
+      var prog=st.total===0?'予定なし':(remain===0?'✅ 完了':'残'+remain+'件');
+      html+='<div class="tab'+(i===currentTab?' active':'')+'" onclick="switchTab('+i+')">'
+        +'<div class="tab-name">'+TAB_NAMES[i]+'</div>'
+        +'<div class="tab-date">'+parseInt(d.slice(5,7),10)+'/'+parseInt(d.slice(8,10),10)+'('+dowLabel(d)+')</div>'
+        +'<div class="tab-prog'+(st.total>0&&remain===0?' all':'')+'">'+prog+'</div>'
+        +'</div>';
+    }
+    html+='</div>';
   }
-  html+='</div>';
   document.getElementById('tabsArea').innerHTML=html;
 }
 
@@ -498,69 +533,74 @@ function shitamiCardFn(item){
 
 function render(){
   renderTabs();
-  var date=tabDate(currentTab);
   var html='';
   var totalAll=0,doneAllCnt=0;
   function tally(items){items.forEach(function(x){totalAll++;if(x._done)doneAllCnt++;});}
 
-  if(personalCalStatus==='cache')html+='<div class="warn">⚠ マイカレンダーを取得できなかったため、この端末に保存済みの古い内容を表示しています。</div>';
-  else if(personalCalStatus==='none')html+='<div class="warn">⚠ マイカレンダーを取得できませんでした（予定が無いのではなく読み込み失敗です）。トップページから入り直してください。</div>';
-  var pcal=buildPersonalByDate(date);
-  html+=sectionHtml('pcal','📅',(currentTab===0?'本日':TAB_NAMES[currentTab])+'のマイカレンダー',pcal,pcalCardFn,'予定なし');
+  if(mode==='move'){
+    var date=tabDate(currentTab);
+    if(personalCalStatus==='cache')html+='<div class="warn">⚠ マイカレンダーを取得できなかったため、この端末に保存済みの古い内容を表示しています。</div>';
+    else if(personalCalStatus==='none')html+='<div class="warn">⚠ マイカレンダーを取得できませんでした（予定が無いのではなく読み込み失敗です）。トップページから入り直してください。</div>';
+    var pcal=buildPersonalByDate(date);
+    html+=sectionHtml('pcal','📅',(currentTab===0?'本日':TAB_NAMES[currentTab])+'のマイカレンダー',pcal,pcalCardFn,'予定なし');
 
-  var shitami=prepItems('shitami',buildShitamiByDate(date),function(it){return it.visited;});
-  tally(shitami);
-  var shitamiTitle=currentTab===0?'本日の下見予定':(TAB_NAMES[currentTab]+'の下見予定');
-  html+=sectionHtml('shitami','📋',shitamiTitle,shitami,shitamiCardFn,currentTab===0?'対象なし':'下見予定なし');
+    var shitami=prepItems('shitami',buildShitamiByDate(date),function(it){return it.visited;});
+    tally(shitami);
+    var shitamiTitle=currentTab===0?'本日の下見予定':(TAB_NAMES[currentTab]+'の下見予定');
+    html+=sectionHtml('shitami','📋',shitamiTitle,shitami,shitamiCardFn,currentTab===0?'対象なし':'下見予定なし');
 
-  if(currentTab===0){
-    var kariToday=prepItems('karitoday',buildKariByDate(date));
-    tally(kariToday);
-    html+=sectionHtml('karitoday','🗓','本日の仮予約',kariToday,kariCardFn,'本日の仮予約なし');
-
-    var flagged=prepItems('flag',buildFlagged());
+    if(currentTab===0){
+      var kariToday=prepItems('karitoday',buildKariByDate(date));
+      tally(kariToday);
+      html+=sectionHtml('karitoday','🗓','本日の仮予約',kariToday,kariCardFn,'本日の仮予約なし');
+    }else{
+      var kariDay=prepItems('kari',buildKariByDate(date));
+      tally(kariDay);
+      html+=sectionHtml('kari','🗓',TAB_NAMES[currentTab]+'の仮予約',kariDay,kariCardFn,'仮予約なし');
+    }
+    html='<div class="progress">'+TAB_NAMES[currentTab]+'の進捗：<b>'+doneAllCnt+'</b> / '+totalAll+' 件完了</div>'+html
+      +'<div class="note">チェックは日付ごとに保存されます</div>';
+  }else{
     var needsContact=prepItems('contact',buildNeedsContact());
+    var flagged=prepItems('flag',buildFlagged());
+    var kariPending=prepItems('kari',buildKariPending());
     var smsUnsent=prepItems('sms',buildSmsUnsent());
     var reportMissing=prepItems('report',buildReportMissing());
-    var kariPending=prepItems('kari',buildKariPending());
-    tally(flagged);tally(needsContact);tally(smsUnsent);tally(reportMissing);tally(kariPending);
-
-    html+=sectionHtml('flag','⚑','注目',flagged,function(item){
-      return cardWrap('flag',item,'flag','openTask(\''+escHtml(item.key)+'\')',
-        '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
-        +'<div class="card-sub">'+sekouHtml(item)+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'+noteHtml(item));
-    });
+    tally(needsContact);tally(flagged);tally(kariPending);tally(smsUnsent);tally(reportMissing);
 
     html+=sectionHtml('contact','📞','連絡必要',needsContact,function(item){
       return cardWrap('contact',item,'contact','openTask(\''+escHtml(item.key)+'\')',
         '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
         +'<div class="card-sub">'+sekouHtml(item)+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'+noteHtml(item));
-    });
+    },'連絡が必要な案件はありません');
+
+    html+=sectionHtml('flag','⚑','注目',flagged,function(item){
+      return cardWrap('flag',item,'flag','openTask(\''+escHtml(item.key)+'\')',
+        '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
+        +'<div class="card-sub">'+sekouHtml(item)+(item.addr?'<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>'+noteHtml(item));
+    },'注目の案件はありません');
+
+    html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち',kariPending,kariCardFn,'回答・送信待ちはありません');
 
     html+=sectionHtml('sms','💬','SMS未送信',smsUnsent,function(item){
       var bodyPreview=item.body.length>40?item.body.substring(0,40)+'…':item.body;
+      var tel=item.tel?'<a class="tel" href="tel:'+escHtml(String(item.tel).replace(/[^0-9+]/g,''))+'" onclick="event.stopPropagation()">☎ '+escHtml(item.tel)+'</a>':'';
       return cardWrap('sms',item,'sms','openSmsTool()',
         '<div class="card-top-row"><span class="card-title">'+escHtml(item.label)+'</span></div>'
-        +'<div class="card-sub">☎ '+escHtml(item.tel)+'<br>'+escHtml(bodyPreview)+'</div>');
-    });
+        +'<div class="card-sub">'+tel+'<br>'+escHtml(bodyPreview)+'</div>');
+    },'未送信のSMSはありません');
 
     html+=sectionHtml('report','📝','報告書未提出',reportMissing,function(item){
       return cardWrap('report',item,'report','openTask(\''+escHtml(item.key)+'\')',
         '<div class="card-top-row"><span class="card-title">'+escHtml(item.title)+'</span></div>'
         +'<div class="card-sub">'+sekouHtml(item)+'<span class="tag">'+escHtml(item.reason)+'</span>下見日:'+escHtml(item.shitamiDate.replace(/^\d{4}-/,''))
         +(item.addr?'　<span class="addr">📍'+escHtml(shortAddr(item.addr))+'</span>':'')+'</div>');
-    });
+    },'未提出の報告書はありません');
 
-    html+=sectionHtml('kari','🗓','仮予約：回答・送信待ち（明日以降）',kariPending,kariCardFn);
-  }else{
-    var kariDay=prepItems('kari',buildKariByDate(date));
-    tally(kariDay);
-    html+=sectionHtml('kari','🗓',TAB_NAMES[currentTab]+'の仮予約',kariDay,kariCardFn,'仮予約なし');
-    html+='<div class="note">※ 注目・連絡必要・SMS未送信・報告書未提出は「今日」タブのみ表示<br>チェックは日付ごとに保存されます</div>';
+    html='<div class="progress">要対応 <b>'+(totalAll-doneAllCnt)+'</b> 件（完了 '+doneAllCnt+' / '+totalAll+'）</div>'+html
+      +'<div class="note">注目・連絡必要は施工日に関係なく全件表示（解除は案件モーダルのボタンで）<br>チェックは日付ごとに保存されます</div>';
   }
-
-  var prog='<div class="progress">'+TAB_NAMES[currentTab]+'の進捗：<b>'+doneAllCnt+'</b> / '+totalAll+' 件完了</div>';
-  document.getElementById('mainContent').innerHTML=prog+html+'<div class="ver">action.html v2026-11-08-001</div>';
+  document.getElementById('mainContent').innerHTML=html+'<div class="ver">action.html v'+'2026-11-27-003</div>';
 }
 
 function kariCardFn(item){
