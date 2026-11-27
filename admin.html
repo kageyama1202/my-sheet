@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-002 -->
+<!-- VERSION: 2026-11-27-003 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,7 +38,7 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-002</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-003</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -50,6 +50,8 @@
       <div style="color:#64b5f6;font-weight:bold;font-size:14px;margin-bottom:6px;">🧩 拡張機能からの受信（SF Report Probe）</div>
       <p id="extStatus" style="margin:0 0 10px 0;">まだ受信していません。ChromeでSalesforceの「現場管理同期用」レポートを開くと、ここに届きます。</p>
       <button id="extSaveBtn" disabled>☁️ 受信した内容でクラウドへ保存</button>
+      <label style="display:block;margin-top:12px;font-size:13px;cursor:pointer;"><input type="checkbox" id="extAuto" style="width:auto;margin-right:6px;">🤖 自動保存（受信した内容に変化があれば、確認なしでクラウドへ保存）</label>
+      <p id="extAutoInfo" style="margin:6px 0 0 0;font-size:12px;color:#888;"></p>
     </div>
 
     <hr class="divider">
@@ -379,6 +381,7 @@
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
+                if(opts.onSuccess)opts.onSuccess();
                 if(!opts.silent)alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 現役から外す: '+delCount+'\n過去案件へ退避: '+archivedCount+'件（「完了」'+kanryoSkipped+'件を含む）'+(restoredCount>0?'\n現役へ復帰: '+restoredCount+'件':'')+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
                 finish();
               }).catch(function(err){
@@ -412,8 +415,69 @@
       extSaveBtn.disabled=true;
       logEl.innerHTML='';logEl.style.display='block';
       log('📥 拡張機能からSFレポートを受信: '+d.rows.length+'件');
+      lastRecvAt=Date.now();
+      if(extAutoEl.checked){autoSave(d);return;}
       doImport(d.headers.slice(),copyRows(d.rows),{dryRun:true,silent:true,onEnd:function(){extSaveBtn.disabled=false;}});
     });
+
+    // ★2026-11-27追加★ 自動保存。拡張機能が定期的にSFレポートを再読み込みして届けてくる内容に、前回保存から変化があれば自動で保存する。
+    // 安全装置: ①件数や項目数が極端に少ないときは保存しない ②保存中は次を受け付けない ③保存に失敗したときは次回また試す
+    var extAutoEl=document.getElementById('extAuto');
+    var extAutoInfoEl=document.getElementById('extAutoInfo');
+    var lastRecvAt=0,autoBusy=false;
+    extAutoEl.checked=(localStorage.getItem('sfAutoSave')==='1');
+    extAutoEl.addEventListener('change',function(){
+      localStorage.setItem('sfAutoSave',extAutoEl.checked?'1':'0');
+      extAutoInfoEl.textContent=extAutoEl.checked?'自動保存オン。次に届いた内容から、変化があれば自動で保存します。':'自動保存オフ。';
+      extAutoInfoEl.style.color='#888';
+    });
+    function sigOf(d){
+      var str=d.headers.join('\u0001')+'\u0002'+d.rows.map(function(r){return r.join('\u0001');}).join('\u0002');
+      var h=5381;for(var i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))|0;}
+      return d.rows.length+':'+h;
+    }
+    function autoSave(d){
+      var sig=sigOf(d);
+      var lastCount=parseInt(localStorage.getItem('sfLastCount')||'0',10);
+      if(sig===localStorage.getItem('sfLastSig')){
+        extAutoInfoEl.textContent='🤖 '+new Date().toLocaleTimeString('ja-JP')+' 受信: 前回保存から変化なし（保存しません）';
+        extAutoInfoEl.style.color='#888';
+        return;
+      }
+      if(d.rows.length<50||d.headers.length<10||(lastCount>0&&d.rows.length<lastCount*0.5)){
+        extAutoInfoEl.textContent='⚠️ '+new Date().toLocaleTimeString('ja-JP')+' 受信した件数('+d.rows.length+'件)が少なすぎるため、自動保存を止めました。内容を確認し、問題なければ上のボタンで手動保存してください。';
+        extAutoInfoEl.style.color='#ff8a80';
+        extSaveBtn.disabled=false;
+        return;
+      }
+      if(autoBusy)return;
+      autoBusy=true;
+      var okFlag=false;
+      extAutoInfoEl.textContent='🤖 変化を検出。自動保存中...';
+      extAutoInfoEl.style.color='#64b5f6';
+      log('🤖 前回保存から変化あり。自動保存します');
+      doImport(d.headers.slice(),copyRows(d.rows),{
+        dryRun:false,silent:true,
+        onSuccess:function(){
+          okFlag=true;
+          localStorage.setItem('sfLastSig',sig);
+          localStorage.setItem('sfLastCount',String(d.rows.length));
+          extAutoInfoEl.textContent='✅ '+new Date().toLocaleTimeString('ja-JP')+' 自動保存しました（'+d.rows.length+'件）';
+          extAutoInfoEl.style.color='#66bb6a';
+        },
+        onEnd:function(){
+          autoBusy=false;
+          if(!okFlag){extAutoInfoEl.textContent='❌ 自動保存に失敗しました。ログを確認してください（次回受信時にまた試します）';extAutoInfoEl.style.color='#ff8a80';}
+        }
+      });
+    }
+    // 受信が長時間とだえたら警告(SFのログイン切れ・拡張機能停止などに気づくため)
+    setInterval(function(){
+      if(!extAutoEl.checked||!lastRecvAt)return;
+      var min=Math.floor((Date.now()-lastRecvAt)/60000);
+      if(min>=75){extStatusEl.textContent='⚠️ '+min+'分間、受信がありません。SFのログイン切れ、またはレポートのタブが閉じていないか確認してください。';extStatusEl.style.color='#ff8a80';}
+    },60000);
+
     extSaveBtn.addEventListener('click',function(){
       if(!extPending){alert('受信したデータがありません');return;}
       if(!confirm('受信した '+extPending.rows.length+'件で、クラウドのデータを更新します。\n（CSVを取り込むのと同じ処理です）\n\nよろしいですか？'))return;
