@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示・BOXリンク表示と今すぐ取得ボタン追加】*/
-// VERSION: 2026-11-27-003
+// VERSION: 2026-11-27-004
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-27-003";
+var MODAL_JS_VERSION = "2026-11-27-004";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -88,6 +88,7 @@ function modalAppDataKey() {
 }
 
 function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseDB, onSaveCallback) {
+  window.__boxDb = firebaseDB; // ★2026-11-27追加★ 依頼受信(ページ全体)でも同じDB(ユーザー別の窓口)を使うため控えておく
   var cols = obj.csvData; if (!cols) return;
   var sekouStr = getSafeValModal(cols,2).replace(/\s+/g,"")||"未定";
   var shitamiStr = formatToYMDModal(getSafeValModal(cols,12))||"未定";
@@ -1184,7 +1185,14 @@ function escHtmlModal(s) {
   window.__boxRelayLoaded = true;
   var relayKeys = {};
   var started = false;
-  function db() { try { return (typeof firebaseDB !== 'undefined') ? firebaseDB : null; } catch (e) { return null; } }
+  // firebaseDB はopenCaseModalの引数でありグローバルではない。ページのグローバル変数 database(today.html等)か、モーダルを開いたときに控えた window.__boxDb を使う
+  function db() {
+    try {
+      if (window.__boxDb && window.__boxDb.ref) return window.__boxDb;
+      if (typeof database !== 'undefined' && database && database.ref) return database;
+    } catch (e) {}
+    return null;
+  }
   function patch(key, obj) { var d = db(); if (d) d.ref('app_meta/boxRequests/' + key).update(obj).catch(function () {}); }
   window.addEventListener('message', function (ev) {
     if (ev.source !== window || ev.origin !== location.origin || !ev.data) return;
