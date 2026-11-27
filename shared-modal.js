@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示・BOXリンク表示と今すぐ取得ボタン追加】*/
-// VERSION: 2026-11-27-001
+// VERSION: 2026-11-27-002
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-27-001";
+var MODAL_JS_VERSION = "2026-11-27-002";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -912,7 +912,11 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     var fetchBtn = document.getElementById('box-fetch-btn');
     var stEl = document.getElementById('box-status');
     var boxLinks = null, bridgeReady = !!window.__sfBridgeReady;
-    function refreshBtn() { fetchBtn.style.display = (boxLinks && bridgeReady) ? 'inline-block' : 'none'; }
+    // ★2026-11-27追加★ 拡張機能のない端末(iPadなど)でも押せる。その場合は Firebase に依頼を書き、MacのChromeが取得する
+    function refreshBtn() {
+      fetchBtn.style.display = boxLinks ? 'inline-block' : 'none';
+      fetchBtn.textContent = bridgeReady ? '⬇ 今すぐ取得' : '☁ Macに取得を依頼';
+    }
     // 拡張機能からの合図・取得状況を受け取る(モーダルを開くたびに付け替える)
     if (window.__boxMsgHandler) window.removeEventListener('message', window.__boxMsgHandler);
     window.__boxMsgHandler = function (ev) {
@@ -943,7 +947,23 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
     fetchBtn.addEventListener('click', function () {
       if (!boxLinks) return;
       stEl.textContent = '依頼中...';
-      window.postMessage({ type: 'SF_BOX_FETCH', key: key, title: ankenText, links: boxLinks }, location.origin);
+      if (bridgeReady) {
+        window.postMessage({ type: 'SF_BOX_FETCH', key: key, title: ankenText, links: boxLinks }, location.origin);
+      } else {
+        // 拡張機能なし(iPadなど): Macが1分おきに見に行く
+        firebaseDB.ref('app_meta/boxRequests/' + key).set({ state: 'pending', ts: Date.now(), title: ankenText || '', text: '☁ Macへ依頼しました(最大1〜2分で受付)' })
+          .catch(function () { stEl.textContent = '⚠ 依頼を送れませんでした'; });
+      }
+    });
+    // Macからの進み具合(Firebase経由)。30分以内の依頼だけ表示する
+    if (window.__boxReqRef) { try { window.__boxReqRef.off(); } catch (e) {} }
+    window.__boxReqRef = firebaseDB.ref('app_meta/boxRequests/' + key);
+    window.__boxReqRef.on('value', function (snap) {
+      var v = snap.val();
+      if (!v || !v.ts || Date.now() - v.ts > 30 * 60 * 1000) return;
+      var t = v.text || '';
+      if (v.state === 'ok' && !/取り込み待ち|完了/.test(t)) t += '';
+      if (t) stEl.textContent = t;
     });
   })();
 
