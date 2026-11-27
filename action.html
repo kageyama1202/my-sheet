@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-006 -->
+<!-- VERSION: 2026-11-28-001 -->
+<!-- 【2026-11-28 v001】メール新着のお知らせ帯(確認した、で消える)と「✉メール NEW」表示、中止・変更メールの警告表示を追加 -->
 <!-- 【2026-11-27 v005】メール取り込み(mail_ingest/status)の最終実行を確認し、30分以上止まっている／エラー／未稼働のときは画面上部に赤い警告を表示 -->
 <!-- 【2026-11-27 v004】タブ切替をやめ、左＝移動／右＝連絡の常時2列表示に変更（狭い画面では縦積み）。日付チップは左列の上に配置。連絡側の仮予約セクションはチェック保存名をkariwaitに変更 -->
 <!-- 【2026-11-27】「移動」「連絡」の2タブに再構成。移動＝マイカレンダー・下見予定・仮予約（今日/明日/明後日の切替つき）／連絡＝連絡必要・注目（日付に関係なく全件）・仮予約の回答/送信待ち・SMS未送信・報告書未提出。各タブに残件数バッジ。SMSの電話番号はタップで発信。右上に「全予定」(today.html)リンク --> <!-- 【2026-11-08】マイカレンダー(personal_calendar)の予定を各タブ(今日/明日/明後日)に表示するセクションを追加／取得失敗時は端末キャッシュで代替し警告表示／画面にバージョン表示 --><!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
@@ -113,7 +114,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-27-006</span></h2>
+  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-28-001</span></h2>
   <a class="hdr-link" href="today.html">📅 全予定</a>
   <button class="refresh-btn" onclick="loadAll()">🔄 更新</button>
 </div>
@@ -168,6 +169,38 @@ var kariSlotsAll={};
 var personalCal={}; // {日付:{id:{title,start,end,allDay}}}
 var mailStatus=undefined;
 var mailStatus=null,mailStatusErr=false;
+var mailSeenAt=0,mailAlerts={};
+try{mailSeenAt=parseInt(localStorage.getItem('mailSeenAt')||'0',10)||0;}catch(e){}
+function isMailNew(o){return !!(o&&o.mailDerived&&Math.max(o.mailNewAt||0,o.mailUpdatedAt||0)>mailSeenAt);}
+function ackMail(){
+  var t=Date.now();mailSeenAt=t;
+  try{localStorage.setItem('mailSeenAt',String(t));}catch(e){}
+  try{db.ref('mail_ingest/seenAt').set(t).catch(function(){});}catch(e){}
+  render();
+}
+function mailNoticeHtml(){
+  var lines=[];
+  Object.keys(globalTasks).forEach(function(k){
+    var o=globalTasks[k];
+    if(!isMailNew(o))return;
+    var c=o.csvData;var ttl=(c&&getSafeVal(c,4))||k;
+    lines.push({k:k,txt:'🆕 '+escHtml(ttl)+'：'+escHtml(o.mailEvent||'新着'),at:Math.max(o.mailNewAt||0,o.mailUpdatedAt||0)});
+  });
+  Object.keys(mailAlerts||{}).forEach(function(mid){
+    var al=mailAlerts[mid];if(!al||(al.at||0)<=mailSeenAt)return;
+    var head=al.kind==='differ'?'⚠ '+escHtml(al.title||'')+'：'+escHtml(al.note||'手入力とメールの日付が違います'):'⚠ '+escHtml(al.title||'（案件不明）')+'：メールに中止・変更の言葉「'+escHtml(al.subject||'')+'」';
+    lines.push({k:al.taskId||'',txt:head,at:al.at||0});
+  });
+  if(!lines.length)return '';
+  lines.sort(function(x,y){return y.at-x.at;});
+  var h='<div class="warn" style="background:#12304f;color:#dbeafe;border:1px solid #2f5d9a;"><div style="font-weight:bold;margin-bottom:4px;">📧 メールから新着 '+lines.length+'件（削除はしていません）</div>';
+  lines.slice(0,8).forEach(function(l){
+    h+='<div style="padding:2px 0;'+(l.k?'cursor:pointer;':'')+'"'+(l.k?' onclick="openTask(\''+escHtml(l.k)+'\')"':'')+'>'+l.txt+'</div>';
+  });
+  if(lines.length>8)h+='<div style="opacity:.7">ほか '+(lines.length-8)+'件</div>';
+  h+='<div style="text-align:right;margin-top:6px;"><button onclick="ackMail()" style="padding:4px 14px;border-radius:8px;border:1px solid #5b8bd6;background:#1d4f91;color:#fff;font-weight:bold;">確認した</button></div></div>';
+  return h;
+}
 var personalCalStatus='ok'; // ok / cache(取得失敗→端末キャッシュ) / none(取得失敗・キャッシュなし)
 function personalCalKey(){return 'personalCalendar_'+getUserKey();}
 var doneAll={}; // {日付:{セクション__キー:true}}
@@ -233,8 +266,10 @@ function loadAll(){
     try{cached=JSON.parse(localStorage.getItem(personalCalKey())||'null');}catch(_){}
     if(cached){personalCal=cached;personalCalStatus='cache';}else{personalCal={};personalCalStatus='none';}
   });
+  var p8=db.ref('mail_ingest/seenAt').once('value').then(function(snap){var v=snap.val();if(typeof v==='number'&&v>mailSeenAt)mailSeenAt=v;}).catch(function(){});
+  var p9=db.ref('mail_ingest/alerts').once('value').then(function(snap){mailAlerts=snap.val()||{};}).catch(function(){mailAlerts={};});
   var p7=db.ref('mail_ingest/status').once('value').then(function(snap){mailStatus=snap.val();mailStatusErr=false;}).catch(function(){mailStatus=null;mailStatusErr=true;});
-  Promise.all([p1,p2,p3,p4,p5,p6,p7]).then(function(){
+  Promise.all([p1,p2,p3,p4,p5,p6,p7,p8,p9]).then(function(){
     fullData={app_tasks:globalTasks,app_meta:{headers:globalHeaders}};
     render();
   }).catch(function(e){
@@ -261,7 +296,7 @@ function buildShitamiByDate(dateStr){
     function md(s){return parseInt(s.slice(5,7),10)+'/'+parseInt(s.slice(8,10),10);}
     if(matchApp&&!matchSf&&sfDate)dateNote='SF下見日 '+md(sfDate);
     else if(matchSf&&!matchApp&&appDate)dateNote='アプリ予定日 '+md(appDate);
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,sekou:fmtSekou(getSafeVal(c,2)),visited:!!obj.shitamiVisited,dateNote:dateNote,mail:!!obj.mailDerived});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',time:shitamiTime,addr:getSafeVal(c,11),order:obj.order,sekou:fmtSekou(getSafeVal(c,2)),visited:!!obj.shitamiVisited,dateNote:dateNote,mail:!!obj.mailDerived,mailNew:isMailNew(obj)});
   });
   items.sort(function(a,b){
     var oa=parseInt(a.order,10);var ob=parseInt(b.order,10);
@@ -309,7 +344,7 @@ function buildNeedsContact(){
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
     if(!obj.needsContact)return;
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.needsContactNote||'',mail:!!obj.mailDerived});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.needsContactNote||'',mail:!!obj.mailDerived,mailNew:isMailNew(obj)});
   });
   return items;
 }
@@ -320,11 +355,11 @@ function buildFlagged(){
   Object.keys(globalTasks).forEach(function(key){
     var obj=globalTasks[key];var c=obj.csvData;if(!c)return;
     if(!obj.flagged)return;
-    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.flaggedNote||'',mail:!!obj.mailDerived});
+    items.push({key:key,title:getSafeVal(c,4)||'名称未設定',addr:getSafeVal(c,11),sekou:fmtSekou(getSafeVal(c,2)),note:obj.flaggedNote||'',mail:!!obj.mailDerived,mailNew:isMailNew(obj)});
   });
   return items;
 }
-function mailTag(item){return item.mail?'<span class="mail-tag">✉メール</span>':'';}
+function mailTag(item){return item.mail?'<span class="mail-tag">✉メール'+(item.mailNew?' NEW':'')+'</span>':'';}
 function noteHtml(item){
   return item.note?'<div class="card-sub"><span class="note-line">📝 '+escHtml(item.note)+'</span></div>':'';
 }
@@ -627,7 +662,7 @@ function render(){
     rightHtml='<div class="col-head ct'+(ctAlert?' alert':'')+'">📞 連絡'+badgeHtml(ct)+'</div><div class="progress">要対応 <b>'+(totalAll-doneAllCnt)+'</b> 件（完了 '+doneAllCnt+' / '+totalAll+'）</div>'+html
       +'<div class="note">注目・連絡必要は施工日に関係なく全件表示（解除は案件モーダルのボタンで）<br>チェックは日付ごとに保存されます</div>';
   }
-  document.getElementById('mainContent').innerHTML=mailWarnHtml()+'<div class="cols"><div class="col">'+leftHtml+'</div><div class="col">'+rightHtml+'</div></div><div class="ver">action.html v'+'2026-11-27-005</div>';
+  document.getElementById('mainContent').innerHTML=mailWarnHtml()+mailNoticeHtml()+'<div class="cols"><div class="col">'+leftHtml+'</div><div class="col">'+rightHtml+'</div></div><div class="ver">action.html v'+'2026-11-28-001</div>';
 }
 
 function kariCardFn(item){return kariCardSec('kari',item);}
