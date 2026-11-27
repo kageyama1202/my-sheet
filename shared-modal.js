@@ -1,7 +1,7 @@
-/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示】*/
-// VERSION: 2026-11-17-002
+/* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示・BOXリンク表示と今すぐ取得ボタン追加】*/
+// VERSION: 2026-11-27-001
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-17-002";
+var MODAL_JS_VERSION = "2026-11-27-001";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -251,6 +251,14 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
   } else {
     html += '<textarea class="modal-memo" id="modal-memo" placeholder="メモを入力...">' + escHtmlModal(memoVal) + '</textarea>';
   }
+  html += '</div>';
+
+  // ★2026-11-27追加★ 📦 BOX：SFレポートの「BOX」列(app_meta/boxLinks/{キー})のリンクを表示。
+  // 拡張機能(SF Report Probe v0.4.0以降)が入っているChromeでだけ「今すぐ取得」ボタンが出る。
+  html += '<div class="modal-section" id="box-section" style="display:none;"><h4 style="color:#0277bd;margin-bottom:6px;">📦 BOX</h4>';
+  html += '<div id="box-links" style="font-size:13px;"></div>';
+  html += '<button type="button" id="box-fetch-btn" style="display:none;margin-top:6px;font-size:13px;padding:8px 16px;border:1px solid #0277bd;border-radius:4px;background:#e1f5fe;color:#01579b;font-weight:bold;cursor:pointer;">⬇ 今すぐ取得</button>';
+  html += '<div id="box-status" style="font-size:11px;color:#888;margin-top:4px;"></div>';
   html += '</div>';
 
   // ★2026-10-11変更★ 📐 作図：入力と図面表示は別ページ(bath-diagram.html)。モーダルにはボタンだけ置く。
@@ -893,6 +901,49 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
       var url = page + '?key=' + encodeURIComponent(key);
       var w = window.open(url, '_blank');
       if (!w) location.href = url; // ポップアップ不可の端末は同じタブで開く
+    });
+  })();
+
+  // ★2026-11-27追加★ 📦 BOXリンクの表示と「今すぐ取得」
+  (function(){
+    var secEl = document.getElementById('box-section');
+    if (!secEl) return;
+    var linksEl = document.getElementById('box-links');
+    var fetchBtn = document.getElementById('box-fetch-btn');
+    var stEl = document.getElementById('box-status');
+    var boxLinks = null, bridgeReady = !!window.__sfBridgeReady;
+    function refreshBtn() { fetchBtn.style.display = (boxLinks && bridgeReady) ? 'inline-block' : 'none'; }
+    // 拡張機能からの合図・取得状況を受け取る(モーダルを開くたびに付け替える)
+    if (window.__boxMsgHandler) window.removeEventListener('message', window.__boxMsgHandler);
+    window.__boxMsgHandler = function (ev) {
+      if (ev.source !== window || ev.origin !== location.origin || !ev.data) return;
+      if (ev.data.type === 'SF_BRIDGE_READY') { window.__sfBridgeReady = true; bridgeReady = true; refreshBtn(); }
+      if (ev.data.type === 'SF_BOX_STATUS' && ev.data.key === key) { stEl.textContent = ev.data.text || ''; }
+    };
+    window.addEventListener('message', window.__boxMsgHandler);
+    window.postMessage({ type: 'SF_BRIDGE_PING' }, location.origin);
+    firebaseDB.ref('app_meta/boxLinks/' + key).once('value').then(function (snap) {
+      var v = snap.val();
+      if (!v || typeof v !== 'object') return;
+      var names = Object.keys(v).filter(function (n) { return /^https:\/\/[a-z0-9.-]*box\.com\//.test(String(v[n])); });
+      if (!names.length) return;
+      boxLinks = {};
+      linksEl.innerHTML = '';
+      names.forEach(function (n) {
+        boxLinks[n] = String(v[n]);
+        var a = document.createElement('a');
+        a.href = boxLinks[n]; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = '📂 ' + n;
+        a.style.cssText = 'display:inline-block;margin:2px 12px 2px 0;color:#0277bd;font-weight:bold;';
+        linksEl.appendChild(a);
+      });
+      secEl.style.display = 'block';
+      refreshBtn();
+    }).catch(function () {});
+    fetchBtn.addEventListener('click', function () {
+      if (!boxLinks) return;
+      stEl.textContent = '依頼中...';
+      window.postMessage({ type: 'SF_BOX_FETCH', key: key, title: ankenText, links: boxLinks }, location.origin);
     });
   })();
 
