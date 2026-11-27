@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-001 -->
+<!-- VERSION: 2026-11-27-002 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,7 +38,7 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-001</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-002</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -46,7 +46,7 @@
     <hr class="divider">
 
     <!-- ★2026-11-27追加★ 拡張機能(SF Report Probe)からの受信。CSVを使わず、SFレポートの内容を直接受け取る -->
-    <div style="text-align:left;">
+    <div id="extBox" style="text-align:left;display:none;">
       <div style="color:#64b5f6;font-weight:bold;font-size:14px;margin-bottom:6px;">🧩 拡張機能からの受信（SF Report Probe）</div>
       <p id="extStatus" style="margin:0 0 10px 0;">まだ受信していません。ChromeでSalesforceの「現場管理同期用」レポートを開くと、ここに届きます。</p>
       <button id="extSaveBtn" disabled>☁️ 受信した内容でクラウドへ保存</button>
@@ -402,7 +402,9 @@
     window.addEventListener('message',function(ev){
       if(ev.source!==window||ev.origin!==location.origin)return;
       var d=ev.data;
+      if(d&&d.type==='SF_BRIDGE_READY'){document.getElementById('extBox').style.display='block';return;}
       if(!d||d.type!=='SF_REPORT_ROWS'||!Array.isArray(d.headers)||!Array.isArray(d.rows))return;
+      document.getElementById('extBox').style.display='block';
       extPending={headers:d.headers,rows:d.rows,capturedAt:d.capturedAt};
       var t=new Date(d.capturedAt||Date.now());
       extStatusEl.textContent='📥 受信: '+d.rows.length+'件 / '+d.headers.length+'項目（'+t.toLocaleTimeString('ja-JP')+'）。下のログで試し運転の結果を確認してください。';
