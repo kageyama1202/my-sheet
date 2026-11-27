@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-12-001 -->
+<!-- VERSION: 2026-11-27-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,10 +38,19 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-12-001</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-001</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
+
+    <hr class="divider">
+
+    <!-- ★2026-11-27追加★ 拡張機能(SF Report Probe)からの受信。CSVを使わず、SFレポートの内容を直接受け取る -->
+    <div style="text-align:left;">
+      <div style="color:#64b5f6;font-weight:bold;font-size:14px;margin-bottom:6px;">🧩 拡張機能からの受信（SF Report Probe）</div>
+      <p id="extStatus" style="margin:0 0 10px 0;">まだ受信していません。ChromeでSalesforceの「現場管理同期用」レポートを開くと、ここに届きます。</p>
+      <button id="extSaveBtn" disabled>☁️ 受信した内容でクラウドへ保存</button>
+    </div>
 
     <hr class="divider">
 
@@ -138,6 +147,22 @@
 
         var headers=validLines.shift();
         log('ヘッダー: '+headers.length+'列, データ: '+validLines.length+'行');
+        doImport(headers,validLines,{
+          dryRun:false,
+          onEnd:function(){btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';}
+        });
+      };
+      fr.readAsText(file,'UTF-8');
+    });
+
+    // ★2026-11-27追加★ 取込の本体を関数に切り出した。
+    // CSVファイルからの取込(上のボタン)と、拡張機能から受け取った行(下の受信欄)の両方が、
+    // 同じ処理(ID正規化・完了案件の過去案件退避・ローカル入力の保持など)を通る。
+    // opts.dryRun=true のときは、Firebaseへ何も書かず、既存データとの比較結果だけをログに出す。
+    // opts.onEnd は終了時(成功・失敗・試し運転のいずれでも)に1回呼ばれる。
+    function doImport(headers,validLines,opts){
+        opts=opts||{};
+        function finish(){if(opts.onEnd)opts.onEnd();}
 
         // ★2026-11-12追加★ SFレポートの「最終更新日」列の取り出し
         // 目的: 取得済みPDFより後にSF側が更新された案件を、朝のレポートで検知するため。
@@ -324,22 +349,76 @@
           fixRefs('app_communications',function(){
             fixRefs('app_parked_mails',function(){
               if(refFixCount>0)log('🔗 assignedCase参照修正: '+refFixCount+'件','ok');
+
+              // ★2026-11-27追加★ 試し運転: 既存のFirebaseデータ(csvData)と今回のデータをセル単位で比較し、保存せずに終わる
+              if(opts.dryRun){
+                var sameRows=0,diffRows=0,compared=0,diffSamples=[];
+                newKeys.forEach(function(nk){
+                  var ex=existing[nk]&&existing[nk].csvData;
+                  if(!ex)return;
+                  compared++;
+                  var nr=newMap[nk],diff=false;
+                  var n=Math.max(ex.length,nr.length);
+                  for(var ci=0;ci<n;ci++){
+                    var a=String(ex[ci]==null?'':ex[ci]).trim();
+                    var b=String(nr[ci]==null?'':nr[ci]).trim();
+                    if(a!==b){
+                      diff=true;
+                      if(diffSamples.length<10)diffSamples.push('['+(headers[ci]||('列'+(ci+1)))+'] 保存済み「'+a.slice(0,30)+'」→ 今回「'+b.slice(0,30)+'」');
+                    }
+                  }
+                  if(diff)diffRows++;else sameRows++;
+                });
+                log('🧪 【試し運転】既存データと比較: 同じ '+sameRows+'件 / 違いあり '+diffRows+'件（比較できた '+compared+'件）','info');
+                diffSamples.forEach(function(s){log('　'+s,'warn');});
+                log('🧪 試し運転のため、Firebaseへは何も保存していません。','warn');
+                finish();
+                return;
+              }
+
               log('☁️ Firebaseへ書き込み中...');
               database.ref().update(updates).then(function(){
                 log('✅ 保存完了！','ok');
-                alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 現役から外す: '+delCount+'\n過去案件へ退避: '+archivedCount+'件（「完了」'+kanryoSkipped+'件を含む）'+(restoredCount>0?'\n現役へ復帰: '+restoredCount+'件':'')+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
-                btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';fileInput.value='';
+                if(!opts.silent)alert('✅ 保存完了！\n\n新規: '+addCount+' / 更新: '+updateCount+' / 現役から外す: '+delCount+'\n過去案件へ退避: '+archivedCount+'件（「完了」'+kanryoSkipped+'件を含む）'+(restoredCount>0?'\n現役へ復帰: '+restoredCount+'件':'')+(migrated>0?'\nローカルデータ移植: '+migrated+'件':''));
+                finish();
               }).catch(function(err){
                 log('❌ エラー: '+err,'err');
-                alert('エラー: '+err);
-                btn.disabled=false;btn.textContent='☁️ 最新データをクラウドへ保存';
+                if(!opts.silent)alert('エラー: '+err);
+                finish();
               });
             });
           });
          });
         });
-      };
-      fr.readAsText(file,'UTF-8');
+    }
+
+    // ★2026-11-27追加★ 拡張機能(SF Report Probe)からの受信
+    // 拡張機能が window.postMessage で渡してくる { type:'SF_REPORT_ROWS', headers, rows, capturedAt } を受け取り、
+    // まず「試し運転」(保存しない比較)を自動で行う。保存は、下の「受信した内容でクラウドへ保存」を押したときだけ。
+    var extPending=null;
+    var extStatusEl=document.getElementById('extStatus');
+    var extSaveBtn=document.getElementById('extSaveBtn');
+    function copyRows(rows){return rows.map(function(r){return r.slice();});}
+    window.addEventListener('message',function(ev){
+      if(ev.source!==window||ev.origin!==location.origin)return;
+      var d=ev.data;
+      if(!d||d.type!=='SF_REPORT_ROWS'||!Array.isArray(d.headers)||!Array.isArray(d.rows))return;
+      extPending={headers:d.headers,rows:d.rows,capturedAt:d.capturedAt};
+      var t=new Date(d.capturedAt||Date.now());
+      extStatusEl.textContent='📥 受信: '+d.rows.length+'件 / '+d.headers.length+'項目（'+t.toLocaleTimeString('ja-JP')+'）。下のログで試し運転の結果を確認してください。';
+      extStatusEl.style.color='#66bb6a';
+      extSaveBtn.disabled=true;
+      logEl.innerHTML='';logEl.style.display='block';
+      log('📥 拡張機能からSFレポートを受信: '+d.rows.length+'件');
+      doImport(d.headers.slice(),copyRows(d.rows),{dryRun:true,silent:true,onEnd:function(){extSaveBtn.disabled=false;}});
+    });
+    extSaveBtn.addEventListener('click',function(){
+      if(!extPending){alert('受信したデータがありません');return;}
+      if(!confirm('受信した '+extPending.rows.length+'件で、クラウドのデータを更新します。\n（CSVを取り込むのと同じ処理です）\n\nよろしいですか？'))return;
+      extSaveBtn.disabled=true;
+      logEl.innerHTML='';logEl.style.display='block';
+      log('☁️ 拡張機能の受信データで保存を開始します');
+      doImport(extPending.headers.slice(),copyRows(extPending.rows),{dryRun:false,silent:false,onEnd:function(){extSaveBtn.disabled=false;}});
     });
 
     document.getElementById('cleanBtn').addEventListener('click',function(){
