@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-004 -->
+<!-- VERSION: 2026-11-27-005 -->
+<!-- 【2026-11-27 v005】メール取り込み(mail_ingest/status)の最終実行を確認し、30分以上止まっている／エラー／未稼働のときは画面上部に赤い警告を表示 -->
 <!-- 【2026-11-27 v004】タブ切替をやめ、左＝移動／右＝連絡の常時2列表示に変更（狭い画面では縦積み）。日付チップは左列の上に配置。連絡側の仮予約セクションはチェック保存名をkariwaitに変更 -->
 <!-- 【2026-11-27】「移動」「連絡」の2タブに再構成。移動＝マイカレンダー・下見予定・仮予約（今日/明日/明後日の切替つき）／連絡＝連絡必要・注目（日付に関係なく全件）・仮予約の回答/送信待ち・SMS未送信・報告書未提出。各タブに残件数バッジ。SMSの電話番号はタップで発信。右上に「全予定」(today.html)リンク --> <!-- 【2026-11-08】マイカレンダー(personal_calendar)の予定を各タブ(今日/明日/明後日)に表示するセクションを追加／取得失敗時は端末キャッシュで代替し警告表示／画面にバージョン表示 --><!-- 今日タブに「本日の仮予約」セクションを追加（回答・送信待ちは明日以降分のみに変更）／本日の下見予定：SF確定下見日・アプリ側予定日のどちらか一方が対象日なら表示（日付が食い違う場合はもう一方をタグ表示）／注目セクション・注目理由・連絡内容の表示／下見の順番・全カードに施工日を表示／モーダル保存で端末キャッシュを上書きしない -->
 <html lang="ja">
@@ -111,7 +112,7 @@ body{font-family:'Hiragino Kaku Gothic Pro','Meiryo',sans-serif;background:#0f11
 
 <div class="header">
   <a href="index.html">◀ トップ</a>
-  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-27-004</span></h2>
+  <h2>⚡ アクション <span style="font-size:10px;color:#6b7280;font-weight:normal;">v2026-11-27-005</span></h2>
   <a class="hdr-link" href="today.html">📅 全予定</a>
   <button class="refresh-btn" onclick="loadAll()">🔄 更新</button>
 </div>
@@ -164,6 +165,8 @@ var fullData=null;
 var smsList={};
 var kariSlotsAll={};
 var personalCal={}; // {日付:{id:{title,start,end,allDay}}}
+var mailStatus=undefined;
+var mailStatus=null,mailStatusErr=false;
 var personalCalStatus='ok'; // ok / cache(取得失敗→端末キャッシュ) / none(取得失敗・キャッシュなし)
 function personalCalKey(){return 'personalCalendar_'+getUserKey();}
 var doneAll={}; // {日付:{セクション__キー:true}}
@@ -229,7 +232,8 @@ function loadAll(){
     try{cached=JSON.parse(localStorage.getItem(personalCalKey())||'null');}catch(_){}
     if(cached){personalCal=cached;personalCalStatus='cache';}else{personalCal={};personalCalStatus='none';}
   });
-  Promise.all([p1,p2,p3,p4,p5,p6]).then(function(){
+  var p7=db.ref('mail_ingest/status').once('value').then(function(snap){mailStatus=snap.val();mailStatusErr=false;}).catch(function(){mailStatus=null;mailStatusErr=true;});
+  Promise.all([p1,p2,p3,p4,p5,p6,p7]).then(function(){
     fullData={app_tasks:globalTasks,app_meta:{headers:globalHeaders}};
     render();
   }).catch(function(e){
@@ -507,6 +511,17 @@ function badgeHtml(st){
 }
 function switchMode(m){mode=m;render();}
 
+function mailWarnHtml(){
+  if(mailStatusErr)return '';
+  var msg='';
+  if(!mailStatus){msg='📧 メール取り込みは未稼働です（メールからの予定・連絡は反映されません）';}
+  else{
+    var ageMin=Math.floor((Date.now()-(mailStatus.lastRun||0))/60000);
+    if(mailStatus.lastError)msg='📧 メール取り込みでエラー：'+escHtml(mailStatus.lastError);
+    else if(ageMin>30)msg='📧 メール取り込みが'+ageMin+'分間止まっています（最終 '+new Date(mailStatus.lastRun).toLocaleString('ja-JP')+'）';
+  }
+  return msg?'<div class="warn" style="background:#4a1616;color:#fecaca;font-weight:bold;">'+msg+'</div>':'';
+}
 function datesHtml(){
   var html='<div class="dates">';
   for(var i=0;i<3;i++){
@@ -610,7 +625,7 @@ function render(){
     rightHtml='<div class="col-head ct'+(ctAlert?' alert':'')+'">📞 連絡'+badgeHtml(ct)+'</div><div class="progress">要対応 <b>'+(totalAll-doneAllCnt)+'</b> 件（完了 '+doneAllCnt+' / '+totalAll+'）</div>'+html
       +'<div class="note">注目・連絡必要は施工日に関係なく全件表示（解除は案件モーダルのボタンで）<br>チェックは日付ごとに保存されます</div>';
   }
-  document.getElementById('mainContent').innerHTML='<div class="cols"><div class="col">'+leftHtml+'</div><div class="col">'+rightHtml+'</div></div><div class="ver">action.html v'+'2026-11-27-004</div>';
+  document.getElementById('mainContent').innerHTML=mailWarnHtml()+'<div class="cols"><div class="col">'+leftHtml+'</div><div class="col">'+rightHtml+'</div></div><div class="ver">action.html v'+'2026-11-27-005</div>';
 }
 
 function kariCardFn(item){return kariCardSec('kari',item);}
