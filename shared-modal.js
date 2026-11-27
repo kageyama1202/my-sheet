@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示・BOXリンク表示と今すぐ取得ボタン追加】*/
-// VERSION: 2026-11-27-002
+// VERSION: 2026-11-27-003
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-27-002";
+var MODAL_JS_VERSION = "2026-11-27-003";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -1173,3 +1173,56 @@ function escHtmlModal(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+
+// ============ ☁ iPadなどからの「今すぐ取得」依頼を、Macで受けて拡張機能に渡す（2026-11-27追加） ============
+// 拡張機能(SF Report Probe)が入っているMacのChromeでこのファイルを読み込んだページが開いていると、
+// Firebase の app_meta/boxRequests/{案件ID} に書かれた依頼(state:'pending')を見つけて取得を始め、進み具合を同じ場所へ書き戻す。
+// (Firebaseの認証が済んだページの中で動くので、拡張機能側にログイン情報を持たせずに済む)
+(function () {
+  if (window.__boxRelayLoaded) return;
+  window.__boxRelayLoaded = true;
+  var relayKeys = {};
+  var started = false;
+  function db() { try { return (typeof firebaseDB !== 'undefined') ? firebaseDB : null; } catch (e) { return null; } }
+  function patch(key, obj) { var d = db(); if (d) d.ref('app_meta/boxRequests/' + key).update(obj).catch(function () {}); }
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== window || ev.origin !== location.origin || !ev.data) return;
+    if (ev.data.type === 'SF_BRIDGE_READY') start();
+    if (ev.data.type === 'SF_BOX_STATUS' && relayKeys[ev.data.key]) {
+      patch(ev.data.key, { state: ev.data.state || 'run', text: ev.data.text || '', ts2: Date.now() });
+      if (ev.data.state === 'ok' || ev.data.state === 'ng') delete relayKeys[ev.data.key];
+    }
+  });
+  function handle(snapAll) {
+    var all = snapAll.val();
+    if (!all || typeof all !== 'object') return;
+    Object.keys(all).forEach(function (key) {
+      var rq = all[key];
+      if (!rq || rq.state !== 'pending' || relayKeys[key]) return;
+      if (Date.now() - (rq.ts || 0) > 6 * 3600 * 1000) { patch(key, { state: 'ng', text: '⚠ 依頼が古いため無効(もう一度押してください)' }); return; }
+      relayKeys[key] = true;
+      db().ref('app_meta/boxLinks/' + key).once('value').then(function (s) {
+        var v = s.val() || {}, links = {};
+        Object.keys(v).forEach(function (n) { if (/^https:\/\/[a-z0-9.-]*box\.com\//.test(String(v[n]))) links[n] = String(v[n]); });
+        if (!Object.keys(links).length) { delete relayKeys[key]; patch(key, { state: 'ng', text: '⚠ BOXリンクがありません' }); return; }
+        patch(key, { state: 'run', text: '⏳ Macが受け付けました' });
+        window.postMessage({ type: 'SF_BOX_FETCH', key: key, title: rq.title || key, links: links }, location.origin);
+      }).catch(function () { delete relayKeys[key]; });
+    });
+  }
+  function start() {
+    if (started) return;
+    var n = 0;
+    (function wait() {
+      if (db()) {
+        started = true;
+        db().ref('app_meta/boxRequests').on('value', handle, function () {});
+        return;
+      }
+      if (++n < 60) setTimeout(wait, 1000);
+    })();
+  }
+  window.postMessage({ type: 'SF_BRIDGE_PING' }, location.origin);
+  setTimeout(function () { window.postMessage({ type: 'SF_BRIDGE_PING' }, location.origin); }, 3000);
+})();
