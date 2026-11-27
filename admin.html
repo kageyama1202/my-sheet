@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-003 -->
+<!-- VERSION: 2026-11-27-004 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,7 +38,7 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-003</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-004</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -193,6 +193,31 @@
           log('ℹ 「最終更新日」列なし（従来どおり取込）','info');
         }
 
+        // ★2026-11-27追加★ 「BOX」で始まる列（BOXフォルダのリンク）も案件データには入れず
+        // app_meta/boxLinks/{キー} に別保存する（列が増えると全案件のカレンダー再同期が走るため）
+        var boxIdxs=[];
+        for(var bi=headers.length-1;bi>=0;bi--){
+          var bn=String(headers[bi]||'').replace(/^\s*手配\s*[:：]\s*/,'').trim();
+          if(/^BOX/i.test(bn)&&bi>0)boxIdxs.push({i:bi,name:bn});
+        }
+        var boxMap={};
+        if(boxIdxs.length>0){
+          validLines.forEach(function(cols){
+            var sid=normalizeSfId(String(cols[0]||'').trim());
+            var o={};
+            boxIdxs.forEach(function(b){
+              var v=String(cols[b.i]==null?'':cols[b.i]).trim();
+              if(v)o[b.name]=v;
+            });
+            if(sid&&Object.keys(o).length>0)boxMap[safeKey(sid)]=o;
+          });
+          boxIdxs.forEach(function(b){
+            validLines.forEach(function(cols){cols.splice(b.i,1);});
+            headers.splice(b.i,1);
+          });
+          log('📦 BOX列を検出（'+boxIdxs.length+'列／'+Object.keys(boxMap).length+'件）。案件データには入れず別保存します。','info');
+        }
+
         var newMap={};
         var skipped=0,kanryoSkipped=0,idNormalized=0;
         var kanryoMap={};
@@ -247,6 +272,12 @@
             var sfModSave={};
             newKeys.forEach(function(nk){if(sfModMap[nk])sfModSave[nk]=sfModMap[nk];});
             updates['app_meta/sfModified']=Object.keys(sfModSave).length>0?sfModSave:null;
+          }
+
+          if(boxIdxs.length>0){
+            var boxSave={};
+            newKeys.forEach(function(nk){if(boxMap[nk])boxSave[nk]=boxMap[nk];});
+            updates['app_meta/boxLinks']=Object.keys(boxSave).length>0?boxSave:null;
           }
 
           var addCount=0,updateCount=0;
