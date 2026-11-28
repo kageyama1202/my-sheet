@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-27-004 -->
+<!-- VERSION: 2026-11-28-001 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -38,7 +38,7 @@
     ・ローカル入力済みのステータス/メモ/下見予定は保持されます<br>
     ・CSVから消えた案件はカレンダー等から外れます<br>
     ・<strong style="color:#ffd54f">ステータスが「完了」の案件、CSVから消えた案件は、削除せず「過去案件(app_archive)」へ退避されます</strong>（archive.htmlで検索・閲覧できます）</p>
-    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-27-004</div>
+    <div style="font-size:11px;color:#888;margin-top:6px;">admin.html 2026-11-28-001</div>
 
     <input type="file" id="csvFile" accept=".csv" />
     <button id="uploadBtn" disabled>☁️ 最新データをクラウドへ保存</button>
@@ -318,6 +318,8 @@
           existingKeys.forEach(function(oldKey){
             if(newMap[oldKey])return;
             var oldObj=existing[oldKey];
+            // ★2026-11-28追加★ メール由来の案件(mailDerived)はSFレポートに載らないので、CSVに無くても退避・削除しない
+            if(oldObj&&oldObj.mailDerived)return;
             var oldId='';
             if(oldObj&&oldObj.csvData&&oldObj.csvData[0])oldId=safeKey(normalizeSfId(String(oldObj.csvData[0]).trim()));
             // 旧キー形式から現役の新キーへ移行するだけのもの(同じ案件が現役に残る)は退避せず従来どおり消す
