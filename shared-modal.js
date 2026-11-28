@@ -1,7 +1,7 @@
 /* shared-modal.js — 共通モーダル【全即時保存版・通信履歴機能削除済・現場チェック追加・日時重複チェック強化版・連絡区分チェック追加・施工日変更定型文追加・希望日程未定オプション追加・状況連絡機能追加・下見実施チェック追加・浴室現場チェック追加(タブ切替)・浴室吊元/配管入力追加・注目理由/連絡内容メモ追加・予定日の隣にその日の下見予定一覧を表示・BOXリンク表示と今すぐ取得ボタン追加】*/
-// VERSION: 2026-11-27-004
+// VERSION: 2026-11-28-001
 // CREATED: 2026-10-10 07:40
-var MODAL_JS_VERSION = "2026-11-27-004";
+var MODAL_JS_VERSION = "2026-11-28-001";
 
 var FB_URL = "https://project-6745138395263517914-default-rtdb.firebaseio.com";
 
@@ -152,6 +152,18 @@ function openCaseModal(key, obj, globalHeaders, globalTasks, fullData, firebaseD
         var cUrl = 'https://www.google.com/maps/search/?api=1&query='+c.lat+','+c.lng;
         geoRowHtml += '<br><span style="font-size:11px;color:#666;">'+c.key+' <a href="'+cUrl+'" target="_blank" style="color:#0056b3;">🗺️ 地図</a></span>';
       });
+    }
+    // ★2026-11-28追加★ 報告書用の住所(街区まで)。住所照合ツールが座標から作って geocode/jukyo に保存したもの。
+    var jkM = geoM.jukyo || null;
+    if (jkM && jkM.text) {
+      var jkAttr = String(jkM.text).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      var jkRow = '<span style="font-weight:bold;color:#2e7d32;">'+escHtmlModal(jkM.text)+'</span>';
+      jkRow += ' <button type="button" class="modal-copy-btn modal-addr-copy-btn" data-addr="'+jkAttr+'">📋 住所コピー</button>';
+      if (jkM.level === 'chome') jkRow += '<br><span style="color:#c9721f;font-size:11px;font-weight:600;">⚠ 丁目止まり（街区不明）— 現地で確認してください</span>';
+      else if (jkM.full) jkRow += '<br><span style="color:#888;font-size:11px;">参考（号は誤差あり）: '+escHtmlModal(jkM.full)+'</span>';
+      html += '<tr><th>🏠 街区住所(報告書用)</th><td>'+jkRow+'</td></tr>';
+    } else if (jkM && jkM.level === 'none') {
+      html += '<tr><th>🏠 街区住所(報告書用)</th><td><span style="color:#c9721f;font-size:12px;font-weight:600;">不明（要人力調査）</span></td></tr>';
     }
     html += '<tr><th>📍座標(照合ツール)</th><td>'+geoRowHtml+'</td></tr>';
   }
