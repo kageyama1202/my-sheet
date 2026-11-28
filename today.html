@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-11-18-001 -->
+<!-- VERSION: 2026-11-28-001 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -34,8 +34,8 @@ body{font-family:sans-serif;padding:0;margin:0;background:#f0f2f5;font-size:13px
 .date-area span{font-size:12px;font-weight:bold;}
 .sm-btn{font-size:10px;padding:2px 6px;cursor:pointer;border:1px solid #999;border-radius:3px;background:#fff;font-weight:bold;}.sm-btn:hover{background:#f0f0f0;}
 .table-wrapper{overflow:auto;background:#fff;border:1px solid #ccc;height:calc(100vh - 170px);}
-/* ★2026-11-06変更★ width:max-content だとiPad(WebKit)でtable-layout:fixedが無効になり、仮予約/個人予定のcolspan行の長文で列が広がって見切れが崩れる。全列幅の合計をpx固定して絶対に崩れないようにした(列幅を変えたら合計も直すこと: 30+45+25+155+90+105+26+140+155+80+80+52+92+52+40+34+30=1231) */
-table{border-collapse:collapse;table-layout:fixed;width:1231px;}
+/* ★2026-11-06変更★ width:max-content だとiPad(WebKit)でtable-layout:fixedが無効になり、仮予約/個人予定のcolspan行の長文で列が広がって見切れが崩れる。全列幅の合計をpx固定して絶対に崩れないようにした(列幅を変えたら合計も直すこと: 30+45+25+155+90+105+26+140+155+130+80+80+52+92+52+40+34+30=1361) */
+table{border-collapse:collapse;table-layout:fixed;width:1361px;}
 th,td{border:1px solid #ccc;text-align:left;font-size:12px;vertical-align:middle;}
 th{background:#e0e0e0;padding:3px 5px;position:sticky;top:0;z-index:10;white-space:nowrap;}
 tbody tr:hover{background:#e8f4ff;cursor:pointer;}
@@ -53,6 +53,10 @@ tbody tr:hover{background:#e8f4ff;cursor:pointer;}
 .col-irai .cell-inner{padding-left:2px;padding-right:1px;}
 .col-memo{width:140px;min-width:140px;max-width:140px;}
 .col-address{width:155px;min-width:155px;max-width:155px;}
+.col-jukyo{width:130px;min-width:130px;max-width:130px;}
+.col-jukyo .cell-inner{font-size:11px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;color:#2e7d32;}
+.col-jukyo .cell-inner.jk-weak{color:#c9721f;}
+.col-jukyo .cell-inner.jk-none{color:#bbb;font-weight:400;}
 .col-time{width:52px;min-width:52px;max-width:52px;text-align:center;}
 .col-time .cell-inner{font-size:10.5px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;}
 .col-yotei{width:92px;min-width:92px;max-width:92px;}
@@ -168,7 +172,7 @@ td.alt-big-td .alt-big-in{display:block;width:0;min-width:100%;overflow:hidden;w
 <a href="index.html" class="top-link">◀ トップ</a>
 <h3>📋 案件管理リスト</h3>
 <span id="pendingBadge" style="display:none;font-size:12px;font-weight:700;color:#e65100;"></span>
-<span style="font-size:10px;color:#aaa;">v2026-11-18-001</span>
+<span style="font-size:10px;color:#aaa;">v2026-11-28-001</span>
 <div class="search-box"><span style="font-weight:bold;color:#555;">🔍</span><input type="text" id="searchInput" placeholder="テキスト検索..." /></div>
 </div>
 <div class="filter-panel">
@@ -222,9 +226,9 @@ var altTick=0;
 
 var tooltip=document.getElementById('tooltip'),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
 var chkSekou=document.getElementById('chkSekou'),chkShitami=document.getElementById('chkShitami'),chkYotei=document.getElementById('chkYotei'),chkAiYotei=document.getElementById('chkAiYotei'),searchInput=document.getElementById('searchInput');
-var displayCols=[1,3,4,5,6,7,10,11,2,12,-5,-1,-4,-3,-6,-7];
-var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-irai','col-memo','col-address','col-date','col-date','col-time','col-yotei','col-time','col-order','col-visited','col-schedtype'];
-var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','施工日','下見日','時間','下見予定日','時間','順','下','コ'];
+var displayCols=[1,3,4,5,6,7,10,11,-8,2,12,-5,-1,-4,-3,-6,-7];
+var colClasses=['col-no','col-status','col-kubun','col-name','col-company','col-tel','col-irai','col-memo','col-address','col-jukyo','col-date','col-date','col-time','col-yotei','col-time','col-order','col-visited','col-schedtype'];
+var colHeaders=[null,'手配ステータス','区分','管理名','打合担当者','携帯','下見依頼日','備考','住所','街区住所','施工日','下見日','時間','下見予定日','時間','順','下','コ'];
 function getSafeVal(c,i){if(!c)return"";if(Array.isArray(c))return c.length>i&&c[i]!=null?String(c[i]):"";if(typeof c==='object')return c[i]!=null?String(c[i]):"";return"";}
 function formatToYMD(ds){if(!ds)return"";var d=String(ds).replace(/\s+/g,"").replace(/\//g,"-").replace(/\./g,"-");var p=d.split("-");if(p.length===3)return p[0]+"-"+String(p[1]).padStart(2,'0')+"-"+String(p[2]).padStart(2,'0');return d;}
 function extractCompany(v){if(!v)return"";return v.trim().split(/[\s　]+/)[0];}
@@ -623,7 +627,7 @@ var cS=chkSekou.checked,cD=chkShitami.checked,cY=chkYotei.checked,cAI=chkAiYotei
 var cStat=getChecked('statusFilters'),cKub=getChecked('kubunFilters'),cComp=getChecked('companyFilters'),cArea=getChecked('areaFilters');
 var deadline10Date=addDays(today,10);var deadline21Date=addDays(today,21);
 var trH=document.createElement('tr');var h0=document.createElement('th');h0.textContent='No.';h0.className='col-no';trH.appendChild(h0);
-for(var hi=0;hi<displayCols.length;hi++){var h=document.createElement('th');h.className=colClasses[hi+1]||'';if(displayCols[hi]===-1){h.textContent='下見予定日';}else if(displayCols[hi]===-4){h.textContent='時間';h.style.background='#f3e5f5';h.style.color='#6a1b9a';}else if(displayCols[hi]===-5){h.textContent='時間';h.style.background='#e8f5e9';h.style.color='#2e7d32';}else if(displayCols[hi]===-3){h.textContent='順';h.style.background='#e3f2fd';h.style.color='#1565c0';}else if(displayCols[hi]===-6){h.textContent='下';h.title='現地下見完了チェック';}else if(displayCols[hi]===-7){h.textContent='コ';h.title='こちらから連絡して決定';}else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}trH.appendChild(h);}
+for(var hi=0;hi<displayCols.length;hi++){var h=document.createElement('th');h.className=colClasses[hi+1]||'';if(displayCols[hi]===-1){h.textContent='下見予定日';}else if(displayCols[hi]===-4){h.textContent='時間';h.style.background='#f3e5f5';h.style.color='#6a1b9a';}else if(displayCols[hi]===-5){h.textContent='時間';h.style.background='#e8f5e9';h.style.color='#2e7d32';}else if(displayCols[hi]===-3){h.textContent='順';h.style.background='#e3f2fd';h.style.color='#1565c0';}else if(displayCols[hi]===-6){h.textContent='下';h.title='現地下見完了チェック';}else if(displayCols[hi]===-7){h.textContent='コ';h.title='こちらから連絡して決定';}else if(displayCols[hi]===-8){h.textContent='街区住所';h.title='報告書用の住所（住所照合ツールで座標から作成）';h.style.background='#e8f5e9';h.style.color='#2e7d32';}else{h.textContent=globalHeaders[displayCols[hi]]||colHeaders[hi+1]||'';}trH.appendChild(h);}
 thead.appendChild(trH);
 var valid=Object.keys(globalTasks).filter(function(key){var obj=globalTasks[key],cols=obj.csvData;if(!cols)return false;var status=getSafeVal(cols,1).replace(/\s+/g,"");var sekouDate=formatToYMD(getSafeVal(cols,2));if(sekouDate===''){if(!showNoSekou)return false;}else{if(sekouDate<today&&!showKanryo)return false;}if(status==="完了"&&!showKanryo)return false;if(status!=="完了"&&cStat.length>0&&!cStat.includes(status))return false;var kubun=getSafeVal(cols,3).replace(/\s+/g,"");if(cKub.length>0&&!cKub.includes(kubun))return false;var comp=extractCompany(getSafeVal(cols,5));if(cComp.length>0&&!cComp.includes(comp))return false;var area=extractArea(getSafeVal(cols,11));if(cArea.length>0&&!cArea.includes(area))return false;if(showContactOnly&&!obj.needsContact)return false;if(hideVisited&&obj.shitamiVisited)return false;
     if(from||to){var dm=false;if(!cS&&!cD&&!cY&&!cAI)dm=true;if(cS&&sekouDate!==''&&inRange(sekouDate,from,to))dm=true;if(cD&&inRange(formatToYMD(getSafeVal(cols,12)),from,to))dm=true;if(cY&&inRange(obj.date||"",from,to))dm=true;if(cAI&&inRange(obj.ai_shitami_date||"",from,to))dm=true;if(sekouDate===''&&showNoSekou)dm=true;if(!dm)return false;}return true;});
@@ -641,7 +645,7 @@ merged.forEach(function(item,idx){
   else{
     taskCount++;var key=item.key;var obj=globalTasks[key],cols=obj.csvData;var sekouDateStr=formatToYMD(getSafeVal(cols,2));var isNoSekou=(sekouDateStr==='');if(isNoSekou)nosekouCount++;var statusStr2=getSafeVal(cols,1).replace(/\s+/g,"");var shitamiCount=parseShitamiCount(getSafeVal(cols,14));var tr=document.createElement("tr");
     // ★2026-10-10変更★ 検索対象に注目理由・連絡内容も含める。
-    tr.setAttribute('data-search-full',(Array.isArray(cols)?cols.join(' '):'')+' '+(obj.flaggedNote||'')+' '+(obj.needsContactNote||''));
+    tr.setAttribute('data-search-full',(Array.isArray(cols)?cols.join(' '):'')+' '+(obj.flaggedNote||'')+' '+(obj.needsContactNote||'')+' '+((obj.geocode&&obj.geocode.jukyo&&obj.geocode.jukyo.text)||''));
     var isSmsPending=!!smsPendingKeys[key];
     // ★2026-09-02追加★ agenda.htmlの「下見実施チェック」と同じ判定：CSV下見日(cols[12])か
     // アプリ入力日(obj.date)のどちらかが今日より前で、かつshitamiVisitedが未確認なら対象。
@@ -671,6 +675,19 @@ merged.forEach(function(item,idx){
         inner.textContent=visited?'✅':'—';
         if(!visited)inner.style.color='#bbb';
         inner.title=visited?('現地下見完了'+(obj.shitamiVisitedAt?'：'+String(obj.shitamiVisitedAt).slice(0,16).replace('T',' '):'')):'未確認';
+      }else if(colIdx===-8){
+        // ★2026-11-28追加★ 報告書用の住所(街区まで)。住所照合ツールが座標から作って geocode/jukyo に保存したものを表示する。
+        var jk=(obj.geocode&&obj.geocode.jukyo)||null;
+        if(jk&&jk.text){
+          var jkShort=String(jk.text).replace(/^札幌市/,'');
+          inner.textContent=jkShort;
+          if(jk.level==='chome'){inner.classList.add('jk-weak');inner.title='丁目止まり（街区不明）：'+jk.text;}
+          else{inner.title=jk.text+(jk.full?'（参考: '+jk.full+'）':'');}
+        }else if(jk&&jk.level==='none'){
+          inner.textContent='不明';inner.classList.add('jk-weak');inner.title='住所を特定できませんでした（要人力調査）';
+        }else{
+          inner.textContent='—';inner.classList.add('jk-none');inner.title='未作成（住所照合ツールで作成できます）';
+        }
       }else if(colIdx===-7){
         var schedOurs=(obj.scheduleType==='ours');
         inner.textContent=schedOurs?'✅':'—';
