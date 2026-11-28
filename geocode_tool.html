@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2026-08-19-001 -->
+<!-- VERSION: 2026-11-28-002 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -133,6 +133,12 @@
   }
   #configWarn.show{display:block;}
   #configWarn code{font-family:var(--mono);background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:2px;}
+  .jk-input{width:230px;min-width:0;font-size:12px;padding:4px 6px;}
+  .jk-level{font-family:var(--mono);font-size:10.5px;padding:1px 7px;border-radius:20px;display:inline-block;margin-top:4px;}
+  .jk-level.block{background:rgba(62,122,87,0.12);color:var(--grid-green);}
+  .jk-level.chome{background:rgba(201,114,31,0.14);color:var(--flag-orange);}
+  .jk-level.none{background:rgba(183,73,47,0.14);color:var(--danger);font-weight:700;}
+  .jk-full{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:3px;}
   ::-webkit-scrollbar{width:9px;height:9px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
 </style>
@@ -146,7 +152,7 @@
       <h1>住所照合ツール</h1>
       <p class="lede">法務省地番データ(chiban.json)を最優先で照合し、ヒットしなければGeocoding API→国土地理院APIの順にフォールバックします。表記ゆれ（漢数字・全角/半角・ハイフン種別）は複数パターンで正規化して吸収します。CSVを使わず、Firebase側でまだ一度も座標が確定していない案件だけを直接取得して照合することもできます。</p>
     </div>
-    <div class="coords">43.0621°N, 141.3544°E<br>SAPPORO-SHI, HOKKAIDO</div>
+    <div class="coords">43.0621°N, 141.3544°E<br>SAPPORO-SHI, HOKKAIDO<br><span id="verLabel" style="color:var(--survey-blue);font-weight:600;">VERSION 2026-11-28-002</span></div>
   </header>
 
   <div id="configWarn"></div>
@@ -167,6 +173,18 @@
       </label>
     </div>
     <div id="fbScanStatus" class="meta-note" style="margin-top:10px;"></div>
+  </section>
+
+  <section data-step="STEP 0.5">
+    <h2>既に座標がある案件に「報告書用の住所（街区まで）」を追加する</h2>
+    <p class="meta-note" style="margin-top:0;">すでに座標が確定している案件のうち、報告書用の住所（<code>geocode/jukyo</code>）がまだ無いものに、座標から「○条○丁目○番」を逆引きして書き込みます。座標そのものは変更しません。app_tasks全件を読むため通信量が増えます。</p>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn accent" id="jkBackfillBtn" disabled>報告書用住所を一括追加</button>
+      <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <input type="checkbox" id="jkIncludeDone"> 「完了」案件も含める
+      </label>
+    </div>
+    <div id="jkBackfillStatus" class="meta-note" style="margin-top:10px;"></div>
   </section>
 
   <section data-step="STEP 1">
@@ -245,6 +263,7 @@
             <th>ヒット住所 / 試行パターン</th>
             <th>精度</th>
             <th>緯度経度</th>
+            <th>報告書用の住所（街区まで）</th>
             <th>地図</th>
             <th></th>
           </tr>
@@ -299,6 +318,7 @@ var scopedDb = scopedDatabase(firebase.database());
 
 if (configOk) {
   document.getElementById("fbScanBtn").disabled = false;
+  document.getElementById("jkBackfillBtn").disabled = false;
 }
 
 /* ---------------------------------------------------------------------
@@ -809,6 +829,81 @@ function classify(outcome) {
 }
 var LABELS = { exact: "地番一致", high: "高精度", mid: "中精度", low: "低精度", fail: "失敗" };
 
+
+/* ---------------------------------------------------------------------
+   報告書用の住所（住居表示・街区まで）
+   座標 → Google逆引き → 「札幌市○区○条○丁目○番付近」を作る。
+   level: "block"(街区まで) / "chome"(丁目止まり) / "none"(不明)
+   --------------------------------------------------------------------- */
+function parseJukyoFromFormatted(formatted) {
+  var s = unifyHyphens(toHalfWidth(String(formatted || "")));
+  s = s.replace(/^日本[、,]?\s*/, "").replace(/〒?\s*\d{3}-\d{4}\s*/, "").replace(/^北海道/, "");
+  s = unifySpaces(s);
+  var m = s.match(/^(札幌市.+?区)(.+?\d+丁目)\s*(\d+)?(?:-(\d+))?(?:-(\d+))?/);
+  if (m) {
+    var base = m[1] + m[2];
+    if (m[3]) {
+      var rest = [m[3], m[4], m[5]].filter(Boolean).join("-");
+      return { level: "block", text: base + m[3] + "番", full: base + rest };
+    }
+    return { level: "chome", text: base, full: base };
+  }
+  // 丁目の無い地区（例: ○○町○番）
+  var m2 = s.match(/^(札幌市.+?区)(\D+?)(\d+)(?:-(\d+))?/);
+  if (m2) return { level: "block", text: m2[1] + m2[2] + m2[3] + "番", full: s };
+  return null;
+}
+
+async function reverseJukyo(lat, lng, attempt) {
+  attempt = attempt || 0;
+  try {
+    var url = "https://maps.googleapis.com/maps/api/geocode/json"
+      + "?latlng=" + lat + "," + lng
+      + "&language=ja&region=jp&key=" + GOOGLE_MAPS_API_KEY;
+    var resp = await fetch(url);
+    var data = await resp.json();
+    if (data.status === "OVER_QUERY_LIMIT" && attempt < 4) {
+      await sleep(500 * Math.pow(2, attempt));
+      return reverseJukyo(lat, lng, attempt + 1);
+    }
+    if (data.status !== "OK" || !data.results || !data.results.length) {
+      return { level: "none", text: "", full: "" };
+    }
+    var bestChome = null;
+    for (var i = 0; i < data.results.length; i++) {
+      var p = parseJukyoFromFormatted(data.results[i].formatted_address);
+      if (!p) continue;
+      if (p.level === "block") return p;
+      if (!bestChome) bestChome = p;
+    }
+    return bestChome || { level: "none", text: "", full: "" };
+  } catch (e) {
+    console.warn("住居表示の逆引きに失敗:", e);
+    return null;
+  }
+}
+
+function jukyoEligible(row) {
+  if (!row.best || row.best.lat == null || row.best.lng == null) return false;
+  if (isNaN(row.best.lat) || isNaN(row.best.lng)) return false;
+  if (row.best.precision === "CITY_FALLBACK") return false; // 市区町村の概算座標では意味がない
+  return true;
+}
+
+// 行の座標から報告書用住所を作り直して、その行だけ再描画する
+async function refreshJukyo(idx) {
+  var row = rowState[idx];
+  if (!row) return;
+  if (!jukyoEligible(row)) {
+    row.jukyo = { level: "none", text: "", full: "", edited: false };
+    updateRowInTable(row, idx);
+    return;
+  }
+  var r = await reverseJukyo(row.best.lat, row.best.lng);
+  if (r) { r.edited = false; row.jukyo = r; }
+  updateRowInTable(row, idx);
+}
+
 var parsedRows = [];
 var headers = [];
 
@@ -1092,6 +1187,7 @@ async function runGeocodeLoop(rows, completedSkippedCount, cacheCheckOverride) {
       row.googleBest = null; row.gsi = null;
       row.triesUsed = 0; row.candidatesTotal = 0;
       row.status = cached.confidence;
+      row.jukyo = cached.jukyo ? Object.assign({ edited: false }, cached.jukyo) : null;
       skippedCount++;
     } else if (addrHist) {
       // 同じIDでの調査済みではないが、同じ住所を別の案件(別ID)で過去に調査済み。
@@ -1099,6 +1195,7 @@ async function runGeocodeLoop(rows, completedSkippedCount, cacheCheckOverride) {
       row.googleBest = null; row.gsi = null;
       row.triesUsed = 0; row.candidatesTotal = 0;
       row.status = addrHist.confidence;
+      row.jukyo = addrHist.jukyo ? Object.assign({ edited: false }, addrHist.jukyo) : null;
       addrHistSkippedCount++;
     } else if (dup) {
       // 住所の使い回し：オブジェクトは複製してから代入する（手動修正/GSI採用が別行と共有されないように）
@@ -1109,6 +1206,7 @@ async function runGeocodeLoop(rows, completedSkippedCount, cacheCheckOverride) {
       row.triesUsed = 0;
       row.candidatesTotal = dup.candidatesTotal;
       row.status = dup.status;
+      row.jukyo = dup.jukyo ? Object.assign({}, dup.jukyo) : null;
       dupSkippedCount++;
     } else {
       var outcome = await geocodeWithRetries(row.rawAddr);
@@ -1121,8 +1219,19 @@ async function runGeocodeLoop(rows, completedSkippedCount, cacheCheckOverride) {
       row.status = classify(outcome);
     }
 
+    // 報告書用住所が未取得なら、確定した座標から逆引きして作る（街区まで）
+    if (!row.jukyo) {
+      if (jukyoEligible(row)) {
+        var jr = await reverseJukyo(row.best.lat, row.best.lng);
+        await sleep(120);
+        if (jr) { jr.edited = false; row.jukyo = jr; }
+      } else {
+        row.jukyo = { level: "none", text: "", full: "", edited: false };
+      }
+    }
+
     if (!cached && !addrHist && !dup) {
-      addrCache[addrKey] = { best: row.best, googleBest: row.googleBest, gsi: row.gsi, chibanCandidates: row.chibanCandidates, candidatesTotal: row.candidatesTotal, status: row.status };
+      addrCache[addrKey] = { best: row.best, googleBest: row.googleBest, gsi: row.gsi, chibanCandidates: row.chibanCandidates, candidatesTotal: row.candidatesTotal, status: row.status, jukyo: row.jukyo };
     }
 
     updateProgress(i + 1, total);
@@ -1217,8 +1326,20 @@ function rowHtml(row, idx) {
       + '<input type="text" class="latInput" data-idx="' + idx + '" value="' + lat + '" placeholder="lat"> '
       + '<input type="text" class="lngInput" data-idx="' + idx + '" value="' + lng + '" placeholder="lng">'
     + '</td>'
+    + '<td>' + jukyoCellHtml(row, idx) + '</td>'
     + '<td>' + mapLink + '</td>'
     + '<td><button class="btn sm secondary retryBtn" data-idx="' + idx + '">再試行</button></td>';
+}
+
+function jukyoCellHtml(row, idx) {
+  if (row.status === "pending") return '<span class="tries">—</span>';
+  var j = row.jukyo;
+  if (!j) return '<span class="tries">逆引き中…</span>';
+  var lv = { block: "街区まで", chome: "丁目止まり（街区不明・要注意）", none: "不明（要人力調査）" }[j.level] || "";
+  return '<input type="text" class="jk-input jkInput" data-idx="' + idx + '" value="' + escapeHtml(j.text) + '">'
+    + ' <button class="btn sm secondary jkCopyBtn" data-idx="' + idx + '">コピー</button>'
+    + '<div><span class="jk-level ' + j.level + '">' + lv + '</span></div>'
+    + (j.full ? '<div class="jk-full">参考（号は誤差あり）: ' + escapeHtml(j.full) + '</div>' : '');
 }
 
 function updateRowInTable(row, idx) {
@@ -1240,9 +1361,11 @@ function attachRowHandlers() {
       row.triesUsed = outcome.triesUsed;
       row.candidatesTotal = outcome.candidatesTotal;
       row.status = classify(outcome);
+      row.jukyo = null;
       updateRowInTable(row, idx);
       updateSummary();
       refreshWriteButton();
+      refreshJukyo(idx);
     };
   });
   document.querySelectorAll(".gsiAdoptBtn").forEach(function(btn) {
@@ -1252,9 +1375,11 @@ function attachRowHandlers() {
       if (!row.gsi) return;
       row.best = { matchedPattern: "(GSI採用: " + (row.gsi.title || "") + ")", precision: "GSI_MANUAL", lat: row.gsi.lat, lng: row.gsi.lng, patternIndex: 0 };
       row.status = "mid";
+      row.jukyo = null;
       updateRowInTable(row, idx);
       updateSummary();
       refreshWriteButton();
+      refreshJukyo(idx);
     };
   });
   document.querySelectorAll(".chibanCandAdoptBtn").forEach(function(btn) {
@@ -1266,9 +1391,30 @@ function attachRowHandlers() {
       if (!cand) return;
       row.best = { matchedPattern: "地番(候補採用): " + cand.key, precision: "CHIBAN_EXACT", lat: cand.lat, lng: cand.lng, patternIndex: 0 };
       row.status = "exact";
+      row.jukyo = null;
       updateRowInTable(row, idx);
       updateSummary();
       refreshWriteButton();
+      refreshJukyo(idx);
+    };
+  });
+  document.querySelectorAll(".jkInput").forEach(function(inp) {
+    inp.onchange = function() {
+      var row = rowState[Number(inp.dataset.idx)];
+      if (!row.jukyo) row.jukyo = { level: "block", full: "" };
+      row.jukyo.text = inp.value;
+      row.jukyo.edited = true;
+    };
+  });
+  document.querySelectorAll(".jkCopyBtn").forEach(function(btn) {
+    btn.onclick = function() {
+      var row = rowState[Number(btn.dataset.idx)];
+      var tr = document.getElementById("row-" + btn.dataset.idx);
+      var inp = tr && tr.querySelector(".jkInput");
+      var text = inp ? inp.value : (row.jukyo ? row.jukyo.text : "");
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+      btn.textContent = "コピー済";
+      setTimeout(function(){ btn.textContent = "コピー"; }, 1200);
     };
   });
   document.querySelectorAll(".latInput, .lngInput").forEach(function(inp) {
@@ -1281,6 +1427,7 @@ function attachRowHandlers() {
       row.status = "mid";
       updateSummary();
       refreshWriteButton();
+      if (!isNaN(row.best.lat) && !isNaN(row.best.lng)) refreshJukyo(idx);
     };
   });
 }
@@ -1351,6 +1498,15 @@ document.getElementById("writeBtn").addEventListener("click", async function() {
           triesUsed: row.triesUsed,
           updatedAt: new Date().toISOString()
         };
+        if (row.jukyo && row.jukyo.level) {
+          payload.jukyo = {
+            text: row.jukyo.text,
+            level: row.jukyo.level || "none",
+            full: row.jukyo.full || "",
+            edited: !!row.jukyo.edited,
+            updatedAt: new Date().toISOString()
+          };
+        }
         if (row.chibanCandidates && row.chibanCandidates.length > 0) {
           payload.candidates = row.chibanCandidates.map(function(c) {
             return { key: c.key, lat: c.lat, lng: c.lng };
@@ -1373,6 +1529,67 @@ document.getElementById("writeBtn").addEventListener("click", async function() {
   }
   statusEl.textContent = done + "件 書き込み完了";
 });
+
+document.getElementById("jkBackfillBtn").addEventListener("click", runJukyoBackfill);
+
+async function runJukyoBackfill() {
+  if (!configOk) return;
+  var btn = document.getElementById("jkBackfillBtn");
+  var statusEl = document.getElementById("jkBackfillStatus");
+  var includeDone = document.getElementById("jkIncludeDone").checked;
+  btn.disabled = true;
+  statusEl.textContent = "Firebaseから案件を取得中…";
+  var all;
+  try {
+    var snap = await scopedDb.ref("app_tasks").once("value");
+    all = snap.val() || {};
+  } catch (e) {
+    statusEl.textContent = "取得失敗: " + e.message;
+    btn.disabled = false;
+    return;
+  }
+  var targets = [];
+  Object.keys(all).forEach(function(id) {
+    var t = all[id];
+    var g = t && t.geocode;
+    if (!g || g.lat == null || g.lng == null) return;
+    if (g.confidence === "fail") return;
+    if (g.precision === "CITY_FALLBACK") return;
+    if (g.jukyo && g.jukyo.level) return;
+    var csv = t.csvData;
+    if (!includeDone && csv && String(csv[1] || "").trim() === "完了") return;
+    targets.push({ id: id, lat: g.lat, lng: g.lng });
+  });
+  if (targets.length === 0) {
+    statusEl.textContent = "追加が必要な案件はありません。";
+    btn.disabled = false;
+    return;
+  }
+  if (!confirm(targets.length + "件に報告書用住所を追加します（Google逆引きAPIを" + targets.length + "回呼びます）。よろしいですか？")) {
+    statusEl.textContent = "キャンセルしました。";
+    btn.disabled = false;
+    return;
+  }
+  var done = 0, blockCnt = 0, weakCnt = 0;
+  for (var i = 0; i < targets.length; i++) {
+    var t = targets[i];
+    var r = await reverseJukyo(t.lat, t.lng);
+    await sleep(120);
+    if (!r) continue;
+    try {
+      await scopedDb.ref("app_tasks/" + t.id + "/geocode/jukyo").set({
+        text: r.text, level: r.level, full: r.full || "", edited: false, updatedAt: new Date().toISOString()
+      });
+      done++;
+      if (r.level === "block") blockCnt++; else weakCnt++;
+    } catch (e) {
+      console.error("jukyo書き込み失敗:", t.id, e);
+    }
+    statusEl.textContent = "処理中… " + (i + 1) + " / " + targets.length + "（街区まで " + blockCnt + "件 / 丁目止まり・不明 " + weakCnt + "件）";
+  }
+  statusEl.textContent = "完了: " + done + "件に追加（街区まで " + blockCnt + "件 / 丁目止まり・不明 " + weakCnt + "件）";
+  btn.disabled = false;
+}
 </script>
 </body>
 </html>
