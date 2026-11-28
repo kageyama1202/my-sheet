@@ -1,4 +1,4 @@
-<!-- VERSION: 2026-11-25 / pdf-note v23 (太さ・塗り・線種を、ツールとは別の「設定バー」(ラベル付き・連結ボタン)に分離。選んだ道具や部品に必要な項目だけ表示/文字は「文字の大きさ」表示) | 前: 2026-11-25 / pdf-note v22 (線の太さを5段階(極細/細/中/太/極太)の選択式に) | 前: 2026-11-25 / pdf-note v21 (文字ツールでペンをタップした時、入力欄が二重に開いて別ページ・別位置に文字が入る問題を修正) | 前: 2026-11-25 / pdf-note v20 (案件情報バーがツールバー(複数段)に重なる問題を修正: ツールバーの下端に合わせて表示) | 前: 2026-11-24 / pdf-note v19 (🧽消しゴム追加(なぞった部品を丸ごと消す/戻せる)/文字を確定した直後に選択状態にして、そのまま移動できる) | 前: 2026-11-24 / pdf-note v18 (ペン線を細く(旧「細」=最太)/塗り・枠のみ・実線・点線を並べて選ぶ方式/蛍光を長押しで直線(太さ変更可)/矢印・両矢印ツール追加) | 前: 2026-11-22 / pdf-note v17 (選択→移動の取りこぼし対策: 小さい部品で取っ手に吸われて拡大縮小になる問題/選択中の部品を優先してつかむ/指でつかむ範囲を広げる/枠の中をタップして選べる/指が固まって動かなくなる対策) | 前: 2026-11-20 / pdf-note v16 (📋 案件名コピーボタン追加(ツールバーと案件情報パネル) / ピンチ拡大の解像度アップ: 最大16倍・1.5倍オーバーサンプリング・描画上限引き上げ・再描画を早める) | 前: 2026-11-10 / pdf-note v15 (案件PDFを端末に保存して2回目から通信なしで開く/更新確認/オフライン対応/保存領域の永続化要求) | 前: v14 (案件情報バー: 施工日・施工指示を常時薄く表示/タップで全項目+メモ) | 前: v13 (🖼 写真をPDFに貼り付け: 移動/拡大縮小/上に書き込み、写真と一緒に動く/書き出しに反映) | 前: v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
+<!-- VERSION: 2026-11-28 / pdf-note v24 (矢印を曲げられるように: 「⤴ 曲線矢印」ツール追加 / 矢印を選ぶと中央にオレンジの丸が出て、ドラッグで曲げる・まっすぐに戻す) | 前: 2026-11-25 / pdf-note v23 (太さ・塗り・線種を、ツールとは別の「設定バー」(ラベル付き・連結ボタン)に分離。選んだ道具や部品に必要な項目だけ表示/文字は「文字の大きさ」表示) | 前: 2026-11-25 / pdf-note v22 (線の太さを5段階(極細/細/中/太/極太)の選択式に) | 前: 2026-11-25 / pdf-note v21 (文字ツールでペンをタップした時、入力欄が二重に開いて別ページ・別位置に文字が入る問題を修正) | 前: 2026-11-25 / pdf-note v20 (案件情報バーがツールバー(複数段)に重なる問題を修正: ツールバーの下端に合わせて表示) | 前: 2026-11-24 / pdf-note v19 (🧽消しゴム追加(なぞった部品を丸ごと消す/戻せる)/文字を確定した直後に選択状態にして、そのまま移動できる) | 前: 2026-11-24 / pdf-note v18 (ペン線を細く(旧「細」=最太)/塗り・枠のみ・実線・点線を並べて選ぶ方式/蛍光を長押しで直線(太さ変更可)/矢印・両矢印ツール追加) | 前: 2026-11-22 / pdf-note v17 (選択→移動の取りこぼし対策: 小さい部品で取っ手に吸われて拡大縮小になる問題/選択中の部品を優先してつかむ/指でつかむ範囲を広げる/枠の中をタップして選べる/指が固まって動かなくなる対策) | 前: 2026-11-20 / pdf-note v16 (📋 案件名コピーボタン追加(ツールバーと案件情報パネル) / ピンチ拡大の解像度アップ: 最大16倍・1.5倍オーバーサンプリング・描画上限引き上げ・再描画を早める) | 前: 2026-11-10 / pdf-note v15 (案件PDFを端末に保存して2回目から通信なしで開く/更新確認/オフライン対応/保存領域の永続化要求) | 前: v14 (案件情報バー: 施工日・施工指示を常時薄く表示/タップで全項目+メモ) | 前: v13 (🖼 写真をPDFに貼り付け: 移動/拡大縮小/上に書き込み、写真と一緒に動く/書き出しに反映) | 前: v12 (← 案件に戻るボタン追加) | 前: 2026-11-08 / pdf-note v11 (保存状況を名前より前に表示 / 画面にバージョン表示を追加 / 案件のクラウドPDF連携: ?case=案件キー でFirebase Storageから開き、書き込みをRealtime DBに同期) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -83,6 +83,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
     <button class="b" data-tool="ell">◯ 丸</button>
     <button class="b" data-tool="arrow">↗ 矢印</button>
     <button class="b" data-tool="darrow">↔ 両矢印</button>
+    <button class="b" data-tool="carrow">⤴ 曲線矢印</button>
     <button class="b" data-tool="text">Ａ 文字</button>
     <button class="b" data-tool="select">⬚ 選択</button>
     <button class="b" data-tool="erase">🧽 消しゴム</button>
@@ -113,7 +114,7 @@ body{display:flex;flex-direction:column;position:fixed;inset:0;-webkit-user-sele
   <div class="trow"><button class="b on" id="cUp">＋ PDF・写真を追加</button><input type="file" id="cfile" accept="application/pdf,.pdf,image/*" multiple hidden><span id="cst" style="font-size:13px;color:#bbb"></span></div>
 </div>
 <div id="infoBar"></div><div id="infoPanel"></div>
-<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v23 / 2026-11-25</div>
+<div id="verTag" style="position:fixed;left:6px;bottom:max(4px,env(safe-area-inset-bottom));z-index:20;font-size:10px;color:rgba(255,255,255,.55);pointer-events:none">pdf-note v24 / 2026-11-28</div>
 <div id="xpanel"><div id="xmsg"></div><div id="xbtns" class="trow" style="justify-content:flex-end;flex-wrap:wrap"></div></div>
 <div id="tpanel">
   <textarea id="tpText" rows="2" placeholder="ここに文字を入力"></textarea>
@@ -135,7 +136,7 @@ const CASE_KEY=QS.get('case')||'',CASE_NAME=QS.get('name')||'',CASE_FILE=QS.get(
 const DPR=Math.min(window.devicePixelRatio||1,3);
 const COLORS=[['#e53935','赤'],['#1e88e5','青'],['#43a047','緑'],['#fb8c00','橙'],['#fdd835','黄'],['#212121','黒'],['#8e24aa','紫']];
 /* 太さ(A4幅=595pt基準。ページ幅に比例して補正) */
-const SIZES={pen:[0.3,0.5,0.8,1.2,2.4],hl:[6,10,18,30,45],rect:[0.8,1.5,3,5,8],ell:[0.8,1.5,3,5,8],arrow:[0.8,1.5,3,5,8],darrow:[0.8,1.5,3,5,8],text:[8,11,16,24,36]};
+const SIZES={pen:[0.3,0.5,0.8,1.2,2.4],hl:[6,10,18,30,45],rect:[0.8,1.5,3,5,8],ell:[0.8,1.5,3,5,8],arrow:[0.8,1.5,3,5,8],darrow:[0.8,1.5,3,5,8],carrow:[0.8,1.5,3,5,8],text:[8,11,16,24,36]};
 const MINZ=0.4, MAXZ=16, PX_CAP=9e6, DETAIL_CAP=12e6, SS=1.5; /* SS=拡大時の描画倍率(大きいほど細部がくっきり/重くなる) */
 
 /* ===== 状態 ===== */
@@ -456,16 +457,27 @@ function buildEl(it){
   }
   return el;
 }
+function arrowMid(it){
+  const a=it.pts[0],b=it.pts[1],c=it.pts[2];
+  if(!c)return [(a[0]+b[0])/2,(a[1]+b[1])/2];
+  return [.25*a[0]+.5*c[0]+.25*b[0],.25*a[1]+.5*c[1]+.25*b[1]];
+}
+function vertPts(it){return it.t==='arrow'?[it.pts[0],it.pts[1],arrowMid(it)]:it.pts;}
+function bendCP(a,b){
+  const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b[1]-a[1];
+  return [r1(mx-dy*0.35),r1(my+dx*0.35)];
+}
 function arrowD(it){
-  const a=it.pts[0],b=it.pts[1],L=it.sw*3+6;
-  let d='M'+a[0]+' '+a[1]+'L'+b[0]+' '+b[1];
+  const a=it.pts[0],b=it.pts[1],c=it.pts[2]||null,L=it.sw*3+6;
+  let d='M'+a[0]+' '+a[1]+(c?'Q'+c[0]+' '+c[1]+' '+b[0]+' '+b[1]:'L'+b[0]+' '+b[1]);
   const head=(tip,ang)=>{
     const p1=[r1(tip[0]-L*Math.cos(ang-0.5)),r1(tip[1]-L*Math.sin(ang-0.5))],p2=[r1(tip[0]-L*Math.cos(ang+0.5)),r1(tip[1]-L*Math.sin(ang+0.5))];
     return 'M'+p1[0]+' '+p1[1]+'L'+tip[0]+' '+tip[1]+'L'+p2[0]+' '+p2[1];
   };
-  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
-  d+=head(b,ang);
-  if(it.dbl)d+=head(a,ang+Math.PI);
+  const endAng=c&&Math.hypot(b[0]-c[0],b[1]-c[1])>0.01?Math.atan2(b[1]-c[1],b[0]-c[0]):Math.atan2(b[1]-a[1],b[0]-a[0]);
+  const stAng=c&&Math.hypot(a[0]-c[0],a[1]-c[1])>0.01?Math.atan2(a[1]-c[1],a[0]-c[0]):Math.atan2(a[1]-b[1],a[0]-b[0]);
+  d+=head(b,endAng);
+  if(it.dbl)d+=head(a,stAng);
   return d;
 }
 function axisSnap(a,b){
@@ -559,7 +571,7 @@ function refreshUI(){
   document.querySelectorAll('[data-dash]').forEach(b=>b.classList.toggle('on',(b.dataset.dash==='1')===dash));
   $('bDel').classList.toggle('show',!!sel);
   {
-    const sk=sel&&byId(sel.id);let k=sk?sk.t:tool;if(k==='darrow')k='arrow';
+    const sk=sel&&byId(sel.id);let k=sk?sk.t:tool;if(k==='darrow'||k==='carrow')k='arrow';
     const showSize=['pen','hl','rect','ell','arrow','poly','text'].includes(k);
     $('prop').style.display=showSize?'flex':'none';
     $('plSize').textContent=k==='text'?'文字の大きさ':'太さ';
@@ -617,9 +629,9 @@ function drawSel(){
   g.appendChild(r);
   const hs=18*sc;
   if(isVert(it)){
-    it.pts.forEach(q=>{
+    vertPts(it).forEach((q,i)=>{
       const c=document.createElementNS(SVGNS,'circle');
-      setAttrs(c,{cx:q[0],cy:q[1],r:hs*0.6,fill:'#fff',stroke:'#1e88e5','stroke-width':2.5*sc});
+      setAttrs(c,{cx:q[0],cy:q[1],r:hs*0.6,fill:(it.t==='arrow'&&i===2)?'#ffb300':'#fff',stroke:'#1e88e5','stroke-width':2.5*sc});
       g.appendChild(c);
     });
     p.svg.appendChild(g);return;
@@ -636,7 +648,7 @@ function handleAt(vx,vy){
   const it=byId(sel.id);if(!it||!sel.box)return -1;
   const p=pages[it.p],b=sel.box;
   if(isVert(it)){
-    const S=it.pts.map(q=>[tx+q[0]*p.k*z,ty+(p.top+q[1]*p.k)*z]);
+    const S=vertPts(it).map(q=>[tx+q[0]*p.k*z,ty+(p.top+q[1]*p.k)*z]);
     let md=1e9;
     for(let i=0;i<S.length;i++)for(let j=i+1;j<S.length;j++)md=Math.min(md,Math.hypot(S[i][0]-S[j][0],S[i][1]-S[j][1]));
     const R=Math.min(26,Math.max(10,md/3));
@@ -668,6 +680,11 @@ function inPoly(P,x,y){
 }
 function hitItem(it,x,y,tol){
   const t=it.t;
+  if(t==='arrow'&&it.pts.length>=3){
+    const a=it.pts[0],b=it.pts[1],c=it.pts[2];let d=1e9,prev=a;
+    for(let k=1;k<=24;k++){const tt=k/24,u=1-tt,q=[u*u*a[0]+2*u*tt*c[0]+tt*tt*b[0],u*u*a[1]+2*u*tt*c[1]+tt*tt*b[1]];d=Math.min(d,hitSeg(x,y,prev,q));prev=q;}
+    return d<=tol+it.sw/2;
+  }
   if(t==='pen'||t==='hl'||t==='poly'||t==='arrow'){
     const P=it.pts;let d=1e9;
     if(P.length===1)d=Math.hypot(x-P[0][0],y-P[0][1]);
@@ -786,10 +803,17 @@ function applyDrag(d){
   d.moved=true;
   const o=JSON.parse(d.orig);
   if(d.mode==='vertex'){ /* 頂点だけ動かす(他の頂点と縦横がそろう位置に吸着) */
+    if(o.t==='arrow'&&d.vi===2){ /* 曲げる: 曲線の中央点をつかんで動かす(中央付近に戻すとまっすぐ) */
+      const a=o.pts[0],b=o.pts[1],m0=arrowMid(o);
+      const mx=m0[0]+dx,my=m0[1]+dy,sm=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      if(Math.hypot(mx-sm[0],my-sm[1])<10/(z*d.p.k))o.pts=[a,b];
+      else o.pts=[a,b,[r1(2*mx-sm[0]),r1(2*my-sm[1])]];
+    }else{
     const base=o.pts[d.vi];let x=base[0]+dx,y=base[1]+dy;
     const tol=8/(z*d.p.k);
-    o.pts.forEach((q,i)=>{if(i===d.vi)return;if(Math.abs(x-q[0])<tol)x=q[0];if(Math.abs(y-q[1])<tol)y=q[1];});
+    o.pts.forEach((q,i)=>{if(i===d.vi)return;if(o.t==='arrow'&&i>1)return;if(Math.abs(x-q[0])<tol)x=q[0];if(Math.abs(y-q[1])<tol)y=q[1];});
     o.pts[d.vi]=[r1(x),r1(y)];
+    }
   }else{
     let nb;
     if(d.mode==='move')nb={x:ob.x+dx,y:ob.y+dy,w:ob.w,h:ob.h};
@@ -896,12 +920,12 @@ function startDraw(e){
   const p=pos.p,u=p.wpt/595;
   const it={id:uid(),p:p.i,t:tool,c:color,sw:r1(SIZES[tool][sizeIdx]*u)};
   if(tool!=='hl')it.d=dash;
-  if(tool==='arrow'||tool==='darrow'){it.t='arrow';it.dbl=tool==='darrow';it.pts=[[pos.x,pos.y],[pos.x,pos.y]];}
+  if(tool==='arrow'||tool==='darrow'||tool==='carrow'){it.t='arrow';it.dbl=tool==='darrow';it.pts=[[pos.x,pos.y],[pos.x,pos.y]];}
   else if(tool==='rect'){it.x=pos.x;it.y=pos.y;it.w=0;it.h=0;it.f=fill;}
   else if(tool==='ell'){it.cx=pos.x;it.cy=pos.y;it.rx=0;it.ry=0;it.f=fill;}
   else it.pts=[[pos.x,pos.y]];
   const el=buildEl(it);p.svg.appendChild(el);
-  cur={it,el,p,u,pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0,lm:performance.now()};armHold();
+  cur={it,el,p,u,curve:tool==='carrow',pid:e.pointerId,sx:pos.x,sy:pos.y,snapped:false,ax:e.clientX,ay:e.clientY,timer:0,lm:performance.now()};armHold();
   try{viewer.setPointerCapture(e.pointerId);}catch(_){}
 }
 let drawRaf=0;
@@ -924,7 +948,8 @@ function moveDraw(e){
       it.x=Math.min(cur.sx,pt[0]);it.y=Math.min(cur.sy,pt[1]);
       it.w=Math.abs(pt[0]-cur.sx);it.h=Math.abs(pt[1]-cur.sy);
     }else if(it.t==='arrow'){
-      it.pts[1]=axisSnap(it.pts[0],pt);
+      if(cur.curve){it.pts[1]=[pt[0],pt[1]];it.pts[2]=bendCP(it.pts[0],it.pts[1]);}
+      else it.pts[1]=axisSnap(it.pts[0],pt);
     }else{
       const l=it.pts[it.pts.length-1];
       if(Math.hypot(pt[0]-l[0],pt[1]-l[1])>=0.3*cur.u)it.pts.push(pt);
